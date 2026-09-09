@@ -63,6 +63,17 @@ class Settings(BaseSettings):
     neon_demo_branch_id: str = ""
     neon_golden_branch_id: str = ""
     demo_reset_timezone: str = "Europe/Istanbul"
+    # School backups (ADR-056): nightly age-encrypted dumps to the school's
+    # Shared Drive, a monthly restore test, and academic-year archives.
+    backup_dir: str = "/srv/backups"
+    backup_age_recipient: str = ""
+    backup_age_identity: str = ""
+    gdrive_service_account_json: str = ""
+    gdrive_backup_folder_id: str = ""
+    backup_at: str = "02:30"
+    backup_retain: int = 7
+    backup_restore_test_day: int = 1
+    backup_timezone: str = "Europe/Istanbul"
 
     def trusted_host_list(self) -> list[str]:
         return [host.strip().casefold() for host in self.trusted_hosts.split(",") if host.strip()]

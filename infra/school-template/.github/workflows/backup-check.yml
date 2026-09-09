@@ -1,0 +1,77 @@
+name: Backup freshness
+
+# Every morning, read the backup status file the server keeps and fail when
+# the night's backup or the month's restore test did not succeed. Silence is
+# never taken as success.
+on:
+  schedule:
+    - cron: "0 8 * * *"
+      timezone: "Europe/Istanbul"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Prepare SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$DEPLOY_SSH_KEY" || -z "$DEPLOY_KNOWN_HOSTS" ]]; then
+            echo "::error::Configure the DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS secrets."
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Read the status file
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+        run: ssh "flrc@$DEPLOY_HOST" 'cat /srv/flrc/backups/status.json' > status.json
+
+      - name: Judge
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          from datetime import UTC, datetime, timedelta
+
+          status = json.load(open("status.json"))
+          now = datetime.now(UTC)
+          problems = []
+
+          def age(key):
+              value = status.get(key)
+              return now - datetime.fromisoformat(value) if value else None
+
+          success = age("last_success_at")
+          if success is None:
+              problems.append("no successful backup recorded yet")
+          elif success > timedelta(hours=26):
+              problems.append(f"last successful backup is {success} old")
+          if status.get("last_error"):
+              problems.append(f"last run failed: {status['last_error']}")
+          test = status.get("last_restore_test") or {}
+          tested = datetime.fromisoformat(test["at"]) if test.get("at") else None
+          if tested is None:
+              print("::warning::no restore test recorded yet")
+          elif not test.get("ok"):
+              problems.append(f"last restore test failed: {test.get('error')}")
+          elif now - tested > timedelta(days=40):
+              problems.append(f"last restore test is {now - tested} old")
+          if status.get("last_archive_error"):
+              problems.append(f"year archive failed: {status['last_archive_error']}")
+
+          print(f"last backup: {status.get('last_success_at')} ({status.get('last_bytes')} bytes)")
+          print(f"last restore test: {test.get('at')} ok={test.get('ok')}")
+          for problem in problems:
+              print(f"::error::{problem}")
+          sys.exit(1 if problems else 0)
+          PY

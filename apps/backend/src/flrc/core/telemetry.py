@@ -22,6 +22,8 @@ SENSITIVE_KEYS = {
     "x-e2e-secret",
     "x-ops-token",
     "neon_api_key",
+    "backup_age_identity",
+    "gdrive_service_account_json",
     "gateway_secret",
     "session_secret",
     "ops_token",

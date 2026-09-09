@@ -48,9 +48,13 @@ runcmd:
   - groupadd -f docker
   - curl -fsSL https://get.docker.com | sh
   - systemctl enable --now docker
-  - mkdir -p /srv/flrc/branding
+  - mkdir -p /srv/flrc/branding /srv/flrc/backups
   - chown -R flrc:flrc /srv/flrc
   - chmod 750 /srv/flrc
+  # The backup container runs as the image's unprivileged user (uid 10001)
+  # and writes its status file here; the operator reads it over SSH.
+  - chown 10001:10001 /srv/flrc/backups
+  - chmod 755 /srv/flrc/backups
   - ufw default deny incoming
   - ufw default allow outgoing
   - ufw allow OpenSSH

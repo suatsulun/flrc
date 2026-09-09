@@ -1,0 +1,28 @@
+glob_matcher: doublestar
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: prettier
+      glob: "**/*.{ts,tsx,css,md,json,yaml,yml}"
+      run: pnpm prettier --check {staged_files}
+
+    - name: eslint-teacher
+      root: "apps/teacher/"
+      glob: "apps/teacher/**/*.{ts,tsx}"
+      run: pnpm eslint --no-warn-ignored {staged_files}
+
+    - name: eslint-admin
+      root: "apps/admin/"
+      glob: "apps/admin/**/*.{ts,tsx}"
+      run: pnpm eslint --no-warn-ignored {staged_files}
+
+    - name: eslint-ui
+      root: "packages/ui/"
+      glob: "packages/ui/**/*.{ts,tsx}"
+      run: pnpm eslint --no-warn-ignored {staged_files}
+
+    - name: ruff
+      root: "apps/backend/"
+      glob: "apps/backend/**/*.py"
+      run: uv run ruff check {staged_files} && uv run ruff format --check {staged_files}

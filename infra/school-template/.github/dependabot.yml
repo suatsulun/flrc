@@ -1,0 +1,19 @@
+version: 2
+
+updates:
+  # Application releases arrive as image tag bumps; merging one is the approval
+  # to deploy (ADR-053). Database and cache majors are deliberate migrations.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: daily
+    ignore:
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+      - dependency-name: redis
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

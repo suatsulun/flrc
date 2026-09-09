@@ -1,0 +1,17 @@
+dist/
+.turbo/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+packages/api-client/src/generated/
+pnpm-lock.yaml
+packages/api-client/openapi.json
+apps/teacher/src/routeTree.gen.ts
+apps/admin/src/routeTree.gen.ts
+# Jinja templates: Prettier parses them as plain HTML and reflows {# … #} blocks
+# and {% … %} tags in ways that damage the template.
+apps/backend/src/flrc/modules/reports/templates/
+# Written by `pnpm brand`. Leaving these to Prettier would let two tools fight
+# over the same bytes and make `pnpm brand:check` fail after a `pnpm format`.
+branding/generated/
+apps/backend/src/flrc/modules/reports/assets/

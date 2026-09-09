@@ -1,0 +1,68 @@
+name: Nightly demo reset
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+      timezone: "Europe/Istanbul"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # The demo API's own origin; the free instance may be asleep and the first
+  # requests wake it. The in-app self-heal loop covers a delayed or missed run.
+  DEMO_API_ORIGIN: https://flrc-api.onrender.com
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Request the reset
+        env:
+          OPS_TOKEN: ${{ secrets.DEMO_OPS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$OPS_TOKEN" ]]; then
+            echo "::error::Configure the DEMO_OPS_TOKEN repository secret before running the demo reset."
+            exit 1
+          fi
+          code=000
+          for attempt in $(seq 1 12); do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+              -H "X-Ops-Token: $OPS_TOKEN" "$DEMO_API_ORIGIN/api/ops/demo/reset" || echo 000)
+            if [[ "$code" == "202" || "$code" == "409" ]]; then
+              break
+            fi
+            echo "attempt $attempt: HTTP $code, waiting for the API"
+            sleep 20
+          done
+          if [[ "$code" != "202" && "$code" != "409" ]]; then
+            echo "::error::Reset request failed with HTTP $code"
+            exit 1
+          fi
+
+      - name: Wait for completion
+        env:
+          OPS_TOKEN: ${{ secrets.DEMO_OPS_TOKEN }}
+        run: |
+          set -euo pipefail
+          today=$(TZ=Europe/Istanbul date +%F)
+          for attempt in $(seq 1 40); do
+            body=$(curl -sS -H "X-Ops-Token: $OPS_TOKEN" "$DEMO_API_ORIGIN/api/ops/demo/status" || echo '{}')
+            state=$(jq -r '.state // "unknown"' <<<"$body")
+            last=$(jq -r '.last_reset_date // ""' <<<"$body")
+            error=$(jq -r '.last_error // ""' <<<"$body")
+            if [[ "$state" == "idle" && "$last" == "$today" ]]; then
+              echo "Demo reset completed for $today"
+              exit 0
+            fi
+            if [[ "$state" == "idle" && -n "$error" ]]; then
+              echo "::error::Demo reset failed: $error"
+              exit 1
+            fi
+            sleep 15
+          done
+          echo "::error::Demo reset did not complete in time"
+          exit 1

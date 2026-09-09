@@ -1,0 +1,61 @@
+[project]
+name = "flrc-backend"
+version = "1.0.0"
+description = "FastAPI backend for FL-ReportCard"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.19.1",
+    "asyncpg>=0.31.0",
+    "authlib>=1.7.2",
+    "celery>=5.6.3",
+    "faker>=40.36.0",
+    "fastapi[standard]>=0.141.1",
+    "httpx2>=2.10.0",
+    "itsdangerous>=2.2.0",
+    "jinja2>=3.1.6",
+    "openpyxl>=3.1.5",
+    "psycopg[binary]>=3.3.4",
+    "pydantic-settings>=2.15.0",
+    "pypdf>=6.16.0",
+    "python-multipart>=0.0.32",
+    "redis[hiredis]>=8.1.0",
+    "sentry-sdk[fastapi]>=2.68.0",
+    "sqlalchemy>=2.0.52",
+    "structlog>=26.1.0",
+    "typer>=0.27.1",
+    "weasyprint>=69.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.3.0",
+    "pypdf>=6.16.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.3",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.8,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "flrc"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[project.scripts]
+flrc = "flrc.cli:app"

@@ -1,0 +1,76 @@
+name: Deploy to the school server
+
+# Runs after a merge to main (an approved image bump, a branding change) and
+# on demand. The `school` environment carries the required reviewer, so a
+# deploy is a deliberate second click after the merge.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: school-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: school
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Validate the Compose file
+        run: |
+          # The services require a real .env at deploy time; validation uses the
+          # example, with throwaway values for the guarded settings.
+          cp .env.example .env
+          SITE_ADDRESS=validate.example GATEWAY_SECRET=validate POSTGRES_PASSWORD=validate \
+            docker compose -f compose.yaml config --quiet
+
+      - name: Prepare SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$DEPLOY_SSH_KEY" || -z "$DEPLOY_KNOWN_HOSTS" ]]; then
+            echo "::error::Configure the DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS secrets."
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Ship the deployment files
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+        run: |
+          set -euo pipefail
+          # The server's .env is never touched: it is created once by hand.
+          rsync -az --delete compose.yaml "flrc@$DEPLOY_HOST:/srv/flrc/"
+          rsync -az --delete branding/ "flrc@$DEPLOY_HOST:/srv/flrc/branding/"
+
+      - name: Apply
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+        run: |
+          set -euo pipefail
+          ssh "flrc@$DEPLOY_HOST" 'cd /srv/flrc && docker compose pull --quiet && docker compose up -d --remove-orphans && docker compose ps'
+
+      - name: Smoke test
+        env:
+          SITE_HOST: ${{ vars.SITE_HOST }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' "https://$SITE_HOST/api/healthz" || echo 000)
+            [[ "$code" == "204" ]] && { echo "healthy"; exit 0; }
+            echo "attempt $attempt: HTTP $code"; sleep 10
+          done
+          echo "::error::The API did not become healthy"
+          exit 1

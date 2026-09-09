@@ -1,0 +1,18 @@
+{
+  "name": "@flrc/branding",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./brand.json": "./brand.json",
+    "./logo.svg": "./logo.svg",
+    "./favicon.svg": "./favicon.svg"
+  },
+  "scripts": {
+    "build": "node ../scripts/branding.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

@@ -1,0 +1,277 @@
+{#
+  Second-foreign-language karne (German & French) — A4 LANDSCAPE duplex per
+  student, like the school's printed card: the checklist face with a pale
+  landmark watermark (Eiffel Tower / Brandenburg Gate), then a colourful
+  language cover framed in the flag's colours.
+
+  Grades 5–8 additionally carry the semester grade row (DERS NOTU); the
+  primary variant (grades 1–4) shows only the checklist and the teacher's
+  comment. Score-type columns never appear as checklist rows — they live on
+  the middle-school English card and inside the semester average.
+
+  Branding (logo, teacher names, principal signature) stays absent until the
+  branding pass; the cover art is a typographic stand-in for the school's
+  illustrations.
+#}
+{% extends "base.html" %}
+
+{% block page_size %}A4 landscape{% endblock %}
+{% block sheet_width %}297mm{% endblock %}
+{% block sheet_height %}210mm{% endblock %}
+
+{% block css %}
+      .face-page {
+        height: 100%;
+        padding: 7mm 11mm;
+        font-size: 8.3pt;
+        background-image: url("{{ watermark }}");
+        background-repeat: no-repeat;
+        background-position: center 60%;
+        background-size: auto 66%;
+      }
+      /* The gate is a wide silhouette; at tower height it degrades into
+         floating grey blocks, so the German face scales it down. */
+      .german .face-page { background-size: auto 42%; background-position: center 58%; }
+
+      .k-title { margin-bottom: 2mm; text-align: center; }
+      .k-title .tr-line { font-weight: 700; font-size: 1.3em; }
+      .k-title .l2-line { margin-top: 0.6mm; font-style: italic; font-size: 1.05em; }
+
+      .ident { width: auto; margin-bottom: 1.8mm; }
+      .ident td { padding: 0.5mm 0; vertical-align: baseline; }
+      .ident .label { width: 1%; padding-right: 4mm; white-space: nowrap; font-weight: 700; }
+      .ident .value { font-weight: 700; }
+
+      .checklist { border: 0.45mm solid var(--line); table-layout: fixed; }
+      .checklist th,
+      .checklist td { border: 0.25mm solid var(--line); vertical-align: middle; }
+      .checklist .rail {
+        width: 30mm;
+        padding: 1.5mm 1.2mm;
+        text-align: center;
+        font-weight: 700;
+        font-size: 0.78em;
+        line-height: 1.25;
+        overflow-wrap: break-word;
+      }
+      .checklist .rail .alt { margin-top: 0.8mm; font-weight: 400; font-style: italic; }
+      .checklist .stmt { padding: 0.9mm 2mm; line-height: 1.3; }
+      .checklist .stmt .tr-line { font-weight: 700; }
+      .checklist .stmt .alt { font-style: italic; font-size: 0.88em; color: var(--ink-soft); }
+      .checklist .rate {
+        width: 21mm;
+        padding: 1mm 0.8mm;
+        text-align: center;
+        font-size: 0.78em;
+        font-weight: 700;
+        line-height: 1.25;
+        overflow-wrap: break-word;
+      }
+      .checklist .rate .alt { display: block; font-weight: 400; font-style: italic; }
+      .checklist .tick { text-align: center; font-size: 1.15em; font-weight: 700; }
+
+      .grade-row td { padding: 1.4mm 2mm; font-weight: 700; }
+      .grade-row .l2 { font-style: italic; font-weight: 400; }
+      .grade-row .grade-val { text-align: center; font-size: 1.35em; }
+
+      .comment {
+        margin-top: 2mm;
+        min-height: 13mm;
+        padding: 1.6mm 2.5mm;
+        border: 0.35mm solid var(--line);
+      }
+      .comment-label { font-weight: 700; }
+      .comment-label .alt { font-weight: 400; font-style: italic; }
+      .comment-body { margin-top: 1mm; line-height: 1.45; overflow-wrap: anywhere; }
+
+      /* ── Back cover: flag-coloured frame, big word, scattered vocabulary ── */
+      .cover-frame { height: 100%; padding: 5mm; }
+      .french .cover-frame {
+        background: linear-gradient(100deg, #1e4b9e 0%, #8fa3dd 32%, #f2f0ec 50%, #dd8a9a 68%, #c8102e 100%);
+      }
+      .german .cover-frame {
+        background: linear-gradient(100deg, #191919 0%, #dd0000 50%, #ffce00 100%);
+      }
+      .cover-inner {
+        position: relative;
+        height: 100%;
+        background:
+          url("{{ watermark }}") no-repeat 92% 88% / auto 34%,
+          #fffdf6;
+        text-align: center;
+      }
+      .cover-year {
+        margin: 16mm 0 0;
+        font-size: 1.25em;
+        font-weight: 700;
+        letter-spacing: 0.45em;
+        color: #56607a;
+      }
+      .cover-flag { display: inline-block; margin-top: 7mm; border: 0.3mm solid #9aa1af; }
+      .cover-flag i { display: inline-block; width: 8mm; height: 15mm; }
+      .french .cover-flag i:nth-child(1) { background: #1e4b9e; }
+      .french .cover-flag i:nth-child(2) { background: #f5f5f2; }
+      .french .cover-flag i:nth-child(3) { background: #c8102e; }
+      .german .cover-flag i { display: block; width: 24mm; height: 5mm; }
+      .german .cover-flag i:nth-child(1) { background: #191919; }
+      .german .cover-flag i:nth-child(2) { background: #dd0000; }
+      .german .cover-flag i:nth-child(3) { background: #ffce00; }
+      .cover-word {
+        margin: 9mm 0 0;
+        font-family: "DejaVu Serif", Georgia, serif;
+        font-size: 5.8em;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        line-height: 1;
+      }
+      .cover-word i { font-style: normal; }
+      .french .cover-word i:nth-child(3n + 1) { color: #1e4b9e; }
+      .french .cover-word i:nth-child(3n + 2) { color: #c8102e; }
+      .french .cover-word i:nth-child(3n) { color: #4a90d9; }
+      .german .cover-word i:nth-child(3n + 1) { color: #191919; }
+      .german .cover-word i:nth-child(3n + 2) { color: #dd0000; }
+      .german .cover-word i:nth-child(3n) { color: #d99e00; }
+      .cover-school {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 8mm;
+        font-size: 0.85em;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #56607a;
+      }
+
+      /* Scattered classroom vocabulary, standing in for the printed artwork. */
+      .cw {
+        position: absolute;
+        font-family: "DejaVu Serif", Georgia, serif;
+        font-weight: 700;
+        font-size: 1.5em;
+      }
+      .cw.s { font-size: 1.1em; font-weight: 400; font-style: italic; }
+      .cw1 { top: 12mm; left: 12mm; transform: rotate(-7deg); }
+      .cw2 { top: 12mm; right: 14mm; transform: rotate(6deg); }
+      .cw3 { top: 82mm; left: 9mm; transform: rotate(-90deg); transform-origin: left top; }
+      .cw4 { top: 44mm; right: 11mm; transform: rotate(8deg); }
+      .cw5 { bottom: 52mm; left: 16mm; transform: rotate(-5deg); }
+      .cw6 { bottom: 22mm; left: 36mm; transform: rotate(4deg); }
+      .cw7 { bottom: 58mm; right: 42mm; transform: rotate(-6deg); }
+      .cw8 { bottom: 24mm; right: 40mm; transform: rotate(5deg); }
+      .french .cw1, .french .cw5 { color: #1e4b9e; }
+      .french .cw2, .french .cw7 { color: #c8102e; }
+      .french .cw3, .french .cw6 { color: #4a90d9; }
+      .french .cw4, .french .cw8 { color: #b03560; }
+      .german .cw1, .german .cw5 { color: #191919; }
+      .german .cw2, .german .cw7 { color: #dd0000; }
+      .german .cw3, .german .cw6 { color: #b57e00; }
+      .german .cw4, .german .cw8 { color: #7a1f1f; }
+{% endblock %}
+
+{% block sheets %}
+    {% for sheet in sheets %}
+    {% set card = sheet.card %}{% set chrome = sheet.chrome %}
+    <section class="sheet {{ card.subject }}">
+      <div class="face-page">
+        <header class="k-title">
+          <div class="tr-line">{{ card.year_label }} {{ chrome.scope_tr }} {{ chrome.title_tr }}</div>
+          <div class="l2-line">{{ card.year_label }} {{ chrome.scope_l2 }} {{ chrome.title_l2 }}</div>
+        </header>
+
+        <table class="ident">
+          <tr><td class="label">{{ chrome.name_label }} :</td><td class="value">{{ card.student_name }}</td></tr>
+          <tr><td class="label">{{ chrome.class_label }} :</td><td class="value">{{ card.class_name|replace("/", "-") }}</td></tr>
+        </table>
+
+        {% if not sheet.blocks and not sheet.comments %}
+        <p class="no-fields">{{ no_fields_note }}</p>
+        {% else %}
+        {% if sheet.blocks or sheet.show_grade %}
+        <table class="checklist">
+          <thead>
+            <tr>
+              {% if sheet.has_rail %}<th class="rail"></th>{% endif %}
+              <th class="stmt"></th>
+              {% for tr_label, l2_label in chrome.ratings %}
+              <th class="rate">{{ tr_label }}<span class="alt">{{ l2_label }}</span></th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for block in sheet.blocks %}
+            {% for row in block.rows %}
+            <tr>
+              {% if sheet.has_rail and loop.first %}
+              <td class="rail" rowspan="{{ block.rows|length }}">
+                {% if block.group %}
+                {{ block.group }}
+                {% if block.group_alt %}<div class="alt">{{ block.group_alt }}</div>{% endif %}
+                {% endif %}
+              </td>
+              {% endif %}
+              <td class="stmt">
+                <div class="tr-line">{{ row.label }}</div>
+                {% if row.label_alt %}<div class="alt">{{ row.label_alt }}</div>{% endif %}
+              </td>
+              {% for level in scale_order %}
+              <td class="tick">{{ "✓" if row.value == level else "" }}</td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+            {% endfor %}
+            {% if sheet.show_grade %}
+            <tr class="grade-row">
+              <td colspan="{{ 2 if sheet.has_rail else 1 }}">
+                {{ card.year_label }} {{ chrome.grade_tr }}
+                <span class="l2">/ {{ card.year_label }} {{ chrome.grade_l2 }}</span>
+              </td>
+              <td class="grade-val" colspan="3">{{ sheet.grade_display }}</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+        {% endif %}
+
+        {% for note in sheet.comments %}
+        <div class="comment">
+          <span class="comment-label">
+            {{ note.label }}{% if note.label_alt %} <span class="alt">/ {{ note.label_alt }}</span>{% endif %} :
+          </span>
+          <div class="comment-body">{{ note.value if note.value else "" }}</div>
+        </div>
+        {% endfor %}
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="sheet {{ card.subject }}">
+      <div class="cover-frame">
+        <div class="cover-inner">
+          <p class="cover-year">{{ card.year_label }}</p>
+          <div class="cover-flag"><i></i><i></i><i></i></div>
+          <h1 class="cover-word">{% for ch in chrome.word %}<i>{{ ch }}</i>{% endfor %}</h1>
+          {% if card.subject == "french" %}
+          <span class="cw cw1">Bonjour&nbsp;!</span>
+          <span class="cw cw2">Oh là là</span>
+          <span class="cw cw3 s">La Tour Eiffel</span>
+          <span class="cw cw4 s">macarons</span>
+          <span class="cw cw5">Merci</span>
+          <span class="cw cw6 s">croissant</span>
+          <span class="cw cw7">Paris</span>
+          <span class="cw cw8 s">Notre-Dame</span>
+          {% else %}
+          <span class="cw cw1">Hallo&nbsp;!</span>
+          <span class="cw cw2">Danke</span>
+          <span class="cw cw3 s">Brandenburger Tor</span>
+          <span class="cw cw4 s">Brezel</span>
+          <span class="cw cw5">Berlin</span>
+          <span class="cw cw6 s">Fußball</span>
+          <span class="cw cw7">Oktoberfest</span>
+          <span class="cw cw8 s">Ich liebe Deutsch</span>
+          {% endif %}
+          <p class="cover-school">{{ school.name }}</p>
+        </div>
+      </div>
+    </section>
+    {% endfor %}
+{% endblock %}

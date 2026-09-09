@@ -1,0 +1,62 @@
+#cloud-config
+# FL-ReportCard school server (ADR-055). Paste into the "cloud config" field
+# when creating the Hetzner Cloud server (Ubuntu LTS image, 4 vCPU / 8 GB).
+# Replace the two SSH keys before use. The server ends up with Docker, a
+# firewall that admits only SSH and HTTPS, automatic security updates, and an
+# unprivileged `flrc` user that owns /srv/flrc and may run Docker.
+
+package_update: true
+package_upgrade: true
+packages:
+  - ca-certificates
+  - curl
+  - ufw
+  - unattended-upgrades
+  - fail2ban
+  - rsync
+
+users:
+  - name: flrc
+    shell: /bin/bash
+    groups: [docker]
+    lock_passwd: true
+    ssh_authorized_keys:
+      - "ssh-ed25519 REPLACE_WITH_THE_DEPLOY_PUBLIC_KEY"
+  - name: ops
+    shell: /bin/bash
+    groups: [sudo, docker]
+    lock_passwd: true
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    ssh_authorized_keys:
+      - "ssh-ed25519 REPLACE_WITH_THE_SCHOOL_OPERATOR_PUBLIC_KEY"
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/10-flrc.conf
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+  - path: /etc/apt/apt.conf.d/52flrc-unattended
+    content: |
+      Unattended-Upgrade::Automatic-Reboot "true";
+      Unattended-Upgrade::Automatic-Reboot-Time "04:30";
+  - path: /etc/docker/daemon.json
+    content: |
+      { "log-driver": "json-file", "log-opts": { "max-size": "10m", "max-file": "5" } }
+
+runcmd:
+  - groupadd -f docker
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable --now docker
+  - mkdir -p /srv/flrc/branding
+  - chown -R flrc:flrc /srv/flrc
+  - chmod 750 /srv/flrc
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow OpenSSH
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw allow 443/udp
+  - ufw --force enable
+  - systemctl enable --now fail2ban
+  - systemctl restart ssh

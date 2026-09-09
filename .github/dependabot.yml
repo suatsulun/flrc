@@ -1,0 +1,40 @@
+version: 2
+
+# Keep routine version updates in one rolling PR across every package ecosystem.
+# Dependabot updates the same grouped PR on later scheduled runs while it is open.
+multi-ecosystem-groups:
+  all-dependencies:
+    schedule:
+      interval: weekly
+      day: monday
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    patterns: ["*"]
+    multi-ecosystem-group: all-dependencies
+    ignore:
+      # TypeScript 7 is not supported by the current typescript-eslint and
+      # @hey-api/openapi-ts release lines. Remove this when both support it.
+      - dependency-name: typescript
+        versions: [">=7.0.0"]
+
+  - package-ecosystem: pip
+    directory: /apps/backend
+    patterns: ["*"]
+    multi-ecosystem-group: all-dependencies
+
+  - package-ecosystem: docker
+    directory: /apps/backend
+    patterns: ["*"]
+    multi-ecosystem-group: all-dependencies
+    ignore:
+      # Python 3.13 is the repository/runtime contract. A 3.14 migration is an
+      # explicit stack decision, not an unattended base-image update.
+      - dependency-name: python
+        versions: [">=3.14"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    patterns: ["*"]
+    multi-ecosystem-group: all-dependencies

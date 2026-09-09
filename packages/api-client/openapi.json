@@ -1,0 +1,6720 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FL-ReportCard",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/auth/login": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login",
+        "operationId": "login",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/callback": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Auth Callback",
+        "operationId": "auth_callback",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "operationId": "logout",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/healthz": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Healthz",
+        "operationId": "healthz",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/demo": {
+      "get": {
+        "tags": [
+          "demo"
+        ],
+        "summary": "Demo Info",
+        "description": "Public: lets the login page describe the demo before anyone signs in.",
+        "operationId": "demo_info",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoInfoOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ops/demo/status": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Demo Reset Status",
+        "operationId": "demo_reset_status",
+        "parameters": [
+          {
+            "name": "x-ops-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Ops-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoResetStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ops/demo/reset": {
+      "post": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Request Demo Reset",
+        "description": "Start a reset in the background; poll the status route for completion.",
+        "operationId": "request_demo_reset",
+        "parameters": [
+          {
+            "name": "x-ops-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Ops-Token"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoResetStatusOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Me",
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/ping": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Admin Ping",
+        "operationId": "admin_ping",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "type": "object",
+                  "title": "Response Admin Ping"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/columns": {
+      "get": {
+        "tags": [
+          "columns"
+        ],
+        "summary": "List Columns",
+        "operationId": "list_columns",
+        "parameters": [
+          {
+            "name": "grade_level",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Grade Level"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "english",
+                "german",
+                "french"
+              ],
+              "type": "string",
+              "title": "Subject"
+            }
+          },
+          {
+            "name": "semester_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ColumnOut"
+                  },
+                  "title": "Response List Columns"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "columns"
+        ],
+        "summary": "Create Column",
+        "operationId": "create_column",
+        "parameters": [
+          {
+            "name": "semester_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ColumnCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColumnOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/columns/{column_id}": {
+      "patch": {
+        "tags": [
+          "columns"
+        ],
+        "summary": "Update Column",
+        "operationId": "update_column",
+        "parameters": [
+          {
+            "name": "column_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Column Id"
+            }
+          },
+          {
+            "name": "semester_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ColumnPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColumnOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "columns"
+        ],
+        "summary": "Delete Column",
+        "operationId": "delete_column",
+        "parameters": [
+          {
+            "name": "column_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Column Id"
+            }
+          },
+          {
+            "name": "semester_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/columns/reorder": {
+      "post": {
+        "tags": [
+          "columns"
+        ],
+        "summary": "Reorder Columns",
+        "operationId": "reorder_columns",
+        "parameters": [
+          {
+            "name": "semester_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Reorder Columns"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/columns/copy": {
+      "post": {
+        "tags": [
+          "columns"
+        ],
+        "summary": "Copy Columns",
+        "operationId": "copy_columns",
+        "parameters": [
+          {
+            "name": "semester_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "title": "Response Copy Columns"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/academic-years": {
+      "get": {
+        "tags": [
+          "assignments"
+        ],
+        "summary": "List Academic Years",
+        "operationId": "list_academic_years",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AcademicYearOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Academic Years"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/class-catalog": {
+      "get": {
+        "tags": [
+          "assignments"
+        ],
+        "summary": "List Class Catalog",
+        "description": "Return a year's class/subject tabs, including read-only archives.",
+        "operationId": "list_class_catalog",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year Id"
+            }
+          },
+          {
+            "name": "semester",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClassCatalogOut"
+                  },
+                  "title": "Response List Class Catalog"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/my-assignments": {
+      "get": {
+        "tags": [
+          "assignments"
+        ],
+        "summary": "List My Assignments",
+        "operationId": "list_my_assignments",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MyAssignmentOut"
+                  },
+                  "type": "array",
+                  "title": "Response List My Assignments"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/classes": {
+      "get": {
+        "tags": [
+          "assignments"
+        ],
+        "summary": "List Classes",
+        "operationId": "list_classes",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ClassOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Classes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "tags": [
+          "assignments"
+        ],
+        "summary": "List Users",
+        "operationId": "list_users",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Users"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/classes/{class_id}/assignments": {
+      "get": {
+        "tags": [
+          "assignments"
+        ],
+        "summary": "Get Assignments",
+        "operationId": "get_assignments",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AssignmentSlotOut"
+                  },
+                  "title": "Response Get Assignments"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/classes/{class_id}/assignments/{role}": {
+      "put": {
+        "tags": [
+          "assignments"
+        ],
+        "summary": "Upsert Assignment",
+        "operationId": "upsert_assignment",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          },
+          {
+            "name": "role",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "main",
+                "skills",
+                "german",
+                "french"
+              ],
+              "type": "string",
+              "title": "Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Upsert Assignment"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/classes/{class_id}/grid": {
+      "get": {
+        "tags": [
+          "grid"
+        ],
+        "summary": "Get Grid",
+        "operationId": "get_grid",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "english",
+                "german",
+                "french"
+              ],
+              "type": "string",
+              "title": "Subject"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "tr",
+              "title": "Locale"
+            }
+          },
+          {
+            "name": "semester",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GridOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/classes/{class_id}/grid/save": {
+      "post": {
+        "tags": [
+          "grid"
+        ],
+        "summary": "Save Grid",
+        "operationId": "save_grid",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/classes/{class_id}/grants": {
+      "post": {
+        "tags": [
+          "grid"
+        ],
+        "summary": "Request Grant",
+        "operationId": "request_grant",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/classes/{class_id}/grid/undo": {
+      "post": {
+        "tags": [
+          "grid"
+        ],
+        "summary": "Undo Grid",
+        "operationId": "undo_grid",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/audit": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "List Audit",
+        "operationId": "list_audit",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Class Id"
+            }
+          },
+          {
+            "name": "actor_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor Id"
+            }
+          },
+          {
+            "name": "student_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Student Id"
+            }
+          },
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditPageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/audit/export.csv": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Export Audit Csv",
+        "operationId": "export_audit_csv",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Class Id"
+            }
+          },
+          {
+            "name": "actor_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor Id"
+            }
+          },
+          {
+            "name": "student_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Student Id"
+            }
+          },
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/students": {
+      "get": {
+        "tags": [
+          "admin-students"
+        ],
+        "summary": "List Students",
+        "operationId": "list_students",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "year_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin-students"
+        ],
+        "summary": "Create Student",
+        "operationId": "create_student",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/students/{student_id}": {
+      "patch": {
+        "tags": [
+          "admin-students"
+        ],
+        "summary": "Patch Student",
+        "operationId": "patch_student",
+        "parameters": [
+          {
+            "name": "student_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Student Id"
+            }
+          },
+          {
+            "name": "year_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "tags": [
+          "admin-users"
+        ],
+        "summary": "List Managed Users",
+        "operationId": "list_managed_users",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Active"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ManagedUserOut"
+                  },
+                  "title": "Response List Managed Users"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin-users"
+        ],
+        "summary": "Create Managed User",
+        "operationId": "create_managed_user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedUserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}": {
+      "patch": {
+        "tags": [
+          "admin-users"
+        ],
+        "summary": "Patch Managed User",
+        "operationId": "patch_managed_user",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedUserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/years/{year_id}/classes": {
+      "get": {
+        "tags": [
+          "admin-classes"
+        ],
+        "summary": "List Admin Classes",
+        "operationId": "list_admin_classes",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminClassOut"
+                  },
+                  "title": "Response List Admin Classes"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/classes": {
+      "post": {
+        "tags": [
+          "admin-classes"
+        ],
+        "summary": "Create Admin Class",
+        "operationId": "create_admin_class",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminClassOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/classes/{class_id}": {
+      "patch": {
+        "tags": [
+          "admin-classes"
+        ],
+        "summary": "Patch Admin Class",
+        "operationId": "patch_admin_class",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminClassOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin-classes"
+        ],
+        "summary": "Delete Admin Class",
+        "operationId": "delete_admin_class",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Delete Admin Class"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/years/{year_id}/assignments": {
+      "get": {
+        "tags": [
+          "admin-classes"
+        ],
+        "summary": "List Assignment Matrix",
+        "operationId": "list_assignment_matrix",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MatrixSlotOut"
+                  },
+                  "title": "Response List Assignment Matrix"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin-classes"
+        ],
+        "summary": "Replace Assignment Matrix",
+        "operationId": "replace_assignment_matrix",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentBulk"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MatrixSlotOut"
+                  },
+                  "title": "Response Replace Assignment Matrix"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/classes/{class_id}/roster/{student_id}": {
+      "delete": {
+        "tags": [
+          "admin-roster"
+        ],
+        "summary": "Remove Admin Roster Student",
+        "operationId": "remove_admin_roster_student",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          },
+          {
+            "name": "student_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Student Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterStudentRemoveResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "admin-roster"
+        ],
+        "summary": "Patch Admin Roster Student",
+        "operationId": "patch_admin_roster_student",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          },
+          {
+            "name": "student_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Student Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RosterStudentPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterStudentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/classes/{class_id}/roster": {
+      "get": {
+        "tags": [
+          "admin-roster"
+        ],
+        "summary": "Get Admin Roster",
+        "operationId": "get_admin_roster",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RosterStudentOut"
+                  },
+                  "title": "Response Get Admin Roster"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin-roster"
+        ],
+        "summary": "Add Admin Roster Student",
+        "operationId": "add_admin_roster_student",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RosterStudentCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterStudentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/roster/move": {
+      "post": {
+        "tags": [
+          "admin-roster"
+        ],
+        "summary": "Move Admin Roster",
+        "operationId": "move_admin_roster",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "type": "object",
+                  "title": "Response Move Admin Roster"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/years/{year_id}/student-language": {
+      "put": {
+        "tags": [
+          "admin-roster"
+        ],
+        "summary": "Set Student Language",
+        "operationId": "set_student_language",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LanguageBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "title": "Response Set Student Language"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/years": {
+      "get": {
+        "tags": [
+          "admin-lifecycle"
+        ],
+        "summary": "List Years",
+        "operationId": "list_years",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/YearOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Years"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin-lifecycle"
+        ],
+        "summary": "Create Year",
+        "operationId": "create_year",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YearCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YearOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/years/{year_id}/activate": {
+      "post": {
+        "tags": [
+          "admin-lifecycle"
+        ],
+        "summary": "Activate Year",
+        "operationId": "activate_year",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YearOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/years/{year_id}/advance-semester": {
+      "post": {
+        "tags": [
+          "admin-lifecycle"
+        ],
+        "summary": "Advance Semester",
+        "operationId": "advance_semester",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YearOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/years/{year_id}/lock-semester-2": {
+      "post": {
+        "tags": [
+          "admin-lifecycle"
+        ],
+        "summary": "Lock Semester Two",
+        "operationId": "lock_semester_two",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YearOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/years/{year_id}/reopen-semester": {
+      "post": {
+        "tags": [
+          "admin-lifecycle"
+        ],
+        "summary": "Reopen Semester",
+        "operationId": "reopen_semester",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReopenBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YearOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/years/{year_id}/audit-export.csv": {
+      "get": {
+        "tags": [
+          "admin-lifecycle"
+        ],
+        "summary": "Export Year Audit",
+        "operationId": "export_year_audit",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/years/{year_id}/close": {
+      "post": {
+        "tags": [
+          "admin-lifecycle"
+        ],
+        "summary": "Close Year",
+        "operationId": "close_year",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseYearBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YearOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/import/dry-run": {
+      "post": {
+        "tags": [
+          "admin-import"
+        ],
+        "summary": "Dry Run Import",
+        "operationId": "dry_run_import",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 160,
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "grade_level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 8,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Grade Level"
+            }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 8
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Section"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "german",
+                    "french",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Language"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "new_student",
+                    "rename",
+                    "move",
+                    "class_changed",
+                    "language_change",
+                    "unchanged",
+                    "manual_added",
+                    "language_edited"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_dry_run_import"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/import/commit": {
+      "post": {
+        "tags": [
+          "admin-import"
+        ],
+        "summary": "Commit Import",
+        "operationId": "commit_import",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          },
+          {
+            "name": "expected_sha256",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Expected Sha256"
+            }
+          },
+          {
+            "name": "expected_review_sha256",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Review Sha256"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_commit_import"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/years": {
+      "get": {
+        "tags": [
+          "archive"
+        ],
+        "summary": "List Archive Years",
+        "operationId": "list_archive_years",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ArchiveYearOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Archive Years"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/years/{year_id}/classes": {
+      "get": {
+        "tags": [
+          "archive"
+        ],
+        "summary": "List Archive Classes",
+        "operationId": "list_archive_classes",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArchiveClassOut"
+                  },
+                  "title": "Response List Archive Classes"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/classes/{class_id}/grid": {
+      "get": {
+        "tags": [
+          "archive"
+        ],
+        "summary": "Get Archive Grid",
+        "operationId": "get_archive_grid",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          },
+          {
+            "name": "semester",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Semester"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "english",
+                "german",
+                "french"
+              ],
+              "type": "string",
+              "title": "Subject"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "tr",
+              "title": "Locale"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveGridOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/students/{student_id}/history": {
+      "get": {
+        "tags": [
+          "archive"
+        ],
+        "summary": "Get Student History",
+        "operationId": "get_student_history",
+        "parameters": [
+          {
+            "name": "student_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Student Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentHistoryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/coordinator/overview": {
+      "get": {
+        "tags": [
+          "coordinator"
+        ],
+        "summary": "Coordinator Overview",
+        "operationId": "coordinator_overview",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverviewOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/coordinator/completeness": {
+      "get": {
+        "tags": [
+          "coordinator"
+        ],
+        "summary": "Coordinator Completeness",
+        "operationId": "coordinator_completeness",
+        "parameters": [
+          {
+            "name": "semester_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Semester Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompletenessRow"
+                  },
+                  "title": "Response Coordinator Completeness"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/coordinator/classes/{class_id}/missing": {
+      "get": {
+        "tags": [
+          "coordinator"
+        ],
+        "summary": "Coordinator Missing Cells",
+        "operationId": "coordinator_missing_cells",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "english",
+                "german",
+                "french"
+              ],
+              "type": "string",
+              "title": "Subject"
+            }
+          },
+          {
+            "name": "semester_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Semester Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  },
+                  "title": "Response Coordinator Missing Cells"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "List Jobs",
+        "operationId": "list_jobs",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 25,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobOut"
+                  },
+                  "title": "Response List Jobs"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Job",
+        "operationId": "get_job",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}/download": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Download Job",
+        "operationId": "download_job",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/pdf": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Download Report Set",
+        "operationId": "download_report_set",
+        "parameters": [
+          {
+            "name": "semester_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Semester Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "english_elementary",
+                "english_middle",
+                "german_karne",
+                "french_karne"
+              ],
+              "type": "string",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "tr",
+                "en",
+                "de",
+                "fr"
+              ],
+              "type": "string",
+              "default": "tr",
+              "title": "Locale"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/exports/year/{year_id}": {
+      "post": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Create Year Export Job",
+        "operationId": "create_year_export_job",
+        "parameters": [
+          {
+            "name": "year_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcademicSemesterOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "status"
+        ],
+        "title": "AcademicSemesterOut"
+      },
+      "AcademicYearOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "semesters": {
+            "items": {
+              "$ref": "#/components/schemas/AcademicSemesterOut"
+            },
+            "type": "array",
+            "title": "Semesters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "status",
+          "semesters"
+        ],
+        "title": "AcademicYearOut"
+      },
+      "AdminClassOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "year_id": {
+            "type": "integer",
+            "title": "Year Id"
+          },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          },
+          "section": {
+            "type": "string",
+            "title": "Section"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "student_count": {
+            "type": "integer",
+            "title": "Student Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "year_id",
+          "grade_level",
+          "section",
+          "name",
+          "student_count"
+        ],
+        "title": "AdminClassOut"
+      },
+      "AppliedOut": {
+        "properties": {
+          "student_id": {
+            "type": "integer",
+            "title": "Student Id"
+          },
+          "column_id": {
+            "type": "integer",
+            "title": "Column Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id",
+          "column_id",
+          "version"
+        ],
+        "title": "AppliedOut"
+      },
+      "ArchiveClassOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "grade_level"
+        ],
+        "title": "ArchiveClassOut"
+      },
+      "ArchiveColumnOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value_type": {
+            "type": "string",
+            "title": "Value Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "value_type"
+        ],
+        "title": "ArchiveColumnOut"
+      },
+      "ArchiveGridOut": {
+        "properties": {
+          "class_name": {
+            "type": "string",
+            "title": "Class Name"
+          },
+          "semester": {
+            "type": "integer",
+            "title": "Semester"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/ArchiveColumnOut"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ArchiveRowOut"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "class_name",
+          "semester",
+          "subject",
+          "columns",
+          "rows"
+        ],
+        "title": "ArchiveGridOut"
+      },
+      "ArchiveRowOut": {
+        "properties": {
+          "student_id": {
+            "type": "integer",
+            "title": "Student Id"
+          },
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "cells": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Cells"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id",
+          "school_number",
+          "full_name",
+          "cells"
+        ],
+        "title": "ArchiveRowOut"
+      },
+      "ArchiveYearOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "status"
+        ],
+        "title": "ArchiveYearOut"
+      },
+      "AssignBody": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "AssignBody"
+      },
+      "AssignmentBulk": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/AssignmentChange"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Changes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "changes"
+        ],
+        "title": "AssignmentBulk"
+      },
+      "AssignmentChange": {
+        "properties": {
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "main",
+              "skills",
+              "german",
+              "french"
+            ],
+            "title": "Role"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "class_id",
+          "role",
+          "user_id"
+        ],
+        "title": "AssignmentChange"
+      },
+      "AssignmentOut": {
+        "properties": {
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          },
+          "class_name": {
+            "type": "string",
+            "title": "Class Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "class_id",
+          "class_name",
+          "role"
+        ],
+        "title": "AssignmentOut"
+      },
+      "AssignmentSlotOut": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "user_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "user_id",
+          "user_name"
+        ],
+        "title": "AssignmentSlotOut"
+      },
+      "AuditItemOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "student": {
+            "type": "string",
+            "title": "Student"
+          },
+          "column_label": {
+            "type": "string",
+            "title": "Column Label"
+          },
+          "old_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Value"
+          },
+          "new_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Value"
+          },
+          "old_existed": {
+            "type": "boolean",
+            "title": "Old Existed"
+          },
+          "forced": {
+            "type": "boolean",
+            "title": "Forced"
+          },
+          "via_grant": {
+            "type": "boolean",
+            "title": "Via Grant"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "class_id",
+          "actor",
+          "student",
+          "column_label",
+          "old_value",
+          "new_value",
+          "old_existed",
+          "forced",
+          "via_grant"
+        ],
+        "title": "AuditItemOut"
+      },
+      "AuditPageOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "AuditPageOut"
+      },
+      "Body_commit_import": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "class_moves": {
+            "type": "string",
+            "maxLength": 1000000,
+            "title": "Class Moves",
+            "default": "[]"
+          },
+          "roster_edits": {
+            "type": "string",
+            "maxLength": 2000000,
+            "title": "Roster Edits",
+            "default": "{}"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_commit_import"
+      },
+      "Body_dry_run_import": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "class_moves": {
+            "type": "string",
+            "maxLength": 1000000,
+            "title": "Class Moves",
+            "default": "[]"
+          },
+          "roster_edits": {
+            "type": "string",
+            "maxLength": 2000000,
+            "title": "Roster Edits",
+            "default": "{}"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_dry_run_import"
+      },
+      "CellOut": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "version"
+        ],
+        "title": "CellOut"
+      },
+      "ClassCatalogOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          },
+          "section": {
+            "type": "string",
+            "title": "Section"
+          },
+          "subjects": {
+            "items": {
+              "$ref": "#/components/schemas/ClassSubjectOut"
+            },
+            "type": "array",
+            "title": "Subjects"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "grade_level",
+          "section",
+          "subjects"
+        ],
+        "title": "ClassCatalogOut"
+      },
+      "ClassCreate": {
+        "properties": {
+          "year_id": {
+            "type": "integer",
+            "title": "Year Id"
+          },
+          "grade_level": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Grade Level"
+          },
+          "section": {
+            "type": "string",
+            "maxLength": 8,
+            "minLength": 1,
+            "title": "Section"
+          }
+        },
+        "type": "object",
+        "required": [
+          "year_id",
+          "grade_level",
+          "section"
+        ],
+        "title": "ClassCreate"
+      },
+      "ClassOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          },
+          "section": {
+            "type": "string",
+            "title": "Section"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "grade_level",
+          "section",
+          "name"
+        ],
+        "title": "ClassOut"
+      },
+      "ClassPatch": {
+        "properties": {
+          "grade_level": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 8.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade Level"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 8,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          }
+        },
+        "type": "object",
+        "title": "ClassPatch"
+      },
+      "ClassSubjectOut": {
+        "properties": {
+          "subject": {
+            "type": "string",
+            "enum": [
+              "english",
+              "german",
+              "french"
+            ],
+            "title": "Subject"
+          },
+          "student_count": {
+            "type": "integer",
+            "title": "Student Count"
+          },
+          "column_count": {
+            "type": "integer",
+            "title": "Column Count"
+          },
+          "owner_roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Owner Roles"
+          },
+          "my_roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "My Roles"
+          },
+          "can_write": {
+            "type": "boolean",
+            "title": "Can Write"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject",
+          "student_count",
+          "column_count",
+          "owner_roles",
+          "my_roles",
+          "can_write"
+        ],
+        "title": "ClassSubjectOut"
+      },
+      "CloseYearBody": {
+        "properties": {
+          "confirm_label": {
+            "type": "string",
+            "title": "Confirm Label"
+          },
+          "audit_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Audit Sha256"
+          }
+        },
+        "type": "object",
+        "required": [
+          "confirm_label",
+          "audit_sha256"
+        ],
+        "title": "CloseYearBody"
+      },
+      "ColumnCreate": {
+        "properties": {
+          "grade_level": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Grade Level"
+          },
+          "subject": {
+            "type": "string",
+            "enum": [
+              "english",
+              "german",
+              "french"
+            ],
+            "title": "Subject"
+          },
+          "value_type": {
+            "type": "string",
+            "enum": [
+              "score",
+              "scale3",
+              "text"
+            ],
+            "title": "Value Type"
+          },
+          "owner_role": {
+            "type": "string",
+            "enum": [
+              "main",
+              "skills",
+              "german",
+              "french"
+            ],
+            "title": "Owner Role"
+          },
+          "labels": {
+            "$ref": "#/components/schemas/LabelSet"
+          },
+          "group_labels": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabelSet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counts_in_average": {
+            "type": "boolean",
+            "title": "Counts In Average",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "grade_level",
+          "subject",
+          "value_type",
+          "owner_role",
+          "labels"
+        ],
+        "title": "ColumnCreate"
+      },
+      "ColumnOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "value_type": {
+            "type": "string",
+            "title": "Value Type"
+          },
+          "owner_role": {
+            "type": "string",
+            "title": "Owner Role"
+          },
+          "labels": {
+            "$ref": "#/components/schemas/LabelSet"
+          },
+          "group_labels": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabelSet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counts_in_average": {
+            "type": "boolean",
+            "title": "Counts In Average"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "grade_level",
+          "subject",
+          "value_type",
+          "owner_role",
+          "labels",
+          "group_labels",
+          "counts_in_average",
+          "position",
+          "is_active"
+        ],
+        "title": "ColumnOut"
+      },
+      "ColumnPatch": {
+        "properties": {
+          "labels": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabelSet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "group_labels": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabelSet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counts_in_average": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counts In Average"
+          },
+          "value_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "score",
+                  "scale3",
+                  "text"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Type"
+          },
+          "owner_role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "main",
+                  "skills",
+                  "german",
+                  "french"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Role"
+          }
+        },
+        "type": "object",
+        "title": "ColumnPatch"
+      },
+      "CompletenessRow": {
+        "properties": {
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          },
+          "class_name": {
+            "type": "string",
+            "title": "Class Name"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "roster_count": {
+            "type": "integer",
+            "title": "Roster Count"
+          },
+          "active_columns": {
+            "type": "integer",
+            "title": "Active Columns"
+          },
+          "expected_cells": {
+            "type": "integer",
+            "title": "Expected Cells"
+          },
+          "filled_cells": {
+            "type": "integer",
+            "title": "Filled Cells"
+          },
+          "missing_cells": {
+            "type": "integer",
+            "title": "Missing Cells"
+          },
+          "percent": {
+            "type": "number",
+            "title": "Percent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "class_id",
+          "class_name",
+          "subject",
+          "roster_count",
+          "active_columns",
+          "expected_cells",
+          "filled_cells",
+          "missing_cells",
+          "percent"
+        ],
+        "title": "CompletenessRow"
+      },
+      "ConflictOut": {
+        "properties": {
+          "student_id": {
+            "type": "integer",
+            "title": "Student Id"
+          },
+          "student_name": {
+            "type": "string",
+            "title": "Student Name"
+          },
+          "column_id": {
+            "type": "integer",
+            "title": "Column Id"
+          },
+          "column_label": {
+            "type": "string",
+            "title": "Column Label"
+          },
+          "your_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Your Value"
+          },
+          "current_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Value"
+          },
+          "updated_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id",
+          "student_name",
+          "column_id",
+          "column_label",
+          "your_value",
+          "current_value",
+          "updated_by",
+          "updated_at"
+        ],
+        "title": "ConflictOut"
+      },
+      "CopyBody": {
+        "properties": {
+          "source_grade_level": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Source Grade Level"
+          },
+          "source_subject": {
+            "type": "string",
+            "enum": [
+              "english",
+              "german",
+              "french"
+            ],
+            "title": "Source Subject"
+          },
+          "target_grade_level": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Target Grade Level"
+          },
+          "target_subject": {
+            "type": "string",
+            "enum": [
+              "english",
+              "german",
+              "french"
+            ],
+            "title": "Target Subject"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_grade_level",
+          "source_subject",
+          "target_grade_level",
+          "target_subject"
+        ],
+        "title": "CopyBody"
+      },
+      "DeleteResult": {
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted"
+          },
+          "disabled": {
+            "type": "boolean",
+            "title": "Disabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted",
+          "disabled"
+        ],
+        "title": "DeleteResult"
+      },
+      "DemoInfoOut": {
+        "properties": {
+          "next_reset_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Next Reset At"
+          },
+          "visitor_lifetime_hours": {
+            "type": "integer",
+            "title": "Visitor Lifetime Hours"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "resetting"
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "next_reset_at",
+          "visitor_lifetime_hours",
+          "state"
+        ],
+        "title": "DemoInfoOut"
+      },
+      "DemoResetStatusOut": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "resetting"
+            ],
+            "title": "State"
+          },
+          "last_reset_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Reset Date"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "next_reset_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Next Reset At"
+          },
+          "due": {
+            "type": "boolean",
+            "title": "Due"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "last_reset_date",
+          "last_error",
+          "next_reset_at",
+          "due"
+        ],
+        "title": "DemoResetStatusOut"
+      },
+      "DemoSessionOut": {
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "next_reset_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Next Reset At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expires_at",
+          "next_reset_at"
+        ],
+        "title": "DemoSessionOut",
+        "description": "Present only for a temporary public-demo administrator (ADR-051)."
+      },
+      "GrantBody": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "main",
+              "skills",
+              "german",
+              "french"
+            ],
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "title": "GrantBody"
+      },
+      "GrantOut": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "expires_at": {
+            "type": "string",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "expires_at"
+        ],
+        "title": "GrantOut"
+      },
+      "GridColumnOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "value_type": {
+            "type": "string",
+            "title": "Value Type"
+          },
+          "owner_role": {
+            "type": "string",
+            "title": "Owner Role"
+          },
+          "owner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Name"
+          },
+          "owned_by_you": {
+            "type": "boolean",
+            "title": "Owned By You"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "group",
+          "value_type",
+          "owner_role",
+          "owner_name",
+          "owned_by_you",
+          "position"
+        ],
+        "title": "GridColumnOut"
+      },
+      "GridMetaOut": {
+        "properties": {
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          },
+          "class_name": {
+            "type": "string",
+            "title": "Class Name"
+          },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "year_id": {
+            "type": "integer",
+            "title": "Year Id"
+          },
+          "year_label": {
+            "type": "string",
+            "title": "Year Label"
+          },
+          "semester_id": {
+            "type": "integer",
+            "title": "Semester Id"
+          },
+          "semester_number": {
+            "type": "integer",
+            "title": "Semester Number"
+          },
+          "semester_status": {
+            "type": "string",
+            "title": "Semester Status"
+          },
+          "year_status": {
+            "type": "string",
+            "title": "Year Status"
+          },
+          "my_grants": {
+            "items": {
+              "$ref": "#/components/schemas/GrantOut"
+            },
+            "type": "array",
+            "title": "My Grants"
+          },
+          "my_last_batch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastBatchOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "class_id",
+          "class_name",
+          "grade_level",
+          "subject",
+          "year_id",
+          "year_label",
+          "semester_id",
+          "semester_number",
+          "semester_status",
+          "year_status",
+          "my_grants",
+          "my_last_batch"
+        ],
+        "title": "GridMetaOut"
+      },
+      "GridOut": {
+        "properties": {
+          "meta": {
+            "$ref": "#/components/schemas/GridMetaOut"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/GridColumnOut"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/GridRowOut"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "meta",
+          "columns",
+          "rows"
+        ],
+        "title": "GridOut"
+      },
+      "GridRowOut": {
+        "properties": {
+          "student_id": {
+            "type": "integer",
+            "title": "Student Id"
+          },
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "cells": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CellOut"
+            },
+            "type": "object",
+            "title": "Cells"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id",
+          "school_number",
+          "full_name",
+          "cells"
+        ],
+        "title": "GridRowOut"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HistoryCell": {
+        "properties": {
+          "column_id": {
+            "type": "integer",
+            "title": "Column Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "value_type": {
+            "type": "string",
+            "title": "Value Type"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "column_id",
+          "label",
+          "subject",
+          "value_type",
+          "value"
+        ],
+        "title": "HistoryCell"
+      },
+      "HistorySemester": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryCell"
+            },
+            "type": "array",
+            "title": "Cells"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number",
+          "status",
+          "cells"
+        ],
+        "title": "HistorySemester"
+      },
+      "HistoryYear": {
+        "properties": {
+          "year_id": {
+            "type": "integer",
+            "title": "Year Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "year_status": {
+            "type": "string",
+            "title": "Year Status"
+          },
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          },
+          "class_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class Name"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "semesters": {
+            "items": {
+              "$ref": "#/components/schemas/HistorySemester"
+            },
+            "type": "array",
+            "title": "Semesters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "year_id",
+          "label",
+          "year_status",
+          "school_number",
+          "class_name",
+          "language",
+          "semesters"
+        ],
+        "title": "HistoryYear"
+      },
+      "ImportClassMove": {
+        "properties": {
+          "school_number": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "School Number"
+          },
+          "grade_level": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Grade Level"
+          },
+          "section": {
+            "type": "string",
+            "maxLength": 8,
+            "minLength": 1,
+            "title": "Section"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "school_number",
+          "grade_level",
+          "section"
+        ],
+        "title": "ImportClassMove"
+      },
+      "ImportIssue": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "sheet": {
+            "type": "string",
+            "title": "Sheet"
+          },
+          "cell": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cell"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "code",
+          "sheet",
+          "message"
+        ],
+        "title": "ImportIssue"
+      },
+      "ImportLanguageChange": {
+        "properties": {
+          "school_number": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "School Number"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "german",
+                  "french"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "school_number",
+          "language"
+        ],
+        "title": "ImportLanguageChange"
+      },
+      "ImportPreview": {
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "review_sha256": {
+            "type": "string",
+            "title": "Review Sha256"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/ImportIssue"
+            },
+            "type": "array",
+            "title": "Issues"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "total_rows": {
+            "type": "integer",
+            "title": "Total Rows"
+          },
+          "filtered_rows": {
+            "type": "integer",
+            "title": "Filtered Rows"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset"
+          },
+          "classes": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewClass"
+            },
+            "type": "array",
+            "title": "Classes"
+          },
+          "class_moves": {
+            "items": {
+              "$ref": "#/components/schemas/ImportClassMove"
+            },
+            "type": "array",
+            "title": "Class Moves"
+          },
+          "roster_edits": {
+            "$ref": "#/components/schemas/ImportRosterEdits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sha256",
+          "review_sha256",
+          "counts",
+          "issues",
+          "rows",
+          "total_rows",
+          "filtered_rows",
+          "next_offset",
+          "classes",
+          "class_moves"
+        ],
+        "title": "ImportPreview"
+      },
+      "ImportRosterEdits": {
+        "properties": {
+          "additions": {
+            "items": {
+              "$ref": "#/components/schemas/ImportStudentAdd"
+            },
+            "type": "array",
+            "maxItems": 5000,
+            "title": "Additions"
+          },
+          "removed_school_numbers": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Removed School Numbers"
+          },
+          "language_changes": {
+            "items": {
+              "$ref": "#/components/schemas/ImportLanguageChange"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Language Changes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ImportRosterEdits"
+      },
+      "ImportStudentAdd": {
+        "properties": {
+          "school_number": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "School Number"
+          },
+          "grade_level": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Grade Level"
+          },
+          "section": {
+            "type": "string",
+            "maxLength": 8,
+            "minLength": 1,
+            "title": "Section"
+          },
+          "full_name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 2,
+            "title": "Full Name"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "german",
+                  "french"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "school_number",
+          "grade_level",
+          "section",
+          "full_name"
+        ],
+        "title": "ImportStudentAdd"
+      },
+      "JobOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "progress": {
+            "type": "integer",
+            "title": "Progress"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "output_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Filename"
+          },
+          "output_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Size"
+          },
+          "output_expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Expires At"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "progress",
+          "total",
+          "output_filename",
+          "output_size",
+          "output_expires_at",
+          "error_code"
+        ],
+        "title": "JobOut"
+      },
+      "LabelSet": {
+        "properties": {
+          "tr": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Tr"
+          },
+          "en": {
+            "type": "string",
+            "title": "En",
+            "default": ""
+          },
+          "de": {
+            "type": "string",
+            "title": "De",
+            "default": ""
+          },
+          "fr": {
+            "type": "string",
+            "title": "Fr",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "tr"
+        ],
+        "title": "LabelSet"
+      },
+      "LanguageBody": {
+        "properties": {
+          "student_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Student Ids"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "german",
+                  "french"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_ids",
+          "language"
+        ],
+        "title": "LanguageBody"
+      },
+      "LastBatchOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "cell_count": {
+            "type": "integer",
+            "title": "Cell Count"
+          },
+          "undoable": {
+            "type": "boolean",
+            "title": "Undoable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "cell_count",
+          "undoable"
+        ],
+        "title": "LastBatchOut"
+      },
+      "ManagedUserOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "is_admin": {
+            "type": "boolean",
+            "title": "Is Admin"
+          },
+          "is_coordinator": {
+            "type": "boolean",
+            "title": "Is Coordinator"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "teaching_field": {
+            "type": "string",
+            "title": "Teaching Field"
+          },
+          "teaching_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teaching Stage"
+          },
+          "revoked_sessions": {
+            "type": "integer",
+            "title": "Revoked Sessions",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "full_name",
+          "is_admin",
+          "is_coordinator",
+          "is_active",
+          "teaching_field",
+          "teaching_stage"
+        ],
+        "title": "ManagedUserOut"
+      },
+      "MatrixSlotOut": {
+        "properties": {
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "user_name": {
+            "type": "string",
+            "title": "User Name"
+          },
+          "user_active": {
+            "type": "boolean",
+            "title": "User Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "class_id",
+          "role",
+          "user_id",
+          "user_name",
+          "user_active"
+        ],
+        "title": "MatrixSlotOut"
+      },
+      "MeOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "is_admin": {
+            "type": "boolean",
+            "title": "Is Admin"
+          },
+          "is_coordinator": {
+            "type": "boolean",
+            "title": "Is Coordinator"
+          },
+          "assignments": {
+            "items": {
+              "$ref": "#/components/schemas/AssignmentOut"
+            },
+            "type": "array",
+            "title": "Assignments"
+          },
+          "demo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DemoSessionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "full_name",
+          "email",
+          "is_admin",
+          "is_coordinator",
+          "assignments"
+        ],
+        "title": "MeOut"
+      },
+      "MoveBody": {
+        "properties": {
+          "student_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Student Ids"
+          },
+          "target_class_id": {
+            "type": "integer",
+            "title": "Target Class Id"
+          },
+          "allow_grade_change": {
+            "type": "boolean",
+            "title": "Allow Grade Change",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_ids",
+          "target_class_id"
+        ],
+        "title": "MoveBody"
+      },
+      "MyAssignmentOut": {
+        "properties": {
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          },
+          "class_name": {
+            "type": "string",
+            "title": "Class Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          }
+        },
+        "type": "object",
+        "required": [
+          "class_id",
+          "class_name",
+          "role",
+          "subject"
+        ],
+        "title": "MyAssignmentOut"
+      },
+      "OverviewOut": {
+        "properties": {
+          "year_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year Label"
+          },
+          "semester_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semester Id"
+          },
+          "semester_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semester Number"
+          },
+          "students": {
+            "type": "integer",
+            "title": "Students"
+          },
+          "classes": {
+            "type": "integer",
+            "title": "Classes"
+          },
+          "active_teachers": {
+            "type": "integer",
+            "title": "Active Teachers"
+          },
+          "active_grants": {
+            "type": "integer",
+            "title": "Active Grants"
+          },
+          "recent_saves": {
+            "type": "integer",
+            "title": "Recent Saves"
+          },
+          "missing_assignments": {
+            "type": "integer",
+            "title": "Missing Assignments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "year_label",
+          "semester_id",
+          "semester_number",
+          "students",
+          "classes",
+          "active_teachers",
+          "active_grants",
+          "recent_saves",
+          "missing_assignments"
+        ],
+        "title": "OverviewOut"
+      },
+      "PreviewClass": {
+        "properties": {
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          },
+          "section": {
+            "type": "string",
+            "title": "Section"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "grade_level",
+          "section",
+          "count"
+        ],
+        "title": "PreviewClass"
+      },
+      "PreviewRow": {
+        "properties": {
+          "row": {
+            "$ref": "#/components/schemas/RowModel"
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions"
+          },
+          "original_class": {
+            "type": "string",
+            "title": "Original Class"
+          }
+        },
+        "type": "object",
+        "required": [
+          "row",
+          "actions",
+          "original_class"
+        ],
+        "title": "PreviewRow"
+      },
+      "RejectedOut": {
+        "properties": {
+          "student_id": {
+            "type": "integer",
+            "title": "Student Id"
+          },
+          "column_id": {
+            "type": "integer",
+            "title": "Column Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id",
+          "column_id",
+          "code"
+        ],
+        "title": "RejectedOut"
+      },
+      "ReopenBody": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Number"
+          },
+          "confirm_label": {
+            "type": "string",
+            "title": "Confirm Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number",
+          "confirm_label"
+        ],
+        "title": "ReopenBody"
+      },
+      "ReorderBody": {
+        "properties": {
+          "ordered_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Ordered Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ordered_ids"
+        ],
+        "title": "ReorderBody"
+      },
+      "RosterStudentCreate": {
+        "properties": {
+          "school_number": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "School Number"
+          },
+          "full_name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 2,
+            "title": "Full Name"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "german",
+                  "french"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          }
+        },
+        "type": "object",
+        "required": [
+          "school_number",
+          "full_name"
+        ],
+        "title": "RosterStudentCreate"
+      },
+      "RosterStudentOut": {
+        "properties": {
+          "student_id": {
+            "type": "integer",
+            "title": "Student Id"
+          },
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id",
+          "school_number",
+          "full_name",
+          "language"
+        ],
+        "title": "RosterStudentOut"
+      },
+      "RosterStudentPatch": {
+        "properties": {
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160,
+                "minLength": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "german",
+                  "french"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          }
+        },
+        "type": "object",
+        "title": "RosterStudentPatch"
+      },
+      "RosterStudentRemoveResult": {
+        "properties": {
+          "student_id": {
+            "type": "integer",
+            "title": "Student Id"
+          },
+          "removed": {
+            "type": "boolean",
+            "title": "Removed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id",
+          "removed"
+        ],
+        "title": "RosterStudentRemoveResult"
+      },
+      "RowModel": {
+        "properties": {
+          "school_number": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "School Number"
+          },
+          "full_name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 2,
+            "title": "Full Name"
+          },
+          "grade_level": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Grade Level"
+          },
+          "section": {
+            "type": "string",
+            "maxLength": 8,
+            "minLength": 1,
+            "title": "Section"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "language_present": {
+            "type": "boolean",
+            "title": "Language Present",
+            "default": false
+          },
+          "sheet": {
+            "type": "string",
+            "title": "Sheet"
+          },
+          "row_number": {
+            "type": "integer",
+            "title": "Row Number"
+          }
+        },
+        "type": "object",
+        "required": [
+          "school_number",
+          "full_name",
+          "grade_level",
+          "section",
+          "sheet",
+          "row_number"
+        ],
+        "title": "RowModel"
+      },
+      "SaveCellIn": {
+        "properties": {
+          "student_id": {
+            "type": "integer",
+            "title": "Student Id"
+          },
+          "column_id": {
+            "type": "integer",
+            "title": "Column Id"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id",
+          "column_id",
+          "value",
+          "expected_version"
+        ],
+        "title": "SaveCellIn"
+      },
+      "SaveRequest": {
+        "properties": {
+          "subject": {
+            "type": "string",
+            "enum": [
+              "english",
+              "german",
+              "french"
+            ],
+            "title": "Subject"
+          },
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "default": false
+          },
+          "confirm_outside_assignment": {
+            "type": "boolean",
+            "title": "Confirm Outside Assignment",
+            "default": false
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/SaveCellIn"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Cells"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject",
+          "cells"
+        ],
+        "title": "SaveRequest"
+      },
+      "SaveResponse": {
+        "properties": {
+          "applied": {
+            "items": {
+              "$ref": "#/components/schemas/AppliedOut"
+            },
+            "type": "array",
+            "title": "Applied"
+          },
+          "conflicts": {
+            "items": {
+              "$ref": "#/components/schemas/ConflictOut"
+            },
+            "type": "array",
+            "title": "Conflicts"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/RejectedOut"
+            },
+            "type": "array",
+            "title": "Rejected"
+          }
+        },
+        "type": "object",
+        "required": [
+          "applied",
+          "conflicts",
+          "rejected"
+        ],
+        "title": "SaveResponse"
+      },
+      "SemesterOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "status"
+        ],
+        "title": "SemesterOut"
+      },
+      "StudentCreate": {
+        "properties": {
+          "school_number": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "School Number"
+          },
+          "full_name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 2,
+            "title": "Full Name"
+          },
+          "year_id": {
+            "type": "integer",
+            "title": "Year Id"
+          },
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "school_number",
+          "full_name",
+          "year_id",
+          "class_id"
+        ],
+        "title": "StudentCreate"
+      },
+      "StudentHistoryOut": {
+        "properties": {
+          "student_id": {
+            "type": "integer",
+            "title": "Student Id"
+          },
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "years": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryYear"
+            },
+            "type": "array",
+            "title": "Years"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id",
+          "school_number",
+          "full_name",
+          "years"
+        ],
+        "title": "StudentHistoryOut"
+      },
+      "StudentOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "year_id": {
+            "type": "integer",
+            "title": "Year Id"
+          },
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "school_number",
+          "full_name",
+          "year_id",
+          "class_id"
+        ],
+        "title": "StudentOut"
+      },
+      "StudentPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StudentOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "StudentPage"
+      },
+      "StudentPatch": {
+        "properties": {
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160,
+                "minLength": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          }
+        },
+        "type": "object",
+        "title": "StudentPatch"
+      },
+      "UserCreate": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email"
+          },
+          "full_name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 2,
+            "title": "Full Name"
+          },
+          "is_admin": {
+            "type": "boolean",
+            "title": "Is Admin",
+            "default": false
+          },
+          "is_coordinator": {
+            "type": "boolean",
+            "title": "Is Coordinator",
+            "default": false
+          },
+          "teaching_field": {
+            "type": "string",
+            "enum": [
+              "english",
+              "german",
+              "french"
+            ],
+            "title": "Teaching Field",
+            "default": "english"
+          },
+          "teaching_stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "primary",
+                  "middle"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teaching Stage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "full_name"
+        ],
+        "title": "UserCreate"
+      },
+      "UserOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "teaching_field": {
+            "type": "string",
+            "title": "Teaching Field"
+          },
+          "teaching_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teaching Stage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "full_name",
+          "email",
+          "is_active",
+          "teaching_field",
+          "teaching_stage"
+        ],
+        "title": "UserOut"
+      },
+      "UserPatch": {
+        "properties": {
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160,
+                "minLength": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "is_admin": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Admin"
+          },
+          "is_coordinator": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Coordinator"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "teaching_field": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "english",
+                  "german",
+                  "french"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teaching Field"
+          },
+          "teaching_stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "primary",
+                  "middle"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teaching Stage"
+          },
+          "reset_google_identity": {
+            "type": "boolean",
+            "title": "Reset Google Identity",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "UserPatch"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "YearCreate": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{4}$",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "YearCreate"
+      },
+      "YearOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "semesters": {
+            "items": {
+              "$ref": "#/components/schemas/SemesterOut"
+            },
+            "type": "array",
+            "title": "Semesters"
+          },
+          "missing_school_numbers": {
+            "type": "integer",
+            "title": "Missing School Numbers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "status",
+          "semesters",
+          "missing_school_numbers"
+        ],
+        "title": "YearOut"
+      }
+    }
+  }
+}

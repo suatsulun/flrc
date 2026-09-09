@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+/* Design tokens live in packages/ui so both apps cannot drift apart. */
+@import "../../../packages/ui/src/styles/theme.css";
+/* Rotates the palette onto the school's accent hue. Written by `pnpm brand`. */
+@import "../../../branding/generated/brand.css";
+
+@source "../../../packages/ui/src";

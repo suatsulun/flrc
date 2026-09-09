@@ -1,0 +1,11 @@
+name = "flrc-school-gateway"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+[vars]
+TEACHER_ORIGIN = "https://teacher-project.pages.dev"
+ADMIN_ORIGIN = "https://admin-project.pages.dev"
+API_ORIGIN = "https://flrc-api-school.onrender.com"
+
+# Do not put GATEWAY_SECRET in this file. Set its encrypted binding with:
+# pnpm exec wrangler secret put GATEWAY_SECRET

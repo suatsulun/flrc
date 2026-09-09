@@ -1,0 +1,177 @@
+{#
+  Primary English progress card — A4 LANDSCAPE duplex per student, like the
+  school's printed card: a balloon-decorated cover with a colourful title,
+  then the checklist page with yellow smiley rating columns (happiest face
+  first) in two balanced columns.
+
+  The balloon artwork is a typographic/SVG stand-in until the branding pass
+  brings the school's illustrations.
+#}
+{% extends "base.html" %}
+
+{% block page_size %}A4 landscape{% endblock %}
+{% block sheet_width %}297mm{% endblock %}
+{% block sheet_height %}210mm{% endblock %}
+
+{% macro section_table(block) %}
+        <table class="plist">
+          <thead>
+            <tr>
+              <th class="head">
+                {% if block.group %}
+                {{ block.group }}
+                {% if block.group_alt %}<span class="alt">{{ block.group_alt }}</span>{% endif %}
+                {% endif %}
+              </th>
+              {% for face in faces %}<th class="face"><img src="{{ face }}" alt="" /></th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in block.rows %}
+            <tr>
+              <td class="stmt"><div class="tr-line">{{ row.label }}</div>{% if row.label_alt %}<div class="alt">{{ row.label_alt }}</div>{% endif %}</td>
+              {% if row.value_type == "scale3" %}
+                {% for level in scale_order %}<td class="tick">{{ "✓" if row.value == level else "" }}</td>{% endfor %}
+              {% else %}
+              <td class="score-val" colspan="3">{{ "—" if row.value is none else row.value }}</td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+{% endmacro %}
+
+{% block css %}
+      /* ── Front cover: balloons around a colourful title ──────────────── */
+      .cover {
+        height: 100%;
+        padding: 8mm;
+        background:
+          url("{{ balloons }}") no-repeat center / 100% 100%,
+          white;
+      }
+      .cover-inner {
+        position: relative;
+        height: 100%;
+        text-align: center;
+        border: 0.4mm solid #d8cfe8;
+        border-radius: 4mm;
+      }
+      .cover-title {
+        margin: 26mm 20mm 0;
+        font-family: "DejaVu Serif", Georgia, serif;
+        font-weight: 700;
+        line-height: 1.35;
+      }
+      .cover-title .t1 { font-size: 2.5em; color: #7f3fbf; }
+      .cover-title .t2 { font-size: 2.2em; color: #d63384; }
+      .cover-title .t3 { margin-top: 4mm; font-size: 1.7em; font-style: italic; color: #2f8f5b; }
+      .cover-ident { margin-top: 15mm; font-size: 1.3em; }
+      .cover-ident p { margin: 4mm 0; }
+      .cover-ident .label { font-weight: 700; color: #4a3f68; }
+      .cover-ident .value {
+        padding: 0 5mm 0.8mm;
+        border-bottom: 0.5mm dotted #d63384;
+        background: #fff8d6;
+      }
+      .cover-school {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 6mm;
+        font-size: 0.85em;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #7a7f8c;
+      }
+
+      /* ── Checklist page: two columns of boxed sections ───────────────── */
+      .face-page { height: 100%; padding: 9mm 10mm; font-size: 10pt; }
+      .cols { table-layout: fixed; }
+      .cols td.col { width: 50%; padding: 0 2mm; vertical-align: top; }
+
+      .plist { margin-bottom: 3mm; border: 0.4mm solid var(--line); }
+      .plist th,
+      .plist td { border: 0.25mm solid var(--line); vertical-align: middle; }
+      .plist .head {
+        padding: 1.4mm 2mm;
+        text-align: center;
+        font-weight: 700;
+        font-size: 0.85em;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        background: #f3f0fa;
+      }
+      .plist .head .alt {
+        display: block;
+        font-weight: 400;
+        font-style: italic;
+        text-transform: none;
+        letter-spacing: 0;
+      }
+      .plist .face { width: 10mm; padding: 1mm; text-align: center; background: #fdfbf2; }
+      .plist .face img { width: 7mm; height: 7mm; vertical-align: middle; }
+      .plist .stmt { padding: 1.7mm 2mm; font-size: 0.85em; }
+      .plist .stmt .tr-line { font-weight: 700; }
+      .plist .stmt .alt { font-style: italic; color: var(--ink-soft); }
+      .plist .tick { text-align: center; font-weight: 700; font-size: 1.15em; }
+      .plist .score-val { text-align: center; font-weight: 700; }
+
+      .comment {
+        min-height: 28mm;
+        padding: 2mm 3mm;
+        border: 0.4mm solid var(--line);
+      }
+      .comment-label { font-weight: 700; font-size: 0.85em; }
+      .comment-label .alt { font-weight: 400; font-style: italic; }
+      .comment-body { margin-top: 1.2mm; font-size: 0.9em; line-height: 1.45; overflow-wrap: anywhere; }
+{% endblock %}
+
+{% block sheets %}
+    {% for sheet in sheets %}
+    {% set card = sheet.card %}
+    <section class="sheet">
+      <div class="cover">
+        <div class="cover-inner">
+          <h1 class="cover-title">
+            <div class="t1">{{ card.year_label }} {{ card.grade_level }}. Sınıf</div>
+            <div class="t2">{{ card.semester_number }}. Dönem İngilizce Gelişim Karnesi</div>
+            <div class="t3">{{ sheet.title_en }}</div>
+          </h1>
+          <div class="cover-ident">
+            <p><span class="label">Name Surname :</span> <span class="value">{{ card.student_name }}</span></p>
+            <p><span class="label">Class :</span> <span class="value">{{ card.class_name|replace("/", "-") }}</span></p>
+          </div>
+          <p class="cover-school">{{ school.name }}</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="sheet">
+      <div class="face-page">
+        {% if not sheet.left and not sheet.right and not sheet.comments %}
+        <p class="no-fields">{{ no_fields_note }}</p>
+        {% else %}
+        <table class="cols">
+          <tr>
+            <td class="col">
+              {% for block in sheet.left %}{{ section_table(block) }}{% endfor %}
+            </td>
+            <td class="col">
+              {% for block in sheet.right %}{{ section_table(block) }}{% endfor %}
+              {% for note in sheet.comments %}
+              <div class="comment">
+                <span class="comment-label">
+                  {{ note.label }}{% if note.label_alt %} <span class="alt">/ {{ note.label_alt }}</span>{% endif %} :
+                </span>
+                <div class="comment-body">{{ note.value if note.value else "" }}</div>
+              </div>
+              {% endfor %}
+            </td>
+          </tr>
+        </table>
+        {% endif %}
+      </div>
+    </section>
+    {% endfor %}
+{% endblock %}

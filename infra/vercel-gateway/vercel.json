@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "outputDirectory": "public",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://flrc-api.onrender.com/api/:path*"
+    },
+    {
+      "source": "/admin",
+      "destination": "https://flrc-admin.vercel.app/"
+    },
+    {
+      "source": "/admin/:path*",
+      "destination": "https://flrc-admin.vercel.app/:path*"
+    },
+    {
+      "source": "/",
+      "destination": "https://flrc-teacher.vercel.app/"
+    },
+    {
+      "source": "/:path*",
+      "destination": "https://flrc-teacher.vercel.app/:path*"
+    }
+  ]
+}

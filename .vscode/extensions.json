@@ -1,0 +1,25 @@
+{
+  "recommendations": [
+    "bradlc.vscode-tailwindcss",
+    "charliermarsh.ruff",
+    "dbaeumer.vscode-eslint",
+    "editorconfig.editorconfig",
+    "esbenp.prettier-vscode",
+    "github.vscode-github-actions",
+    "lokalise.i18n-ally",
+    "mikestead.dotenv",
+    "ms-azuretools.vscode-containers",
+    "ms-ossdata.vscode-pgsql",
+    "ms-playwright.playwright",
+    "ms-python.debugpy",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-vscode-remote.remote-containers",
+    "redhat.vscode-yaml",
+    "streetsidesoftware.code-spell-checker",
+    "tamasfe.even-better-toml",
+    "usernamehw.errorlens",
+    "weixiao-space.todo-markdown",
+    "yoavbls.pretty-ts-errors"
+  ]
+}

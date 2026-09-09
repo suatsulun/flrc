@@ -1,0 +1,76 @@
+# The school-facing web server (ADR-053): both compiled SPAs under one origin,
+# the same-origin /api proxy (ADR-004), automatic TLS, and the runtime branding
+# overlay (ADR-054). Route order is a security requirement: /api, then the
+# branding folders, then /admin, then the teacher catch-all. Caddy orders
+# `handle` blocks by matcher specificity, which yields exactly that.
+{
+	admin off
+}
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	header {
+		# Mirrors apps/*/public/_headers, which only static hosts read.
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Cross-Origin-Opener-Policy same-origin
+		Cross-Origin-Resource-Policy same-origin
+		Content-Security-Policy "default-src 'self'; connect-src 'self' https://*.ingest.sentry.io; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com"
+		-Server
+	}
+	@https protocol https
+	header @https Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+	handle /api/* {
+		reverse_proxy {$API_UPSTREAM:api:8000} {
+			# The API in school mode answers only requests that carry this
+			# secret (ADR-038); a client-supplied value is never forwarded.
+			header_up -X-Flrc-Gateway
+			header_up X-Flrc-Gateway {$GATEWAY_SECRET}
+			# Only Cloudflare may assert a client address this way; here the
+			# API derives it from X-Forwarded-For, which Caddy sets itself.
+			header_up -Cf-Connecting-Ip
+		}
+	}
+
+	# The school's identity, mounted over the generic files (branding/README.md).
+	handle_path /branding/* {
+		file_server {
+			root /srv/branding
+			pass_thru
+		}
+		file_server {
+			root /srv/branding-default
+		}
+	}
+	handle_path /admin/branding/* {
+		file_server {
+			root /srv/branding
+			pass_thru
+		}
+		file_server {
+			root /srv/branding-default
+		}
+	}
+
+	redir /admin /admin/ permanent
+	handle /admin/* {
+		uri strip_prefix /admin
+		root * /srv/admin
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+
+	handle {
+		root * /srv/teacher
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+}

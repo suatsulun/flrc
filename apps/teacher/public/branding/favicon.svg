@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="FL-ReportCard">
+  <rect width="32" height="32" rx="8" fill="#2C5FCB"/>
+  <g fill="#fff">
+    <rect x="8" y="9" width="16" height="2.75" rx="1.375"/>
+    <rect x="8" y="14.625" width="16" height="2.75" rx="1.375" opacity=".78"/>
+    <rect x="8" y="20.25" width="9.5" height="2.75" rx="1.375" opacity=".56"/>
+  </g>
+</svg>

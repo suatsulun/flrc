@@ -1,0 +1,36 @@
+{
+  "name": "fl-reportcard",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=26 <27",
+    "pnpm": ">=11 <12"
+  },
+  "scripts": {
+    "dev": "pnpm run dev:services && pnpm run dev:apps",
+    "predev": "node scripts/branding.mjs",
+    "dev:services": "docker compose -f infra/compose/compose.dev.yaml up -d --wait",
+    "dev:apps": "turbo run dev",
+    "build": "turbo run build",
+    "prebuild": "node scripts/branding.mjs",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "turbo run test",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "generate": "pnpm --filter @flrc/backend run generate && pnpm --filter @flrc/api-client run generate",
+    "prepare": "lefthook install",
+    "brand": "node scripts/branding.mjs",
+    "brand:check": "node scripts/branding.mjs --check",
+    "i18n:check": "node scripts/check-i18n.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "lefthook": "^2.1.12",
+    "prettier": "^3.9.6",
+    "turbo": "^2.10.12"
+  }
+}

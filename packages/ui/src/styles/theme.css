@@ -1,0 +1,257 @@
+/*
+ * FL-ReportCard design tokens — one source of truth for the teacher and admin apps.
+ *
+ * Light is "Parchment": a warm paper ground with slate-brown ink and navy for
+ * action. Dark is "Graphite": a lifted neutral charcoal — never near-black —
+ * with light-key buttons and a steel-blue focus ring as the only hue.
+ * (Picked from the palette ballot as L4 + D4; see ADR-040.)
+ *
+ * The UI palette is deliberately NOT derived from the school's accent colour.
+ * `branding/generated/brand.css` still publishes `--brand-hue`, but nothing
+ * here consumes it any more: the school's colour belongs to the logo, the
+ * printed report cards, and the browser theme-color — not to every surface.
+ *
+ * Light is the default; dark follows the operating system unless the person
+ * picked a side with the sidebar toggle, which stamps `.light` / `.dark` on
+ * <html> (see `lib/theme.ts`).
+ *
+ * Rules for editing:
+ *   - Every colour is defined in the light `:root` block first.
+ *   - Dark only *redefines* tokens; it never introduces a token of its own.
+ *   - Components consume semantic tokens (`bg-card`, `text-muted-foreground`),
+ *     never raw palette values like `bg-slate-50`.
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-strong: var(--primary-strong);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-surface: var(--destructive-surface);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-surface: var(--success-surface);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-surface: var(--warning-surface);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Shadows are warm ink, not brand-tinted, so they sit on the parchment. */
+  --shadow-card: 0 1px 2px oklch(0.4 0.02 85 / 0.05), 0 1px 3px oklch(0.4 0.02 85 / 0.04);
+  --shadow-raised: 0 4px 12px oklch(0.4 0.02 85 / 0.07), 0 1px 3px oklch(0.4 0.02 85 / 0.05);
+  --shadow-overlay: 0 16px 40px oklch(0.3 0.02 85 / 0.16), 0 2px 8px oklch(0.3 0.02 85 / 0.08);
+}
+
+:root {
+  --radius: 0.625rem;
+
+  /* Parchment: warm paper and slate-brown ink, softer than white on both ends. */
+  --background: oklch(0.962 0.011 85);
+  --foreground: oklch(0.287 0.015 85);
+  --card: oklch(0.988 0.007 89);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.994 0.004 91);
+  --popover-foreground: var(--foreground);
+  --muted: oklch(0.926 0.019 86);
+  --muted-foreground: oklch(0.502 0.026 85);
+  --secondary: oklch(0.907 0.026 90);
+  --secondary-foreground: oklch(0.361 0.03 83);
+
+  /* Action — navy ink on paper; selection surfaces stay warm sand. */
+  --primary: oklch(0.403 0.071 254);
+  --primary-foreground: oklch(0.984 0.003 248);
+  --primary-strong: oklch(0.352 0.065 254);
+  --accent: oklch(0.914 0.024 88);
+  --accent-foreground: oklch(0.373 0.037 83);
+
+  /* Status — earthy enough to sit on parchment without shouting. */
+  --success: oklch(0.472 0.074 158);
+  --success-foreground: oklch(0.983 0.004 135);
+  --success-surface: oklch(0.932 0.02 138);
+  --warning: oklch(0.496 0.102 74);
+  --warning-foreground: oklch(0.985 0.01 88);
+  --warning-surface: oklch(0.944 0.031 88);
+  --destructive: oklch(0.477 0.141 25);
+  --destructive-foreground: oklch(0.98 0.007 40);
+  --destructive-surface: oklch(0.928 0.022 43);
+
+  --border: oklch(0.884 0.025 86);
+  --border-strong: oklch(0.817 0.034 86);
+  --input: oklch(0.801 0.035 86);
+  --ring: oklch(0.491 0.074 253);
+
+  --sidebar: oklch(0.944 0.016 86);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+
+  --chart-1: oklch(0.403 0.071 254);
+  --chart-2: oklch(0.546 0.108 49);
+  --chart-3: oklch(0.537 0.069 158);
+  --chart-4: oklch(0.655 0.104 82);
+  --chart-5: oklch(0.505 0.072 305);
+}
+
+.dark {
+  /* Graphite: a lifted neutral charcoal, never near-black and never tinted
+     green. Buttons are light-key (pale on dark, dark text); the steel-blue
+     focus ring and the status colours are the only hues. */
+  --background: oklch(0.255 0.006 258);
+  --foreground: oklch(0.931 0 0);
+  --card: oklch(0.293 0.008 264);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.313 0.008 264);
+  --popover-foreground: var(--foreground);
+  --muted: oklch(0.332 0.01 261);
+  --muted-foreground: oklch(0.724 0.007 256);
+  --secondary: oklch(0.352 0.011 264);
+  --secondary-foreground: oklch(0.919 0 0);
+
+  --primary: oklch(0.875 0.006 256);
+  --primary-foreground: oklch(0.23 0.007 258);
+  --primary-strong: oklch(0.93 0.005 258);
+  --accent: oklch(0.332 0.01 261);
+  --accent-foreground: oklch(0.931 0 0);
+
+  --success: oklch(0.796 0.091 161);
+  --success-foreground: oklch(0.236 0.032 163);
+  --success-surface: oklch(0.322 0.027 166);
+  --warning: oklch(0.816 0.103 83);
+  --warning-foreground: oklch(0.225 0.037 83);
+  --warning-surface: oklch(0.317 0.028 83);
+  --destructive: oklch(0.676 0.124 27);
+  --destructive-foreground: oklch(0.208 0.036 29);
+  --destructive-surface: oklch(0.312 0.031 29);
+
+  --border: oklch(0.367 0.009 261);
+  --border-strong: oklch(0.452 0.011 258);
+  --input: oklch(0.419 0.011 258);
+  --ring: oklch(0.746 0.076 253);
+
+  --sidebar: oklch(0.234 0.007 258);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+
+  --chart-1: oklch(0.746 0.076 253);
+  --chart-2: oklch(0.73 0.077 50);
+  --chart-3: oklch(0.762 0.067 156);
+  --chart-4: oklch(0.737 0.066 305);
+  --chart-5: oklch(0.769 0.096 91);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    /* The grid is the hot path; never let a scroll-anchor jump steal a keystroke. */
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply min-h-svh bg-background text-foreground antialiased;
+    overflow-x: clip;
+  }
+
+  /* Dense tables stay inside their card and keep a visible, high-contrast
+     horizontal affordance. The viewport is keyboard-scrollable too. */
+  .flrc-table-scroll {
+    scrollbar-color: color-mix(in oklab, var(--primary) 55%, var(--muted-foreground))
+      color-mix(in oklab, var(--muted) 80%, transparent);
+    scrollbar-width: thin;
+  }
+
+  .flrc-table-scroll::-webkit-scrollbar {
+    height: 0.65rem;
+  }
+
+  .flrc-table-scroll::-webkit-scrollbar-track {
+    background: color-mix(in oklab, var(--muted) 80%, transparent);
+  }
+
+  .flrc-table-scroll::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--primary) 55%, var(--muted-foreground));
+    background-clip: padding-box;
+  }
+
+  ::selection {
+    @apply bg-accent text-accent-foreground;
+  }
+
+  /* Numeric columns line up: tabular figures everywhere a value is read. */
+  input[inputmode="numeric"],
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

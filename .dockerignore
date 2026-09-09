@@ -1,0 +1,13 @@
+# Root build context for infra/web/Dockerfile: keep only sources.
+.git
+**/node_modules
+**/dist
+**/.turbo
+.pnpm-store
+apps/backend/.venv
+apps/backend/**/__pycache__
+test-results
+playwright-report
+**/.env
+**/.env.*
+!**/.env.example

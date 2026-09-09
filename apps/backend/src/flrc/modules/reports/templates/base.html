@@ -1,0 +1,78 @@
+{#
+  Shared page chrome for every report set.
+
+  On screen each sheet is drawn page-shaped for a quick visual check; under
+  print (which is what WeasyPrint renders) the sheets become exact
+  zero-margin A4 pages so each template controls its full face — the A5 set
+  needs the true page centre for the cutting line, the duplex sets draw
+  full-page cover frames.
+
+  Branding note: logo, teacher names and the principal's signature are
+  deliberately absent until the branding pass re-adds them.
+
+  NOTE: this directory is in .prettierignore — Prettier reflows Jinja tags.
+#}
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ set_title }}</title>
+    <style>
+      @page {
+        size: {% block page_size %}A4 portrait{% endblock %};
+        margin: 0;
+      }
+
+      * { box-sizing: border-box; }
+
+      :root {
+        --ink: #1d2433;
+        --ink-soft: #4c5a70;
+        --line: #2c3547;
+        /* The school's accent colour, from branding/brand.json. */
+        --accent: {{ school.accent }};
+      }
+
+      body {
+        margin: 0;
+        background: #eef1f6;
+        color: var(--ink);
+        font-family: "DejaVu Sans", Arial, sans-serif;
+        font-size: 10pt;
+        line-height: 1.35;
+      }
+
+      table { width: 100%; border-collapse: collapse; }
+
+      .sheet {
+        position: relative;
+        width: {% block sheet_width %}210mm{% endblock %};
+        height: {% block sheet_height %}297mm{% endblock %};
+        margin: 16px auto;
+        background: white;
+        box-shadow: 0 8px 24px rgba(22, 35, 58, 0.13);
+        overflow: hidden;
+        break-after: page;
+      }
+      .sheet:last-child { break-after: auto; }
+
+      .no-fields {
+        margin: 8mm 0;
+        padding: 4mm;
+        border: 0.2mm dashed #9aa7ba;
+        text-align: center;
+        color: var(--ink-soft);
+      }
+
+      @media print {
+        body { background: white; }
+        .sheet { margin: 0; box-shadow: none; }
+      }
+
+      {% block css %}{% endblock %}
+    </style>
+  </head>
+  <body>
+    {% block sheets %}{% endblock %}
+  </body>
+</html>

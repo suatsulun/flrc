@@ -1,0 +1,11 @@
+{
+  "name": "@flrc/backend",
+  "private": true,
+  "scripts": {
+    "dev": "uv run fastapi dev src/flrc/main.py",
+    "lint": "uv run ruff check . && uv run ruff format --check .",
+    "typecheck": "uv run mypy src/flrc",
+    "test": "uv run pytest",
+    "generate": "uv run python scripts/export_openapi.py"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "@flrc/vercel-gateway",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "build": "node -e \"console.log('Static gateway: no build required')\""
+  }
+}

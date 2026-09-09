@@ -1,0 +1,31 @@
+<!--
+  PLACEHOLDER — replace this file with the school's logo.
+
+  This is the only logo file in the repository. Everything that shows a logo
+  reads it from here: the top-left of every screen in both apps, the sign-in
+  page, and the masthead of every printed report card.
+
+  Guidance:
+    - Keep it roughly square. It renders at 32x32 in the top bar and 13mm on the
+      report card, so it has to stay legible small.
+    - SVG is ideal. PNG and JPEG work too, but keep the filename `logo.svg`
+      (the extension is not checked) or the tool will not find it.
+    - Give it a transparent or white background; it sits on white in print.
+
+  After replacing it, run `pnpm brand`.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="School logo placeholder">
+  <rect width="64" height="64" rx="14" fill="#1c62b6" />
+  <text
+    x="32"
+    y="32"
+    fill="#ffffff"
+    font-family="DejaVu Sans, Geist, system-ui, sans-serif"
+    font-size="25"
+    font-weight="bold"
+    text-anchor="middle"
+    dominant-baseline="central"
+  >
+    FL
+  </text>
+</svg>

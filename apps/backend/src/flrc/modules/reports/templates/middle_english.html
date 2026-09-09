@@ -1,0 +1,193 @@
+{#
+  Middle-school English progress card — one A5 landscape card per student,
+  two per A4 sheet.
+
+  Sheet order within a class is the cutting imposition from render.py:
+  student i shares a sheet with student i + ceil(n/2), so the guillotined
+  class stack reads in roster order once the top pile is placed on the
+  bottom pile.
+
+  The coloured block on the right is the student's own second-language
+  (German/French) score columns, exactly as on the school's card.
+#}
+{% extends "base.html" %}
+
+{% block css %}
+      .half {
+        height: 148.5mm;
+        padding: 10mm 12mm 8mm;
+        overflow: hidden;
+        font-size: 9.5pt;
+      }
+
+      /* Guillotine marks: short ticks at the true page centre. */
+      .cut-mark {
+        position: absolute;
+        top: 148.5mm;
+        width: 5mm;
+        border-top: 0.2mm solid #9aa7ba;
+      }
+      .cut-mark.left { left: 0; }
+      .cut-mark.right { right: 0; }
+
+      .ident { width: auto; }
+      .ident th,
+      .ident td { padding: 0.7mm 0; text-align: left; vertical-align: baseline; }
+      .ident th { width: 34mm; font-weight: 700; }
+      .ident td { padding-left: 5mm; font-weight: 700; }
+
+      /* The card's own colours, matching the school's print: navy ink for
+         headings, red rules as accents. Independent of the app theme. */
+      .half { --navy: #1c2f6e; --red: #c8102e; }
+
+      .title {
+        margin: 5mm 0 3.5mm;
+        text-align: center;
+        font-family: "DejaVu Serif", Georgia, serif;
+        font-size: 1.5em;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: var(--navy);
+      }
+
+      /* Auto layout: wide labels (HIGHLIGHTS) get wider columns, HW/QUIZ
+         stay narrow — like the school's card. */
+      .scores { border-top: 0.6mm solid var(--red); }
+      .scores thead { border-bottom: 0.4mm solid var(--navy); }
+      .scores th {
+        padding: 1.5mm 0.2mm;
+        vertical-align: middle;
+        text-align: center;
+        font-size: 0.54em;
+        font-weight: 700;
+        line-height: 1.3;
+        overflow-wrap: break-word;
+        color: var(--navy);
+      }
+      /* Hairline column separators keep each score under its own heading. */
+      .scores th,
+      .scores tbody td { border-left: 0.2mm solid #d4d9e4; border-right: 0.2mm solid #d4d9e4; }
+      .scores .lang-head {
+        border-bottom: 0.35mm solid var(--red);
+        color: var(--navy);
+        letter-spacing: 0.06em;
+      }
+      .scores tbody { border-bottom: 1.2mm solid var(--navy); }
+      .scores tbody td {
+        padding: 3mm 0.8mm 2.5mm;
+        text-align: center;
+        font-size: 1.05em;
+        font-weight: 700;
+      }
+      .scores tbody td.empty { color: #8593a8; font-weight: 400; }
+
+      .comment { margin-top: 4mm; }
+      .comment-label {
+        margin: 0;
+        font-size: 0.72em;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+      .comment-body {
+        margin-top: 1mm;
+        padding: 2mm 2.5mm;
+        border-left: 0.5mm solid #c9d3e2;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+      }
+{% endblock %}
+
+{% block sheets %}
+    {% for page in pages %}
+    <section class="sheet">
+      {% for slot in [page.top, page.bottom] %}
+      <div class="half">
+        {% if slot %}{% set card = slot.card %}
+        <table class="ident">
+          <tr><th>Name Surname :</th><td>{{ card.student_name }}</td></tr>
+          <tr><th>Number :</th><td>{{ card.school_number }}</td></tr>
+          <tr><th>Class :</th><td>{{ card.class_name|replace("/", "-") }}</td></tr>
+          <tr><th>Semester :</th><td>{{ card.semester_number }}</td></tr>
+        </table>
+
+        <h1 class="title">{{ slot.title }}</h1>
+
+        {% if not slot.blocks and not slot.comments %}
+        <p class="no-fields">{{ no_fields_note }}</p>
+        {% endif %}
+
+        {% if slot.blocks %}
+        {% set depth = slot.depth %}
+        <table class="scores">
+          {# Up to three header levels: plain labels; group spans; and the
+             language section's own sub-groups (DEUTSCH → Klassenarbeiten →
+             the individual columns), exactly like the school's card. #}
+          <thead>
+            <tr>
+              {% for block in slot.blocks %}
+                {% if block.group %}
+                <th colspan="{{ block.rows|length }}">{{ block.group_alt or block.group }}</th>
+                {% else %}
+                  {% for field in block.rows %}
+                  <th{% if depth > 1 %} rowspan="{{ depth }}"{% endif %}>{{ field.label_alt or field.label }}</th>
+                  {% endfor %}
+                {% endif %}
+              {% endfor %}
+              {% if card.language_fields %}
+              <th class="lang-head" colspan="{{ card.language_fields|length }}">{{ card.language_label|upper }}</th>
+              {% endif %}
+            </tr>
+            {% if depth > 1 %}
+            <tr>
+              {% for block in slot.blocks if block.group %}
+                {% for field in block.rows %}
+                <th{% if depth == 3 %} rowspan="2"{% endif %}>{{ field.label_alt or field.label }}</th>
+                {% endfor %}
+              {% endfor %}
+              {% if depth == 3 %}
+                {% for lang_block in slot.lang_blocks %}
+                <th colspan="{{ lang_block.rows|length }}">{{ lang_block.group_alt or lang_block.group }}</th>
+                {% endfor %}
+              {% else %}
+                {% for field in card.language_fields %}
+                <th>{{ field.label_alt or field.label }}</th>
+                {% endfor %}
+              {% endif %}
+            </tr>
+            {% endif %}
+            {% if depth == 3 %}
+            <tr>
+              {% for field in card.language_fields %}
+              <th>{{ field.label_alt or field.label }}</th>
+              {% endfor %}
+            </tr>
+            {% endif %}
+          </thead>
+          <tbody>
+            <tr>
+              {% for block in slot.blocks %}{% for field in block.rows %}
+              <td{% if field.value is none %} class="empty"{% endif %}>{{ "—" if field.value is none else field.value }}</td>
+              {% endfor %}{% endfor %}
+              {% for field in card.language_fields %}
+              <td{% if field.value is none %} class="empty"{% endif %}>{{ "—" if field.value is none else field.value }}</td>
+              {% endfor %}
+            </tr>
+          </tbody>
+        </table>
+        {% endif %}
+
+        {% for note in slot.comments %}
+        <div class="comment">
+          <p class="comment-label">{{ note.label_alt or note.label }}</p>
+          <div class="comment-body">{{ note.value if note.value else "—" }}</div>
+        </div>
+        {% endfor %}
+        {% endif %}
+      </div>
+      {% endfor %}
+      <i class="cut-mark left"></i><i class="cut-mark right"></i>
+    </section>
+    {% endfor %}
+{% endblock %}

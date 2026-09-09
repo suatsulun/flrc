@@ -1,0 +1,81 @@
+services:
+  - type: web
+    name: flrc-api
+    runtime: docker
+    rootDir: apps/backend
+    region: frankfurt
+    plan: free
+    healthCheckPath: /api/healthz
+
+    envVars:
+      - key: ENV
+        value: school
+
+      - key: DATABASE_URL
+        sync: false
+
+      - key: DATABASE_URL_DIRECT
+        sync: false
+
+      - key: REDIS_URL
+        sync: false
+
+      - key: SESSION_SECRET
+        sync: false
+
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      - key: ALLOWED_GOOGLE_DOMAIN
+        sync: false
+
+      - key: FRONTEND_ORIGIN
+        sync: false
+
+      - key: ADMIN_ORIGIN
+        sync: false
+
+      - key: TRUSTED_HOSTS
+        sync: false
+
+      - key: GATEWAY_SECRET
+        sync: false
+
+      - key: SESSION_TTL_SECONDS
+        value: 28800
+
+      - key: MAX_REQUEST_BODY_BYTES
+        value: 12582912
+
+      - key: WORKER_HEALTH_URL
+        sync: false
+
+      - key: OPS_TOKEN
+        sync: false
+
+      - key: SENTRY_DSN
+        sync: false
+
+  - type: web
+    name: flrc-worker
+    runtime: docker
+    rootDir: apps/backend
+    region: frankfurt
+    plan: free
+    dockerCommand: ./bin/start-worker-web.sh
+    healthCheckPath: /health
+
+    envVars:
+      - key: ENV
+        value: school
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_DIRECT
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SENTRY_DSN
+        sync: false

@@ -1,8 +1,8 @@
 name: Deploy to the school server
 
 # Runs after a merge to main (an approved image bump, a branding change) and
-# on demand. The `school` environment carries the required reviewer, so a
-# deploy is a deliberate second click after the merge.
+# on demand. Merging is the approval. The `school` environment records every
+# deploy; a paid GitHub plan can add a required reviewer to it as a second gate.
 on:
   push:
     branches: [main]

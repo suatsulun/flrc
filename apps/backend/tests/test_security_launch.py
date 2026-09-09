@@ -16,15 +16,15 @@ from flrc.modules.auth import cookies
 from flrc.modules.auth.dependencies import current_user
 
 SCHOOL_ORIGIN = "https://flrc.school.example"
-GATEWAY_SECRET = "gateway-7Mkp2Qv9Zx4Tr8Nc6Hs1Wy5Bd0Lf3Aj"
+GATEWAY_SECRET = "gateway-7Mkp2Qv9Zx4Tr8Nc6Hs1Wy5Bd0Lf3Aj"  # gitleaks:allow
 SCHOOL_VALUES: dict[str, object] = {
     "env": "school",
     "frontend_origin": SCHOOL_ORIGIN,
     "admin_origin": SCHOOL_ORIGIN,
     "trusted_hosts": "flrc.school.example,flrc-api-school.onrender.com",
     "gateway_secret": GATEWAY_SECRET,
-    "session_secret": "session-D8x2Vn7Qp4Lm9Kr5Yt1Wc6Hs3Bf0ZjAaEuOi92Gh",
-    "ops_token": "operations-J3m7Qz1Wx9Cv5Bn2Hs8Kp4Df6Rt0YaLe",
+    "session_secret": "session-D8x2Vn7Qp4Lm9Kr5Yt1Wc6Hs3Bf0ZjAaEuOi92Gh",  # gitleaks:allow
+    "ops_token": "operations-J3m7Qz1Wx9Cv5Bn2Hs8Kp4Df6Rt0YaLe",  # gitleaks:allow
     "google_client_id": "school-client.apps.googleusercontent.com",
     "google_client_secret": "school-oauth-secret",
     "allowed_google_domain": "school.example",

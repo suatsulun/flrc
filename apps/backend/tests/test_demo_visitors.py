@@ -19,7 +19,7 @@ from tests.conftest import TestSession
 from tests.test_security_launch import school_settings
 
 DEMO_DOMAIN = "example-school.k12.tr"
-OPS_TOKEN = "ops-token-Q7w2Vn8Rp4Lm3Kt6Yz9Xc1Hs5Bf0Jd"
+OPS_TOKEN = "ops-token-Q7w2Vn8Rp4Lm3Kt6Yz9Xc1Hs5Bf0Jd"  # gitleaks:allow
 # Public login is only allowed together with the nightly reset (ADR-052).
 DEMO_VALUES: dict[str, object] = {
     "env": "demo",

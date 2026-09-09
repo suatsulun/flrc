@@ -1,0 +1,5 @@
+# Fingerprints the secret scanner may skip. Each entry names one synthetic
+# value that only looks like a credential; real secrets never go here.
+# The public repository's root commit carries the launch-test constant that
+# later commits mark inline with `gitleaks:allow`.
+cafff22e1a901029217d8153c5cf8a47352b7a18:apps/backend/tests/test_security_launch.py:generic-api-key:27

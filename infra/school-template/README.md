@@ -4,13 +4,14 @@ This repository deploys the published FL-ReportCard release to the school's serv
 no application code: the application lives in the public repository, and this repository pins a
 release, carries the school's branding, and holds the deployment configuration (ADR-053).
 
-| Path                           | What it is                                                     |
-| ------------------------------ | -------------------------------------------------------------- |
-| `compose.yaml`                 | The five services and the two pinned image tags                |
-| `.env.example`                 | Every setting the server's `/srv/flrc/.env` must contain       |
-| `branding/`                    | The school's name, logo, and favicon (served, never rebuilt)   |
-| `.github/dependabot.yml`       | Opens a pull request when a new application release exists     |
-| `.github/workflows/deploy.yml` | Ships `compose.yaml` and `branding/` to the server and applies |
+| Path                                 | What it is                                                                     |
+| ------------------------------------ | ------------------------------------------------------------------------------ |
+| `compose.yaml`                       | The five services and the two pinned image tags                                |
+| `.env.example`                       | Every setting the server's `/srv/flrc/.env` must contain                       |
+| `branding/`                          | The school's name, logo, and favicon (served, never rebuilt)                   |
+| `.github/dependabot.yml`             | Opens a pull request when a new application release exists                     |
+| `.github/workflows/deploy.yml`       | Ships `compose.yaml` and `branding/` to the server and applies                 |
+| `.github/workflows/backup-check.yml` | Fails every morning the nightly backup or monthly restore test did not succeed |
 
 The complete runbook (server creation, first deploy, upgrades, rollback, backups) is
 `docs/SELF-HOSTING.md` in the public repository.
@@ -31,6 +32,22 @@ schema by hand; a destructive migration is a documented decision, not a rollback
 
 Replace `branding/logo.svg`, `branding/favicon.svg`, and the strings in `branding/brand.js` and
 `branding/brand.json`, then merge. No image changes.
+
+## Backups
+
+The `backup` service dumps the database every night at `BACKUP_AT`, encrypts it with the school's
+age key, uploads it to the Shared Drive folder, keeps the last `BACKUP_RETAIN` copies, restores the
+newest copy into a scratch database on the first of each month to prove it, and bundles every
+archived academic year (report PDFs, workbook, encrypted dump, manifest) under `archives/<year>/`.
+`backups/status.json` on the server records all of it; `backup-check.yml` reads it every morning
+and fails loudly when a night was missed. Manual runs:
+
+```bash
+docker compose run --rm backup flrc backup run
+docker compose run --rm backup flrc backup restore-test
+docker compose run --rm backup flrc backup archives
+docker compose run --rm backup flrc backup status
+```
 
 ## Secrets and settings this repository needs
 

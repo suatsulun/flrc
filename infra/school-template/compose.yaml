@@ -11,7 +11,7 @@
 name: flrc
 
 x-backend: &backend
-  image: ghcr.io/suatsulun/flrc-backend:1.0.0
+  image: ghcr.io/suatsulun/flrc-backend:1.1.0
   env_file: .env
   environment:
     ENV: school
@@ -28,7 +28,7 @@ x-backend: &backend
 
 services:
   web:
-    image: ghcr.io/suatsulun/flrc-web:1.0.0
+    image: ghcr.io/suatsulun/flrc-web:1.1.0
     ports:
       - "80:80"
       - "443:443"
@@ -97,6 +97,19 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    mem_limit: 1g
+
+  # Nightly age-encrypted dump to the school's Shared Drive, a monthly restore
+  # test, and academic-year archives (ADR-056). Same image, another command.
+  backup:
+    <<: *backend
+    command: ["flrc", "backup", "schedule"]
+    volumes:
+      - ./branding:/srv/branding:ro
+      - ./backups:/srv/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
     mem_limit: 1g
 
   postgres:

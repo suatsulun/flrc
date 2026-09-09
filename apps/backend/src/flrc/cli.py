@@ -13,9 +13,11 @@ from flrc.db.sync import sync_engine
 from flrc.modules.academics.programme import L2_START_GRADE, allows_column_type
 from flrc.modules.administration.names import normalize_email
 from flrc.modules.auth.policy import allowed_google_domain, email_is_in_school_domain
+from flrc.modules.backup import cli as backup_cli
 from flrc.modules.imports.fixture import make_hostile_fixture
 
 app = typer.Typer(help="FL-ReportCard maintenance commands. ")
+app.add_typer(backup_cli.app, name="backup")
 
 CORE_SECTIONS = ("A", "B", "C", "D", "E", "F")
 G_SECTION_GRADES = frozenset({1, 3, 5, 7})

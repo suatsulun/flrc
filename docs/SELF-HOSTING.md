@@ -18,7 +18,8 @@ repository is its starting content.
    `https://<hostname>/api/auth/callback`.
 4. **Deployment repository.** Create a private repository from `infra/school-template/` (copy
    the folder's contents, including the dotfiles). Add the repository secrets and variables
-   listed in its README and an environment named `school` with a required reviewer.
+   listed in its README. Merging a pull request there is the deployment approval; a paid GitHub
+   plan can additionally require a reviewer on the `school` environment.
 5. **Keys.** Generate two SSH key pairs: one for the deploy workflow (`DEPLOY_SSH_KEY`), one for
    the school's operator.
 
@@ -48,8 +49,8 @@ ssh-keyscan -H <server address>
 
    Never commit the filled file anywhere.
 
-2. Merge the deployment repository's initial commit to `main` and approve the deploy. The
-   workflow ships `compose.yaml` and `branding/`, pulls the pinned images, runs the migrations,
+2. Push the deployment repository's initial commit to `main`; the deploy workflow runs. It
+   ships `compose.yaml` and `branding/`, pulls the pinned images, runs the migrations,
    starts the services, and checks `https://<hostname>/api/healthz`. Caddy obtains the certificate
    on first request; allow a minute.
 3. Create the only bootstrap administrator, then use the admin table for everyone else:
@@ -64,13 +65,13 @@ ssh-keyscan -H <server address>
 ## Upgrading
 
 A new application release is a new image tag. Dependabot opens a pull request in the deployment
-repository; merging it and approving the `school` environment is the whole upgrade. Migrations
+repository; merging it is the whole upgrade. Migrations
 run in the one-shot `migrate` service before the API starts, so a failed migration leaves the old
 containers running and the workflow red.
 
 ## Rolling back
 
-Revert the bump pull request and approve the deploy. The database schema is not downgraded
+Revert the bump pull request; merging the revert deploys the previous release. The database schema is not downgraded
 automatically; a release that changed the schema destructively documents its own recovery in the
 release notes, and the backup restore procedure remains the last resort.
 

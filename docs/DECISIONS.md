@@ -2183,7 +2183,8 @@ secret and strips `Cf-Connecting-Ip`.
 The school's private deployment repository starts from `infra/school-template/`: the pinned
 Compose file, an environment template, the branding overlay, Dependabot for image bumps, and a
 deploy workflow that ships the Compose file and branding over SSH, pulls, applies, and checks
-health, behind a GitHub environment with a required reviewer. Secrets exist only in `/srv/flrc/.env`
+health; merging the pull request is the approval, and a paid GitHub plan can add a required
+reviewer on the `school` environment. Secrets exist only in `/srv/flrc/.env`
 on the server. All accounts (Hetzner, DNS, Google Cloud, GitHub, backup storage) are school-owned
 with the developer as a member. The runbook is `docs/SELF-HOSTING.md`.
 

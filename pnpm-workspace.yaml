@@ -5,5 +5,8 @@ packages:
 allowBuilds:
   lefthook: false
 overrides:
+  # Security floor for a transitive dependency of the lint tooling
+  # (GHSA-2883-xcg3-v3hh and siblings); remove once every dependent moves.
+  "js-yaml@<4.3.2": ">=4.3.2"
   fast-uri: 3.1.6
   qs: 6.16.0

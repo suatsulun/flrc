@@ -85,8 +85,48 @@ release notes, and the backup restore procedure remains the last resort.
   blobs expire after 24 hours, so growth is slow.
 - Secrets rotation: edit `/srv/flrc/.env`, then `docker compose up -d`. Rotating `GATEWAY_SECRET`
   or `SESSION_SECRET` signs every teacher out.
-- Backups and academic-year archives: see `docs/RUNBOOK.md` and the backup sidecar section once it
-  lands (ADR-056).
+- Backups and academic-year archives: the section below.
+
+## Backups, restore tests, and year archives
+
+The `backup` service in the Compose file (ADR-056) runs inside the same image as the API and
+needs four values in `.env`:
+
+1. **A Shared Drive folder the school owns.** In Google Workspace, create a Shared Drive (or use
+   an existing one), a folder such as `FL-ReportCard backups` inside it, and note the folder id
+   from its URL. Service accounts have no storage of their own, so the folder must be in a Shared
+   Drive.
+2. **A service account.** In the school's Google Cloud project, enable the Drive API, create a
+   service account, create a JSON key for it, and add the service account's e-mail address to the
+   Shared Drive as a Content manager. Put the key's JSON on one line into
+   `GDRIVE_SERVICE_ACCOUNT_JSON` and the folder id into `GDRIVE_BACKUP_FOLDER_ID`.
+3. **An age key pair.** `docker compose run --rm backup flrc backup keygen` prints both halves.
+   `BACKUP_AGE_RECIPIENT` encrypts; `BACKUP_AGE_IDENTITY` decrypts. Store the identity in the
+   school's password manager and in a sealed envelope in the school safe: without it every backup
+   is unreadable, and with it every backup is readable.
+4. `docker compose up -d backup`, then prove the loop once by hand:
+
+   ```bash
+   docker compose run --rm backup flrc backup run
+   docker compose run --rm backup flrc backup restore-test
+   docker compose run --rm backup flrc backup status
+   ```
+
+Every night at `BACKUP_AT` the service dumps the database with `pg_dump`, encrypts the dump,
+uploads it with a checksum, and keeps the newest `BACKUP_RETAIN` copies; a failed night never
+deletes an older copy. On day `BACKUP_RESTORE_TEST_DAY` of each month it downloads the newest
+copy, verifies the checksum, decrypts it, restores it into a scratch database on the same server,
+checks the schema revision and row counts, and drops the scratch database. Every run also looks
+for academic years in the `archived` state that have no bundle in `archives/<year>/` yet and
+uploads one: every non-empty report set per semester as PDF, the whole-year workbook, an encrypted
+full dump from that moment, and a `manifest.json` with checksums and counts. Archives are never
+pruned; the school deletes them under its own records policy.
+
+`backups/status.json` on the server records the last success, the last error, the last restore
+test, and the archives written. The deployment repository's `backup-check.yml` reads it every
+morning over SSH and fails when the backup is older than 26 hours, the last run failed, or the
+restore test is older than 40 days or failed. Twice a year, follow `docs/RESTORE-DRILLS.md` by
+hand, including fetching the identity from the safe.
 
 ## What the server never exposes
 

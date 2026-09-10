@@ -58,3 +58,12 @@ docker compose run --rm backup flrc backup status
   reviewers on private-repository environments only on paid plans; on the free plan, merging the
   pull request is the approval step.
 - The application secrets are only in `/srv/flrc/.env` on the server.
+
+## Enable server automation
+
+Set repository variable `SCHOOL_DEPLOY_ENABLED=true` only after configuring
+`DEPLOY_HOST`, `SITE_HOST`, `DEPLOY_SSH_KEY`, and `DEPLOY_KNOWN_HOSTS` and preparing
+the server. Until then, automatic deployment and backup freshness jobs are
+skipped. Manual runs remain available and fail if required configuration is
+missing. This keeps a local-only checkout from attempting an unconfigured
+production deployment; it does not certify that a backup exists.

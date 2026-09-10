@@ -3814,9 +3814,10 @@ Then, logged into the teacher app, run in the browser console: `fetch('/api/clas
 
 ## Step 2.4 — The grid UI: TanStack Table, three cells, keyboard-first
 
-**Readable assessment navigation (ADR-049):** show up to three columns at a readable width,
-with category filters and previous/next controls in configured order. Narrow screens show fewer
-columns. Keep complete normal-case labels and student names visible, explain the 1–2–3 scale,
+**Readable assessment navigation (ADR-049, capacity updated in ADR-061):** show four sentence
+columns at a 1280px viewport and five at 1366px or wider, with category filters and previous/next
+controls in configured order. Narrow screens show fewer columns. Keep complete normal-case
+labels and student names visible, explain the 1–2–3 scale,
 and retain drafts across assessment pages. Save includes hidden draft cells. Check with
 `pnpm exec playwright test e2e/assessment-grid.spec.ts` against the teacher dev server.
 

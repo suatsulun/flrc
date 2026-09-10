@@ -6,10 +6,12 @@ export function AssessmentFilters({
   columns,
   value,
   onChange,
+  compact = false,
 }: {
   columns: GridColumnOut[];
   value: AssessmentFilter;
   onChange: (value: AssessmentFilter) => void;
+  compact?: boolean;
 }) {
   const { t } = useTranslation();
   const options = assessmentOptions(columns);
@@ -23,7 +25,8 @@ export function AssessmentFilters({
           aria-pressed={value === option.id}
           onClick={() => onChange(option.id)}
           className={[
-            "inline-flex max-w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+            "inline-flex max-w-full items-center gap-2 rounded-lg border text-left text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+            compact ? "px-2 py-1.5" : "px-3 py-2",
             value === option.id
               ? "border-primary bg-primary text-primary-foreground"
               : "border-border bg-background text-foreground hover:bg-accent",

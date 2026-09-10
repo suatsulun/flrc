@@ -16,6 +16,8 @@ env:
 
 jobs:
   reset:
+    # Scheduled operations are opt-in; manual runs still validate required secrets.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.DEMO_RESET_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

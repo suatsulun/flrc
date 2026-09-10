@@ -61,9 +61,11 @@ export const GridTable = memo(function GridTable({
     noteCount > 0 &&
     scoreCount + noteCount === filtered.length &&
     surfaceWidth >= 154 + 184 * noteCount + 60 * scoreCount;
+  // Keep student controls in 184px and reserve 180px per sentence. This fits
+  // four assessments at 1280px and five at 1366px with the sidebar open.
   const pageSize = englishOverview
     ? filtered.length
-    : Math.min(3, Math.max(1, Math.floor((surfaceWidth - 224) / 240)));
+    : Math.min(5, Math.max(1, Math.floor((surfaceWidth - 184) / 180)));
   const showScaleFaces = data.meta.subject === "english" && data.meta.grade_level <= 4;
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const page = Math.min(selection.page, pageCount - 1);
@@ -136,7 +138,7 @@ export const GridTable = memo(function GridTable({
               ) : null}
               <span
                 data-testid="assessment-heading"
-                className="block text-sm font-semibold leading-relaxed text-foreground lg:text-base"
+                className="block text-sm font-semibold leading-relaxed text-foreground"
               >
                 {column.label}
               </span>
@@ -214,16 +216,11 @@ export const GridTable = memo(function GridTable({
         className={
           englishOverview
             ? "space-y-2 border-b border-border p-2"
-            : "space-y-4 border-b border-border p-4"
+            : "space-y-3 border-b border-border p-3"
         }
       >
-        {!englishOverview ? (
-          <div>
-            <p className="font-semibold">{t("grid.assessmentFocus")}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{t("grid.assessmentFocusHint")}</p>
-          </div>
-        ) : null}
         <AssessmentFilters
+          compact={!englishOverview}
           columns={data.columns}
           value={selectedGroup}
           onChange={(group) => setSelection({ group, page: 0 })}
@@ -252,7 +249,7 @@ export const GridTable = memo(function GridTable({
         <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
           <TableCaption>{t("grid.tableLabel")}</TableCaption>
           <colgroup>
-            <col style={{ width: englishOverview ? 154 : pageSize === 1 ? "36%" : "28%" }} />
+            <col style={{ width: englishOverview ? 154 : pageSize === 1 ? "36%" : 184 }} />
             {visible.map((column) => (
               <col
                 key={column.id}
@@ -270,7 +267,7 @@ export const GridTable = memo(function GridTable({
                     className={
                       englishOverview
                         ? `sticky z-20 border-b border-border text-left text-sm font-semibold text-foreground ${header.column.id === "student" ? "english-student-heading" : visible.find((column) => String(column.id) === header.column.id)?.value_type === "score" ? "english-score-heading" : "english-comment-heading"}`
-                        : "sticky z-20 border-b border-border bg-muted px-3 py-4 text-left align-top text-sm font-semibold break-words text-foreground"
+                        : "sticky z-20 border-b border-border bg-muted px-2 py-3 text-left align-top text-sm font-semibold break-words text-foreground"
                     }
                     style={{ top: "var(--app-shell-header-height, 3.5rem)" }}
                   >
@@ -297,7 +294,7 @@ export const GridTable = memo(function GridTable({
                     className={
                       englishOverview
                         ? "min-w-0 border-b border-r border-border/60 px-0.5 py-1 break-words first:px-2 last:px-2"
-                        : "min-w-0 border-b border-border/60 px-3 py-2 break-words"
+                        : "min-w-0 border-b border-border/60 px-2 py-2 break-words"
                     }
                   >
                     <table.FlexRender cell={cell} />

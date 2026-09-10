@@ -14,7 +14,7 @@ import {
 import { DemoBanner } from "@flrc/ui/components/demo-banner";
 import { PageActivity } from "@flrc/ui/components/page-activity";
 
-import { LanguageSwitch } from "../components/language-switch";
+import { LanguageSwitch } from "@flrc/ui/components/language-switch";
 import { LOGO_URL, SCHOOL_SHORT_NAME } from "@flrc/branding";
 
 export const Route = createFileRoute("/_auth")({
@@ -62,7 +62,13 @@ function AuthLayout() {
       renderNav={({ onNavigate }) => (
         <TeacherNavigation isAdmin={user.is_admin} onNavigate={onNavigate} />
       )}
-      topbarActions={<LanguageSwitch />}
+      topbarActions={
+        <LanguageSwitch
+          language={i18n.language}
+          onChange={(language) => void i18n.changeLanguage(language)}
+          ariaLabel={t("shell.language")}
+        />
+      }
     >
       {demo ? (
         <DemoBanner

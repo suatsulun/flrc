@@ -25,7 +25,7 @@ import {
 import { DemoBanner } from "@flrc/ui/components/demo-banner";
 import { PageActivity } from "@flrc/ui/components/page-activity";
 
-import { LanguageSwitch } from "../components/language-switch";
+import { LanguageSwitch } from "@flrc/ui/components/language-switch";
 import { LOGO_URL, SCHOOL_SHORT_NAME } from "@flrc/branding";
 
 const teacherUrl = import.meta.env.VITE_TEACHER_URL ?? "http://localhost:5173";
@@ -74,7 +74,11 @@ function AdminLayout() {
       )}
       topbarActions={
         <>
-          <LanguageSwitch />
+          <LanguageSwitch
+            language={i18n.language}
+            onChange={(language) => void i18n.changeLanguage(language)}
+            ariaLabel={t("shell.language")}
+          />
           <a
             href={teacherUrl}
             className="hidden rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"

@@ -23,8 +23,12 @@ COPY branding/package.json branding/
 # The whole workspace, so pnpm's pre-run dependency check finds nothing missing
 # and never re-installs. --ignore-scripts skips the root `prepare` hook (lefthook
 # needs a git checkout); dependency build scripts stay governed by allowBuilds.
-RUN printf 'verify-deps-before-run=false\n' > .npmrc \
-    && pnpm install --frozen-lockfile --ignore-scripts
+# Retain downloaded packages when a manifest changes or a registry request fails.
+# A modest request limit also keeps local builds reliable on slower connections.
+RUN --mount=type=cache,id=flrc-pnpm-store,target=/pnpm/store,sharing=locked \
+    printf 'verify-deps-before-run=false\n' > .npmrc \
+    && pnpm install --frozen-lockfile --ignore-scripts \
+       --store-dir=/pnpm/store --prefer-offline --network-concurrency=8
 COPY . .
 # Both apps share one origin on the school box, so the cross-links are relative.
 ARG VITE_ADMIN_URL=/admin/

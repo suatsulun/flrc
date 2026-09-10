@@ -1,5 +1,6 @@
 import { mergeSavedGrid } from "../apps/teacher/src/grid/merge-saved-grid";
 import type { DirtyCell } from "../apps/teacher/src/grid/dirty-store";
+import { useDirtyStore } from "../apps/teacher/src/grid/dirty-store";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
@@ -118,7 +119,7 @@ async function mockGrid(
             section: "A",
             subjects: [
               {
-                subject: "german",
+                subject: grid.meta.subject,
                 student_count: grid.rows.length,
                 column_count: grid.columns.length,
                 owner_roles: ["german"],
@@ -262,7 +263,7 @@ test("Grade 4 second-language grid shows only the three-level rubric", async ({ 
   const categories = page.getByRole("group", { name: "Assessment categories", exact: true });
   await expect(categories.getByRole("button", { name: /Exams|Homework/ })).toHaveCount(0);
   await expect(page.getByTestId("grade-grid-surface").getByRole("textbox")).toHaveCount(0);
-  await expect(page.getByText("Needs support", { exact: false })).toBeVisible();
+  await expect(page.getByText("Needs improvement", { exact: false })).toBeVisible();
 });
 
 test("clearing a saved grade stays blank after save", async ({ page }) => {
@@ -342,3 +343,166 @@ test("partial saves retain unapplied drafts and leave the original snapshot inta
   expect(grid.rows[0].cells["1"]).toEqual({ value: 60, version: 2 });
   expect(draft["1:1"]).toBe(applied);
 });
+
+for (const width of [1536, 390]) {
+  test(`notes filter isolates comments and bulk ratings cover hidden categories at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+    const grid = fixture();
+    grid.rows[0].cells["1"] = { value: 82, version: 2 };
+    grid.rows[0].cells["15"] = { value: "Keep this teacher note", version: 3 };
+    const saves: SaveRequest[] = [];
+    await mockGrid(page, grid, (body) => {
+      saves.push(body);
+    });
+    await page.goto(`${teacherUrl}/classes/1/german?semester=1`);
+    await page.getByRole("button", { name: "Teacher notes 1", exact: true }).click();
+    if (width > 500) {
+      await expect(page.getByTestId("assessment-heading")).toHaveText(["Teacher’s comments"]);
+      await expect(page.getByTestId("grade-grid-surface").getByRole("textbox")).toHaveCount(0);
+    } else {
+      await expect(page.getByText(assessments[4][0], { exact: true })).toHaveCount(0);
+    }
+    await expect(page.getByText("Keep this teacher note", { exact: true })).toBeVisible();
+    await page.getByTestId("bulk-ratings-student-1").click();
+    await page.getByTestId("bulk-rating-3").click();
+    expect(saves).toHaveLength(0);
+    await expect(page.getByText("Keep this teacher note", { exact: true })).toBeVisible();
+    await page.getByTestId("save-grid").click();
+    await expect.poll(() => saves.length).toBe(1);
+    expect(saves[0].cells).toEqual(
+      grid.columns
+        .filter((c) => c.value_type === "scale3")
+        .map((c) => ({
+          student_id: 1,
+          column_id: c.id,
+          value: 3,
+          expected_version: 0,
+        })),
+    );
+    await expect(page.getByTestId("save-grid")).toBeDisabled();
+    await page.getByTestId("bulk-ratings-class").click();
+    await page.getByTestId("bulk-rating-2").click();
+    await page.getByTestId("save-grid").click();
+    await expect.poll(() => saves.length).toBe(2);
+    expect(saves[1].cells).toHaveLength(40);
+    for (const cell of saves[1].cells) {
+      expect(cell.value).toBe(2);
+      expect(cell.expected_version).toBe(cell.student_id === 1 ? 1 : 0);
+      expect(cell.column_id).toBeGreaterThanOrEqual(5);
+      expect(cell.column_id).toBeLessThanOrEqual(14);
+    }
+    await expect(page.getByTestId("save-grid")).toBeDisabled();
+    await page.getByRole("button", { name: "All assessments 15", exact: true }).click();
+    if (width > 500)
+      await expect(page.getByTestId("cell-1-1").getByRole("textbox")).toHaveValue("82");
+    else
+      await expect(
+        page.getByRole("textbox", { name: `${names[0]} — Exam 1`, exact: true }),
+      ).toHaveValue("82");
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+  });
+}
+
+for (const subject of ["german", "french", "english"] as const) {
+  for (const locked of [false, true]) {
+    test(`${subject} ratings show their labels ${locked ? "when locked" : "when editable"}`, async ({
+      page,
+    }) => {
+      await page.addInitScript(() => localStorage.setItem("i18nextLng", "tr"));
+      const grid = fixture(4);
+      grid.meta.subject = subject;
+      grid.meta.semester_status = locked ? "locked" : "open";
+      for (const row of grid.rows) {
+        for (const column of grid.columns)
+          row.cells[column.id] = { value: (column.id % 3) + 1, version: 1 };
+      }
+      await mockGrid(page, grid);
+      await page.goto(`${teacherUrl}/classes/1/${subject}?semester=1`);
+      const surface = page.getByTestId("grade-grid-surface");
+      const cell = page.getByTestId("cell-1-5");
+      await expect(cell).toContainText("Çok iyi");
+      await expect(surface).toContainText("Geliştirilmeli");
+      await expect(surface).toContainText("İyi");
+      if (subject === "english") await expect(cell).toContainText("🙂");
+      else await expect(surface).not.toContainText(/🙂|😐|🙁/);
+      if (locked) {
+        await expect(page.getByTestId("bulk-ratings-class")).toHaveCount(0);
+        await expect(page.getByTestId("bulk-ratings-student-1")).toHaveCount(0);
+        await expect(cell.getByRole("button")).toHaveCount(0);
+      } else {
+        await cell.getByRole("button").press("1");
+        await expect(cell).toContainText("Geliştirilmeli");
+      }
+    });
+  }
+}
+
+for (const value of [1, 2, 3] as const) {
+  test(`bulk draft ${value} preserves versions, scores, notes, and unrelated pupils`, () => {
+    const store = useDirtyStore;
+    store.getState().clearAll();
+    const grid = fixture();
+    grid.rows[0].cells["5"] = { value: 2, version: 7 };
+    grid.rows[0].cells["6"] = { value, version: 4 };
+    const score = { studentId: 1, columnId: 1, value: 90, expectedVersion: 2 };
+    const note = { studentId: 1, columnId: 15, value: "Unsaved note", expectedVersion: 3 };
+    store.getState().setCell(score);
+    store.getState().setCell(note);
+    store.getState().setCell({ studentId: 1, columnId: 5, value: 1, expectedVersion: 6 });
+    store.getState().setCell({ studentId: 2, columnId: 5, value: 2, expectedVersion: 9 });
+    store.getState().setRatings(grid, value, 1);
+    const draft = store.getState().cells;
+    expect(draft["1:1"]).toBe(score);
+    expect(draft["1:15"]).toBe(note);
+    expect(draft["1:6"]).toBeUndefined();
+    expect(draft["2:5"]).toEqual({ studentId: 2, columnId: 5, value: 2, expectedVersion: 9 });
+    if (value === 2) expect(draft["1:5"]).toBeUndefined();
+    else expect(draft["1:5"]?.expectedVersion).toBe(6);
+    expect(draft["1:14"]).toEqual({ studentId: 1, columnId: 14, value, expectedVersion: 0 });
+    const snapshot = store.getState().cells;
+    grid.meta.semester_status = "locked";
+    store.getState().setRatings(grid, 3);
+    expect(store.getState().cells).toBe(snapshot);
+    expect(grid.rows[0].cells["5"]).toEqual({ value: 2, version: 7 });
+    store.getState().clearAll();
+  });
+}
+
+for (const latest of [1, 2] as const) {
+  test(`bulk choice ${latest} during a save remains unsaved with the new versions`, async ({
+    page,
+  }) => {
+    await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+    const grid = fixture();
+    grid.rows[0].cells["5"] = { value: 1, version: 1 };
+    const pending = Promise.withResolvers<void>();
+    const saves: SaveRequest[] = [];
+    await mockGrid(page, grid, async (body) => {
+      saves.push(body);
+      if (saves.length === 1) await pending.promise;
+    });
+    await page.goto(`${teacherUrl}/classes/1/german?semester=1`);
+    await page.getByTestId("bulk-ratings-student-1").click();
+    await page.getByTestId("bulk-rating-3").click();
+    await page.getByTestId("save-grid").click();
+    await expect.poll(() => saves.length).toBe(1);
+    await page.getByTestId("bulk-ratings-class").click();
+    await page.getByTestId(`bulk-rating-${latest}`).click();
+    pending.resolve();
+    await expect(page.getByTestId("save-grid")).toBeEnabled();
+    await page.getByTestId("save-grid").click();
+    await expect.poll(() => saves.length).toBe(2);
+    expect(saves[1].cells).toHaveLength(40);
+    expect(saves[1].cells.every((cell) => cell.value === latest)).toBe(true);
+    expect(
+      saves[1].cells.find((cell) => cell.student_id === 1 && cell.column_id === 5)
+        ?.expected_version,
+    ).toBe(2);
+    await expect(page.getByTestId("save-grid")).toBeDisabled();
+  });
+}

@@ -103,9 +103,9 @@
     "ownedBy": "Owned by {{name}}",
     "unassignedOwner": "No teacher assigned",
     "scaleLevels": {
-      "1": "Needs support",
-      "2": "Developing",
-      "3": "Secure"
+      "1": "Needs improvement",
+      "2": "Good",
+      "3": "Very good"
     },
     "addComment": "Add comment",
     "commentEditorDescription": "Write the teacher comment in the larger field below. It remains unsaved until you save the grid.",
@@ -139,7 +139,15 @@
     "assessmentRange": "Assessments {{start}}–{{end}} of {{total}}",
     "previousAssessments": "Previous",
     "nextAssessments": "Next",
-    "gradeFourScaleOnly": "Grade 4 German and French use only the 1–2–3 scale."
+    "gradeFourScaleOnly": "Grade 4 German and French use only the 1–2–3 scale.",
+    "teacherNotes": "Teacher notes",
+    "bulkStudent": "Set all ratings",
+    "bulkClass": "Set ratings for the whole class",
+    "bulkStudentTitle": "All ratings for {{name}}",
+    "bulkClassTitle": "All ratings for class {{name}}",
+    "bulkStudentHint": "Applies to all {{count}} rating assessments for this student.",
+    "bulkClassHint": "Applies to all {{count}} rating assessments for each of the {{students}} students in this subject.",
+    "bulkSaveHint": "Includes every category. Changes are saved when you press Save."
   },
   "stepper": {
     "prev": "Previous",
@@ -198,7 +206,16 @@
     "resetIdentity": "Reset Google account",
     "resetIdentityConfirm": "Clear {{name}}’s Google account binding? Reactivate only when the verified account owner is ready to sign in.",
     "allowedSuccess": "Teacher access was added.",
-    "empty": "No teachers on the allowlist yet."
+    "empty": "No teachers on the allowlist yet.",
+    "reportIdentity": "Report name & signature",
+    "reportName": "Name on report cards",
+    "reportNameHelp": "Leave blank to use the account name.",
+    "signaturePreview": "Signature for {{name}}",
+    "noSignature": "No signature uploaded. The report will leave space for a handwritten signature.",
+    "signatureUpload": "Upload or replace signature",
+    "signatureHelp": "PNG, up to 1 MiB and 4 million pixels; neither side over 4096 px. A transparent background works best. Changes apply to newly generated reports.",
+    "signatureRemove": "Remove signature",
+    "signatureInvalid": "Choose a valid, single-frame PNG within the size limits."
   },
   "classes": {
     "title": "Classes",
@@ -541,6 +558,7 @@
     "save": "Save",
     "cancel": "Cancel",
     "value": "Value",
-    "add": "Add"
+    "add": "Add",
+    "close": "Close"
   }
 }

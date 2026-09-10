@@ -30,6 +30,7 @@ import { OwnershipWarningDialog } from "../../grid/ownership-warning-dialog";
 import { StepperView } from "../../grid/stepper";
 import { useIsPhone } from "../../grid/use-is-phone";
 import { useSaveGrid } from "../../grid/use-save-grid";
+import { BulkRatings } from "../../grid/bulk-ratings";
 
 type Subject = "english" | "german" | "french";
 type View = "auto" | "grid" | "stepper";
@@ -109,7 +110,7 @@ function GridPage() {
     () => data?.columns.filter((column) => !column.owned_by_you) ?? [],
     [data?.columns],
   );
-  const writable = data?.meta.semester_status === "open";
+  const writable = data?.meta.semester_status === "open" && data.meta.year_status === "active";
   const gradeTabs = useMemo(
     () =>
       data
@@ -299,7 +300,8 @@ function GridPage() {
             })}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <BulkRatings data={data} readOnly={!writable} />
           {writable ? null : <Badge tone="neutral">{t("grid.locked")}</Badge>}
           <Segmented
             ariaLabel={t("grid.viewLabel")}
@@ -338,8 +340,17 @@ function GridPage() {
         <EmptyState title={t("grid.emptyTitle")} description={t("grid.emptyBody")} />
       ) : showStepper ? (
         <StepperView
+          key={`${classId}-${subject}-${data.meta.semester_number}`}
           data={data}
-          renderCell={(column, row) => <GradeCell column={column} row={row} readOnly={!writable} />}
+          readOnly={!writable}
+          renderCell={(column, row) => (
+            <GradeCell
+              column={column}
+              row={row}
+              readOnly={!writable}
+              showScaleFaces={subject === "english" && data.meta.grade_level <= 4}
+            />
+          )}
         />
       ) : (
         <GridTable

@@ -6,6 +6,10 @@ from flrc.config import settings
 
 SENSITIVE_KEYS = {
     "full_name",
+    "report_name",
+    "signature",
+    "signature_png",
+    "signature_digest",
     "email",
     "school_number",
     "score",

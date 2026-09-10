@@ -103,9 +103,9 @@
     "ownedBy": "Zuständig: {{name}}",
     "unassignedOwner": "Keine Lehrkraft zugewiesen",
     "scaleLevels": {
-      "1": "Braucht Unterstützung",
-      "2": "In Entwicklung",
-      "3": "Gesichert"
+      "1": "Aufbaufähig",
+      "2": "Gut",
+      "3": "Sehr gut"
     },
     "addComment": "Kommentar hinzufügen",
     "commentEditorDescription": "Schreiben Sie den Kommentar der Lehrkraft in das größere Feld unten. Er bleibt ungespeichert, bis Sie das Raster speichern.",
@@ -139,7 +139,15 @@
     "assessmentRange": "Bewertungen {{start}}–{{end}} von {{total}}",
     "previousAssessments": "Zurück",
     "nextAssessments": "Weiter",
-    "gradeFourScaleOnly": "In Klasse 4 verwenden Deutsch und Französisch ausschließlich die Skala 1–2–3."
+    "gradeFourScaleOnly": "In Klasse 4 verwenden Deutsch und Französisch ausschließlich die Skala 1–2–3.",
+    "teacherNotes": "Lehrerkommentare",
+    "bulkStudent": "Alle Bewertungen setzen",
+    "bulkClass": "Bewertungen der ganzen Klasse setzen",
+    "bulkStudentTitle": "Alle Bewertungen für {{name}}",
+    "bulkClassTitle": "Alle Bewertungen der Klasse {{name}}",
+    "bulkStudentHint": "Gilt für alle {{count}} Bewertungen dieses Schülers bzw. dieser Schülerin.",
+    "bulkClassHint": "Gilt für alle {{count}} Bewertungen aller {{students}} Lernenden in diesem Fach.",
+    "bulkSaveHint": "Umfasst alle Kategorien. Änderungen werden mit Speichern gespeichert."
   },
   "stepper": {
     "prev": "Zurück",
@@ -198,7 +206,16 @@
     "resetIdentity": "Google-Konto zurücksetzen",
     "resetIdentityConfirm": "Die Google-Kontobindung von {{name}} löschen? Erst reaktivieren, wenn der verifizierte Kontoinhaber zur Anmeldung bereit ist.",
     "allowedSuccess": "Der Zugriff für die Lehrkraft wurde hinzugefügt.",
-    "empty": "Noch keine Lehrkräfte auf der Freigabeliste."
+    "empty": "Noch keine Lehrkräfte auf der Freigabeliste.",
+    "reportIdentity": "Zeugnisname und Unterschrift",
+    "reportName": "Name auf dem Zeugnis",
+    "reportNameHelp": "Leer lassen, um den Kontonamen zu verwenden.",
+    "signaturePreview": "Unterschrift von {{name}}",
+    "noSignature": "Keine Unterschrift hochgeladen. Im Zeugnis bleibt Platz zum Unterschreiben.",
+    "signatureUpload": "Unterschrift hochladen oder ersetzen",
+    "signatureHelp": "PNG, bis 1 MiB und 4 Millionen Pixel; keine Seite über 4096 px. Transparenter Hintergrund empfohlen. Änderungen gelten für neu erstellte Zeugnisse.",
+    "signatureRemove": "Unterschrift entfernen",
+    "signatureInvalid": "Wählen Sie ein gültiges PNG mit einem Einzelbild innerhalb der Größenbegrenzung."
   },
   "classes": {
     "title": "Klassen",
@@ -541,6 +558,7 @@
     "save": "Speichern",
     "cancel": "Abbrechen",
     "value": "Wert",
-    "add": "Hinzufügen"
+    "add": "Hinzufügen",
+    "close": "Schließen"
   }
 }

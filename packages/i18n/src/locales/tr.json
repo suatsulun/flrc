@@ -103,9 +103,9 @@
     "ownedBy": "Sorumlu: {{name}}",
     "unassignedOwner": "Atanmış öğretmen yok",
     "scaleLevels": {
-      "1": "Desteğe ihtiyaç duyuyor",
-      "2": "Gelişmekte",
-      "3": "Kazanmış"
+      "1": "Geliştirilmeli",
+      "2": "İyi",
+      "3": "Çok iyi"
     },
     "addComment": "Görüş ekle",
     "commentEditorDescription": "Öğretmen görüşünü aşağıdaki geniş alana yazın. Tabloyu kaydedene kadar değişiklik kaydedilmemiş olarak kalır.",
@@ -139,7 +139,15 @@
     "assessmentRange": "{{total}} değerlendirmeden {{start}}–{{end}} arası",
     "previousAssessments": "Önceki",
     "nextAssessments": "Sonraki",
-    "gradeFourScaleOnly": "4. sınıf Almanca ve Fransızca derslerinde yalnızca 1–2–3 ölçeği kullanılır."
+    "gradeFourScaleOnly": "4. sınıf Almanca ve Fransızca derslerinde yalnızca 1–2–3 ölçeği kullanılır.",
+    "teacherNotes": "Öğretmen görüşleri",
+    "bulkStudent": "Tüm değerlendirmeleri değiştir",
+    "bulkClass": "Sınıfın tüm değerlendirmelerini değiştir",
+    "bulkStudentTitle": "{{name}} için tüm değerlendirmeler",
+    "bulkClassTitle": "{{name}} sınıfının tüm değerlendirmeleri",
+    "bulkStudentHint": "Bu öğrencinin {{count}} adet 1–2–3 değerlendirmesinin tamamına uygulanır.",
+    "bulkClassHint": "Bu dersteki {{students}} öğrencinin her birinin {{count}} adet 1–2–3 değerlendirmesinin tamamına uygulanır.",
+    "bulkSaveHint": "Tüm kategorileri kapsar. Değişiklikler Kaydet ile kaydedilir."
   },
   "stepper": {
     "prev": "Önceki",
@@ -198,7 +206,16 @@
     "resetIdentity": "Google hesabını sıfırla",
     "resetIdentityConfirm": "{{name}} için Google hesap bağlantısı temizlensin mi? Yalnızca doğrulanmış hesap sahibi giriş yapmaya hazır olduğunda yeniden etkinleştirin.",
     "allowedSuccess": "Öğretmen erişimi eklendi.",
-    "empty": "İzin listesinde henüz öğretmen yok."
+    "empty": "İzin listesinde henüz öğretmen yok.",
+    "reportIdentity": "Karne adı ve imzası",
+    "reportName": "Karnede yazılacak ad",
+    "reportNameHelp": "Hesap adını kullanmak için boş bırakın.",
+    "signaturePreview": "{{name}} imzası",
+    "noSignature": "İmza yüklenmedi. Karnede elle imza için boş alan bırakılır.",
+    "signatureUpload": "İmza yükle veya değiştir",
+    "signatureHelp": "PNG, en fazla 1 MiB ve 4 milyon piksel; hiçbir kenar 4096 pikseli aşmamalı. Şeffaf arka plan önerilir. Değişiklikler yeni oluşturulan karnelere uygulanır.",
+    "signatureRemove": "İmzayı kaldır",
+    "signatureInvalid": "Boyut sınırları içinde geçerli, tek kareli bir PNG seçin."
   },
   "classes": {
     "title": "Sınıflar",
@@ -541,6 +558,7 @@
     "save": "Kaydet",
     "cancel": "Vazgeç",
     "value": "Değer",
-    "add": "Ekle"
+    "add": "Ekle",
+    "close": "Kapat"
   }
 }

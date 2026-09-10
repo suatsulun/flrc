@@ -21,6 +21,7 @@ export function GradeCell({
   readOnly,
   navigation,
   fit,
+  showScaleFaces,
 }: {
   column: GridColumnOut;
   row: GridRowOut;
@@ -29,6 +30,7 @@ export function GradeCell({
   readOnly: boolean;
   navigation?: Navigation;
   fit?: boolean;
+  showScaleFaces: boolean;
 }) {
   const { t } = useTranslation();
   const key = dirtyKey(row.student_id, column.id);
@@ -40,7 +42,7 @@ export function GradeCell({
   if (readOnly) {
     const displayValue =
       column.value_type === "scale3" && (value === 1 || value === 2 || value === 3)
-        ? SCALE3_FACES[value]
+        ? `${showScaleFaces ? `${SCALE3_FACES[value]} ` : ""}${t(`grid.scaleLevels.${value}`)}`
         : value;
     return (
       <LockedCell
@@ -48,6 +50,7 @@ export function GradeCell({
         label={label}
         fit={fit}
         wide={column.value_type === "text"}
+        wrap={column.value_type === "scale3"}
       />
     );
   }
@@ -88,6 +91,7 @@ export function GradeCell({
     return (
       <Scale3Cell
         {...props}
+        showFaces={showScaleFaces}
         levelLabels={{
           1: t("grid.scaleLevels.1"),
           2: t("grid.scaleLevels.2"),

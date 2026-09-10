@@ -49,8 +49,10 @@ ssh-keyscan -H <server address>
 
    Never commit the filled file anywhere.
 
-2. Push the deployment repository's initial commit to `main`; the deploy workflow runs. It
-   ships `compose.yaml` and `branding/`, pulls the pinned images, runs the migrations,
+2. After the server, environment file, hostname and SSH settings are ready, set repository
+   variable `SCHOOL_DEPLOY_ENABLED=true`. Run the deployment workflow manually for the first
+   deployment; later merges to `main` deploy automatically. The workflow ships `compose.yaml`
+   and `branding/`, pulls the pinned images, runs the migrations,
    starts the services, and checks `https://<hostname>/api/healthz`. Caddy obtains the certificate
    on first request; allow a minute.
 3. Create the only bootstrap administrator, then use the admin table for everyone else:

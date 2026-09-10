@@ -5,10 +5,11 @@ version tag; everything else follows from it.
 
 ## Cut a release
 
-1. Merge to `main` with CI green.
-2. Set the version once, in `apps/backend/pyproject.toml` and the root `package.json`, and run
-   `cd apps/backend && uv lock` so the lockfile records it. Commit as `chore(release): vX.Y.Z`.
-3. Tag and push:
+1. Merge the feature PRs to `main` with CI green.
+2. In a release PR, set the version in `apps/backend/pyproject.toml` and the root `package.json`,
+   and run `cd apps/backend && uv lock` so the lockfile records it. Include migration and
+   rollback notes, then merge the release PR after CI passes.
+3. Tag that merged commit and push:
 
    ```bash
    git tag vX.Y.Z && git push origin vX.Y.Z
@@ -28,12 +29,19 @@ version tag; everything else follows from it.
 
 ## How a deployment consumes a release
 
-The private school repository pins both image tags in its Compose file, mounts three branding
-files, and holds the environment. Dependabot's `docker-compose` ecosystem opens a pull request
+The private school repository pins both image tags in its Compose file and holds the environment.
+When private report assets exist, mount `branding/public/` into the web container and the complete
+`branding/` folder into API/worker/backup containers. Dependabot's `docker-compose` ecosystem opens a pull request
 there when a new tag appears; merging it is the approval, and the deploy workflow applies it.
-Rolling back is reverting that pull request.
+Rolling back is reverting that pull request. Update deployment pins only after both published
+images are available. Validate the private configuration in PR CI; enable server deployment
+automation only after the server, hostname and SSH settings are configured.
 
 ## The demo
 
-The public demo deploys automatically from `main` (Render and Vercel are connected to the public
-repository); it does not wait for a tag.
+Connect Render and the Vercel projects to the public repository's `main` branch for automatic
+demo deployment; it does not wait for a tag. Use the [demo setup instructions](../infra/README.md),
+including the synthetic database, golden branch, OAuth and reset settings. The managed school
+Render blueprint uses `ENV=school`; it is not the public demo's environment configuration.
+
+Release-specific migration and rollback notes: [1.2.0](UPGRADING-1.2.0.md).

@@ -25,6 +25,7 @@
     "prepare": "lefthook install",
     "brand": "node scripts/branding.mjs",
     "brand:check": "node scripts/branding.mjs --check",
+    "brand:test": "node --test scripts/branding.test.mjs",
     "i18n:check": "node scripts/check-i18n.mjs"
   },
   "devDependencies": {

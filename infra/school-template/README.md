@@ -6,7 +6,7 @@ release, carries the school's branding, and holds the deployment configuration (
 
 | Path                                 | What it is                                                                     |
 | ------------------------------------ | ------------------------------------------------------------------------------ |
-| `compose.yaml`                       | The five services and the two pinned image tags                                |
+| `compose.yaml`                       | Production services and the two pinned image tags                              |
 | `.env.example`                       | Every setting the server's `/srv/flrc/.env` must contain                       |
 | `branding/`                          | The school's name, logo, and favicon (served, never rebuilt)                   |
 | `.github/dependabot.yml`             | Opens a pull request when a new application release exists                     |
@@ -32,6 +32,8 @@ schema by hand; a destructive migration is a documented decision, not a rollback
 
 Replace `branding/logo.svg`, `branding/favicon.svg`, and the strings in `branding/brand.js` and
 `branding/brand.json`, then merge. No image changes.
+Deployments restart the API, worker and backup processes so cached report branding reloads
+even when the application image tags stay the same.
 
 ## Backups
 

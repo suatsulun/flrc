@@ -49,6 +49,23 @@ class CompletenessRow(BaseModel):
     percent: float
 
 
+async def _filled_cell_ids(
+    db: AsyncSession, column_ids: list[int], student_ids: list[int] | None = None
+) -> set[tuple[int, int]]:
+    if not column_ids or student_ids == []:
+        return set()
+    # Completeness needs existence, never the potentially large comment bodies.
+    statement = select(GradeValue.student_id, GradeValue.column_definition_id).where(
+        GradeValue.column_definition_id.in_(column_ids),
+        GradeValue.score.is_not(None)
+        | GradeValue.scale.is_not(None)
+        | GradeValue.text_value.is_not(None),
+    )
+    if student_ids is not None:
+        statement = statement.where(GradeValue.student_id.in_(student_ids))
+    return set((await db.execute(statement)).tuples())
+
+
 @router.get("/overview")
 async def coordinator_overview(
     actor: Annotated[User, Depends(require_coordinator_or_admin)],
@@ -151,21 +168,13 @@ async def coordinator_completeness(
             )
         )
     )
-    grades = (
-        list(
-            await db.scalars(
-                select(GradeValue).where(
-                    GradeValue.column_definition_id.in_([column.id for column in columns])
-                )
-            )
-        )
-        if columns
-        else []
-    )
+    filled_cells = await _filled_cell_ids(db, [column.id for column in columns])
+    columns_by_scope: dict[tuple[int, str], list[int]] = {}
+    for column in columns:
+        columns_by_scope.setdefault((column.grade_level, column.subject), []).append(column.id)
     roster_by_class: dict[int, set[int]] = {}
     for enrollment in enrollments:
         roster_by_class.setdefault(enrollment.class_id, set()).add(enrollment.student_id)
-    grade_map = {(grade.student_id, grade.column_definition_id): grade for grade in grades}
     result: list[CompletenessRow] = []
     for school_class in classes:
         base_roster = roster_by_class.get(school_class.id, set())
@@ -175,20 +184,13 @@ async def coordinator_completeness(
                 if subject == "english"
                 else {student for student in base_roster if (student, subject) in languages}
             )
-            subject_columns = [
-                column
-                for column in columns
-                if column.grade_level == school_class.grade_level and column.subject == subject
-            ]
+            subject_columns = columns_by_scope.get((school_class.grade_level, subject), [])
             expected = len(roster) * len(subject_columns)
-            filled = 0
-            for student_id in roster:
-                for column in subject_columns:
-                    grade = grade_map.get((student_id, column.id))
-                    if grade is not None and any(
-                        value is not None for value in (grade.score, grade.scale, grade.text_value)
-                    ):
-                        filled += 1
+            filled = sum(
+                (student_id, column_id) in filled_cells
+                for student_id in roster
+                for column_id in subject_columns
+            )
             result.append(
                 CompletenessRow(
                     class_id=school_class.id,
@@ -238,21 +240,7 @@ async def coordinator_missing_cells(
     )
     if not student_ids or not column_ids:
         return []
-    filled = set(
-        (
-            await db.execute(
-                select(GradeValue.student_id, GradeValue.column_definition_id).where(
-                    GradeValue.student_id.in_(student_ids),
-                    GradeValue.column_definition_id.in_(column_ids),
-                    (
-                        GradeValue.score.is_not(None)
-                        | GradeValue.scale.is_not(None)
-                        | GradeValue.text_value.is_not(None)
-                    ),
-                )
-            )
-        ).tuples()
-    )
+    filled = await _filled_cell_ids(db, column_ids, student_ids)
     return [
         {"student_id": student_id, "column_id": column_id}
         for student_id in student_ids

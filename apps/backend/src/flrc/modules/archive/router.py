@@ -17,8 +17,8 @@ from flrc.db.models import (
     User,
 )
 from flrc.db.session import get_session
+from flrc.modules.academics.fields import cell_value, pick_label
 from flrc.modules.auth.dependencies import require_coordinator_or_admin
-from flrc.modules.grades.router import cell_value, pick_label
 
 router = APIRouter(prefix="/archive", tags=["archive"])
 Subject = Literal["english", "german", "french"]

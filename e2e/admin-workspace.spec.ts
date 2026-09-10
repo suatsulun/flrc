@@ -47,9 +47,11 @@ test("admin manages the school from the class table", async ({ browser }) => {
   await expect(page.locator("tbody tr").first()).toContainText("E2E Added Student");
 
   const targetTab = page.getByRole("button", { name: /^5\/B/ });
-  await addedRow
-    .getByRole("button", { name: "Move E2E Added Student to another class" })
-    .dragTo(targetTab);
+  const moveHandle = addedRow.getByRole("button", {
+    name: "Move E2E Added Student to another class",
+  });
+  await moveHandle.scrollIntoViewIfNeeded();
+  await moveHandle.dragTo(targetTab, { steps: 10, scroll: "none" });
   await expect(addedRow).toBeHidden();
   await targetTab.click();
   await expect(page.getByText("E2E Added Student", { exact: true })).toBeVisible();

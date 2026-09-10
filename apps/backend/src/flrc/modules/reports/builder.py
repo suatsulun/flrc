@@ -1,3 +1,4 @@
+import base64
 from dataclasses import dataclass
 
 from sqlalchemy import and_, select
@@ -12,8 +13,10 @@ from flrc.db.models import (
     Semester,
     Student,
     StudentLanguage,
+    TeachingAssignment,
+    User,
 )
-from flrc.modules.reports.models import ReportCard, ReportField
+from flrc.modules.reports.models import ReportCard, ReportField, ReportSigner
 
 
 @dataclass(frozen=True)
@@ -141,6 +144,38 @@ def build_report_set(db: Session, *, semester_id: int, kind: str, locale: str) -
         columns_by_scope.setdefault((column.subject, column.grade_level), []).append(column)
 
     class_ids = [school_class.id for school_class in classes]
+    # One batch query, never one image/teacher query per student. Select only
+    # the subject's assigned teachers; an English card includes main + skills.
+    roles = ("main", "skills") if spec.subject == "english" else (spec.subject,)
+    teachers_by_class: dict[int, dict[int, ReportSigner]] = {}
+    for class_id, role, user_id, full_name, report_name, png in db.execute(
+        select(
+            TeachingAssignment.class_id,
+            TeachingAssignment.role,
+            User.id,
+            User.full_name,
+            User.report_name,
+            User.signature_png,
+        )
+        .join(User, User.id == TeachingAssignment.user_id)
+        .where(
+            TeachingAssignment.class_id.in_(class_ids),
+            TeachingAssignment.role.in_(roles),
+        )
+        .order_by(TeachingAssignment.class_id, TeachingAssignment.role, User.id)
+    ):
+        assigned = teachers_by_class.setdefault(class_id, {})
+        if user_id in assigned:
+            assigned[user_id].roles.append(role)
+        else:
+            assigned[user_id] = ReportSigner(
+                user_id=user_id,
+                name=report_name or full_name,
+                roles=[role],
+                signature="data:image/png;base64," + base64.b64encode(png).decode("ascii")
+                if png
+                else None,
+            )
 
     roster_statement = (
         select(Enrollment.class_id, Student, Enrollment.school_number)
@@ -248,6 +283,7 @@ def build_report_set(db: Session, *, semester_id: int, kind: str, locale: str) -
                     average=score_average(class_columns, student_values),
                     language_label=language_label,
                     language_fields=language_fields,
+                    teachers=list(teachers_by_class.get(school_class.id, {}).values()),
                 )
             )
     return cards

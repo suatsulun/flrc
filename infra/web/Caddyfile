@@ -38,21 +38,33 @@
 
 	# The school's identity, mounted over the generic files (branding/README.md).
 	handle_path /branding/* {
-		file_server {
-			root /srv/branding
-			pass_thru
+		@publicBrand path /brand.js /logo.svg /favicon.svg
+		handle @publicBrand {
+			file_server {
+				root /srv/branding
+				pass_thru
+			}
+			file_server {
+				root /srv/branding-default
+			}
 		}
-		file_server {
-			root /srv/branding-default
+		handle {
+			respond 404
 		}
 	}
 	handle_path /admin/branding/* {
-		file_server {
-			root /srv/branding
-			pass_thru
+		@adminPublicBrand path /brand.js /logo.svg /favicon.svg
+		handle @adminPublicBrand {
+			file_server {
+				root /srv/branding
+				pass_thru
+			}
+			file_server {
+				root /srv/branding-default
+			}
 		}
-		file_server {
-			root /srv/branding-default
+		handle {
+			respond 404
 		}
 	}
 

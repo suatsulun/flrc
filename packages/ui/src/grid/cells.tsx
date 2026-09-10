@@ -72,7 +72,7 @@ export function ScoreCell({
 
 export const SCALE3_FACES = { 1: "🙁", 2: "😐", 3: "🙂" } as const;
 
-/** Three-point scale. The API keeps 1/2/3; teachers see the friendlier faces. */
+/** Three-point scale with visible labels and optional faces for primary English. */
 export function Scale3Cell({
   value,
   dirty,
@@ -83,7 +83,8 @@ export function Scale3Cell({
   label,
   levelLabels,
   fit,
-}: CellProps & { levelLabels?: Record<1 | 2 | 3, string> }) {
+  showFaces = true,
+}: CellProps & { levelLabels: Record<1 | 2 | 3, string>; showFaces?: boolean }) {
   const current = value === 1 || value === 2 || value === 3 ? value : null;
   const cycle = () => onCommit(current === null ? 1 : current === 3 ? null : current + 1);
 
@@ -99,7 +100,8 @@ export function Scale3Cell({
       title={current && levelLabels ? levelLabels[current] : undefined}
       className={cn(
         cellBase,
-        fit ? "w-full min-w-14 text-lg leading-none" : "w-16 text-xl leading-none",
+        "inline-flex h-auto min-h-10 items-center justify-center gap-1.5 px-2 py-2 text-center leading-snug whitespace-normal",
+        fit ? "w-full min-w-14" : "w-36 max-w-full shrink-0",
         current ? "" : "text-sm text-muted-foreground",
         caution && cautionClass,
         dirty && dirtyClass,
@@ -124,7 +126,18 @@ export function Scale3Cell({
         onNavKey?.(event);
       }}
     >
-      {current ? SCALE3_FACES[current] : "—"}
+      {current ? (
+        <>
+          {showFaces ? (
+            <span aria-hidden="true" className="text-lg">
+              {SCALE3_FACES[current]}
+            </span>
+          ) : null}
+          <span>{levelLabels[current]}</span>
+        </>
+      ) : (
+        "—"
+      )}
     </button>
   );
 }
@@ -239,11 +252,13 @@ export function LockedCell({
   label,
   fit,
   wide,
+  wrap,
 }: {
   value: CellValue;
   label?: string;
   fit?: boolean;
   wide?: boolean;
+  wrap?: boolean;
 }) {
   return (
     <span
@@ -253,6 +268,9 @@ export function LockedCell({
         "grid h-9 place-items-center rounded-md border border-border bg-muted/70 text-sm text-muted-foreground",
         fit ? "w-full min-w-14 px-1" : "w-16",
         wide && (fit ? "min-w-32 truncate px-2" : "w-44 truncate px-2"),
+        wrap &&
+          "h-auto min-h-10 max-w-full shrink-0 px-2 py-2 text-center leading-snug whitespace-normal",
+        wrap && !fit && "w-36",
       )}
     >
       {value ?? <LockIcon className="size-3.5" />}

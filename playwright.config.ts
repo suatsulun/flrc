@@ -1,20 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Two known limitations of this suite. Both are documented rather than fixed;
- * see the follow-ups on the PR that added this note.
+ * The specs share a seeded database, so different files must run serially.
+ * The grade-conflict spec still runs two independent authenticated browsers
+ * concurrently within one test. A worker count above one lets admin mutations
+ * race roster and layout assertions in other files.
  *
- * 1. **The specs share one database while Playwright runs several workers.**
- *    `fullyParallel` is false, so tests within a file are serial, but separate
- *    spec files still run concurrently. They read and write the same seeded
- *    school, so `admin-workspace.spec.ts` mutating class 5/A's columns can race
- *    `layout.spec.ts` measuring that same class's grade grid. That race is real:
- *    it is what exposed the sticky-clamp bug fixed in ADR-045 — the grid ended
- *    up with fewer columns than the spec assumed, which widened the forced
- *    minimum relative to the column sum. The bug is fixed; the coupling is not.
- *    Treat a timing-shaped failure here as shared state before blaming load.
- *
- * 2. **The suite is not idempotent against a dirty database.**
+ * **The suite is not idempotent against a dirty database.**
  *    `admin-workspace.spec.ts` adds a student with a fixed school number, so a
  *    second run without reseeding fails on the duplicate. Reseed between runs:
  *    `uv run flrc seed-e2e` from `apps/backend`. CI is unaffected because every
@@ -49,6 +41,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
+  workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["html", { open: "never" }], ["list"]] : "list",
   use: {

@@ -454,8 +454,9 @@ async def test_report_builder_covers_every_class_in_the_requested_school_set(wor
             kind="german_karne",
             locale="tr",
         )
-    assert middle_query_count <= 7
-    assert elementary_query_count <= 6
+    # Assigned report identities add one fixed query to each set.
+    assert middle_query_count <= 8
+    assert elementary_query_count <= 7
     assert len(middle_cards) == 4
     assert {card.class_name for card in middle_cards} == {"5/A", "5/B", "6/D"}
     assert middle_cards[0].fields[0].value == 91

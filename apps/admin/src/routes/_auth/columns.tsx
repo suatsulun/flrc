@@ -282,7 +282,7 @@ function CreateDialog({
       body: {
         grade_level: grade,
         subject,
-        value_type: scaleOnly ? "scale3" : values.value_type,
+        value_type: scaleOnly && values.value_type === "score" ? "scale3" : values.value_type,
         owner_role: values.owner_role,
         labels,
         group_labels: Object.values(groupLabels).some(Boolean) ? groupLabels : null,
@@ -339,12 +339,12 @@ function CreateDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={t("columns.valueType")}>
               {(id) => (
-                <NativeSelect id={id} {...form.register("value_type")} disabled={scaleOnly}>
+                <NativeSelect id={id} {...form.register("value_type")}>
                   {!scaleOnly ? (
                     <option value="score">{t("columns.valueTypes.score")}</option>
                   ) : null}
                   <option value="scale3">{t("columns.valueTypes.scale3")}</option>
-                  {!scaleOnly ? <option value="text">{t("columns.valueTypes.text")}</option> : null}
+                  <option value="text">{t("columns.valueTypes.text")}</option>
                 </NativeSelect>
               )}
             </Field>

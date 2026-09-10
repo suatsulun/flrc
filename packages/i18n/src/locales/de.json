@@ -139,7 +139,7 @@
     "assessmentRange": "Bewertungen {{start}}–{{end}} von {{total}}",
     "previousAssessments": "Zurück",
     "nextAssessments": "Weiter",
-    "gradeFourScaleOnly": "In Klasse 4 verwenden Deutsch und Französisch ausschließlich die Skala 1–2–3.",
+    "gradeFourScaleOnly": "In Klasse 4 werden Deutsch und Französisch mit der Skala 1–2–3 und Lehrerkommentaren bewertet, ohne numerische Noten.",
     "teacherNotes": "Lehrerkommentare",
     "bulkStudent": "Alle Bewertungen setzen",
     "bulkClass": "Bewertungen der ganzen Klasse setzen",
@@ -147,7 +147,9 @@
     "bulkClassTitle": "Alle Bewertungen der Klasse {{name}}",
     "bulkStudentHint": "Gilt für alle {{count}} Bewertungen dieses Schülers bzw. dieser Schülerin.",
     "bulkClassHint": "Gilt für alle {{count}} Bewertungen aller {{students}} Lernenden in diesem Fach.",
-    "bulkSaveHint": "Umfasst alle Kategorien. Änderungen werden mit Speichern gespeichert."
+    "bulkSaveHint": "Umfasst alle Kategorien. Änderungen werden mit Speichern gespeichert.",
+    "noTeacherNotes": "Für dieses Fach ist kein Kommentarfeld eingerichtet. Ein Administrator kann unter Spalten ein Textfeld hinzufügen.",
+    "compactDraftAccess": "Das Speichern der Felder einer anderen Lehrkraft erfordert eine Bestätigung und wird protokolliert."
   },
   "stepper": {
     "prev": "Zurück",

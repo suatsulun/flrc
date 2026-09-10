@@ -139,7 +139,7 @@
     "assessmentRange": "Évaluations {{start}}–{{end}} sur {{total}}",
     "previousAssessments": "Précédent",
     "nextAssessments": "Suivant",
-    "gradeFourScaleOnly": "En 4e année, l’allemand et le français utilisent uniquement l’échelle 1–2–3.",
+    "gradeFourScaleOnly": "En 4e année, les évaluations d’allemand et de français utilisent l’échelle 1–2–3 et les commentaires du professeur, sans notes numériques.",
     "teacherNotes": "Avis du professeur",
     "bulkStudent": "Définir toutes les évaluations",
     "bulkClass": "Définir les évaluations de toute la classe",
@@ -147,7 +147,9 @@
     "bulkClassTitle": "Toutes les évaluations de la classe {{name}}",
     "bulkStudentHint": "S’applique aux {{count}} évaluations de cet élève.",
     "bulkClassHint": "S’applique aux {{count}} évaluations de chacun des {{students}} élèves dans cette matière.",
-    "bulkSaveHint": "Inclut toutes les catégories. Les modifications sont enregistrées avec Enregistrer."
+    "bulkSaveHint": "Inclut toutes les catégories. Les modifications sont enregistrées avec Enregistrer.",
+    "noTeacherNotes": "Aucun champ de commentaire n’est configuré pour cette matière. Un administrateur peut ajouter un champ de texte dans Colonnes.",
+    "compactDraftAccess": "L’enregistrement des champs d’un autre professeur nécessite une confirmation et est journalisé."
   },
   "stepper": {
     "prev": "Précédent",

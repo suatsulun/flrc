@@ -69,7 +69,7 @@ function fixture(grade = 6, owned = true): GridOut {
         owned_by_you: owned,
         position: i + 1,
       }))
-      .filter((c) => grade !== 4 || c.value_type === "scale3"),
+      .filter((c) => grade !== 4 || c.value_type !== "score"),
     rows: names.map((full_name, i) => ({
       student_id: i + 1,
       school_number: 78001 + i,
@@ -253,12 +253,17 @@ test("drafts and keyboard navigation survive assessment paging and category chan
   await expect(page.getByText("All changes saved", { exact: true })).toBeVisible();
 });
 
-test("Grade 4 second-language grid shows only the three-level rubric", async ({ page }) => {
+test("Grade 4 second-language grid shows ratings and teacher notes without numeric scores", async ({
+  page,
+}) => {
   await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
   await mockGrid(page, fixture(4));
   await page.goto(`${teacherUrl}/classes/1/german?semester=1`);
   await expect(
-    page.getByText("Grade 4 German and French use only the 1–2–3 scale.", { exact: true }),
+    page.getByText(
+      "Grade 4 German and French use 1–2–3 assessments and teacher comments, without numeric scores.",
+      { exact: true },
+    ),
   ).toBeVisible();
   const categories = page.getByRole("group", { name: "Assessment categories", exact: true });
   await expect(categories.getByRole("button", { name: /Exams|Homework/ })).toHaveCount(0);
@@ -418,7 +423,7 @@ for (const subject of ["german", "french", "english"] as const) {
       grid.meta.subject = subject;
       grid.meta.semester_status = locked ? "locked" : "open";
       for (const row of grid.rows) {
-        for (const column of grid.columns)
+        for (const column of grid.columns.filter((item) => item.value_type === "scale3"))
           row.cells[column.id] = { value: (column.id % 3) + 1, version: 1 };
       }
       await mockGrid(page, grid);
@@ -504,5 +509,146 @@ for (const latest of [1, 2] as const) {
         ?.expected_version,
     ).toBe(2);
     await expect(page.getByTestId("save-grid")).toBeDisabled();
+  });
+}
+
+for (const subject of ["english", "german", "french"] as const) {
+  for (const width of [1366, 390]) {
+    test(`grade 4 ${subject} has a final notes category and saves comments at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+      const grid = fixture(4);
+      grid.meta.subject = subject;
+      let saved: SaveRequest | undefined;
+      await mockGrid(page, grid, (body) => {
+        saved = body;
+      });
+      await page.goto(`${teacherUrl}/classes/1/${subject}?semester=1`);
+      const categories = page.getByRole("group", { name: "Assessment categories", exact: true });
+      await expect(categories.getByRole("button").last()).toHaveText("Teacher notes1");
+      await categories.getByRole("button").last().click();
+      await expect(page.getByText(assessments[4][0], { exact: true })).toHaveCount(0);
+      await page
+        .getByRole("button", { name: `${names[0]} — Teacher’s comments`, exact: true })
+        .click();
+      await page.getByRole("dialog").getByRole("textbox").fill("Synthetic teacher feedback");
+      await page.getByRole("button", { name: "Done", exact: true }).click();
+      await page.getByTestId("save-grid").click();
+      await expect
+        .poll(() => saved?.cells)
+        .toEqual([
+          {
+            student_id: 1,
+            column_id: 15,
+            value: "Synthetic teacher feedback",
+            expected_version: 0,
+          },
+        ]);
+      await expect(page.getByText("All changes saved", { exact: true })).toBeVisible();
+    });
+  }
+}
+
+for (const width of [1366, 390]) {
+  test(`unconfigured notes remain discoverable at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+    const grid = fixture(4);
+    grid.columns = grid.columns.filter((column) => column.value_type !== "text");
+    await mockGrid(page, grid);
+    await page.goto(`${teacherUrl}/classes/1/german?semester=1`);
+    await page.getByRole("button", { name: "Teacher notes 0", exact: true }).click();
+    await expect(
+      page.getByText(
+        "No teacher notes field is configured for this subject. An administrator can add a text field under Columns.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+  });
+}
+
+const englishDefaults = JSON.parse(
+  execFileSync("apps/backend/.venv/bin/python", [
+    "-c",
+    "import json; from flrc.cli import ENGLISH_58, REPORT_LABELS; print(json.dumps([dict(labels=REPORT_LABELS[k], owner_role=r, value_type=v) for k,r,v,_ in ENGLISH_58]))",
+  ]).toString(),
+) as Array<{ labels: Record<string, string>; owner_role: string; value_type: string }>;
+
+for (const locale of ["tr", "en", "de", "fr"]) {
+  test(`middle English uses all 11 score columns with slanted headers in ${locale}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.addInitScript((lng) => {
+      localStorage.setItem("i18nextLng", lng);
+      localStorage.setItem("flrc-theme", "light");
+    }, locale);
+    const grid = fixture(5);
+    grid.meta.subject = "english";
+    grid.columns = englishDefaults.map((column, i) => ({
+      id: i + 1,
+      label: column.labels[locale],
+      group: null,
+      value_type: column.value_type,
+      owner_role: column.owner_role,
+      owner_name: "Synthetic Teacher",
+      owned_by_you: column.owner_role === "main",
+      position: i + 1,
+    }));
+    let saved: SaveRequest | undefined;
+    await mockGrid(page, grid, (body) => {
+      saved = body;
+    });
+    await page.goto(`${teacherUrl}/classes/1/english?semester=1`);
+    const surface = page.getByTestId("grade-grid-surface");
+    await expect(surface).toHaveAttribute("data-layout", "english-overview");
+    await expect(page.getByTestId("assessment-heading")).toHaveCount(12);
+    await expect(surface.getByRole("textbox")).toHaveCount(44);
+    await page.evaluate(() => document.fonts.ready);
+    const bounds = await surface.evaluate((element) => {
+      const headers = element.querySelector("thead")!.getBoundingClientRect();
+      return {
+        pageOverflow: document.documentElement.scrollWidth > window.innerWidth,
+        labelsFit: [...element.querySelectorAll(".english-slanted-label")].every((label) => {
+          const rect = label.getBoundingClientRect();
+          return (
+            rect.top >= headers.top - 1 &&
+            rect.bottom <= headers.bottom &&
+            rect.right <= headers.right
+          );
+        }),
+        inputWidths: [...element.querySelectorAll("input")].map(
+          (input) => input.getBoundingClientRect().width,
+        ),
+      };
+    });
+    expect(bounds.pageOverflow).toBe(false);
+    expect(bounds.labelsFit).toBe(true);
+    expect(Math.min(...bounds.inputWidths)).toBeGreaterThanOrEqual(56);
+    const first = page.getByTestId("cell-1-1").getByRole("textbox");
+    await first.fill("82");
+    await first.press("ArrowRight");
+    await expect(page.getByTestId("cell-1-2").getByRole("textbox")).toBeFocused();
+    const last = page.getByTestId("cell-1-11").getByRole("textbox");
+    await last.focus();
+    await last.press("ArrowRight");
+    await expect(page.getByTestId("cell-1-12").getByRole("button")).toBeFocused();
+    await page.getByTestId("save-grid").click();
+    await expect
+      .poll(() => saved?.cells)
+      .toEqual([{ student_id: 1, column_id: 1, value: 82, expected_version: 0 }]);
+    await page.screenshot({ path: testInfo.outputPath("english-45-degrees.png"), fullPage: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(surface).toHaveAttribute("data-layout", "english-overview");
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await page.setViewportSize({ width: 768, height: 900 });
+    await expect(surface).toHaveAttribute("data-layout", "paged");
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
   });
 }

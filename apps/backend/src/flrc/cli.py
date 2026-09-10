@@ -197,6 +197,7 @@ ENGLISH_58 = [
     ("quiz_2", "main", "score", False),
     ("performance_1", "main", "score", False),
     ("performance_2", "skills", "score", False),
+    ("teacher_comments", "main", "text", False),
 ]
 
 # Second-language score columns count in the average: the middle-school karne

@@ -15,15 +15,11 @@ export function assessmentOptions(columns: GridColumnOut[]) {
       label,
       count,
     })),
-    ...(columns.some((column) => column.value_type === "text")
-      ? [
-          {
-            id: "notes" as AssessmentFilter,
-            label: "",
-            count: columns.filter((c) => c.value_type === "text").length,
-          },
-        ]
-      : []),
+    {
+      id: "notes" as AssessmentFilter,
+      label: "",
+      count: columns.filter((column) => column.value_type === "text").length,
+    },
   ];
 }
 

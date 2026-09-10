@@ -139,7 +139,7 @@
     "assessmentRange": "{{total}} değerlendirmeden {{start}}–{{end}} arası",
     "previousAssessments": "Önceki",
     "nextAssessments": "Sonraki",
-    "gradeFourScaleOnly": "4. sınıf Almanca ve Fransızca derslerinde yalnızca 1–2–3 ölçeği kullanılır.",
+    "gradeFourScaleOnly": "4. sınıf Almanca ve Fransızca değerlendirmeleri 1–2–3 ölçeği ve öğretmen görüşlerinden oluşur; sayısal ders notu kullanılmaz.",
     "teacherNotes": "Öğretmen görüşleri",
     "bulkStudent": "Tüm değerlendirmeleri değiştir",
     "bulkClass": "Sınıfın tüm değerlendirmelerini değiştir",
@@ -147,7 +147,9 @@
     "bulkClassTitle": "{{name}} sınıfının tüm değerlendirmeleri",
     "bulkStudentHint": "Bu öğrencinin {{count}} adet 1–2–3 değerlendirmesinin tamamına uygulanır.",
     "bulkClassHint": "Bu dersteki {{students}} öğrencinin her birinin {{count}} adet 1–2–3 değerlendirmesinin tamamına uygulanır.",
-    "bulkSaveHint": "Tüm kategorileri kapsar. Değişiklikler Kaydet ile kaydedilir."
+    "bulkSaveHint": "Tüm kategorileri kapsar. Değişiklikler Kaydet ile kaydedilir.",
+    "noTeacherNotes": "Bu ders için öğretmen görüşü alanı tanımlanmamış. Yönetici, Sütunlar bölümünden bir metin alanı ekleyebilir.",
+    "compactDraftAccess": "Başka öğretmenlere ait alanları kaydetmek için onayınız istenir ve işlem kayda alınır."
   },
   "stepper": {
     "prev": "Önceki",

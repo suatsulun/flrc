@@ -64,3 +64,17 @@ branding, and never carries a copy of the code. See [docs/RELEASING.md](docs/REL
 ## License
 
 [MIT](LICENSE).
+
+## Optional scheduled operations
+
+CI and security checks run automatically. Operational schedules are opt-in:
+set repository variable `DEMO_KEEPALIVE_ENABLED=true` only on the repository that
+owns the hosted demo. Set `DEMO_RESET_ENABLED=true` after adding `DEMO_OPS_TOKEN`
+with the demo API's configured operations token. Manual runs still validate the
+required secrets and report missing configuration as a failure. An unset flag
+means the scheduled job is skipped, not that a reset or backup succeeded.
+
+Legacy copies with `backup.yml` must configure `PG_DUMP_URL`,
+`GDRIVE_SERVICE_ACCOUNT_JSON`, and `GDRIVE_BACKUP_FOLDER_ID` before setting
+`BACKUP_ENABLED=true`. A copied repository should not duplicate another
+repository's demo reset, keepalive, or backup schedule.

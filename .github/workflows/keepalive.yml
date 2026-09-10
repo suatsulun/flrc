@@ -5,6 +5,8 @@ on:
   workflow_dispatch:
 jobs:
   ping:
+    # Scheduled operations are opt-in; manual runs still validate required secrets.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.DEMO_KEEPALIVE_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - run: curl -fsS https://flrc-api.onrender.com/api/healthz

@@ -14,6 +14,8 @@ permissions:
 
 jobs:
   check:
+    # Enable automatic operations only after the school's server is configured.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.SCHOOL_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

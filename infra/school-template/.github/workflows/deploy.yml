@@ -17,6 +17,8 @@ concurrency:
 
 jobs:
   deploy:
+    # Enable automatic operations only after the school's server is configured.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.SCHOOL_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     environment: school
     timeout-minutes: 20

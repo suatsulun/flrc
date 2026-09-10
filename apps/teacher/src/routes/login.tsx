@@ -8,7 +8,7 @@ import { Card, CardContent } from "@flrc/ui/components/card";
 import { formatClockTime } from "@flrc/ui/components/demo-banner";
 import { SchoolLogo } from "@flrc/ui/components/school-logo";
 
-import { LanguageSwitch } from "../components/language-switch";
+import { LanguageSwitch } from "@flrc/ui/components/language-switch";
 import { LOGO_URL, SCHOOL_NAME } from "@flrc/branding";
 
 export const Route = createFileRoute("/login")({
@@ -118,7 +118,11 @@ function LoginPage() {
         </Card>
 
         <div className="mt-6 flex justify-center">
-          <LanguageSwitch />
+          <LanguageSwitch
+            language={i18n.language}
+            onChange={(language) => void i18n.changeLanguage(language)}
+            ariaLabel={t("shell.language")}
+          />
         </div>
       </div>
     </main>

@@ -16,6 +16,8 @@ from flrc.db.models import (
     TeachingAssignment,
     User,
 )
+from flrc.modules.academics.fields import cell_value
+from flrc.modules.academics.fields import pick_label as field_label
 from flrc.modules.reports.models import ReportCard, ReportField, ReportSigner
 
 
@@ -32,7 +34,6 @@ REPORT_SETS = {
     "german_karne": ReportSetSpec(subject="german", first_grade=1, last_grade=8),
     "french_karne": ReportSetSpec(subject="french", first_grade=1, last_grade=8),
 }
-VALUE_FIELD = {"score": "score", "scale3": "scale", "text": "text_value"}
 SUBJECT_LABELS = {
     "english": {"tr": "İngilizce", "en": "English", "de": "Englisch", "fr": "Anglais"},
     "german": {"tr": "Almanca", "en": "German", "de": "Deutsch", "fr": "Allemand"},
@@ -44,20 +45,8 @@ SECOND_LANGUAGES = ("german", "french")
 
 
 def pick_label(labels: dict[str, str] | None, locale: str) -> str | None:
-    """Best label for a locale, tolerating regional codes such as ``en-GB``.
-
-    The frontend normalises its language before sending it, but this is the
-    public API contract: without the base-language step an ``en-GB`` caller
-    would silently receive Turkish labels.
-    """
-    if not labels:
-        return None
-    return (
-        labels.get(locale)
-        or labels.get(locale.split("-")[0])
-        or labels.get("tr")
-        or next(iter(labels.values()), "")
-    )
+    """Reports distinguish an absent optional label from an empty field label."""
+    return field_label(labels, locale) if labels else None
 
 
 def bilingual_field(
@@ -239,10 +228,6 @@ def build_report_set(db: Session, *, semester_id: int, kind: str, locale: str) -
 
     subject_language = SUBJECT_LANGUAGE[spec.subject]
 
-    def field_value(column: ColumnDefinition, values: dict[int, GradeValue]) -> int | str | None:
-        row = values.get(column.id)
-        return getattr(row, VALUE_FIELD[column.value_type]) if row else None
-
     cards: list[ReportCard] = []
     for school_class in classes:
         # Never silently omit a class because its column setup is incomplete.
@@ -251,7 +236,11 @@ def build_report_set(db: Session, *, semester_id: int, kind: str, locale: str) -
         for student in students_by_class[school_class.id]:
             student_values = values_by_student.get(student.id, {})
             fields = [
-                bilingual_field(column, field_value(column, student_values), subject_language)
+                bilingual_field(
+                    column,
+                    cell_value(student_values.get(column.id), column.value_type),
+                    subject_language,
+                )
                 for column in class_columns
             ]
 
@@ -262,7 +251,11 @@ def build_report_set(db: Session, *, semester_id: int, kind: str, locale: str) -
                 second_language = SUBJECT_LANGUAGE[language]
                 language_label = pick_label(SUBJECT_LABELS[language], second_language)
                 language_fields = [
-                    bilingual_field(column, field_value(column, student_values), second_language)
+                    bilingual_field(
+                        column,
+                        cell_value(student_values.get(column.id), column.value_type),
+                        second_language,
+                    )
                     for column in columns_by_scope.get((language, school_class.grade_level), [])
                     if column.value_type == "score"
                 ]

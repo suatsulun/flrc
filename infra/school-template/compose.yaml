@@ -11,7 +11,7 @@
 name: flrc
 
 x-backend: &backend
-  image: ghcr.io/suatsulun/flrc-backend:1.1.0
+  image: ghcr.io/suatsulun/flrc-backend:1.2.0
   env_file: .env
   environment:
     ENV: school
@@ -28,7 +28,7 @@ x-backend: &backend
 
 services:
   web:
-    image: ghcr.io/suatsulun/flrc-web:1.1.0
+    image: ghcr.io/suatsulun/flrc-web:1.2.0
     ports:
       - "80:80"
       - "443:443"

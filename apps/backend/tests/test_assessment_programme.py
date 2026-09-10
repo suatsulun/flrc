@@ -30,10 +30,9 @@ async def test_grade_four_l2_create_update_and_copy(api, world, subject):
         denied = await client.post("/api/columns", json=column_body(subject, "scale3"))
     assert denied.status_code == 403
     async with api(world.admin) as client:
-        for value_type in ("score", "text"):
-            rejected = await client.post("/api/columns", json=column_body(subject, value_type))
-            assert rejected.status_code == 422
-            assert rejected.json()["detail"]["code"] == "grade_four_l2_scale_only"
+        rejected = await client.post("/api/columns", json=column_body(subject, "score"))
+        assert rejected.status_code == 422
+        assert rejected.json()["detail"]["code"] == "grade_four_l2_scale_only"
         for value_type in ("score", "scale3", "text"):
             older = await client.post("/api/columns", json=column_body(subject, value_type, 5))
             assert older.status_code == 201
@@ -47,23 +46,31 @@ async def test_grade_four_l2_create_update_and_copy(api, world, subject):
             },
         )
         assert copied.status_code == 200
-        assert copied.json() == {"copied": 1}
+        assert copied.json() == {"copied": 2}
         columns = await client.get("/api/columns", params={"grade_level": 4, "subject": subject})
-        assert [c["value_type"] for c in columns.json()] == ["scale3"]
+        assert [c["value_type"] for c in columns.json()] == ["scale3", "text"]
         column_id = columns.json()[0]["id"]
-        for body in ({"value_type": "score"}, {"value_type": "text"}, {"counts_in_average": True}):
+        for body in ({"value_type": "score"}, {"counts_in_average": True}):
             rejected = await client.patch(f"/api/columns/{column_id}", json=body)
             assert rejected.status_code == 422
         created = await client.post("/api/columns", json=column_body(subject, "scale3"))
         assert created.status_code == 201
         assert created.json()["counts_in_average"] is False
+        note = await client.post("/api/columns", json=column_body(subject, "text"))
+        assert note.status_code == 201
+        assert note.json()["counts_in_average"] is False
+        changed = await client.patch(
+            f"/api/columns/{created.json()['id']}", json={"value_type": "text"}
+        )
+        assert changed.status_code == 200
+        assert changed.json()["value_type"] == "text"
         average = await client.post(
             "/api/columns", json={**column_body(subject, "scale3"), "counts_in_average": True}
         )
         assert average.status_code == 422
 
 
-async def test_seed_uses_only_scale3_for_grade_four_second_languages(world):
+async def test_seed_includes_teacher_comments_without_grade_four_numeric_scores(world):
     with Session(create_engine(TEST_URL_SYNC)) as db:
         seed_columns(db, world.semester)
         db.flush()
@@ -71,13 +78,14 @@ async def test_seed_uses_only_scale3_for_grade_four_second_languages(world):
         for subject in ("german", "french"):
             primary = [c for c in columns if c.grade_level == 4 and c.subject == subject]
             older = [c for c in columns if c.grade_level == 5 and c.subject == subject]
-            assert primary and {c.value_type for c in primary} == {"scale3"}
+            assert primary and {c.value_type for c in primary} == {"scale3", "text"}
             assert not any(c.counts_in_average for c in primary)
             assert {c.value_type for c in older} == {"scale3", "score", "text"}
-        assert any(
-            c.grade_level == 4 and c.subject == "english" and c.value_type == "text"
-            for c in columns
-        )
+        for grade in range(1, 9):
+            english = [c for c in columns if c.grade_level == grade and c.subject == "english"]
+            notes = [c for c in english if c.value_type == "text"]
+            assert len(notes) == 1
+            assert notes[0].position == max(c.position for c in english)
 
 
 async def test_correction_preserves_history_and_updates_grids_and_reports(api, world):
@@ -202,6 +210,8 @@ async def test_rollover_does_not_reintroduce_legacy_grade_four_scores(api, world
         )
         assert {(c.subject, c.value_type) for c in columns} == {
             ("german", "scale3"),
+            ("german", "text"),
             ("french", "scale3"),
+            ("french", "text"),
         }
         assert all(not c.counts_in_average for c in columns)

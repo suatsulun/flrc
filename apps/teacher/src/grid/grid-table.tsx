@@ -11,6 +11,7 @@ import { useGridKeyboard } from "./use-grid-keyboard";
 import { assessmentOptions, filterAssessments, type AssessmentFilter } from "./assessment-filter";
 import { AssessmentFilters } from "./assessment-filters";
 import { BulkRatings } from "./bulk-ratings";
+import "./english-grid.css";
 
 const gridTableFeatures = tableFeatures({});
 type GridColumnDef = ColumnDef<typeof gridTableFeatures, GridRowOut, unknown>;
@@ -25,7 +26,7 @@ export const GridTable = memo(function GridTable({
   const { t } = useTranslation();
   const navigation = useGridKeyboard();
   const surface = useRef<HTMLDivElement>(null);
-  const [pageSize, setPageSize] = useState(1);
+  const [surfaceWidth, setSurfaceWidth] = useState(0);
   const [selection, setSelection] = useState<{ group: AssessmentFilter; page: number }>({
     group: "all",
     page: 0,
@@ -35,8 +36,7 @@ export const GridTable = memo(function GridTable({
     const element = surface.current;
     if (!element) return;
     const observer = new ResizeObserver(([entry]) => {
-      // Reserve space for student names, then at least 240px per assessment.
-      setPageSize(Math.min(3, Math.max(1, Math.floor((entry.contentRect.width - 224) / 240))));
+      setSurfaceWidth(entry.contentRect.width);
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -50,13 +50,33 @@ export const GridTable = memo(function GridTable({
     () => filterAssessments(data.columns, selectedGroup),
     [data.columns, selectedGroup],
   );
+  const scoreCount = filtered.filter((column) => column.value_type === "score").length;
+  const noteCount = filtered.filter((column) => column.value_type === "text").length;
+  // The final comment column provides room above it for the last slanted header.
+  // Smaller screens retain the readable, paged grid and the phone stepper.
+  const englishOverview =
+    data.meta.subject === "english" &&
+    data.meta.grade_level >= 5 &&
+    scoreCount > 0 &&
+    noteCount > 0 &&
+    scoreCount + noteCount === filtered.length &&
+    surfaceWidth >= 154 + 184 * noteCount + 60 * scoreCount;
+  const pageSize = englishOverview
+    ? filtered.length
+    : Math.min(3, Math.max(1, Math.floor((surfaceWidth - 224) / 240)));
   const showScaleFaces = data.meta.subject === "english" && data.meta.grade_level <= 4;
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const page = Math.min(selection.page, pageCount - 1);
   const start = page * pageSize;
   const visible = useMemo(
-    () => filtered.slice(start, start + pageSize),
-    [filtered, start, pageSize],
+    () =>
+      englishOverview
+        ? [
+            ...filtered.filter((column) => column.value_type === "score"),
+            ...filtered.filter((column) => column.value_type === "text"),
+          ]
+        : filtered.slice(start, start + pageSize),
+    [filtered, start, pageSize, englishOverview],
   );
 
   const columns = useMemo<GridColumnDef[]>(() => {
@@ -65,42 +85,69 @@ export const GridTable = memo(function GridTable({
         id: "student",
         header: t("grid.student"),
         cell: (context) => (
-          <div className="min-w-0 py-1 text-left">
-            <span className="block font-medium leading-relaxed">
+          <div className={`min-w-0 py-1 text-left ${englishOverview ? "text-xs" : ""}`}>
+            <span
+              className="block font-medium leading-relaxed"
+              title={context.row.original.full_name}
+            >
               {context.row.original.full_name}
             </span>
             <span className="tabular mt-0.5 block text-xs text-muted-foreground">
               {context.row.original.school_number ?? "—"}
             </span>
-            <div className="mt-2">
-              <BulkRatings data={data} row={context.row.original} readOnly={readOnly} />
-            </div>
+            {!englishOverview ? (
+              <div className="mt-2">
+                <BulkRatings data={data} row={context.row.original} readOnly={readOnly} />
+              </div>
+            ) : null}
           </div>
         ),
       },
       ...visible.map<GridColumnDef>((column, index) => ({
         id: String(column.id),
-        header: () => (
-          <div className="space-y-2">
-            {column.group ? (
-              <span className="block text-xs font-medium text-muted-foreground">
-                {column.group}
+        header: () =>
+          englishOverview && column.value_type === "score" ? (
+            <>
+              <span className="english-slanted-border" aria-hidden="true" />
+              <span
+                className="english-slanted-label"
+                title={`${column.label} · ${t(`roles.${column.owner_role}`)} · ${column.owner_name ?? t("grid.unassignedOwner")}`}
+              >
+                <span data-testid="assessment-heading">{column.label}</span>
               </span>
-            ) : null}
-            <span
-              data-testid="assessment-heading"
-              className="block text-sm font-semibold leading-relaxed text-foreground lg:text-base"
-            >
-              {column.label}
-            </span>
-            {!column.owned_by_you ? (
-              <span className="flex items-start gap-1.5 text-xs font-normal text-warning">
-                <TriangleAlertIcon className="mt-0.5 size-3.5 shrink-0" />
-                {t("grid.ownedBy", { name: column.owner_name ?? t("grid.unassignedOwner") })}
+              <span
+                className={`english-owner ${column.owned_by_you ? "" : "text-warning"}`}
+                title={t("grid.ownedBy", { name: column.owner_name ?? t("grid.unassignedOwner") })}
+              >
+                {!column.owned_by_you ? (
+                  <TriangleAlertIcon className="size-3" aria-hidden="true" />
+                ) : null}
+                <span className="sr-only">
+                  {t("grid.ownedBy", { name: column.owner_name ?? t("grid.unassignedOwner") })}
+                </span>
               </span>
-            ) : null}
-          </div>
-        ),
+            </>
+          ) : (
+            <div className={englishOverview ? "english-note-heading space-y-1" : "space-y-2"}>
+              {column.group ? (
+                <span className="block text-xs font-medium text-muted-foreground">
+                  {column.group}
+                </span>
+              ) : null}
+              <span
+                data-testid="assessment-heading"
+                className="block text-sm font-semibold leading-relaxed text-foreground lg:text-base"
+              >
+                {column.label}
+              </span>
+              {!column.owned_by_you ? (
+                <span className="flex items-start gap-1.5 text-xs font-normal text-warning">
+                  <TriangleAlertIcon className="mt-0.5 size-3.5 shrink-0" />
+                  {t("grid.ownedBy", { name: column.owner_name ?? t("grid.unassignedOwner") })}
+                </span>
+              ) : null}
+            </div>
+          ),
         cell: (context) => (
           <GradeCell
             column={column}
@@ -115,14 +162,14 @@ export const GridTable = memo(function GridTable({
         ),
       })),
     ];
-  }, [visible, navigation, readOnly, t, data, showScaleFaces]);
+  }, [visible, navigation, readOnly, t, data, showScaleFaces, englishOverview]);
 
   const table = useTable({ features: gridTableFeatures, data: data.rows, columns });
   const paging = (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p role="status" className="text-sm font-medium text-foreground">
         {t("grid.assessmentRange", {
-          start: start + 1,
+          start: filtered.length ? start + 1 : 0,
           end: Math.min(start + pageSize, filtered.length),
           total: filtered.length,
         })}
@@ -160,19 +207,28 @@ export const GridTable = memo(function GridTable({
       ref={surface}
       data-testid="grade-grid-surface"
       aria-label={t("grid.tableLabel")}
-      className="w-full min-w-0 overflow-visible rounded-xl border border-border bg-card shadow-card"
+      className={`w-full min-w-0 overflow-visible rounded-xl border border-border bg-card shadow-card ${englishOverview ? "english-overview" : ""}`}
+      data-layout={englishOverview ? "english-overview" : "paged"}
     >
-      <div className="space-y-4 border-b border-border p-4">
-        <div>
-          <p className="font-semibold">{t("grid.assessmentFocus")}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{t("grid.assessmentFocusHint")}</p>
-        </div>
+      <div
+        className={
+          englishOverview
+            ? "space-y-2 border-b border-border p-2"
+            : "space-y-4 border-b border-border p-4"
+        }
+      >
+        {!englishOverview ? (
+          <div>
+            <p className="font-semibold">{t("grid.assessmentFocus")}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t("grid.assessmentFocusHint")}</p>
+          </div>
+        ) : null}
         <AssessmentFilters
           columns={data.columns}
           value={selectedGroup}
           onChange={(group) => setSelection({ group, page: 0 })}
         />
-        {paging}
+        {englishOverview ? null : paging}
         {visible.some((column) => column.value_type === "scale3") ? (
           <div
             className="flex flex-wrap gap-x-5 gap-y-2 border-t border-border pt-3 text-xs text-muted-foreground"
@@ -190,53 +246,68 @@ export const GridTable = memo(function GridTable({
           </div>
         ) : null}
       </div>
-      <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
-        <TableCaption>{t("grid.tableLabel")}</TableCaption>
-        <colgroup>
-          <col style={{ width: pageSize === 1 ? "36%" : "28%" }} />
-          {visible.map((column) => (
-            <col key={column.id} />
-          ))}
-        </colgroup>
-        <thead>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <th
-                  key={header.id}
-                  scope="col"
-                  className="sticky z-20 border-b border-border bg-muted px-3 py-4 text-left align-top text-sm font-semibold break-words text-foreground"
-                  style={{ top: "var(--app-shell-header-height, 3.5rem)" }}
-                >
-                  <table.FlexRender header={header} />
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row) => (
-            <tr
-              key={row.id}
-              className="group transition-colors even:bg-muted/25 hover:bg-accent/40 focus-within:bg-accent/55"
-            >
-              {row.getAllCells().map((cell) => (
-                <td
-                  key={cell.id}
-                  data-testid={
-                    cell.column.id === "student"
-                      ? undefined
-                      : `cell-${row.original.student_id}-${cell.column.id}`
-                  }
-                  className="min-w-0 border-b border-border/60 px-3 py-2 break-words"
-                >
-                  <table.FlexRender cell={cell} />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {filtered.length === 0 ? (
+        <p className="p-4 text-sm text-muted-foreground">{t("grid.noTeacherNotes")}</p>
+      ) : (
+        <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
+          <TableCaption>{t("grid.tableLabel")}</TableCaption>
+          <colgroup>
+            <col style={{ width: englishOverview ? 154 : pageSize === 1 ? "36%" : "28%" }} />
+            {visible.map((column) => (
+              <col
+                key={column.id}
+                style={englishOverview && column.value_type === "text" ? { width: 184 } : undefined}
+              />
+            ))}
+          </colgroup>
+          <thead>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <th
+                    key={header.id}
+                    scope="col"
+                    className={
+                      englishOverview
+                        ? `sticky z-20 border-b border-border text-left text-sm font-semibold text-foreground ${header.column.id === "student" ? "english-student-heading" : visible.find((column) => String(column.id) === header.column.id)?.value_type === "score" ? "english-score-heading" : "english-comment-heading"}`
+                        : "sticky z-20 border-b border-border bg-muted px-3 py-4 text-left align-top text-sm font-semibold break-words text-foreground"
+                    }
+                    style={{ top: "var(--app-shell-header-height, 3.5rem)" }}
+                  >
+                    <table.FlexRender header={header} />
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.map((row) => (
+              <tr
+                key={row.id}
+                className="group transition-colors even:bg-muted/25 hover:bg-accent/40 focus-within:bg-accent/55"
+              >
+                {row.getAllCells().map((cell) => (
+                  <td
+                    key={cell.id}
+                    data-testid={
+                      cell.column.id === "student"
+                        ? undefined
+                        : `cell-${row.original.student_id}-${cell.column.id}`
+                    }
+                    className={
+                      englishOverview
+                        ? "min-w-0 border-b border-r border-border/60 px-0.5 py-1 break-words first:px-2 last:px-2"
+                        : "min-w-0 border-b border-border/60 px-3 py-2 break-words"
+                    }
+                  >
+                    <table.FlexRender cell={cell} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       {pageCount > 1 ? <div className="p-4">{paging}</div> : null}
     </div>
   );

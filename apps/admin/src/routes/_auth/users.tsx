@@ -34,6 +34,7 @@ import {
   TableText,
 } from "@flrc/ui/components/table";
 import { AdminPage } from "../../admin/AdminPage";
+import { TeacherReportIdentity } from "../../admin/TeacherReportIdentity";
 
 export const Route = createFileRoute("/_auth/users")({ component: UsersPage });
 
@@ -54,6 +55,7 @@ function UsersPage() {
   const [teachingStage, setTeachingStage] = useState<TeachingStage>("primary");
   const [search, setSearch] = useState("");
   const [confirmation, setConfirmation] = useState<UserConfirmation>();
+  const [reportUserId, setReportUserId] = useState<number>();
   const {
     data: users = [],
     isPending: usersPending,
@@ -96,6 +98,7 @@ function UsersPage() {
   if (usersError) return <EmptyState title={t("errors.load")} />;
 
   const normalizedSearch = search.trim().toLocaleLowerCase();
+  const reportUser = users.find((user) => user.id === reportUserId);
   const visibleUsers = normalizedSearch
     ? users.filter((user) =>
         `${user.full_name} ${user.email}`.toLocaleLowerCase().includes(normalizedSearch),
@@ -298,6 +301,13 @@ function UsersPage() {
                       </TableCell>
                       <TableCell align="right">
                         <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setReportUserId(user.id)}
+                          >
+                            {t("users.reportIdentity")}
+                          </Button>
                           {!user.is_active ? (
                             <Button
                               size="sm"
@@ -347,6 +357,13 @@ function UsersPage() {
         </CardBody>
       </Card>
 
+      {reportUser ? (
+        <TeacherReportIdentity
+          key={reportUser.id}
+          user={reportUser}
+          onClose={() => setReportUserId(undefined)}
+        />
+      ) : null}
       <ConfirmDialog
         open={Boolean(confirmation)}
         onOpenChange={(open) => !open && setConfirmation(undefined)}

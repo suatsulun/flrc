@@ -21,6 +21,7 @@ TEST_URL = "postgresql+asyncpg://flrc:flrc@localhost:5432/flrc_test"
 TEST_URL_SYNC = TEST_URL.replace("+asyncpg", "+psycopg")
 
 WIPE_ORDER = (
+    m.ReportIdentityAudit,
     m.JobRun,
     m.AuditEntry,
     m.SaveBatch,

@@ -307,3 +307,74 @@ async def test_audit_requires_admin_and_exports_csv(api, world):
     assert page.json()["items"][0]["new_value"] == "85"
     assert exported.status_code == 200
     assert "Main Teacher" in exported.text
+
+
+async def test_whole_class_ratings_save_and_undo_as_one_batch(api, world):
+    """50 pupils × 12 rubric rows fits one save, audit trail and undo operation."""
+    async with TestSession() as db:
+        students = [world.student_one, world.student_two]
+        for number in range(48):
+            pupil = m.Student(
+                full_name=f"Synthetic bulk pupil {number}",
+                search_name=f"synthetic bulk pupil {number}",
+            )
+            db.add(pupil)
+            await db.flush()
+            students.append(pupil.id)
+            db.add(
+                m.Enrollment(
+                    student_id=pupil.id,
+                    class_id=world.cls,
+                    year_id=world.year,
+                    school_number=52000 + number,
+                )
+            )
+        columns = [
+            m.ColumnDefinition(
+                semester_id=world.semester,
+                grade_level=5,
+                subject="english",
+                value_type="scale3",
+                owner_role="main",
+                labels={"tr": f"Synthetic assessment {number}"},
+                position=10 + number,
+            )
+            for number in range(12)
+        ]
+        db.add_all(columns)
+        await db.commit()
+        column_ids = [column.id for column in columns]
+    response = await save_grid(
+        api,
+        world.main,
+        world.cls,
+        [cell(student, column, 3) for student in students for column in column_ids],
+    )
+    assert response.status_code == 200
+    assert len(response.json()["applied"]) == 600
+    assert response.json()["rejected"] == []
+    assert response.json()["conflicts"] == []
+    async with TestSession() as db:
+        assert len(list(await db.scalars(select(m.SaveBatch)))) == 1
+        assert len(list(await db.scalars(select(m.AuditEntry)))) == 600
+    async with api(world.main) as client:
+        undo = await client.post(f"/api/classes/{world.cls}/grid/undo")
+    assert undo.status_code == 200
+    async with TestSession() as db:
+        assert (
+            list(
+                await db.scalars(
+                    select(m.GradeValue).where(m.GradeValue.column_definition_id.in_(column_ids))
+                )
+            )
+            == []
+        )
+
+
+async def test_grade_save_still_rejects_oversized_batches(api, world):
+    response = await save_grid(
+        api, world.main, world.cls, [cell(world.student_one, world.main_column, 80)] * 2001
+    )
+    assert response.status_code == 422
+    async with TestSession() as db:
+        assert list(await db.scalars(select(m.GradeValue))) == []

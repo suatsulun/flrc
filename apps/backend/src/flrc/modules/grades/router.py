@@ -126,7 +126,9 @@ class SaveRequest(BaseModel):
     subject: Subject
     force: bool = False
     confirm_outside_assignment: bool = False
-    cells: list[SaveCellIn] = Field(min_length=1, max_length=500)
+    # A whole-class primary rubric can exceed 500 cells (e.g. 40 pupils × 14 rows).
+    # Keep it in one audited save batch so "undo last save" reverses the entire action.
+    cells: list[SaveCellIn] = Field(min_length=1, max_length=2000)
 
 
 class AppliedOut(BaseModel):

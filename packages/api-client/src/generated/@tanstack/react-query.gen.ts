@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { activateYear, addAdminRosterStudent, adminPing, advanceSemester, authCallback, closeYear, commitImport, coordinatorCompleteness, coordinatorMissingCells, coordinatorOverview, copyColumns, createAdminClass, createColumn, createManagedUser, createStudent, createYear, createYearExportJob, deleteAdminClass, deleteColumn, demoInfo, demoResetStatus, downloadJob, downloadReportSet, dryRunImport, exportAuditCsv, exportYearAudit, getAdminRoster, getArchiveGrid, getAssignments, getGrid, getJob, getStudentHistory, healthz, listAcademicYears, listAdminClasses, listArchiveClasses, listArchiveYears, listAssignmentMatrix, listAudit, listClassCatalog, listClasses, listColumns, listJobs, listManagedUsers, listMyAssignments, listStudents, listUsers, listYears, lockSemesterTwo, login, logout, me, moveAdminRoster, type Options, patchAdminClass, patchAdminRosterStudent, patchManagedUser, patchStudent, removeAdminRosterStudent, reopenSemester, reorderColumns, replaceAssignmentMatrix, requestDemoReset, requestGrant, saveGrid, setStudentLanguage, undoGrid, updateColumn, upsertAssignment } from '../sdk.gen';
-import type { ActivateYearData, ActivateYearError, ActivateYearResponse, AddAdminRosterStudentData, AddAdminRosterStudentError, AddAdminRosterStudentResponse, AdminPingData, AdminPingResponse, AdvanceSemesterData, AdvanceSemesterError, AdvanceSemesterResponse, AuthCallbackData, CloseYearData, CloseYearError, CloseYearResponse, CommitImportData, CommitImportError, CommitImportResponse, CoordinatorCompletenessData, CoordinatorCompletenessError, CoordinatorCompletenessResponse, CoordinatorMissingCellsData, CoordinatorMissingCellsError, CoordinatorMissingCellsResponse, CoordinatorOverviewData, CoordinatorOverviewResponse, CopyColumnsData, CopyColumnsError, CopyColumnsResponse, CreateAdminClassData, CreateAdminClassError, CreateAdminClassResponse, CreateColumnData, CreateColumnError, CreateColumnResponse, CreateManagedUserData, CreateManagedUserError, CreateManagedUserResponse, CreateStudentData, CreateStudentError, CreateStudentResponse, CreateYearData, CreateYearError, CreateYearExportJobData, CreateYearExportJobError, CreateYearExportJobResponse, CreateYearResponse, DeleteAdminClassData, DeleteAdminClassError, DeleteAdminClassResponse, DeleteColumnData, DeleteColumnError, DeleteColumnResponse, DemoInfoData, DemoInfoResponse, DemoResetStatusData, DemoResetStatusError, DemoResetStatusResponse, DownloadJobData, DownloadJobError, DownloadReportSetData, DownloadReportSetError, DryRunImportData, DryRunImportError, DryRunImportResponse, ExportAuditCsvData, ExportAuditCsvError, ExportYearAuditData, ExportYearAuditError, GetAdminRosterData, GetAdminRosterError, GetAdminRosterResponse, GetArchiveGridData, GetArchiveGridError, GetArchiveGridResponse, GetAssignmentsData, GetAssignmentsError, GetAssignmentsResponse, GetGridData, GetGridError, GetGridResponse, GetJobData, GetJobError, GetJobResponse, GetStudentHistoryData, GetStudentHistoryError, GetStudentHistoryResponse, HealthzData, HealthzResponse, ListAcademicYearsData, ListAcademicYearsResponse, ListAdminClassesData, ListAdminClassesError, ListAdminClassesResponse, ListArchiveClassesData, ListArchiveClassesError, ListArchiveClassesResponse, ListArchiveYearsData, ListArchiveYearsResponse, ListAssignmentMatrixData, ListAssignmentMatrixError, ListAssignmentMatrixResponse, ListAuditData, ListAuditError, ListAuditResponse, ListClassCatalogData, ListClassCatalogError, ListClassCatalogResponse, ListClassesData, ListClassesResponse, ListColumnsData, ListColumnsError, ListColumnsResponse, ListJobsData, ListJobsError, ListJobsResponse, ListManagedUsersData, ListManagedUsersError, ListManagedUsersResponse, ListMyAssignmentsData, ListMyAssignmentsResponse, ListStudentsData, ListStudentsError, ListStudentsResponse, ListUsersData, ListUsersResponse, ListYearsData, ListYearsResponse, LockSemesterTwoData, LockSemesterTwoError, LockSemesterTwoResponse, LoginData, LogoutData, LogoutResponse, MeData, MeResponse, MoveAdminRosterData, MoveAdminRosterError, MoveAdminRosterResponse, PatchAdminClassData, PatchAdminClassError, PatchAdminClassResponse, PatchAdminRosterStudentData, PatchAdminRosterStudentError, PatchAdminRosterStudentResponse, PatchManagedUserData, PatchManagedUserError, PatchManagedUserResponse, PatchStudentData, PatchStudentError, PatchStudentResponse, RemoveAdminRosterStudentData, RemoveAdminRosterStudentError, RemoveAdminRosterStudentResponse, ReopenSemesterData, ReopenSemesterError, ReopenSemesterResponse, ReorderColumnsData, ReorderColumnsError, ReorderColumnsResponse, ReplaceAssignmentMatrixData, ReplaceAssignmentMatrixError, ReplaceAssignmentMatrixResponse, RequestDemoResetData, RequestDemoResetError, RequestDemoResetResponse, RequestGrantData, RequestGrantError, RequestGrantResponse, SaveGridData, SaveGridError, SaveGridResponse, SetStudentLanguageData, SetStudentLanguageError, SetStudentLanguageResponse, UndoGridData, UndoGridError, UndoGridResponse, UpdateColumnData, UpdateColumnError, UpdateColumnResponse, UpsertAssignmentData, UpsertAssignmentError, UpsertAssignmentResponse } from '../types.gen';
+import { activateYear, addAdminRosterStudent, adminPing, advanceSemester, authCallback, closeYear, commitImport, coordinatorCompleteness, coordinatorMissingCells, coordinatorOverview, copyColumns, createAdminClass, createColumn, createManagedUser, createStudent, createYear, createYearExportJob, deleteAdminClass, deleteColumn, deleteUserSignature, demoInfo, demoResetStatus, downloadJob, downloadReportSet, dryRunImport, exportAuditCsv, exportYearAudit, getAdminRoster, getArchiveGrid, getAssignments, getGrid, getJob, getStudentHistory, getUserSignature, healthz, listAcademicYears, listAdminClasses, listArchiveClasses, listArchiveYears, listAssignmentMatrix, listAudit, listClassCatalog, listClasses, listColumns, listJobs, listManagedUsers, listMyAssignments, listStudents, listUsers, listYears, lockSemesterTwo, login, logout, me, moveAdminRoster, type Options, patchAdminClass, patchAdminRosterStudent, patchManagedUser, patchStudent, removeAdminRosterStudent, reopenSemester, reorderColumns, replaceAssignmentMatrix, requestDemoReset, requestGrant, saveGrid, setStudentLanguage, undoGrid, updateColumn, uploadUserSignature, upsertAssignment } from '../sdk.gen';
+import type { ActivateYearData, ActivateYearError, ActivateYearResponse, AddAdminRosterStudentData, AddAdminRosterStudentError, AddAdminRosterStudentResponse, AdminPingData, AdminPingResponse, AdvanceSemesterData, AdvanceSemesterError, AdvanceSemesterResponse, AuthCallbackData, CloseYearData, CloseYearError, CloseYearResponse, CommitImportData, CommitImportError, CommitImportResponse, CoordinatorCompletenessData, CoordinatorCompletenessError, CoordinatorCompletenessResponse, CoordinatorMissingCellsData, CoordinatorMissingCellsError, CoordinatorMissingCellsResponse, CoordinatorOverviewData, CoordinatorOverviewResponse, CopyColumnsData, CopyColumnsError, CopyColumnsResponse, CreateAdminClassData, CreateAdminClassError, CreateAdminClassResponse, CreateColumnData, CreateColumnError, CreateColumnResponse, CreateManagedUserData, CreateManagedUserError, CreateManagedUserResponse, CreateStudentData, CreateStudentError, CreateStudentResponse, CreateYearData, CreateYearError, CreateYearExportJobData, CreateYearExportJobError, CreateYearExportJobResponse, CreateYearResponse, DeleteAdminClassData, DeleteAdminClassError, DeleteAdminClassResponse, DeleteColumnData, DeleteColumnError, DeleteColumnResponse, DeleteUserSignatureData, DeleteUserSignatureError, DeleteUserSignatureResponse, DemoInfoData, DemoInfoResponse, DemoResetStatusData, DemoResetStatusError, DemoResetStatusResponse, DownloadJobData, DownloadJobError, DownloadReportSetData, DownloadReportSetError, DryRunImportData, DryRunImportError, DryRunImportResponse, ExportAuditCsvData, ExportAuditCsvError, ExportYearAuditData, ExportYearAuditError, GetAdminRosterData, GetAdminRosterError, GetAdminRosterResponse, GetArchiveGridData, GetArchiveGridError, GetArchiveGridResponse, GetAssignmentsData, GetAssignmentsError, GetAssignmentsResponse, GetGridData, GetGridError, GetGridResponse, GetJobData, GetJobError, GetJobResponse, GetStudentHistoryData, GetStudentHistoryError, GetStudentHistoryResponse, GetUserSignatureData, GetUserSignatureError, HealthzData, HealthzResponse, ListAcademicYearsData, ListAcademicYearsResponse, ListAdminClassesData, ListAdminClassesError, ListAdminClassesResponse, ListArchiveClassesData, ListArchiveClassesError, ListArchiveClassesResponse, ListArchiveYearsData, ListArchiveYearsResponse, ListAssignmentMatrixData, ListAssignmentMatrixError, ListAssignmentMatrixResponse, ListAuditData, ListAuditError, ListAuditResponse, ListClassCatalogData, ListClassCatalogError, ListClassCatalogResponse, ListClassesData, ListClassesResponse, ListColumnsData, ListColumnsError, ListColumnsResponse, ListJobsData, ListJobsError, ListJobsResponse, ListManagedUsersData, ListManagedUsersError, ListManagedUsersResponse, ListMyAssignmentsData, ListMyAssignmentsResponse, ListStudentsData, ListStudentsError, ListStudentsResponse, ListUsersData, ListUsersResponse, ListYearsData, ListYearsResponse, LockSemesterTwoData, LockSemesterTwoError, LockSemesterTwoResponse, LoginData, LogoutData, LogoutResponse, MeData, MeResponse, MoveAdminRosterData, MoveAdminRosterError, MoveAdminRosterResponse, PatchAdminClassData, PatchAdminClassError, PatchAdminClassResponse, PatchAdminRosterStudentData, PatchAdminRosterStudentError, PatchAdminRosterStudentResponse, PatchManagedUserData, PatchManagedUserError, PatchManagedUserResponse, PatchStudentData, PatchStudentError, PatchStudentResponse, RemoveAdminRosterStudentData, RemoveAdminRosterStudentError, RemoveAdminRosterStudentResponse, ReopenSemesterData, ReopenSemesterError, ReopenSemesterResponse, ReorderColumnsData, ReorderColumnsError, ReorderColumnsResponse, ReplaceAssignmentMatrixData, ReplaceAssignmentMatrixError, ReplaceAssignmentMatrixResponse, RequestDemoResetData, RequestDemoResetError, RequestDemoResetResponse, RequestGrantData, RequestGrantError, RequestGrantResponse, SaveGridData, SaveGridError, SaveGridResponse, SetStudentLanguageData, SetStudentLanguageError, SetStudentLanguageResponse, UndoGridData, UndoGridError, UndoGridResponse, UpdateColumnData, UpdateColumnError, UpdateColumnResponse, UploadUserSignatureData, UploadUserSignatureError, UploadUserSignatureResponse, UpsertAssignmentData, UpsertAssignmentError, UpsertAssignmentResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -721,6 +721,58 @@ export const patchManagedUserMutation = (options?: Partial<Options<PatchManagedU
     const mutationOptions: UseMutationOptions<PatchManagedUserResponse, PatchManagedUserError, Options<PatchManagedUserData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await patchManagedUser({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete User Signature
+ */
+export const deleteUserSignatureMutation = (options?: Partial<Options<DeleteUserSignatureData>>): UseMutationOptions<DeleteUserSignatureResponse, DeleteUserSignatureError, Options<DeleteUserSignatureData>> => {
+    const mutationOptions: UseMutationOptions<DeleteUserSignatureResponse, DeleteUserSignatureError, Options<DeleteUserSignatureData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteUserSignature({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getUserSignatureQueryKey = (options: Options<GetUserSignatureData>) => createQueryKey('getUserSignature', options);
+
+/**
+ * Get User Signature
+ */
+export const getUserSignatureOptions = (options: Options<GetUserSignatureData>) => queryOptions<unknown, GetUserSignatureError, unknown, ReturnType<typeof getUserSignatureQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getUserSignature({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getUserSignatureQueryKey(options)
+});
+
+/**
+ * Upload User Signature
+ */
+export const uploadUserSignatureMutation = (options?: Partial<Options<UploadUserSignatureData>>): UseMutationOptions<UploadUserSignatureResponse, UploadUserSignatureError, Options<UploadUserSignatureData>> => {
+    const mutationOptions: UseMutationOptions<UploadUserSignatureResponse, UploadUserSignatureError, Options<UploadUserSignatureData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await uploadUserSignature({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

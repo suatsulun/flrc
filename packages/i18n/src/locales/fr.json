@@ -103,9 +103,9 @@
     "ownedBy": "Responsable : {{name}}",
     "unassignedOwner": "Aucun enseignant affecté",
     "scaleLevels": {
-      "1": "A besoin de soutien",
-      "2": "En progression",
-      "3": "Maîtrisé"
+      "1": "À développer",
+      "2": "Bien",
+      "3": "Très bien"
     },
     "addComment": "Ajouter un commentaire",
     "commentEditorDescription": "Rédigez le commentaire de l’enseignant dans le grand champ ci-dessous. Il reste non enregistré jusqu’à l’enregistrement de la grille.",
@@ -139,7 +139,15 @@
     "assessmentRange": "Évaluations {{start}}–{{end}} sur {{total}}",
     "previousAssessments": "Précédent",
     "nextAssessments": "Suivant",
-    "gradeFourScaleOnly": "En 4e année, l’allemand et le français utilisent uniquement l’échelle 1–2–3."
+    "gradeFourScaleOnly": "En 4e année, l’allemand et le français utilisent uniquement l’échelle 1–2–3.",
+    "teacherNotes": "Avis du professeur",
+    "bulkStudent": "Définir toutes les évaluations",
+    "bulkClass": "Définir les évaluations de toute la classe",
+    "bulkStudentTitle": "Toutes les évaluations de {{name}}",
+    "bulkClassTitle": "Toutes les évaluations de la classe {{name}}",
+    "bulkStudentHint": "S’applique aux {{count}} évaluations de cet élève.",
+    "bulkClassHint": "S’applique aux {{count}} évaluations de chacun des {{students}} élèves dans cette matière.",
+    "bulkSaveHint": "Inclut toutes les catégories. Les modifications sont enregistrées avec Enregistrer."
   },
   "stepper": {
     "prev": "Précédent",
@@ -198,7 +206,16 @@
     "resetIdentity": "Réinitialiser le compte Google",
     "resetIdentityConfirm": "Effacer la liaison du compte Google de {{name}} ? Réactivez uniquement lorsque le titulaire vérifié est prêt à se connecter.",
     "allowedSuccess": "L’accès de l’enseignant a été ajouté.",
-    "empty": "Aucun enseignant dans la liste d’autorisation."
+    "empty": "Aucun enseignant dans la liste d’autorisation.",
+    "reportIdentity": "Nom et signature du bulletin",
+    "reportName": "Nom sur les bulletins",
+    "reportNameHelp": "Laissez vide pour utiliser le nom du compte.",
+    "signaturePreview": "Signature de {{name}}",
+    "noSignature": "Aucune signature importée. Le bulletin laisse un espace pour signer à la main.",
+    "signatureUpload": "Importer ou remplacer la signature",
+    "signatureHelp": "PNG, 1 Mio et 4 millions de pixels maximum ; aucun côté au-delà de 4096 px. Fond transparent conseillé. Les changements concernent les nouveaux bulletins.",
+    "signatureRemove": "Supprimer la signature",
+    "signatureInvalid": "Choisissez un PNG valide à une seule image respectant les limites de taille."
   },
   "classes": {
     "title": "Classes",
@@ -541,6 +558,7 @@
     "save": "Enregistrer",
     "cancel": "Annuler",
     "value": "Valeur",
-    "add": "Ajouter"
+    "add": "Ajouter",
+    "close": "Fermer"
   }
 }

@@ -1,6 +1,13 @@
 from pydantic import BaseModel, Field
 
 
+class ReportSigner(BaseModel):
+    user_id: int
+    name: str
+    roles: list[str]
+    signature: str | None = None
+
+
 class ReportField(BaseModel):
     """One configured column's label pair and this student's value.
 
@@ -34,3 +41,4 @@ class ReportCard(BaseModel):
     # score columns as an extra section (the DEUTSCH/FRANÇAIS block).
     language_label: str | None = None
     language_fields: list[ReportField] = Field(default_factory=list)
+    teachers: list[ReportSigner] = Field(default_factory=list)

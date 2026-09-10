@@ -16,10 +16,9 @@ genuinely different documents:
 
 They share ``base.html`` so page setup and print CSS live in one place.
 
-The school's real cards also carry the logo, the teachers' names and the
-principal's signature. Those are deliberately absent here and return with the
-branding pass; only the name and accent colour from ``assets/`` (synced by
-``pnpm brand``) are used.
+Private school overlays can add the logo, assigned teachers' report names and
+signatures, grade-selected principals, and original PDF back covers. Generic
+templates keep their existing appearance when no overlay is configured.
 """
 
 import base64
@@ -35,6 +34,7 @@ from io import BytesIO
 from multiprocessing import get_context
 from pathlib import Path
 from threading import Lock
+from typing import Literal, cast
 from urllib.parse import quote
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -43,6 +43,7 @@ from weasyprint import HTML
 from weasyprint.urls import URLFetcher, URLFetcherResponse
 
 from flrc.config import settings
+from flrc.modules.reports.branding import ReportKind, contained_file, report_branding
 from flrc.modules.reports.models import ReportCard, ReportField
 
 logger = logging.getLogger(__name__)
@@ -429,9 +430,8 @@ class SchoolBrand:
 def school_logo_data_uri() -> str | None:
     """The school's logo as a data URI, or ``None`` if there is no readable file.
 
-    The templates do not place the logo yet — it returns with the branding
-    pass — but the helper stays so ``SCHOOL_LOGO_PATH`` and the synced assets
-    keep working unchanged.
+    Private templates place this logo; environment overrides and generic
+    assets continue to use the same resolution order.
     """
     path = next((candidate for candidate in _logo_candidates() if candidate.is_file()), None)
     if path is None:
@@ -514,6 +514,9 @@ def _document_plan(cards: list[ReportCard]) -> tuple[str, dict[str, object], str
         "school": school_brand(),
         "no_fields_note": NO_FIELDS_NOTE,
     }
+    if (branding := report_branding()) is not None:
+        template = branding.config.templates.get(cast(ReportKind, first.kind), template)
+        context["report_branding"] = branding.context()
     if first.kind == "english_middle":
         return template, context, "pages", list(cut_stack_pages(cards))
     if first.kind == "english_elementary":
@@ -528,7 +531,45 @@ def _document_plan(cards: list[ReportCard]) -> tuple[str, dict[str, object], str
 
 def render_report_html(cards: list[ReportCard]) -> str:
     template, context, units_key, units = _document_plan(cards)
-    return env.get_template(template).render(**context, **{units_key: units})
+    return _template_environment().get_template(template).render(**context, **{units_key: units})
+
+
+def _template_environment() -> Environment:
+    branding = report_branding()
+    return branding.environment(HERE / "templates") if branding else env
+
+
+def _apply_back_cover(pdf: bytes, cards: list[ReportCard]) -> bytes:
+    """Replace each duplex back with the original school PDF, without rasterizing it."""
+    branding = report_branding()
+    if branding is None:
+        return pdf
+    relative = branding.config.covers.get(
+        cast(Literal["german_karne", "french_karne"], cards[0].kind)
+    )
+    if relative is None:
+        return pdf
+    cover = PdfReader(contained_file(branding.root, relative))
+    document = PdfReader(BytesIO(pdf))
+    if len(cover.pages) != 1 or len(document.pages) != 2 * len(cards):
+        raise ValueError("report_duplex_page_count")
+    writer = PdfWriter()
+    for index in range(0, len(document.pages), 2):
+        face = document.pages[index]
+        back = cover.pages[0]
+        if (
+            abs(float(face.mediabox.width) - float(back.mediabox.width)) > 2
+            or abs(float(face.mediabox.height) - float(back.mediabox.height)) > 2
+        ):
+            raise ValueError("report_cover_page_size")
+        writer.add_page(face)
+        writer.add_page(back)
+    if document.metadata:
+        writer.add_metadata({key: str(value) for key, value in document.metadata.items()})
+    writer.compress_identical_objects()
+    result = BytesIO()
+    writer.write(result)
+    return result.getvalue()
 
 
 class ReportAssetFetcher(URLFetcher):
@@ -710,18 +751,18 @@ def render_report_pdf(cards: list[ReportCard]) -> bytes:
     because a slow report card is recoverable and a failed one is not.
     """
     template, context, units_key, units = _document_plan(cards)
-    jinja_template = env.get_template(template)
+    jinja_template = _template_environment().get_template(template)
 
     def document(sheets: list[object]) -> str:
         return jinja_template.render(**context, **{units_key: sheets})
 
     workers = render_worker_limit()
     if workers < 2 or len(units) < MIN_PARALLEL_UNITS:
-        return render_pdf_document(document(units))
+        return _apply_back_cover(render_pdf_document(document(units)), cards)
 
     pool = _render_pool(workers)
     if pool is None:
-        return render_pdf_document(document(units))
+        return _apply_back_cover(render_pdf_document(document(units)), cards)
     chunks = _chunk(units, min(workers, len(units)))
     try:
         parts = list(pool.map(render_pdf_document, [document(chunk) for chunk in chunks]))
@@ -733,5 +774,5 @@ def render_report_pdf(cards: list[ReportCard]) -> bytes:
         # because the serial retry below renders the very same HTML.
         logger.warning("parallel report render failed, falling back to serial", exc_info=True)
         _discard_pool()
-        return render_pdf_document(document(units))
-    return _merge_pdf_parts(parts)
+        return _apply_back_cover(render_pdf_document(document(units)), cards)
+    return _apply_back_cover(_merge_pdf_parts(parts), cards)

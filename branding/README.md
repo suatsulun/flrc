@@ -143,5 +143,60 @@ environment variables that win over this folder:
 - `SCHOOL_NAME` — overrides `name` on printed report cards
 - `SCHOOL_LOGO_PATH` — absolute path to a logo elsewhere on disk
 
-The front-end name and logo are compiled in, so separate schools need separate
-builds. For a single school — the normal case — leave both unset.
+The frontend reads the runtime overlay described above; separate schools can share the same
+published images. Leave these two overrides unset when using the branding folder.
+
+## Private report overlays and teacher signatures (ADR-057)
+
+School-specific report templates, principal identities and assets belong in the **private school
+repository**, under `branding/reports/`. They are never copied into this repository or the web apps.
+`SCHOOL_BRANDING_DIR` on both API and worker points to the complete private branding folder.
+Teacher report names and PNG signatures belong to their `users` records and are edited in Admin →
+Teachers → Report name & signature. Existing class assignments select the signers for each report.
+
+An optional `reports/config.json` uses this structure:
+
+```json
+{
+  "version": 1,
+  "templates": { "german_karne": "karne.html", "french_karne": "karne.html" },
+  "principals": {
+    "primary": {
+      "name": "Primary Principal",
+      "titles": { "en": "Principal" },
+      "signature": "principals/primary.png"
+    },
+    "middle": {
+      "name": "Middle Principal",
+      "titles": { "en": "Principal" },
+      "signature": "principals/middle.png"
+    }
+  },
+  "assets": { "german_cover": "covers/german-preview.png" },
+  "covers": { "german_karne": "covers/german.pdf", "french_karne": "covers/french.pdf" }
+}
+```
+
+Templates live in `reports/templates/`, may extend the built-in `base.html`, and receive the
+existing report context plus `report_branding.principals` and `report_branding.assets`. Images are
+resolved to data URIs. Each `card.teachers` item has a name, role list, user id and optional signature
+data URI. A missing signature is blank; the system never generates one. All paths are relative to
+`reports/`, with traversal and escaping symlinks rejected. Missing or invalid configured assets fail
+rather than silently dropping a principal or substituting an unrelated cover.
+
+German/French templates with PDF covers must produce exactly two landscape A4 pages per student.
+The first is the report face; the second is the preview cover, replaced with the original PDF page
+in the final document. Grade-specific criteria and saved values still come from configured database
+columns, not from positional guesses in a Word reference. Grades 1–4 select the primary principal;
+grades 5–8 select the middle principal.
+
+For a school with private report assets, create `branding/public/` containing **only** the public
+`brand.js`, `logo.svg`, and `favicon.svg` and change the web volume to
+`./branding/public:/srv/branding:ro`. Keep API/worker volumes as `./branding:/srv/branding:ro`.
+This separate mount is required even when using older web images; newer Caddy configurations also
+allowlist the three public files. Never copy report assets into a frontend `public/` folder.
+
+Teacher signatures and identity audit records are included in database backups. Principal assets
+and templates are maintained in the private deployment repository. Restart API and worker after an
+overlay change. Publish a release containing migration `e2a91c743b60` and upgrade both images before
+using the overlay; do not pin an image tag that has not been published.

@@ -8,6 +8,9 @@ import { Button } from "@flrc/ui/components/button";
 import { SCALE3_FACES } from "@flrc/ui/grid/cells";
 import { GradeCell } from "./grade-cell";
 import { useGridKeyboard } from "./use-grid-keyboard";
+import { assessmentOptions, filterAssessments, type AssessmentFilter } from "./assessment-filter";
+import { AssessmentFilters } from "./assessment-filters";
+import { BulkRatings } from "./bulk-ratings";
 
 const gridTableFeatures = tableFeatures({});
 type GridColumnDef = ColumnDef<typeof gridTableFeatures, GridRowOut, unknown>;
@@ -23,8 +26,8 @@ export const GridTable = memo(function GridTable({
   const navigation = useGridKeyboard();
   const surface = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState(1);
-  const [selection, setSelection] = useState<{ group: string | null; page: number }>({
-    group: null,
+  const [selection, setSelection] = useState<{ group: AssessmentFilter; page: number }>({
+    group: "all",
     page: 0,
   });
 
@@ -39,20 +42,15 @@ export const GridTable = memo(function GridTable({
     return () => observer.disconnect();
   }, []);
 
-  const groups = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const column of data.columns) {
-      if (column.group) counts.set(column.group, (counts.get(column.group) ?? 0) + 1);
-    }
-    return [...counts].map(([label, count]) => ({ label, count }));
-  }, [data.columns]);
-  const selectedGroup = groups.some((group) => group.label === selection.group)
+  const groups = useMemo(() => assessmentOptions(data.columns), [data.columns]);
+  const selectedGroup = groups.some((group) => group.id === selection.group)
     ? selection.group
-    : null;
+    : "all";
   const filtered = useMemo(
-    () => data.columns.filter((column) => !selectedGroup || column.group === selectedGroup),
+    () => filterAssessments(data.columns, selectedGroup),
     [data.columns, selectedGroup],
   );
+  const showScaleFaces = data.meta.subject === "english" && data.meta.grade_level <= 4;
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const page = Math.min(selection.page, pageCount - 1);
   const start = page * pageSize;
@@ -74,6 +72,9 @@ export const GridTable = memo(function GridTable({
             <span className="tabular mt-0.5 block text-xs text-muted-foreground">
               {context.row.original.school_number ?? "—"}
             </span>
+            <div className="mt-2">
+              <BulkRatings data={data} row={context.row.original} readOnly={readOnly} />
+            </div>
           </div>
         ),
       },
@@ -108,12 +109,13 @@ export const GridTable = memo(function GridTable({
             columnIndex={index + 1}
             readOnly={readOnly}
             navigation={navigation}
+            showScaleFaces={showScaleFaces}
             fit
           />
         ),
       })),
     ];
-  }, [visible, navigation, readOnly, t]);
+  }, [visible, navigation, readOnly, t, data, showScaleFaces]);
 
   const table = useTable({ features: gridTableFeatures, data: data.rows, columns });
   const paging = (
@@ -165,31 +167,11 @@ export const GridTable = memo(function GridTable({
           <p className="font-semibold">{t("grid.assessmentFocus")}</p>
           <p className="mt-1 text-sm text-muted-foreground">{t("grid.assessmentFocusHint")}</p>
         </div>
-        {groups.length > 0 ? (
-          <div
-            role="group"
-            aria-label={t("grid.assessmentCategories")}
-            className="flex flex-wrap gap-2"
-          >
-            {[{ label: null, count: data.columns.length }, ...groups].map((group) => (
-              <button
-                key={group.label ?? "all"}
-                type="button"
-                aria-pressed={selectedGroup === group.label}
-                onClick={() => setSelection({ group: group.label, page: 0 })}
-                className={[
-                  "inline-flex max-w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                  selectedGroup === group.label
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background text-foreground hover:bg-accent",
-                ].join(" ")}
-              >
-                <span>{group.label ?? t("grid.allAssessments")}</span>
-                <span className="tabular text-xs opacity-70">{group.count}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
+        <AssessmentFilters
+          columns={data.columns}
+          value={selectedGroup}
+          onChange={(group) => setSelection({ group, page: 0 })}
+        />
         {paging}
         {visible.some((column) => column.value_type === "scale3") ? (
           <div
@@ -199,7 +181,8 @@ export const GridTable = memo(function GridTable({
             {([1, 2, 3] as const).map((level) => (
               <span key={level}>
                 <span className="font-semibold text-foreground">
-                  {level} {SCALE3_FACES[level]}
+                  {level}{" "}
+                  {showScaleFaces ? <span aria-hidden="true">{SCALE3_FACES[level]}</span> : null}
                 </span>{" "}
                 · {t(`grid.scaleLevels.${level}`)}
               </span>

@@ -1,13 +1,21 @@
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from flrc.db.models import SchoolClass, TeachingAssignment, User
 from flrc.db.session import get_session
 from flrc.modules.administration.names import normalize_email, search_key
+from flrc.modules.administration.report_identity import (
+    MAX_SIGNATURE_BYTES,
+    audit_identity,
+    identity_snapshot,
+    set_signature,
+    validate_signature,
+)
 from flrc.modules.auth import demo
 from flrc.modules.auth.dependencies import require_admin
 from flrc.modules.auth.policy import allowed_google_domain, email_is_in_school_domain
@@ -27,6 +35,8 @@ class ManagedUserOut(BaseModel):
     is_active: bool
     teaching_field: str
     teaching_stage: str | None
+    report_name: str | None = None
+    signature_url: str | None = None
     revoked_sessions: int = 0
 
     @classmethod
@@ -40,6 +50,10 @@ class ManagedUserOut(BaseModel):
             is_active=user.is_active,
             teaching_field=user.teaching_field,
             teaching_stage=user.teaching_stage,
+            report_name=user.report_name,
+            signature_url=(f"/api/admin/users/{user.id}/signature?v={user.signature_digest}")
+            if user.signature_digest
+            else None,
             revoked_sessions=revoked_sessions,
         )
 
@@ -60,6 +74,7 @@ class UserPatch(BaseModel):
     is_active: bool | None = None
     teaching_field: TeachingField | None = None
     teaching_stage: TeachingStage | None = None
+    report_name: str | None = Field(default=None, max_length=160)
     reset_google_identity: bool = False
 
 
@@ -118,7 +133,7 @@ async def patch_managed_user(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ManagedUserOut:
-    target = await db.get(User, user_id)
+    target = await db.get(User, user_id, with_for_update=True)
     if target is None:
         raise HTTPException(404, {"code": "unknown_user"})
     if target.id != actor.id and await demo.is_visitor(db, target.id):
@@ -136,6 +151,11 @@ async def patch_managed_user(
         if active_admins == 1:
             raise HTTPException(409, {"code": "last_admin"})
     updates = body.model_dump(exclude_unset=True)
+    before_identity = identity_snapshot(target)
+    if "report_name" in updates:
+        if await demo.is_visitor(db, target.id):
+            raise HTTPException(403, {"code": "visitor_protected"})
+        updates["report_name"] = (updates["report_name"] or "").strip() or None
     reset_identity = bool(updates.pop("reset_google_identity", False))
     teaching_change = "teaching_field" in updates or "teaching_stage" in updates
     if teaching_change:
@@ -168,8 +188,65 @@ async def patch_managed_user(
         setattr(target, field, value.strip() if field == "full_name" and value else value)
     if reset_identity:
         target.google_subject = None
+    audit_identity(db, target, actor, before_identity)
     await db.commit()
     revoked = 0
     if (was_active and not target.is_active) or reset_identity:
         revoked = await revoke_user_sessions(target.id)
     return ManagedUserOut.from_model(target, revoked_sessions=revoked)
+
+
+async def signature_user(db: AsyncSession, user_id: int, actor: User) -> User:
+    target = await db.get(User, user_id, with_for_update=True)
+    if target is None:
+        raise HTTPException(404, {"code": "unknown_user"})
+    if await demo.is_visitor(db, target.id):
+        raise HTTPException(403, {"code": "visitor_protected"})
+    return target
+
+
+@router.get("/{user_id}/signature", response_class=Response)
+async def get_user_signature(
+    user_id: int,
+    actor: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    target = await signature_user(db, user_id, actor)
+    await db.refresh(target, attribute_names=["signature_png"])
+    if target.signature_png is None:
+        raise HTTPException(404, {"code": "signature_missing"})
+    return Response(
+        content=target.signature_png,
+        media_type="image/png",
+        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@router.put("/{user_id}/signature")
+async def upload_user_signature(
+    user_id: int,
+    file: UploadFile,
+    actor: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> ManagedUserOut:
+    target = await signature_user(db, user_id, actor)
+    try:
+        data = await file.read(MAX_SIGNATURE_BYTES + 1)
+        png = await run_in_threadpool(validate_signature, data)
+    except ValueError as exc:
+        raise HTTPException(422, {"code": str(exc)}) from exc
+    finally:
+        await file.close()
+    await set_signature(db, target, actor, png)
+    return ManagedUserOut.from_model(target)
+
+
+@router.delete("/{user_id}/signature")
+async def delete_user_signature(
+    user_id: int,
+    actor: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> ManagedUserOut:
+    target = await signature_user(db, user_id, actor)
+    await set_signature(db, target, actor, None)
+    return ManagedUserOut.from_model(target)

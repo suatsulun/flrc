@@ -50,6 +50,21 @@ class User(TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     teaching_field: Mapped[str] = mapped_column(default="english")
     teaching_stage: Mapped[str | None] = mapped_column(default=_default_teaching_stage)
+    report_name: Mapped[str | None]
+    signature_png: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
+    signature_digest: Mapped[str | None]
+
+
+class ReportIdentityAudit(TimestampMixin, Base):
+    """Administrative report-identity changes; never stores image bytes."""
+
+    __tablename__ = "report_identity_audits"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    before: Mapped[dict[str, str | None]] = mapped_column(JSONB)
+    after: Mapped[dict[str, str | None]] = mapped_column(JSONB)
 
 
 class AcademicYear(TimestampMixin, Base):

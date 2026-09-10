@@ -1709,6 +1709,131 @@
         }
       }
     },
+    "/api/admin/users/{user_id}/signature": {
+      "get": {
+        "tags": [
+          "admin-users"
+        ],
+        "summary": "Get User Signature",
+        "operationId": "get_user_signature",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin-users"
+        ],
+        "summary": "Upload User Signature",
+        "operationId": "upload_user_signature",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_user_signature"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedUserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin-users"
+        ],
+        "summary": "Delete User Signature",
+        "operationId": "delete_user_signature",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedUserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/years/{year_id}/classes": {
       "get": {
         "tags": [
@@ -4008,6 +4133,20 @@
         ],
         "title": "Body_dry_run_import"
       },
+      "Body_upload_user_signature": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_user_signature"
+      },
       "CellOut": {
         "properties": {
           "value": {
@@ -5591,6 +5730,28 @@
             ],
             "title": "Teaching Stage"
           },
+          "report_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Name"
+          },
+          "signature_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature Url"
+          },
           "revoked_sessions": {
             "type": "integer",
             "title": "Revoked Sessions",
@@ -6200,7 +6361,7 @@
               "$ref": "#/components/schemas/SaveCellIn"
             },
             "type": "array",
-            "maxItems": 500,
+            "maxItems": 2000,
             "minItems": 1,
             "title": "Cells"
           }
@@ -6615,6 +6776,18 @@
               }
             ],
             "title": "Teaching Stage"
+          },
+          "report_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Name"
           },
           "reset_google_identity": {
             "type": "boolean",

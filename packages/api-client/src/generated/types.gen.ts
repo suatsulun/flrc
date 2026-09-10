@@ -371,6 +371,16 @@ export type BodyDryRunImport = {
 };
 
 /**
+ * Body_upload_user_signature
+ */
+export type BodyUploadUserSignature = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
  * CellOut
  */
 export type CellOut = {
@@ -1300,6 +1310,14 @@ export type ManagedUserOut = {
      */
     teaching_stage: string | null;
     /**
+     * Report Name
+     */
+    report_name?: string | null;
+    /**
+     * Signature Url
+     */
+    signature_url?: string | null;
+    /**
      * Revoked Sessions
      */
     revoked_sessions?: number;
@@ -1895,6 +1913,10 @@ export type UserPatch = {
      * Teaching Stage
      */
     teaching_stage?: 'primary' | 'middle' | null;
+    /**
+     * Report Name
+     */
+    report_name?: string | null;
     /**
      * Reset Google Identity
      */
@@ -2944,6 +2966,94 @@ export type PatchManagedUserResponses = {
 };
 
 export type PatchManagedUserResponse = PatchManagedUserResponses[keyof PatchManagedUserResponses];
+
+export type DeleteUserSignatureData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/admin/users/{user_id}/signature';
+};
+
+export type DeleteUserSignatureErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteUserSignatureError = DeleteUserSignatureErrors[keyof DeleteUserSignatureErrors];
+
+export type DeleteUserSignatureResponses = {
+    /**
+     * Successful Response
+     */
+    200: ManagedUserOut;
+};
+
+export type DeleteUserSignatureResponse = DeleteUserSignatureResponses[keyof DeleteUserSignatureResponses];
+
+export type GetUserSignatureData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/admin/users/{user_id}/signature';
+};
+
+export type GetUserSignatureErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetUserSignatureError = GetUserSignatureErrors[keyof GetUserSignatureErrors];
+
+export type GetUserSignatureResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type UploadUserSignatureData = {
+    body: BodyUploadUserSignature;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/admin/users/{user_id}/signature';
+};
+
+export type UploadUserSignatureErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UploadUserSignatureError = UploadUserSignatureErrors[keyof UploadUserSignatureErrors];
+
+export type UploadUserSignatureResponses = {
+    /**
+     * Successful Response
+     */
+    200: ManagedUserOut;
+};
+
+export type UploadUserSignatureResponse = UploadUserSignatureResponses[keyof UploadUserSignatureResponses];
 
 export type ListAdminClassesData = {
     body?: never;

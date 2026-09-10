@@ -22,7 +22,7 @@
  * derived file drifts from `branding/`.
  */
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,6 +40,30 @@ function fail(message, hint) {
   console.error(`${red("✗")} ${message}`);
   if (hint) console.error(`  ${dim(hint)}`);
   process.exit(1);
+}
+
+function readIfPresent(path) {
+  try {
+    return readFileSync(path);
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+/** Replace the directory entry without following a swapped-in output symlink. */
+function replaceFile(target, contents) {
+  const parent = dirname(target);
+  mkdirSync(parent, { recursive: true });
+  // A private directory on the same filesystem makes the final rename atomic.
+  const temporaryDirectory = mkdtempSync(join(parent, ".flrc-brand-"));
+  try {
+    const temporaryFile = join(temporaryDirectory, "output");
+    writeFileSync(temporaryFile, contents, { flag: "wx" });
+    renameSync(temporaryFile, target);
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
 }
 
 /* ── Colour maths ──────────────────────────────────────────────────────────────
@@ -92,11 +116,12 @@ function contrastWithWhite(hex) {
 /* ── Read and validate branding/ ────────────────────────────────────────────── */
 
 const brandPath = join(BRANDING, "brand.json");
-if (!existsSync(brandPath)) fail(`Missing ${relative(ROOT, brandPath)}`, "See branding/README.md.");
+const brandContents = readIfPresent(brandPath);
+if (brandContents === null) fail(`Missing ${relative(ROOT, brandPath)}`, "See branding/README.md.");
 
 let brand;
 try {
-  brand = JSON.parse(readFileSync(brandPath, "utf8"));
+  brand = JSON.parse(brandContents.toString("utf8"));
 } catch (error) {
   fail(`${relative(ROOT, brandPath)} is not valid JSON`, error.message);
 }
@@ -109,13 +134,11 @@ if (!/^#[0-9a-fA-F]{6}$/.test(brand.accentColor ?? ""))
   fail('brand.json needs "accentColor" as a 6-digit hex', 'e.g. "accentColor": "#2c5fcb"');
 
 const logoPath = join(BRANDING, "logo.svg");
-if (!existsSync(logoPath))
-  fail(`Missing ${relative(ROOT, logoPath)}`, "Drop the school logo here.");
+const logo = readIfPresent(logoPath);
+if (logo === null) fail(`Missing ${relative(ROOT, logoPath)}`, "Drop the school logo here.");
 
 // The favicon is optional; the logo stands in when it is absent.
-const faviconSource = existsSync(join(BRANDING, "favicon.svg"))
-  ? join(BRANDING, "favicon.svg")
-  : logoPath;
+const favicon = readIfPresent(join(BRANDING, "favicon.svg")) ?? logo;
 
 const shortName = (brand.shortName || brand.name).trim();
 const hue = Math.round(hexToOklch(brand.accentColor).h * 10) / 10;
@@ -191,10 +214,10 @@ const outputs = [
   },
   ...["teacher", "admin"].flatMap((app) => [
     { path: `apps/${app}/public/branding/brand.js`, contents: brandScript },
-    { path: `apps/${app}/public/branding/logo.svg`, copyFrom: logoPath },
-    { path: `apps/${app}/public/branding/favicon.svg`, copyFrom: faviconSource },
+    { path: `apps/${app}/public/branding/logo.svg`, contents: logo },
+    { path: `apps/${app}/public/branding/favicon.svg`, contents: favicon },
   ]),
-  { path: "apps/backend/src/flrc/modules/reports/assets/logo.svg", copyFrom: logoPath },
+  { path: "apps/backend/src/flrc/modules/reports/assets/logo.svg", contents: logo },
   { path: "apps/teacher/index.html", contents: brandedHtml("apps/teacher/index.html") },
   { path: "apps/admin/index.html", contents: brandedHtml("apps/admin/index.html") },
 ];
@@ -206,17 +229,15 @@ const written = [];
 
 for (const output of outputs) {
   const target = join(ROOT, output.path);
-  const next = output.copyFrom ? readFileSync(output.copyFrom) : Buffer.from(output.contents);
-  const current = existsSync(target) ? readFileSync(target) : null;
+  const next = Buffer.from(output.contents);
+  const current = readIfPresent(target);
 
   if (current && current.equals(next)) continue;
   if (CHECK) {
     stale.push(output.path);
     continue;
   }
-  mkdirSync(dirname(target), { recursive: true });
-  if (output.copyFrom) copyFileSync(output.copyFrom, target);
-  else writeFileSync(target, output.contents);
+  replaceFile(target, next);
   written.push(output.path);
 }
 

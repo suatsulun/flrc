@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   keepPreviousData,
   useInfiniteQuery,
@@ -78,8 +78,10 @@ export function ImportReview({
   const [announcement, setAnnouncement] = useState("");
   const [addingStudent, setAddingStudent] = useState(false);
   const sentinel = useRef<HTMLDivElement>(null);
-  const movesJson = JSON.stringify(
-    Object.values(draft.moves).sort((a, b) => a.school_number - b.school_number),
+  const movesJson = useMemo(
+    () =>
+      JSON.stringify(Object.values(draft.moves).sort((a, b) => a.school_number - b.school_number)),
+    [draft.moves],
   );
   const moveCount = Object.keys(draft.moves).length;
   const editCount =
@@ -87,13 +89,17 @@ export function ImportReview({
     Object.keys(draft.additions).length +
     draft.removed.length +
     Object.keys(draft.languages).length;
-  const editsJson = JSON.stringify({
-    additions: Object.values(draft.additions).sort((a, b) => a.school_number - b.school_number),
-    removed_school_numbers: [...draft.removed].sort((a, b) => a - b),
-    language_changes: Object.values(draft.languages).sort(
-      (a, b) => a.school_number - b.school_number,
-    ),
-  });
+  const editsJson = useMemo(
+    () =>
+      JSON.stringify({
+        additions: Object.values(draft.additions).sort((a, b) => a.school_number - b.school_number),
+        removed_school_numbers: [...draft.removed].sort((a, b) => a - b),
+        language_changes: Object.values(draft.languages).sort(
+          (a, b) => a.school_number - b.school_number,
+        ),
+      }),
+    [draft.additions, draft.removed, draft.languages],
+  );
 
   const commit = useMutation({
     ...commitImportMutation(),

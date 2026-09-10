@@ -8,4 +8,5 @@ def uses_scale_only(grade_level: int, subject: str) -> bool:
 
 
 def allows_column_type(grade_level: int, subject: str, value_type: str) -> bool:
-    return not uses_scale_only(grade_level, subject) or value_type == "scale3"
+    # The rating rule excludes numeric scores, not written teacher comments.
+    return not uses_scale_only(grade_level, subject) or value_type in ("scale3", "text")

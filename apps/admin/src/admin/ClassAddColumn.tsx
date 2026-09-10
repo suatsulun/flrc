@@ -56,7 +56,7 @@ export function ClassAddColumn({
       body: {
         grade_level: grade,
         subject,
-        value_type: scaleOnly ? "scale3" : columnType,
+        value_type: scaleOnly && columnType === "score" ? "scale3" : columnType,
         owner_role: columnOwner,
         labels: { tr: columnLabel.trim(), en: "", de: "", fr: "" },
         counts_in_average: !scaleOnly && columnType === "score",
@@ -103,13 +103,12 @@ export function ClassAddColumn({
           />
           <NativeSelect
             aria-label={t("classWorkspace.columnType")}
-            value={scaleOnly ? "scale3" : columnType}
-            disabled={scaleOnly}
+            value={scaleOnly && columnType === "score" ? "scale3" : columnType}
             onChange={(event) => setColumnType(event.target.value as ValueType)}
           >
             {!scaleOnly ? <option value="score">{t("classWorkspace.typeScore")}</option> : null}
             <option value="scale3">{t("classWorkspace.typeScale")}</option>
-            {!scaleOnly ? <option value="text">{t("classWorkspace.typeText")}</option> : null}
+            <option value="text">{t("classWorkspace.typeText")}</option>
           </NativeSelect>
           <NativeSelect
             aria-label={t("classWorkspace.columnOwner")}

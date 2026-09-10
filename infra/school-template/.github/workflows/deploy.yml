@@ -62,7 +62,9 @@ jobs:
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
         run: |
           set -euo pipefail
-          ssh "flrc@$DEPLOY_HOST" 'cd /srv/flrc && docker compose pull --quiet && docker compose up -d --remove-orphans && docker compose ps'
+          # Mounted branding does not change a container's Compose config. Reload
+          # report processes even when this deployment only updates the branding.
+          ssh "flrc@$DEPLOY_HOST" 'cd /srv/flrc && docker compose pull --quiet && docker compose up -d --remove-orphans && docker compose restart api worker backup && docker compose ps'
 
       - name: Smoke test
         env:

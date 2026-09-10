@@ -24,6 +24,7 @@ from flrc.db.models import (
     User,
 )
 from flrc.db.session import get_session
+from flrc.modules.academics.fields import VALUE_FIELD, CellValue, cell_value, pick_label
 from flrc.modules.auth.dependencies import current_user, writable_semester
 from flrc.modules.grades.permissions import require_subject_access
 
@@ -32,23 +33,6 @@ log = structlog.get_logger()
 
 Subject = Literal["english", "german", "french"]
 Role = Literal["main", "skills", "german", "french"]
-CellValue = int | str | None
-
-VALUE_FIELD = {"score": "score", "scale3": "scale", "text": "text_value"}
-
-
-def cell_value(gv: GradeValue, value_type: str) -> CellValue:
-    return getattr(gv, VALUE_FIELD[value_type])
-
-
-def pick_label(labels: dict[str, str], locale: str) -> str:
-    """Best label for a locale, tolerating regional codes such as ``en-GB``."""
-    return (
-        labels.get(locale)
-        or labels.get(locale.split("-")[0])
-        or labels.get("tr")
-        or next(iter(labels.values()), "")
-    )
 
 
 class CellOut(BaseModel):

@@ -257,6 +257,8 @@ async def replace_assignment_matrix(
         raise HTTPException(422, {"code": "invalid_class"})
     if len(users) != len(user_ids) or any(not item.is_active for item in users.values()):
         raise HTTPException(422, {"code": "invalid_user"})
+    # Validate every input before reducing repeated slots to their final value.
+    changes: dict[tuple[int, str], AssignmentChange] = {}
     for change in body.changes:
         if change.user_id is not None and users[change.user_id].teaching_field != _field_for_role(
             change.role
@@ -282,12 +284,16 @@ async def replace_assignment_matrix(
                     "role": change.role,
                 },
             )
-        existing = await db.scalar(
-            select(TeachingAssignment).where(
-                TeachingAssignment.class_id == change.class_id,
-                TeachingAssignment.role == change.role,
-            )
+        changes[(change.class_id, change.role)] = change
+
+    assignments = {
+        (item.class_id, item.role): item
+        for item in await db.scalars(
+            select(TeachingAssignment).where(TeachingAssignment.class_id.in_(class_ids))
         )
+    }
+    for key, change in changes.items():
+        existing = assignments.get(key)
         if change.user_id is None:
             if existing:
                 await db.delete(existing)

@@ -287,6 +287,30 @@ async def commit_import(
         (item.grade_level, item.section): item
         for item in (await db.scalars(select(SchoolClass).where(SchoolClass.year_id == year_id)))
     }
+    # The year lock serializes imports. Load its identities once rather than
+    # querying the same tables for every workbook row.
+    enrolled = (
+        await db.execute(
+            select(Enrollment, Student)
+            .join(Student, Student.id == Enrollment.student_id)
+            .where(Enrollment.year_id == year_id)
+        )
+    ).all()
+    by_number = {
+        enrollment.school_number: (enrollment, student)
+        for enrollment, student in enrolled
+        if enrollment.school_number is not None
+    }
+    pending_by_name: dict[str, list[tuple[Enrollment, Student]]] = {}
+    for enrollment, student in enrolled:
+        if enrollment.school_number is None:
+            pending_by_name.setdefault(student.search_name, []).append((enrollment, student))
+    languages = {
+        item.student_id: item
+        for item in await db.scalars(
+            select(StudentLanguage).where(StudentLanguage.year_id == year_id)
+        )
+    }
     for row in plan.rows:
         class_key = (row.grade_level, row.section)
         school_class = classes.get(class_key)
@@ -297,27 +321,12 @@ async def commit_import(
             db.add(school_class)
             await db.flush()
             classes[class_key] = school_class
-        enrollment = await db.scalar(
-            select(Enrollment).where(
-                Enrollment.year_id == year_id,
-                Enrollment.school_number == row.school_number,
-            )
-        )
-        student = await db.get(Student, enrollment.student_id) if enrollment else None
+        enrollment, student = by_number.get(row.school_number, (None, None))
         if student is None:
-            promoted_rows = (
-                await db.execute(
-                    select(Enrollment, Student)
-                    .join(Student, Student.id == Enrollment.student_id)
-                    .where(
-                        Enrollment.year_id == year_id,
-                        Enrollment.school_number.is_(None),
-                        Student.search_name == search_key(row.full_name),
-                    )
-                )
-            ).all()
+            promoted_rows = pending_by_name.get(search_key(row.full_name), [])
             if len(promoted_rows) == 1:
-                enrollment, student = promoted_rows[0]
+                # Once numbered, this identity cannot match a later namesake.
+                enrollment, student = promoted_rows.pop()
                 enrollment.school_number = row.school_number
         if student is None:
             student = Student(
@@ -329,12 +338,6 @@ async def commit_import(
         elif search_key(student.full_name) != search_key(row.full_name):
             student.full_name = row.full_name
             student.search_name = search_key(row.full_name)
-        if enrollment is None:
-            enrollment = await db.scalar(
-                select(Enrollment).where(
-                    Enrollment.student_id == student.id, Enrollment.year_id == year_id
-                )
-            )
         if enrollment is None:
             db.add(
                 Enrollment(
@@ -348,12 +351,7 @@ async def commit_import(
             enrollment.class_id = school_class.id
             enrollment.school_number = row.school_number
         if row.language_present:
-            language = await db.scalar(
-                select(StudentLanguage).where(
-                    StudentLanguage.student_id == student.id,
-                    StudentLanguage.year_id == year_id,
-                )
-            )
+            language = languages.get(student.id)
             if row.language is None and language is not None:
                 await db.delete(language)
             elif row.language is not None:

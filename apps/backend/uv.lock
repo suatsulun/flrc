@@ -747,7 +747,7 @@ wheels = [
 
 [[package]]
 name = "flrc-backend"
-version = "1.1.0"
+version = "1.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
@@ -810,7 +810,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0.52" },
     { name = "structlog", specifier = ">=26.1.0" },
     { name = "typer", specifier = ">=0.27.1" },
-    { name = "weasyprint", specifier = ">=69.0" },
+    { name = "weasyprint", specifier = ">=70.0" },
 ]
 
 [package.metadata.requires-dev]

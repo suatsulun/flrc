@@ -1,6 +1,6 @@
 [project]
 name = "flrc-backend"
-version = "1.1.0"
+version = "1.2.0"
 description = "FastAPI backend for FL-ReportCard"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -28,7 +28,7 @@ dependencies = [
     "sqlalchemy>=2.0.52",
     "structlog>=26.1.0",
     "typer>=0.27.1",
-    "weasyprint>=69.0",
+    "weasyprint>=70.0",
 ]
 
 [dependency-groups]

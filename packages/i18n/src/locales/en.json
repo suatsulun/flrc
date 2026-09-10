@@ -139,7 +139,7 @@
     "assessmentRange": "Assessments {{start}}–{{end}} of {{total}}",
     "previousAssessments": "Previous",
     "nextAssessments": "Next",
-    "gradeFourScaleOnly": "Grade 4 German and French use only the 1–2–3 scale.",
+    "gradeFourScaleOnly": "Grade 4 German and French use 1–2–3 assessments and teacher comments, without numeric scores.",
     "teacherNotes": "Teacher notes",
     "bulkStudent": "Set all ratings",
     "bulkClass": "Set ratings for the whole class",
@@ -147,7 +147,9 @@
     "bulkClassTitle": "All ratings for class {{name}}",
     "bulkStudentHint": "Applies to all {{count}} rating assessments for this student.",
     "bulkClassHint": "Applies to all {{count}} rating assessments for each of the {{students}} students in this subject.",
-    "bulkSaveHint": "Includes every category. Changes are saved when you press Save."
+    "bulkSaveHint": "Includes every category. Changes are saved when you press Save.",
+    "noTeacherNotes": "No teacher notes field is configured for this subject. An administrator can add a text field under Columns.",
+    "compactDraftAccess": "Saving another teacher’s fields requires confirmation and is recorded in the audit trail."
   },
   "stepper": {
     "prev": "Previous",

@@ -1,0 +1,75 @@
+/* The header edges and text share a 45-degree angle. A header's lower edge
+   stays exactly over its input column, like a spreadsheet with angled borders. */
+.english-overview thead {
+  background: var(--card);
+}
+.english-overview th {
+  height: 160px;
+  vertical-align: bottom;
+}
+.english-score-heading {
+  padding: 0;
+}
+.english-slanted-border {
+  position: absolute;
+  left: 0;
+  bottom: 22px;
+  width: 100%;
+  height: 136px;
+  transform: skewX(-45deg);
+  transform-origin: bottom left;
+  border: 1px solid var(--border-strong);
+  border-right: 0;
+  background: var(--muted);
+}
+.english-score-heading:has(+ .english-comment-heading) .english-slanted-border {
+  border-right: 1px solid var(--border-strong);
+}
+.english-slanted-label {
+  position: absolute;
+  z-index: 1;
+  left: 52px;
+  bottom: 24px;
+  width: 148px;
+  transform: rotate(-45deg);
+  transform-origin: bottom left;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.english-owner {
+  position: absolute;
+  inset: auto 0 4px;
+  display: flex;
+  justify-content: center;
+  height: 14px;
+}
+.english-student-heading {
+  padding: 8px;
+}
+.english-comment-heading {
+  padding: 8px 8px 8px 88px;
+}
+.english-note-heading [data-testid="assessment-heading"] {
+  font-size: 12px;
+  line-height: 16px;
+}
+.english-note-heading > span:last-child:not([data-testid]) {
+  display: none;
+}
+
+.english-overview td:first-child > div {
+  padding: 0;
+}
+.english-overview td:first-child span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 16px;
+}
+.english-overview td:first-child span:nth-child(2) {
+  margin-top: 0;
+  font-size: 10px;
+  line-height: 12px;
+}

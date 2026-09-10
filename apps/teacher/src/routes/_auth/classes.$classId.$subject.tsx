@@ -218,8 +218,10 @@ function GridPage() {
     });
   };
 
+  const compactEnglish = !showStepper && subject === "english" && data.meta.grade_level >= 5;
+
   return (
-    <>
+    <div className={compactEnglish ? "space-y-2" : "space-y-4"}>
       <AcademicContextBar
         years={years}
         yearId={data.meta.year_id}
@@ -235,7 +237,9 @@ function GridPage() {
         labels={academicContextLabels(t, t("grid.locked"))}
       />
 
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-card lg:flex-row lg:items-center">
+      <div
+        className={`flex flex-col gap-3 rounded-xl border border-border bg-card shadow-card lg:flex-row lg:items-center ${compactEnglish ? "p-2" : "p-3"}`}
+      >
         <Segmented
           ariaLabel={t("classes.gradeLevel")}
           options={[1, 2, 3, 4, 5, 6, 7, 8].map((item) => ({
@@ -318,21 +322,27 @@ function GridPage() {
 
       {data.meta.grade_level === 4 &&
       subject !== "english" &&
-      data.columns.every((column) => column.value_type === "scale3") ? (
+      data.columns.every((column) => column.value_type !== "score") ? (
         <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
           {t("grid.gradeFourScaleOnly")}
         </p>
       ) : null}
 
       {unownedColumns.length > 0 && writable ? (
-        <div className="flex gap-3 rounded-xl border border-warning/40 bg-warning-surface/60 px-4 py-3 text-sm">
+        <div
+          className={`flex gap-3 rounded-xl border border-warning/40 bg-warning-surface/60 px-4 ${compactEnglish ? "py-2 text-xs" : "py-3 text-sm"}`}
+        >
           <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-warning" />
-          <div>
-            <p className="font-semibold">{t("grid.draftAccessTitle")}</p>
-            <p className="mt-0.5 text-muted-foreground">
-              {user.is_admin ? t("grid.adminDraftAccessBody") : t("grid.draftAccessBody")}
-            </p>
-          </div>
+          {compactEnglish ? (
+            <p>{t("grid.compactDraftAccess")}</p>
+          ) : (
+            <div>
+              <p className="font-semibold">{t("grid.draftAccessTitle")}</p>
+              <p className="mt-0.5 text-muted-foreground">
+                {user.is_admin ? t("grid.adminDraftAccessBody") : t("grid.draftAccessBody")}
+              </p>
+            </div>
+          )}
         </div>
       ) : null}
 
@@ -361,7 +371,9 @@ function GridPage() {
       )}
 
       {isEmpty ? null : (
-        <div className="sticky bottom-4 z-30 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-card/95 px-4 py-2.5 shadow-raised backdrop-blur">
+        <div
+          className={`sticky bottom-4 z-30 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-card/95 px-4 shadow-raised backdrop-blur ${compactEnglish ? "py-1.5" : "py-2.5"}`}
+        >
           <p className="flex items-center gap-2 text-sm font-medium">
             {dirtyCount > 0 ? (
               <>
@@ -456,6 +468,6 @@ function GridPage() {
           blocker.proceed();
         }}
       />
-    </>
+    </div>
   );
 }

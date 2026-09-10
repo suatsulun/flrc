@@ -53,6 +53,9 @@ export function StepperView({
         </div>
 
         <div className="divide-y divide-border">
+          {columns.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-muted-foreground">{t("grid.noTeacherNotes")}</p>
+          ) : null}
           {columns.map((column) => (
             <div
               key={column.id}

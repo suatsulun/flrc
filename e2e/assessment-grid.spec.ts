@@ -151,11 +151,12 @@ async function mockGrid(
 }
 
 for (const size of [
-  { width: 1920, height: 1080, theme: "dark", locale: "en" },
-  { width: 1536, height: 864, theme: "dark", locale: "en" },
-  { width: 1280, height: 900, theme: "light", locale: "tr" },
-  { width: 768, height: 900, theme: "dark", locale: "fr" },
-  { width: 390, height: 844, theme: "light", locale: "de" },
+  { width: 1920, height: 1080, columns: 5, theme: "dark", locale: "en" },
+  { width: 1536, height: 864, columns: 5, theme: "dark", locale: "en" },
+  { width: 1366, height: 768, columns: 5, theme: "light", locale: "tr" },
+  { width: 1280, height: 900, columns: 4, theme: "light", locale: "tr" },
+  { width: 768, height: 900, columns: 1, theme: "dark", locale: "fr" },
+  { width: 390, height: 844, columns: 1, theme: "light", locale: "de" },
 ]) {
   test(`assessment headings are readable and all columns reachable at ${size.width}px`, async ({
     page,
@@ -175,23 +176,27 @@ for (const size of [
     const surface = page.getByTestId("grade-grid-surface");
     await expect(surface).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
+    await expect(page.getByTestId("assessment-heading")).toHaveCount(size.columns);
+    await page.screenshot({ path: testInfo.outputPath("all-assessments.png"), fullPage: true });
     const seen: string[] = [];
     for (let i = 0; i < grid.columns.length; i++) {
       const headings = page.getByTestId("assessment-heading");
       const texts = await headings.allTextContents();
       seen.push(...texts);
-      expect(texts.length).toBeLessThanOrEqual(3);
+      expect(texts.length).toBeLessThanOrEqual(size.columns);
       const dimensions = await headings.evaluateAll((elements) =>
         elements.map((element) => ({
           width: element.getBoundingClientRect().width,
           fontSize: parseFloat(getComputedStyle(element).fontSize),
-          overflow: element.scrollWidth > element.clientWidth + 1,
+          overflow:
+            element.scrollWidth > element.clientWidth + 1 ||
+            element.scrollHeight > element.clientHeight + 1,
           transform: getComputedStyle(element).textTransform,
         })),
       );
       for (const dimension of dimensions) {
         expect(dimension.fontSize).toBeGreaterThanOrEqual(14);
-        expect(dimension.width).toBeGreaterThanOrEqual(size.width < 500 ? 160 : 200);
+        expect(dimension.width).toBeGreaterThanOrEqual(164);
         expect(dimension.overflow).toBe(false);
         expect(dimension.transform).not.toBe("uppercase");
       }
@@ -419,6 +424,7 @@ for (const subject of ["german", "french", "english"] as const) {
       page,
     }) => {
       await page.addInitScript(() => localStorage.setItem("i18nextLng", "tr"));
+      await page.setViewportSize({ width: 1366, height: 768 });
       const grid = fixture(4);
       grid.meta.subject = subject;
       grid.meta.semester_status = locked ? "locked" : "open";
@@ -429,6 +435,7 @@ for (const subject of ["german", "french", "english"] as const) {
       await mockGrid(page, grid);
       await page.goto(`${teacherUrl}/classes/1/${subject}?semester=1`);
       const surface = page.getByTestId("grade-grid-surface");
+      await expect(page.getByTestId("assessment-heading")).toHaveCount(5);
       const cell = page.getByTestId("cell-1-5");
       await expect(cell).toContainText("Çok iyi");
       await expect(surface).toContainText("Geliştirilmeli");

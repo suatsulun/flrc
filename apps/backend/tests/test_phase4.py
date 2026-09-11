@@ -295,6 +295,44 @@ def test_worker_limit_respects_an_explicit_cap_and_a_container_quota(
     assert render_module.render_worker_limit() == 1
 
 
+@pytest.mark.parametrize("mode", ["serial", "missing_pool", "broken_pool", "parallel"])
+def test_report_batches_bound_layout_size_even_when_parallel_render_fails(monkeypatch, mode):
+    cards = _performance_cards((5, 4))
+    expected = _page_shapes(PdfReader(BytesIO(render_pdf_document(render_report_html(cards)))))
+    rendered_pages = []
+    original = render_module.render_pdf_document
+
+    def bounded_render(html):
+        pdf = original(html)
+        page_count = len(PdfReader(BytesIO(pdf)).pages)
+        assert page_count <= 2, "A render or fallback exceeded the batch size"
+        rendered_pages.append(page_count)
+        return pdf
+
+    class SamplePool:
+        def map(self, function, documents):
+            assert len(documents) <= 2, "All batch HTML was queued at once"
+            if mode == "broken_pool":
+                raise OSError("synthetic pool failure")
+            return map(function, documents)
+
+    monkeypatch.setattr(render_module, "MAX_RENDER_UNITS", 2)
+    monkeypatch.setattr(render_module, "MIN_PARALLEL_UNITS", 2)
+    monkeypatch.setattr(
+        render_module.settings, "report_render_workers", 1 if mode == "serial" else 2
+    )
+    monkeypatch.setattr(render_module, "render_pdf_document", bounded_render)
+    monkeypatch.setattr(
+        render_module,
+        "_render_pool",
+        lambda workers: None if mode == "missing_pool" else SamplePool(),
+    )
+    monkeypatch.setattr(render_module, "_discard_pool", lambda: None)
+    actual = PdfReader(BytesIO(render_report_pdf(cards)))
+    assert rendered_pages == [2, 2, 1]
+    assert _page_shapes(actual) == expected
+
+
 async def test_report_builder_covers_every_class_in_the_requested_school_set(world) -> None:
     async with TestSession() as db:
         other_middle = m.SchoolClass(year_id=world.year, grade_level=5, section="B")

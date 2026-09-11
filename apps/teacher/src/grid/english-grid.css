@@ -22,8 +22,12 @@
   border-right: 0;
   background: var(--muted);
 }
-.english-score-heading:has(+ .english-comment-heading) .english-slanted-border {
+.english-score-heading:has(+ .english-comment-heading) .english-slanted-border,
+.english-score-heading:last-child .english-slanted-border {
   border-right: 1px solid var(--border-strong);
+}
+.english-scores-only table {
+  width: calc(100% - 136px);
 }
 .english-slanted-label {
   position: absolute;

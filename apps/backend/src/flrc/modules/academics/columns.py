@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flrc.db.models import AcademicYear, ColumnDefinition, GradeValue, Semester, User
 from flrc.db.session import get_session
-from flrc.modules.academics.programme import allows_column_type, uses_scale_only
+from flrc.modules.academics.programme import (
+    allows_column_type,
+    has_teacher_comments,
+    uses_scale_only,
+)
 from flrc.modules.auth.dependencies import require_admin
 
 router = APIRouter(prefix="/columns", tags=["columns"])
@@ -82,6 +86,8 @@ def _check_owner_rule(subject: str, owner_role: str) -> None:
 
 
 def _check_programme(grade: int, subject: str, value_type: str, counts_in_average: bool) -> None:
+    if value_type == "text" and not has_teacher_comments(grade, subject):
+        raise HTTPException(422, {"code": "middle_english_no_comments"})
     if not allows_column_type(grade, subject, value_type) or (
         uses_scale_only(grade, subject) and counts_in_average
     ):
@@ -136,7 +142,11 @@ async def list_columns(
         )
         .order_by(ColumnDefinition.position)
     )
-    return [ColumnOut.model_validate(c) for c in result.scalars()]
+    return [
+        ColumnOut.model_validate(c)
+        for c in result.scalars()
+        if c.value_type != "text" or has_teacher_comments(c.grade_level, c.subject)
+    ]
 
 
 @router.post("", status_code=201)
@@ -250,15 +260,14 @@ async def reorder_columns(
     ):
         raise HTTPException(422, {"code": "reorder_mismatch"})
     grade_level, subject = scopes.pop()
-    scope_ids = set(
-        await db.scalars(
-            select(ColumnDefinition.id).where(
-                ColumnDefinition.semester_id == semester.id,
-                ColumnDefinition.grade_level == grade_level,
-                ColumnDefinition.subject == subject,
-            )
-        )
+    scope_query = select(ColumnDefinition.id).where(
+        ColumnDefinition.semester_id == semester.id,
+        ColumnDefinition.grade_level == grade_level,
+        ColumnDefinition.subject == subject,
     )
+    if not has_teacher_comments(grade_level, subject):
+        scope_query = scope_query.where(ColumnDefinition.value_type != "text")
+    scope_ids = set(await db.scalars(scope_query))
     if scope_ids != set(columns):
         raise HTTPException(422, {"code": "reorder_mismatch"})
     for pos, cid in enumerate(body.ordered_ids, start=1):

@@ -24,7 +24,8 @@ export function StepperView({
   const { t } = useTranslation();
   const [index, setIndex] = useState(0);
   const [filter, setFilter] = useState<AssessmentFilter>("all");
-  const selected = assessmentOptions(data.columns).some((option) => option.id === filter)
+  const showNotes = data.meta.subject !== "english" || data.meta.grade_level < 5;
+  const selected = assessmentOptions(data.columns, showNotes).some((option) => option.id === filter)
     ? filter
     : "all";
   const columns = filterAssessments(data.columns, selected);
@@ -35,7 +36,12 @@ export function StepperView({
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-3">
-      <AssessmentFilters columns={data.columns} value={selected} onChange={setFilter} />
+      <AssessmentFilters
+        columns={data.columns}
+        value={selected}
+        onChange={setFilter}
+        showNotes={showNotes}
+      />
       <Card className="overflow-hidden">
         <div className="px-4 py-3 text-center">
           <p className="font-heading truncate text-base font-semibold tracking-tight">

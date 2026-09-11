@@ -20,7 +20,8 @@ infra/
 │   ├── Dockerfile                 (flrc-web: Caddy + both SPAs + /api proxy + branding)
 │   └── Caddyfile
 ├── cloudflare/                    (managed school gateway)
-├── vercel-gateway/                (public demo gateway)
+├── vercel/                        (public demo: one Vercel project serving both SPAs and the
+│                                   /api rewrite; see its README)
 └── render/
     └── render.yaml
 ```
@@ -36,6 +37,13 @@ As of the 2026-09-11 source review, template image pins use 1.2.0. The current H
 changes extend the local 1.2.0 tag; see [release notes and gates](../docs/RELEASING.md). Inspect the
 pending `82a91f4c6d30` migration before the next release. Editing docs or source does not apply it
 to a database, restart a server, or publish an image.
+
+## Public demo web project
+
+The demo web tier is the single Vercel project described in [infra/vercel/README.md](vercel/README.md)
+(ADR-064): Root Directory `infra/vercel`, both SPAs assembled into one output, `/api/*` rewritten
+to the Render API, and the public domain attached to that project alone. Production builds link
+the panels to `/admin/` and `/`, so no cross-link environment variables are needed.
 
 ## Demo database migrations
 

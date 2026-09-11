@@ -87,7 +87,9 @@ The system has six deployable/runtime things:
 
 1. `apps/teacher`: React SPA for normal teachers.
 2. `apps/admin`: React SPA for admins/coordinators.
-3. Public gateway: fixed path router composing the two SPAs and `/api/*` under one origin.
+3. Public gateway: fixed path router composing the two SPAs and `/api/*` under one origin. On
+   managed school hosting this is the Cloudflare Worker; the school image and the demo's single
+   Vercel project perform the same routing inside one deployable (ADR-064).
 4. `apps/backend`: FastAPI web service.
 5. `apps/backend` in worker mode: Celery worker, deployed separately.
 6. Operations: GitHub Actions for CI, opt-in demo schedules, and releases; a school backup
@@ -151,12 +153,21 @@ It is tempting to call Render directly from the SPA. Do not do that unless a fut
 
 ## §2.4 Frontend hosts
 
-Use Vercel for the personal demo if desired. Use Cloudflare Pages plus a narrowly configured
-gateway for managed school production. If the school chooses its own VM, Caddy serves the
-compiled SPAs and performs the same routing job.
+The public demo is one Vercel project rooted at `infra/vercel`: it builds both SPAs into one
+output, teacher at `/` and admin at `/admin/`, and rewrites `/api/*` to Render (ADR-064). Use
+Cloudflare Pages plus a narrowly configured gateway for managed school production. If the school
+chooses its own VM, Caddy serves the compiled SPAs and performs the same routing job.
 
-The public browser boundary is one origin. The SPAs remain separate deployables, but the gateway
-composes them by path:
+The public browser boundary is one origin. The SPAs remain separate builds, and the gateway or
+the single deployable composes them by path:
+
+Public demo shape:
+
+```text
+flrc.suatsulun.com/          → teacher build   (one Vercel project)
+flrc.suatsulun.com/admin/*   → admin build     (same project, vercel.json rewrites)
+flrc.suatsulun.com/api/*     → Render FastAPI  (same project, external rewrite)
+```
 
 Managed production shape:
 
@@ -1157,6 +1168,7 @@ The living decision log is `DECISIONS.md`. This architecture companion assumes a
   amends comments.
 - ADR-062: Bounded bulk reads, streaming exports, and shared field behavior.
 - ADR-063: No middle-school English opinion field (working-tree implementation pending review).
+- ADR-064: One Vercel project serves the public demo.
 
 ---
 

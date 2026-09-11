@@ -29,7 +29,10 @@ export const Route = createFileRoute("/_auth")({
   component: AuthLayout,
 });
 
-const adminUrl = import.meta.env.VITE_ADMIN_URL ?? "http://localhost:5174/admin/";
+// One public origin serves both panels (ADR-022); development runs them on two ports.
+const adminUrl =
+  import.meta.env.VITE_ADMIN_URL ??
+  (import.meta.env.DEV ? "http://localhost:5174/admin/" : "/admin/");
 
 function AuthLayout() {
   const { user } = Route.useRouteContext();

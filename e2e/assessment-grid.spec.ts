@@ -266,7 +266,7 @@ test("Grade 4 second-language grid shows ratings and teacher notes without numer
   await page.goto(`${teacherUrl}/classes/1/german?semester=1`);
   await expect(
     page.getByText(
-      "Grade 4 German and French use 1–2–3 assessments and teacher comments, without numeric scores.",
+      "Grade 4 German and French use 1-2-3 assessments and teacher comments, without numeric scores.",
       { exact: true },
     ),
   ).toBeVisible();

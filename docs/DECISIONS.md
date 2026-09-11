@@ -1,16 +1,30 @@
-# FL-ReportCard — Decision Log
+# FL-ReportCard: Decision Log
 
 _Architecture Decision Records for the project. Each decision explains the choice, the alternatives rejected, and the consequences. Add new records when the project changes direction or when a future maintainer would ask, "Why is it like this?"_
 
+## Reading the current state (2026-09-11)
+
+Records preserve the reasoning at their date; later explicit amendments take precedence over
+superseded parts. ADR-060's middle-English comments are superseded by ADR-063, while its grade-4
+German/French comments remain. ADR-053 to ADR-058 supply the current image/deployment/backup
+layout. The original fourteen-table design now includes `demo_visitors` and
+`report_identity_audits`.
+
+At this documentation refresh, ADR-063 and its implementation were still uncommitted.
+Year-label ordering and bounded PDF layout/fallback changes were also pending. No new architecture
+decision is asserted for those maintenance edits. See [TODO.md](TODO.md) for review gates and
+[AI-HANDOFF.md](AI-HANDOFF.md) for the next AI's review scope. Accepted means a decision was made;
+it does not prove a test run, migration, release publication, or deployment.
+
 ## Status values
 
-- **Accepted** — current project direction.
-- **Superseded** — replaced by a later ADR.
-- **Proposed** — not final yet.
+- **Accepted**: current project direction.
+- **Superseded**: replaced by a later ADR.
+- **Proposed**: not final yet.
 
 ---
 
-# ADR-001 — Monorepo with pnpm workspaces and Turborepo
+# ADR-001: Monorepo with pnpm workspaces and Turborepo
 
 **Status:** Accepted  
 **Phase:** 1.1
@@ -39,7 +53,7 @@ Use one repository with pnpm workspaces and Turborepo. TypeScript packages under
 
 ---
 
-# ADR-002 — Two separate SPAs: teacher and admin
+# ADR-002: Two separate SPAs: teacher and admin
 
 **Status:** Accepted  
 **Phase:** 1.1
@@ -68,7 +82,7 @@ Build `apps/teacher` and `apps/admin` as separate Vite React SPAs.
 
 ---
 
-# ADR-003 — FastAPI instead of Django/DRF or Express
+# ADR-003: FastAPI instead of Django/DRF or Express
 
 **Status:** Accepted  
 **Phase:** 1.3
@@ -97,7 +111,7 @@ Use FastAPI with Pydantic v2, SQLAlchemy 2.0, Alembic, and uv.
 
 ---
 
-# ADR-004 — Same-origin proxy for `/api/*`
+# ADR-004: Same-origin proxy for `/api/*`
 
 **Status:** Accepted  
 **Phase:** 1.10 / deployment
@@ -126,7 +140,7 @@ The browser calls `/api/*` on the frontend origin. Vercel or Cloudflare Pages pr
 
 ---
 
-# ADR-005 — Server-side sessions over JWTs
+# ADR-005: Server-side sessions over JWTs
 
 **Status:** Accepted  
 **Phase:** 1.7
@@ -155,7 +169,7 @@ data lives in Redis with an absolute TTL of at most eight hours.
 
 ---
 
-# ADR-006 — Synthetic demo data only
+# ADR-006: Synthetic demo data only
 
 **Status:** Accepted  
 **Phase:** 1.6 and all demos
@@ -183,7 +197,7 @@ Use deterministic `Faker(tr_TR)` seed data for all demos, tests, and screenshots
 
 ---
 
-# ADR-007 — Grade rows do not directly reference classes
+# ADR-007: Grade rows do not directly reference classes
 
 **Status:** Accepted  
 **Phase:** 1.5 / 2.6
@@ -210,7 +224,7 @@ Represent class membership through `enrollments`. Grade values do not store a di
 
 ---
 
-# ADR-008 — Report columns are data, not schema
+# ADR-008: Report columns are data, not schema
 
 **Status:** Accepted  
 **Phase:** 2.1
@@ -221,7 +235,8 @@ Schools may need different report-card columns by year, subject, language, or te
 
 ## Decision
 
-Store report columns in `report_columns`. The grid and reports render from those definitions.
+Store report columns as data. The implemented table is named `column_definitions`; the earlier
+design called it `report_columns`. The grid and reports render from those definitions.
 
 ## Alternatives considered
 
@@ -238,18 +253,18 @@ Store report columns in `report_columns`. The grid and reports render from those
 
 ---
 
-# ADR-009 — Celery with Redis broker and Postgres job state
+# ADR-009: Celery with Redis broker and Postgres job state
 
 **Status:** Accepted  
 **Phase:** 4.3
 
 ## Context
 
-PDF generation and year exports can be slow. Teachers should not wait behind long-running work. Render's free tier lacks a native worker service and Upstash Redis command counts are limited.
+PDF generation and year exports can be slow. Teachers should not wait behind long-running work. Render's free tier lacks a native worker service, and Upstash Redis command counts are limited.
 
 ## Decision
 
-Use Celery with Upstash Redis as broker. Run the worker as a Render web service with a `/health` endpoint. Store job state in Postgres `job_runs`, not in Celery's Redis result backend.
+Use Celery with Upstash Redis as the broker. Run the worker as a Render web service with a `/health` endpoint. Store job state in Postgres `job_runs`, not in Celery's Redis result backend.
 
 ## Alternatives considered
 
@@ -267,7 +282,7 @@ Use Celery with Upstash Redis as broker. Run the worker as a Render web service 
 
 ---
 
-# ADR-010 — Jinja2 + WeasyPrint for PDFs
+# ADR-010: Jinja2 + WeasyPrint for PDFs
 
 **Status:** Accepted  
 **Phase:** 4.2
@@ -296,7 +311,7 @@ Render report contexts through Jinja2 templates and convert HTML/CSS to PDF with
 
 ---
 
-# ADR-011 — Neon pooled/direct URL split
+# ADR-011: Neon pooled/direct URL split
 
 **Status:** Accepted  
 **Phase:** 1.5 and deployment
@@ -323,7 +338,7 @@ Use the pooled URL for normal app connections and the direct URL for Alembic mig
 
 ---
 
-# ADR-012 — Google OAuth plus explicit allowlist
+# ADR-012: Google OAuth plus explicit allowlist
 
 **Status:** Accepted  
 **Phase:** 1.7 / 3.2
@@ -352,7 +367,7 @@ Use Google OAuth/OIDC for identity, verify the hosted-domain claim, then require
 
 ---
 
-# ADR-013 — i18n from first component
+# ADR-013: i18n from first component
 
 **Status:** Accepted  
 **Phase:** 1.10 / 2.1 / 4.4
@@ -392,7 +407,7 @@ translations require review by fluent school staff before production use.
 
 ---
 
-# ADR-014 — TanStack Query for server state, Zustand for dirty state
+# ADR-014: TanStack Query for server state, Zustand for dirty state
 
 **Status:** Accepted  
 **Phase:** 2.5
@@ -420,7 +435,7 @@ Use TanStack Query for server-confirmed data and Zustand for the dirty map of un
 
 ---
 
-# ADR-015 — Excel importer uses dry-run before commit
+# ADR-015: Excel importer uses dry-run before commit
 
 **Status:** Accepted  
 **Phase:** 3.8
@@ -431,7 +446,7 @@ School Excel files are inconsistent, and roster import mistakes can affect many 
 
 ## Decision
 
-Implement importer as dry-run first. Dry-run parses the file, reports exact warnings/errors, shows proposed changes, and returns a hash. Commit requires matching the dry-run hash.
+Implement the importer as dry-run first. Dry-run parses the file, reports exact warnings/errors, shows proposed changes, and returns a hash. Commit requires matching the dry-run hash.
 
 ## Alternatives considered
 
@@ -444,11 +459,11 @@ Implement importer as dry-run first. Dry-run parses the file, reports exact warn
 - Safer admin workflow.
 - More importer code.
 - Better error messages and testability.
-- File identity mismatch is detectable.
+- A file identity mismatch is detectable.
 
 ---
 
-# ADR-016 — Lefthook for polyglot git hooks
+# ADR-016: Lefthook for polyglot git hooks
 
 **Status:** Accepted  
 **Phase:** 1.2
@@ -475,7 +490,7 @@ Use Lefthook to run Prettier/ESLint for TS and Ruff for Python on staged files.
 
 ---
 
-# ADR-017 — Cloudflare Pages for school production frontends
+# ADR-017: Cloudflare Pages for school production frontends
 
 **Status:** Accepted  
 **Phase:** 4.10
@@ -486,7 +501,7 @@ The school production deployment should be stable, cheap, and compatible with st
 
 ## Decision
 
-Use Cloudflare Pages for school production frontends. Use Vercel only for demo if desired.
+Use Cloudflare Pages for school production frontends. Use Vercel only for the demo if desired.
 
 ## Alternatives considered
 
@@ -503,7 +518,7 @@ Use Cloudflare Pages for school production frontends. Use Vercel only for demo i
 
 ---
 
-# ADR-018 — ESLint 10 flat-config baseline
+# ADR-018: ESLint 10 flat-config baseline
 
 **Status:** Accepted
 **Date:** 2026-07-15
@@ -532,7 +547,7 @@ Use ESLint 10 with per-package flat configs. Require Node `^22.13.0 || >=24.0.0`
 
 ---
 
-# ADR-019 — Feature-first backend and dedicated infrastructure directory
+# ADR-019: Feature-first backend and dedicated infrastructure directory
 
 **Status:** Accepted
 **Date:** 2026-07-15
@@ -559,6 +574,10 @@ Create a top-level `infra/` boundary for orchestration:
 - the school-hosted reverse proxy under `infra/caddy/`;
 - provider definitions under provider-named directories such as `infra/render/`.
 
+**Later layout amendment (ADR-053 to ADR-055):** the current school deployment template lives in
+`infra/school-template/compose.yaml`, and the web image/Caddy configuration in `infra/web/`.
+The development Compose file remains in `infra/compose/`; `infra/caddy/` is no longer a current path.
+
 Application Dockerfiles remain beside the applications they build. Managed and school-hosted
 deployments use the same images and environment-variable contracts.
 
@@ -583,7 +602,7 @@ deployments use the same images and environment-variable contracts.
 
 ---
 
-# ADR-020 — PostgreSQL 18 baseline
+# ADR-020: PostgreSQL 18 baseline
 
 **Status:** Accepted
 **Date:** 2026-07-15
@@ -627,7 +646,7 @@ releases are received. Mount the named database volume at `/var/lib/postgresql`.
 
 ---
 
-# ADR-021 — Slash-delimited class display names
+# ADR-021: Slash-delimited class display names
 
 **Status:** Accepted
 **Date:** 2026-08-01
@@ -659,7 +678,7 @@ hostile-input delimiter, but normalized output uses `/`.
 
 ---
 
-# ADR-022 — One public frontend origin with the admin SPA under `/admin`
+# ADR-022: One public frontend origin with the admin SPA under `/admin`
 
 **Status:** Accepted
 **Date:** 2026-08-02
@@ -698,7 +717,7 @@ TanStack Router with `/admin` as their base path. Production uses one exact Goog
 The teacher SPA owns the only login screen. An unauthenticated request to `/admin` redirects to
 `/login`; successful authentication lands on the teacher dashboard, where admins receive the
 “Go to admin panel” link. An authenticated non-admin who manually requests `/admin` returns to the
-teacher dashboard. The admin SPA has no login route and OAuth has no admin return target.
+teacher dashboard. The admin SPA has no login route, and OAuth has no admin return target.
 
 Local development may continue to run the teacher and admin Vite servers on ports 5173 and 5174.
 The backend retains both configured origins for local Origin checks; in production
@@ -733,11 +752,11 @@ same-origin `/api/*` proxy.
 
 ---
 
-# ADR-023 — Excel worksheet class names use hyphens at the file boundary
+# ADR-023: Excel worksheet class names use hyphens at the file boundary
 
 **Status:** Accepted
 **Date:** 2026-08-11
-**Phase:** 3.6–3.8
+**Phase:** 3.6-3.8
 
 ## Context
 
@@ -757,7 +776,7 @@ values/parser input. Normalize every accepted form back to the canonical `5/A` d
 
 ---
 
-# ADR-024 — Completed job output is a short-lived Postgres blob
+# ADR-024: Completed job output is a short-lived Postgres blob
 
 **Status:** Accepted
 **Date:** 2026-08-11
@@ -782,11 +801,11 @@ history. Preserve the API contract so an object-storage adapter can replace this
 
 ---
 
-# ADR-025 — Class discovery is school-wide while grade writes remain ownership-aware
+# ADR-025: Class discovery is school-wide while grade writes remain ownership-aware
 
 **Status:** Accepted
 **Date:** 2026-08-11
-**Phase:** 2.1–2.7
+**Phase:** 2.1-2.7
 
 ## Context
 
@@ -815,7 +834,7 @@ have neither assignment, active grant, nor administrator authority.
 
 ---
 
-# ADR-026 — Node 26 and explicit pnpm installation
+# ADR-026: Node 26 and explicit pnpm installation
 
 **Status:** Accepted
 **Date:** 2026-08-13
@@ -857,11 +876,11 @@ Supersedes ADR-018 only for its Node-version baseline; the ESLint 10 flat-config
 
 ---
 
-# ADR-027 — Grade responsibility warns but does not block collaboration
+# ADR-027: Grade responsibility warns but does not block collaboration
 
 **Status:** Accepted
 **Date:** 2026-08-17
-**Phase:** 2.4–2.7 maintenance
+**Phase:** 2.4-2.7 maintenance
 
 ## Context
 
@@ -896,11 +915,11 @@ unassigned roles.
 
 ---
 
-# ADR-028 — Four school-wide report sets use one HTML-to-PDF pass each
+# ADR-028: Four school-wide report sets use one HTML-to-PDF pass each
 
 **Status:** Accepted
 **Date:** 2026-08-17
-**Phase:** 4.2–4.4 maintenance
+**Phase:** 4.2-4.4 maintenance
 
 ## Context
 
@@ -934,7 +953,7 @@ remain the rendering layers; ADR-024 still applies to XLSX exports.
 
 ---
 
-# ADR-029 — One shared design system in packages/ui, driven by semantic tokens
+# ADR-029: One shared design system in packages/ui, driven by semantic tokens
 
 **Status:** Accepted
 
@@ -944,7 +963,7 @@ remain the rendering layers; ADR-024 still applies to XLSX exports.
 ## Context
 
 Both SPAs had duplicated their entire `index.css` (140 near-identical lines each), and the admin app
-carried a block of `@layer components` rules that restyled bare `<form>`, `<table>` and `<select>`
+carried a block of `@layer components` rules that restyled bare `<form>`, `<table>`, and `<select>`
 elements by descendant selector under `.admin-page`. Screens were assembled from one-off Tailwind
 utility strings, so the same table appeared with four different paddings, and raw palette classes
 (`bg-white`, `bg-slate-50`, `text-blue-700`) were sprinkled through the routes. `packages/ui`
@@ -965,11 +984,11 @@ cards read as raised.
 
 ## Alternatives considered
 
-- Keep per-app CSS and just recolour it — the duplication is what let the two apps drift in the
+- Keep per-app CSS and just recolour it: the duplication is what let the two apps drift in the
   first place, and recolouring does not fix inconsistent spacing.
-- Adopt a third-party component library — the handbook already chose owned shadcn/ui source in
+- Adopt a third-party component library: the handbook already chose owned shadcn/ui source in
   `packages/ui`; replacing it would discard that decision for no new capability.
-- Tokens as a TS object consumed in JS — Tailwind v4 reads `@theme`, so CSS is the native home and
+- Tokens as a TS object consumed in JS: Tailwind v4 reads `@theme`, so CSS is the native home and
   needs no build step.
 
 ## Consequences
@@ -986,7 +1005,7 @@ None.
 
 ---
 
-# ADR-030 — Light and dark themes follow the OS, with an explicit override
+# ADR-030: Light and dark themes follow the OS, with an explicit override
 
 **Status:** Accepted
 
@@ -1012,11 +1031,12 @@ script. An inline snippet would have needed a CSP hash recomputed on every edit.
 
 ## Alternatives considered
 
-- `next-themes` — it was already a `packages/ui` dependency, but it needs a provider and its own
+- `next-themes`: it was already a `packages/ui` dependency, but it needs a provider and its own
   anti-flash script, for behaviour that is ~40 lines here. Dropped the dependency instead.
-- Inline bootstrap plus a CSP hash — brittle: every edit to the snippet silently breaks the page
-  until `_headers` is updated.
-- Media-query-only dark mode with no override — cannot honour an explicit choice, which was the ask.
+- Inline bootstrap plus a CSP hash: brittle, since every edit to the snippet silently breaks the
+  page until `_headers` is updated.
+- Media-query-only dark mode with no override: it cannot honour an explicit choice, which was the
+  ask.
 
 ## Consequences
 
@@ -1031,7 +1051,7 @@ None.
 
 ---
 
-# ADR-031 — Keyboard-first grade grid
+# ADR-031: Keyboard-first grade grid
 
 **Status:** Accepted
 
@@ -1047,12 +1067,13 @@ required finding the button, and the unsaved count was only legible on the butto
 ## Decision
 
 Full spreadsheet movement: all four arrows, `Enter`/`Shift+Enter` for next/previous row, and
-`⌘S`/`Ctrl+S` to save from anywhere including mid-cell. Cells register in a `row:column` map so
-movement is a lookup rather than a DOM query. Header and student column freeze; a persistent bar
+`⌘S`/`Ctrl+S` to save from anywhere, including mid-cell. Cells register in a `row:column` map so
+movement is a lookup rather than a DOM query. The header and student column freeze; a persistent bar
 shows the unsaved count, the keyboard hints, and Save.
 
-Arrow-left/right serve two jobs, and the text selection decides which: whole value selected (true
-right after focus) or caret at the very edge moves cell, otherwise the caret moves inside the text.
+Arrow-left/right serve two jobs, and the text selection decides which: a whole value selected
+(true right after focus) or a caret at the very edge moves the cell; otherwise the caret moves
+inside the text.
 This needs no mode and no modifier.
 
 Three-point scale cells take `1`/`2`/`3` directly, `0`/`Backspace`/`Delete` to clear, `Space` to
@@ -1064,10 +1085,10 @@ ownership guard. Bulk fill-down and paste-a-column were considered and rejected.
 
 ## Alternatives considered
 
-- Restyle only — leaves the slowest part of the product slow.
-- Add fill-down and column paste — a mis-aimed bulk write is exactly the silent mass overwrite the
+- Restyle only: it leaves the slowest part of the product slow.
+- Add fill-down and column paste: a mis-aimed bulk write is exactly the silent mass overwrite the
   audit rules exist to prevent, and the value is far lower than per-cell speed.
-- A canvas or virtualised grid — a real rewrite, and rosters are ~30 rows.
+- A canvas or virtualised grid: a real rewrite, and rosters are ~30 rows.
 
 ## Consequences
 
@@ -1082,7 +1103,7 @@ Extends ADR-027; the warn-not-block behaviour is unchanged.
 
 ---
 
-# ADR-032 — One report-card template, with page geometry as data
+# ADR-032: One report-card template, with page geometry as data
 
 **Status:** Accepted
 
@@ -1091,10 +1112,10 @@ Extends ADR-027; the warn-not-block behaviour is unchanged.
 
 ## Context
 
-`bilingual.html`, `middle.html` and `progress.html` were three ~70-line templates that had each
+`bilingual.html`, `middle.html`, and `progress.html` were three ~70-line templates that had each
 drifted: only one showed an average, only two rendered group headings, and each repeated its own
-copy of the same CSS. Visually all three were a grey boxed grid with every cell outlined — closer to
-a spreadsheet printout than a school record. Nothing on the page identified the school.
+copy of the same CSS. Visually, all three were a grey boxed grid with every cell outlined, closer
+to a spreadsheet printout than a school record. Nothing on the page identified the school.
 
 ## Decision
 
@@ -1116,12 +1137,12 @@ Two supporting decisions:
 
 ## Alternatives considered
 
-- Keep three templates and restyle each — guarantees they drift again.
-- A Jinja base template with `{% block %}` overrides — blocks inside the per-card `{% for %}` loop
+- Keep three templates and restyle each: this guarantees they drift again.
+- A Jinja base template with `{% block %}` overrides: blocks inside the per-card `{% for %}` loop
   need `scoped` and read worse than passing geometry as data.
-- A modern branded card with a filled header band — striking on screen, but it uses far more toner
+- A modern branded card with a filled header band: striking on screen, but it uses far more toner
   and reads less like an official record.
-- Two-column compact layout — saves paper but is tight for long comments.
+- Two-column compact layout: it saves paper but is tight for long comments.
 
 ## Consequences
 
@@ -1129,8 +1150,8 @@ Two supporting decisions:
   synthetic sets and counting pages.
 - A5 elementary is the tight one: its block rhythm and signature are deliberately smaller, and an
   unusually long column set will still flow to a second page.
-- `templates/` is in `.prettierignore` — Prettier parses Jinja as plain HTML and reflows `{# … #}`
-  and `{% … %}` in ways that damage the template.
+- `templates/` is in `.prettierignore` because Prettier parses Jinja as plain HTML and reflows
+  `{# … #}` and `{% … %}` in ways that damage the template.
 
 ## Supersedes / Superseded by
 
@@ -1139,7 +1160,7 @@ unchanged.
 
 ---
 
-# ADR-033 — The school's logo and name are configuration, not repository content
+# ADR-033: The school's logo and name are configuration, not repository content
 
 **Status:** Superseded by ADR-034
 
@@ -1170,10 +1191,10 @@ image. The committed files are placeholders carrying a comment that says so.
 
 ## Alternatives considered
 
-- Import the logo as a bundled module — a build-time dependency on a file the public repo must not
+- Import the logo as a bundled module: a build-time dependency on a file the public repo must not
   contain.
-- Serve the logo from an API endpoint — adds a request and a backend route for a static asset.
-- Hardcode and let the private repo patch the component — a merge conflict on every UI change.
+- Serve the logo from an API endpoint: it adds a request and a backend route for a static asset.
+- Hardcode and let the private repo patch the component: a merge conflict on every UI change.
 
 ## Consequences
 
@@ -1189,7 +1210,7 @@ swap points into one root folder.
 
 ---
 
-# ADR-034 — A single root `branding/` folder, applied by `pnpm brand`
+# ADR-034: A single root `branding/` folder, applied by `pnpm brand`
 
 **Status:** Accepted
 
@@ -1202,7 +1223,7 @@ ADR-033 made branding configuration rather than code, but it left four separate
 swap points across three packages: two `public/school-logo.svg` files, a
 `VITE_SCHOOL_NAME` build variable, a logo inside the reports package, and a
 `SCHOOL_NAME` backend variable. Rebranding meant remembering all four, and
-forgetting one produced a half-branded product — the worst possible state in which
+forgetting one produced a half-branded product, the worst possible state in which
 to show a prospective school. Nothing made a partial rebrand visible.
 
 ## Decision
@@ -1210,7 +1231,7 @@ to show a prospective school. Nothing made a partial rebrand visible.
 One folder at the repository root, `branding/`, holds `brand.json` (name, short
 name, accent colour) and `logo.svg`, plus an optional `favicon.svg`. It is also a
 workspace package, `@flrc/branding`, so the web apps import the name and the logo
-directly — the bundler fingerprints the logo and resolves it correctly under the
+directly: the bundler fingerprints the logo and resolves it correctly under the
 admin app's `/admin/` base, and there is no copy to drift.
 
 `pnpm brand` (`scripts/branding.mjs`) feeds the three kinds of consumer that
@@ -1222,7 +1243,7 @@ fails CI when a derived file has drifted.
 The palette is derived from the **hue** of `accentColor` only. `theme.css` reads
 `--brand-hue` and keeps the lightness and chroma that were checked for contrast,
 so any school colour still yields white-on-primary above 4.5:1. Status colours
-(success, warning, destructive) deliberately do not rotate — they carry meaning,
+(success, warning, destructive) deliberately do not rotate: they carry meaning,
 not brand.
 
 Environment variables survive as per-deployment overrides for the multi-school
@@ -1230,14 +1251,14 @@ case; for a single school they stay unset.
 
 ## Alternatives considered
 
-- Keep the four swap points and document them — documentation does not stop a
+- Keep the four swap points and document them: documentation does not stop a
   partial rebrand reaching production.
-- Have the backend read the repo-root folder at runtime — the Docker build context
+- Have the backend read the repo-root folder at runtime: the Docker build context
   is `apps/backend`, so the root folder is not in the image. Changing the build
   context to fix a branding concern is the wrong trade.
-- Derive the palette from the school's exact colour — cannot guarantee readable
-  button labels for a pale or very dark brand colour.
-- Generate a TypeScript module for the name — unnecessary once `branding/` is a
+- Derive the palette from the school's exact colour: this cannot guarantee
+  readable button labels for a pale or very dark brand colour.
+- Generate a TypeScript module for the name: unnecessary once `branding/` is a
   workspace package that can be imported directly.
 
 ## Consequences
@@ -1247,7 +1268,7 @@ case; for a single school they stay unset.
   ratio, so the result is inspectable without opening the app.
 - A school's exact corporate colour is matched by hue, not reproduced exactly.
   That is a deliberate accessibility trade, documented in `branding/README.md`.
-- Derived files are committed, so a rebrand is a reviewable diff — but they must
+- Derived files are committed, so a rebrand is a reviewable diff, but they must
   never be hand-edited.
 - The front-end name and logo are compiled in, so several schools need several
   builds.
@@ -1259,7 +1280,7 @@ template), both of which now read their brand values from here.
 
 ---
 
-# ADR-035 — School numbers belong to yearly enrollments
+# ADR-035: School numbers belong to yearly enrollments
 
 **Status:** Accepted
 
@@ -1269,8 +1290,8 @@ template), both of which now read their brand values from here.
 ## Context
 
 `students.school_number` was globally unique. That modeled a reusable administrative number as if
-it were a permanent identity: student 200 in 2026–2027 prevented a different student from receiving
-200 in 2030–2031, and changing a continuing student's number would rewrite what archive screens
+it were a permanent identity: student 200 in 2026-2027 prevented a different student from receiving
+200 in 2030-2031, and changing a continuing student's number would rewrite what archive screens
 showed for earlier years.
 
 ## Decision
@@ -1282,9 +1303,9 @@ archive views resolve the number through the enrollment for the displayed year.
 
 ## Alternatives considered
 
-- Keep a non-unique last-known number on `students` — easy to misuse and wrong for archives.
-- Create a separate number-history table — duplicates the year link already owned by enrollment.
-- Encode the year into the number — changes the school's actual identifier and its printed form.
+- Keep a non-unique last-known number on `students`: easy to misuse and wrong for archives.
+- Create a separate number-history table: it duplicates the year link already owned by enrollment.
+- Encode the year into the number: it changes the school's actual identifier and its printed form.
 
 ## Consequences
 
@@ -1296,7 +1317,7 @@ archive views resolve the number through the enrollment for the displayed year.
 
 ---
 
-# ADR-036 — Automatic rollover after a fully closed year
+# ADR-036: Automatic rollover after a fully closed year
 
 **Status:** Accepted
 
@@ -1314,7 +1335,7 @@ slow and error-prone. Grades and school numbers, however, must never be copied f
 
 Archiving a standard `YYYY-YYYY` year after both semesters are locked creates the next consecutive
 setup year in the same transaction. It copies class structure, teacher assignments, semester column
-templates, and second-language choices. Students in grades 1–7 are enrolled in the next grade with
+templates, and second-language choices. Students in grades 1-7 are enrolled in the next grade with
 the same stable student id; grade 8 students graduate and are not enrolled. Grade values, audit
 rows, save batches, and old school numbers are not copied. ADR-041 replaced the original empty-number
 preparation step with fresh sequential numbers in the target year.
@@ -1331,12 +1352,12 @@ idempotent when the target year already exists.
 
 ---
 
-# ADR-037 — Table-first workspaces and field-safe assignment
+# ADR-037: Table-first workspaces and field-safe assignment
 
 **Status:** Accepted
 
 **Date:** 2026-08-20
-**Phase:** 2.x–3.x
+**Phase:** 2.x-3.x
 
 **Superseded in part by:** ADR-041 (English school-stage ownership)
 
@@ -1371,7 +1392,7 @@ The UI uses native drag events and existing React primitives. No grid or drag de
 
 ---
 
-# ADR-038 — Fail-closed school authentication and managed-origin isolation
+# ADR-038: Fail-closed school authentication and managed-origin isolation
 
 **Status:** Accepted
 
@@ -1414,12 +1435,12 @@ assets remain public by necessity and contain no school data or credentials.
 
 ---
 
-# ADR-039 — One-scroll, always-visible table workspaces
+# ADR-039: One-scroll, always-visible table workspaces
 
 **Status:** Accepted
 
 **Date:** 2026-08-21
-**Phase:** 2.x–3.x
+**Phase:** 2.x-3.x
 
 ## Context
 
@@ -1440,12 +1461,12 @@ when the pointer enters the top or bottom 96 pixels of the viewport.
 
 - Every column remains visible without discovering a horizontal scrollbar.
 - Rows move with the normal page, so trackpads and mouse wheels have one predictable target.
-- Very wide grids become denser and header labels may wrap onto multiple lines.
+- Very wide grids become denser, and header labels may wrap onto multiple lines.
 - Phone users retain the one-student stepper when a dense table would be too small for touch.
 
 ---
 
-# ADR-040 — UI palette decoupled from the school accent colour
+# ADR-040: UI palette decoupled from the school accent colour
 
 **Status:** Accepted
 
@@ -1456,7 +1477,7 @@ when the pointer enters the top or bottom 96 pixels of the viewport.
 
 The whole UI palette derived its hue from the school's accent colour: `pnpm brand` converted
 `branding/brand.json` (`#2f7168`) to `--brand-hue: 183.3` and every brand-family token rotated with
-it, over green-tinted slate backgrounds. With a teal school colour the apps read as mossy green,
+it, over green-tinted slate backgrounds. With a teal school colour, the apps read as mossy green,
 and any future school colour would recolour every surface of the product, for better or worse.
 
 ## Decision
@@ -1471,21 +1492,21 @@ branding pipeline is unchanged, even though the UI ignores it.
 
 ## Alternatives considered
 
-- Keep the hue rotation but tune lightness/chroma — still recolours the whole UI per school and
+- Keep the hue rotation but tune lightness/chroma: this still recolours the whole UI per school and
   cannot make a teal brand look neutral.
-- Rotate only action colours (buttons, links) with the brand — rejected for now; can be revisited
-  by pointing `--primary` back at a brand-derived value.
+- Rotate only action colours (buttons, links) with the brand: rejected for now; it can be
+  revisited by pointing `--primary` back at a brand-derived value.
 
 ## Consequences
 
 - Dark mode is neutral charcoal instead of green slate; light mode is warm paper with navy ink.
-- Rebranding no longer changes the app's surfaces, only logo, report cards, and browser chrome.
+- Rebranding no longer changes the app's surfaces, only the logo, report cards, and browser chrome.
 - The comment in generated `brand.css` claiming theme.css reads its hue is stale until
   `scripts/branding.mjs` is next touched.
 
 ---
 
-# ADR-041 — Explicit teaching stages and activation-ready rollover
+# ADR-041: Explicit teaching stages and activation-ready rollover
 
 **Status:** Accepted
 
@@ -1494,15 +1515,15 @@ branding pipeline is unchanged, even though the UI ignores it.
 
 ## Context
 
-`teaching_field=english` could not distinguish the twelve primary teachers from the twelve middle
-school teachers. The assignment UI therefore could not filter unassigned English teachers reliably,
-and the API could prevent a German/Main mismatch but not a primary/middle mismatch. Separately,
-automatic rollover created valid promoted enrollments with blank school numbers, so a generated
-next year immediately failed its own activation guard.
+`teaching_field=english` could not distinguish the twelve primary teachers from the twelve
+middle-school teachers. The assignment UI therefore could not filter unassigned English teachers
+reliably, and the API could prevent a German/Main mismatch but not a primary/middle mismatch.
+Separately, automatic rollover created valid promoted enrollments with blank school numbers, so a
+generated next year immediately failed its own activation guard.
 
 ## Decision
 
-English users have a required `teaching_stage` of `primary` (grades 1–4) or `middle` (grades 5–8);
+English users have a required `teaching_stage` of `primary` (grades 1-4) or `middle` (grades 5-8);
 German and French users have no stage. Both individual and bulk assignment writes enforce the
 field/stage combination. The assignment board filters All, Primary, Middle, German, and French.
 
@@ -1514,20 +1535,20 @@ unique index so at most one semester per year can be open.
 
 ## Consequences
 
-- The generated 2027–2028 setup year is activation-ready without hundreds of manual edits.
+- The generated 2027-2028 setup year is activation-ready without hundreds of manual edits.
 - Reusing a number in a later year remains safe because uniqueness is scoped to the year.
 - Primary/middle assignment mistakes fail at the API even if the UI filter is bypassed.
-- Admin user creation and editing now includes an English school-level choice.
+- Admin user creation and editing now include an English school-level choice.
 - Translation integrity is checked automatically across all four locale bundles and literal UI keys.
 
 ---
 
-# ADR-042 — Pending work is visible and class tabs are warmed
+# ADR-042: Pending work is visible and class tabs are warmed
 
 **Status:** Accepted
 
 **Date:** 2026-08-21
-**Phase:** 2.x–4.x
+**Phase:** 2.x-4.x
 
 ## Context
 
@@ -1557,14 +1578,14 @@ still prioritize the class a user is about to open.
 
 - Slow actions cannot be submitted twice and never look inert.
 - Success, failure, and background completion are visible without browser alert boxes.
-- Switching among A–G class tabs normally reads from warm query cache.
+- Switching among A-G class tabs normally reads from the warm query cache.
 - One selected grade can make several small speculative roster/grid reads; the bound prevents a
   whole-school prefetch storm, and sequential warming limits roughly twenty concurrent users to
   roughly twenty speculative reads at once.
 
 ---
 
-# ADR-043 — Plan-aware GitHub security gates
+# ADR-043: Plan-aware GitHub security gates
 
 **Status:** Accepted
 
@@ -1588,11 +1609,11 @@ image to 3.14 without an explicit runtime migration.
 
 ## Alternatives considered
 
-- Leave the unsupported actions red — rejected because failure no longer meant a code or dependency
+- Leave the unsupported actions red: rejected because failure no longer meant a code or dependency
   problem.
-- Disable all security automation — rejected because the lockfile audits and Dependabot work on the
+- Disable all security automation: rejected because the lockfile audits and Dependabot work on the
   current plan.
-- Upload local CodeQL output without GitHub Advanced Security — rejected because private-repository
+- Upload local CodeQL output without GitHub Advanced Security: rejected because private-repository
   CodeQL use is entitlement-bound, not only an upload configuration problem.
 
 ## Consequences
@@ -1604,7 +1625,7 @@ image to 3.14 without an explicit runtime migration.
 
 ---
 
-# ADR-044 — Teacher assignments are object-level read and write boundaries
+# ADR-044: Teacher assignments are object-level read and write boundaries
 
 **Status:** Accepted
 
@@ -1641,7 +1662,7 @@ decision to an already-assigned class and subject.
 
 ---
 
-# ADR-045 — Contained table viewports preserve readable columns
+# ADR-045: Contained table viewports preserve readable columns
 
 **Status:** Accepted  
 **Date:** 2026-09-04  
@@ -1686,9 +1707,9 @@ Four rules make that work in practice:
 - Dense tables introduce a deliberate inner scroll region; captions, focus rings, and visible
   scrollbars make that interaction discoverable and accessible.
 - Drag auto-scroll supports the class table viewport as well as the document.
-- `e2e/helpers/table.ts` owns the contract — contained overflow, a caption, a pinned first column, a
-  reachable last labelled column, and readable header sizes — and the three specs that assert table
-  layout share it.
+- `e2e/helpers/table.ts` owns the contract (contained overflow, a caption, a pinned first column,
+  a reachable last labelled column, and readable header sizes), and the three specs that assert
+  table layout share it.
 
 ## Supersedes / Superseded by
 
@@ -1696,12 +1717,12 @@ Supersedes ADR-039.
 
 ---
 
-# ADR-046 — Parallel class rendering with ordered PDF assembly
+# ADR-046: Parallel class rendering with ordered PDF assembly
 
 **Status:** Accepted
 
 **Date:** 2026-09-04
-**Phase:** 4.2–4.4 maintenance
+**Phase:** 4.2-4.4 maintenance
 
 ## Context
 
@@ -1728,11 +1749,11 @@ are not moved back into job payloads or temporary artifact storage.
 
 ## Alternatives considered
 
-- Reuse a WeasyPrint font configuration or image cache — measured as neutral or slower here.
-- Render classes in threads — slower because the dominant layout work did not scale across threads.
-- Change the score tables to fixed layout — potentially faster, but it changes the deliberate
+- Reuse a WeasyPrint font configuration or image cache: measured as neutral or slower here.
+- Render classes in threads: slower because the dominant layout work did not scale across threads.
+- Change the score tables to fixed layout: potentially faster, but it changes the deliberate
   content-sized columns and therefore violates print-layout compatibility.
-- Cache completed class PDFs — rejected because invalidation after grade, roster, column, locale, or
+- Cache completed class PDFs: rejected because invalidation after grade, roster, column, locale, or
   branding changes would enlarge the stale-report risk.
 
 ## Consequences
@@ -1745,11 +1766,11 @@ are not moved back into job payloads or temporary artifact storage.
 
 ## Supersedes / Superseded by
 
-Extends ADR-028; the endpoint and four school-wide report-set contract are unchanged.
+Extends ADR-028; the endpoint and the four school-wide report-set contract are unchanged.
 
 ---
 
-# ADR-047 — Paged import review with validated class moves
+# ADR-047: Paged import review with validated class moves
 
 **Status:** Accepted
 
@@ -1774,7 +1795,7 @@ review digest binds the original file hash, year, and sorted moves. Commit rejec
 review digests when moves exist. Existing file-only clients remain compatible.
 
 TanStack Query owns reviewed pages. A per-review Zustand store owns unsaved moves and undo history.
-Changing file/year discards that draft. Commit success replaces the editor with a result and
+Changing the file/year discards that draft. Commit success replaces the editor with a result and
 invalidates the affected server caches. Errors retain the draft for review and retry.
 
 ## Consequences
@@ -1786,7 +1807,7 @@ invalidates the affected server caches. Errors retain the draft for review and r
 
 ---
 
-# ADR-048 — Editable roster previews and class-table removal
+# ADR-048: Editable roster previews and class-table removal
 
 **Status:** Accepted
 
@@ -1803,8 +1824,8 @@ tables exposed student creation and column arrows but lacked removal and direct 
 
 Extend ADR-047 with a typed `roster_edits` object containing additions, excluded school numbers, and
 language changes. Both preview and commit validate these operations against the reparsed workbook
-and selected year's classes. The review digest binds every operation. Additions cannot overwrite a
-differently named enrolled student. Exclusions skip import rows and never delete saved enrollments.
+and the selected year's classes. The review digest binds every operation. Additions cannot overwrite
+a differently named enrolled student. Exclusions skip import rows and never delete saved enrollments.
 All operations share per-review Zustand undo history; TanStack Query retains reviewed server data.
 The left grade selector filters the roster and resets an individual class selection.
 
@@ -1840,7 +1861,7 @@ the unchanged 10-per-minute commit limit; edits and page requests cannot consume
 
 ---
 
-# ADR-049 — Readable assessment pages and Grade 4 second-language rubrics
+# ADR-049: Readable assessment pages and Grade 4 second-language rubrics
 
 **Status:** Accepted
 
@@ -1850,7 +1871,7 @@ the unchanged 10-per-minute commit limit; edits and page requests cannot consume
 ## Context
 
 Fitting every teacher assessment on screen (ADR-039) broke long criterion labels into tiny
-fragments. The school also clarified that Grade 4 German and French use only the 1–2–3 rubric:
+fragments. The school also clarified that Grade 4 German and French use only the 1-2-3 rubric:
 no numeric exam/homework columns, teacher-comment columns, or score average.
 
 ## Decision
@@ -1859,13 +1880,13 @@ The teacher grid shows up to three assessments at a time, reducing to two or one
 width narrows. Category buttons filter the assessments; previous/next controls expose every
 column in its configured order. Full sentence headings use normal case and readable type, with
 ownership notices on their own line. Student names remain visible, and a scale legend explains
-1–2–3. The document remains the only scrolling surface. Switching assessment pages or categories
+1-2-3. The document remains the only scrolling surface. Switching assessment pages or categories
 does not navigate away from the class or clear the Zustand draft; Save still drains every dirty
 cell, including hidden columns, through the existing version/conflict and ownership checks.
 
 `academics/programme.py` defines Grade 4 second-language type eligibility. Creation and updates
 reject non-scale columns and score-average flags. Copying into Grade 4 includes only eligible
-rubrics. Seed and academic-year rollover use the same rule, while Grade 4 English and Grades 5–8
+rubrics. Seed and academic-year rollover use the same rule, while Grade 4 English and Grades 5-8
 second languages retain their existing column types.
 
 Alembic data migration `f4b82d903e61` disables existing Grade 4 German/French score and text
@@ -1892,13 +1913,13 @@ vertical scroll rule and the admin workspace behavior remain in place.
 
 ---
 
-# ADR-050 — Keep screen logic focused and confirm the values actually submitted
+# ADR-050: Keep screen logic focused and confirm the values actually submitted
 
 **Status:** Accepted
 
 **Date:** 2026-09-08
 
-**Phase:** 2–3, maintenance
+**Phase:** 2-3, maintenance
 
 ## Context
 
@@ -1927,14 +1948,14 @@ and the server's audit/undo rules remain in place.
 
 ## Consequences
 
-The two main route files become much smaller and each editor can be understood independently.
+The two main route files become much smaller, and each editor can be understood independently.
 Explicit component props and save regression coverage add some code; this change prioritizes
 simpler responsibilities and removes repeated logic rather than compressing business rules.
 No dependency, migration, generated-client change, or feature removal is required.
 
 ---
 
-# ADR-051 — Public demo visitors are pseudonymous temporary administrators
+# ADR-051: Public demo visitors are pseudonymous temporary administrators
 
 **Status:** Accepted
 
@@ -1970,13 +1991,13 @@ accounts are capped per day.
 
 ## Alternatives considered
 
-- Store the real email and name for a friendlier UI — rejected: personal data in a shared,
+- Store the real email and name for a friendlier UI. Rejected: personal data in a shared,
   browsable database and in provider history.
-- Immediate hard delete with cascades through audit tables — rejected: a demo-only deletion path
+- Immediate hard delete with cascades through audit tables. Rejected: a demo-only deletion path
   through the school's audit tables.
-- Visitor state in Redis only — rejected: not durable, not covered by the database fixtures, and
+- Visitor state in Redis only. Rejected: not durable, not covered by the database fixtures, and
   the guardrails would fail open after a cache flush.
-- An isolated sandbox per visitor (schema or Neon branch) — rejected: exceeds the free-tier limits
+- An isolated sandbox per visitor (schema or Neon branch). Rejected: exceeds the free-tier limits
   and adds tenant plumbing the school never needs.
 
 ## Consequences
@@ -1992,7 +2013,7 @@ accounts are capped per day.
 
 ---
 
-# ADR-052 — The demo resets nightly by restoring a Neon branch from its golden parent
+# ADR-052: The demo resets nightly by restoring a Neon branch from its golden parent
 
 **Status:** Accepted
 
@@ -2035,13 +2056,13 @@ the demo profile so the generated client documents the demo-only routes.
 
 ## Alternatives considered
 
-- In-app truncate and reseed — provider-neutral, but minutes of downtime per night and a full
+- In-app truncate and reseed: provider-neutral, but minutes of downtime per night and a full
   rewrite of the dataset into Neon's change history.
-- Restore a golden `pg_dump` — a second copy of the fixture to keep in sync, and slower than a
+- Restore a golden `pg_dump`: a second copy of the fixture to keep in sync, and slower than a
   branch restore.
-- A per-request marker check instead of a loop — one Redis round trip on every request for a
+- A per-request marker check instead of a loop: one Redis round trip on every request for a
   condition that changes once a day.
-- Preserve visitor accounts across the reset — more code for no visible benefit; accounts die at
+- Preserve visitor accounts across the reset: more code for no visible benefit; accounts die at
   midnight and the 24-hour rule becomes automatic.
 
 ## Consequences
@@ -2056,7 +2077,7 @@ the demo profile so the generated client documents the demo-only routes.
 
 ---
 
-# ADR-053 — One public application repository, private deployment overlays, released images
+# ADR-053: One public application repository, private deployment overlays, released images
 
 **Status:** Accepted
 
@@ -2090,11 +2111,11 @@ automatically and does not wait for a tag.
 
 ## Alternatives considered
 
-- Flip the private repository to public with its full history — every past commit message and
+- Flip the private repository to public with its full history: every past commit message and
   author identity becomes permanent; a reviewed snapshot is safer.
-- A git submodule pin plus a build in the private repository — requires the whole Node, uv, and
+- A git submodule pin plus a build in the private repository: it requires the whole Node, uv, and
   Docker toolchain in every school repository and a cross-repository token for update requests.
-- A subtree copy synchronized by a bot — a second physical copy of the application, which is the
+- A subtree copy synchronized by a bot: a second physical copy of the application, which is the
   drift the single-repository rule exists to prevent.
 
 ## Consequences
@@ -2107,7 +2128,7 @@ automatically and does not wait for a tag.
 
 ---
 
-# ADR-054 — Branding is a runtime overlay served next to the app
+# ADR-054: Branding is a runtime overlay served next to the app
 
 **Status:** Accepted
 
@@ -2138,10 +2159,10 @@ above the synced assets.
 
 ## Alternatives considered
 
-- Keep build-time branding and build per school — rejected with ADR-053's delivery model.
-- Fetch a JSON file at runtime from the app — a request before the first render and a visible
+- Keep build-time branding and build per school: rejected with ADR-053's delivery model.
+- Fetch a JSON file at runtime from the app: a request before the first render and a visible
   flash of the generic name; a blocking script sets the identity before paint.
-- Inline the brand into `index.html` at deploy time — requires rewriting a built artifact and a
+- Inline the brand into `index.html` at deploy time: it requires rewriting a built artifact and a
   CSP hash for inline script.
 
 ## Consequences
@@ -2157,7 +2178,7 @@ drift check remain.
 
 ---
 
-# ADR-055 — School hosting is one Compose stack on a school-owned server
+# ADR-055: School hosting is one Compose stack on a school-owned server
 
 **Status:** Accepted
 
@@ -2167,7 +2188,7 @@ drift check remain.
 
 ## Context
 
-ADR-019 allowed a school-controlled VM as a fallback to the managed profile. With ADR-053 the
+ADR-019 allowed a school-controlled VM as a fallback to the managed profile. With ADR-053, the
 application ships as two images, so the school no longer needs the managed providers, and the
 KVKK posture is simplest when every account and every byte belongs to the school.
 
@@ -2190,11 +2211,11 @@ with the developer as a member. The runbook is `docs/SELF-HOSTING.md`.
 
 ## Alternatives considered
 
-- The managed profile (Render, Neon, Upstash, Cloudflare) — more moving parts and providers to
+- The managed profile (Render, Neon, Upstash, Cloudflare): more moving parts and providers to
   contract with, and Vercel's non-commercial terms exclude it for the school.
-- A separate edge proxy in the private repository — moves the security-relevant routing order out
-  of the tested public image.
-- Developer-owned infrastructure billed to the school — student data on a private individual's
+- A separate edge proxy in the private repository: this moves the security-relevant routing order
+  out of the tested public image.
+- Developer-owned infrastructure billed to the school: student data on a private individual's
   account, contrary to the school-as-controller posture.
 
 ## Consequences
@@ -2209,7 +2230,7 @@ with the developer as a member. The runbook is `docs/SELF-HOSTING.md`.
 
 ---
 
-# ADR-056 — Encrypted nightly backups to the school's Shared Drive, proven monthly
+# ADR-056: Encrypted nightly backups to the school's Shared Drive, proven monthly
 
 **Status:** Accepted
 
@@ -2220,7 +2241,7 @@ with the developer as a member. The runbook is `docs/SELF-HOSTING.md`.
 ## Context
 
 ARCH §7.5 promised weekly dumps to school-owned Google Drive from a GitHub Actions workflow. On the
-school-hosted profile (ADR-055) the database has no public port, the school wants daily copies kept
+school-hosted profile (ADR-055), the database has no public port, the school wants daily copies kept
 for a week, academic years must remain retrievable for years, and a backup is a hypothesis until a
 restore succeeds. Service accounts have no Drive storage of their own, so the destination must be
 a Shared Drive the school owns.
@@ -2249,14 +2270,14 @@ in the server's `.env`; the recipient alone cannot decrypt anything.
 
 ## Alternatives considered
 
-- Keep the GitHub Actions workflow — it cannot reach a database with no public port, and it would
+- Keep the GitHub Actions workflow: it cannot reach a database with no public port, and it would
   hold the school's credentials in a repository secret.
-- Hetzner Storage Box with restic — chosen against earlier because the school already owns Google
+- Hetzner Storage Box with restic: decided against earlier because the school already owns Google
   Workspace and wants one vendor for its records.
-- A dedicated backup image — the backend image already has the application, the reports, and the
+- A dedicated backup image: the backend image already has the application, the reports, and the
   workbook builder that the year archive needs; adding the client tools was smaller.
-- Age-based retention — deletes the last good copy after a week of failures; count-based retention
-  cannot.
+- Age-based retention: it deletes the last good copy after a week of failures; count-based
+  retention cannot.
 
 ## Consequences
 
@@ -2272,7 +2293,7 @@ Supersedes the weekly Drive workflow described in handbook step 4.5 and ARCH §7
 
 ---
 
-# ADR-057 — Private report overlays and teacher report identities
+# ADR-057: Private report overlays and teacher report identities
 
 **Status:** Accepted
 
@@ -2309,7 +2330,7 @@ demo's temporary visitor accounts cannot acquire report identities.
 
 `SCHOOL_BRANDING_DIR/reports/config.json` is an optional versioned private overlay. It chooses
 Jinja HTML templates, image assets, original German/French back-cover PDFs, and principal identities
-for `primary` (grades 1–4) and `middle` (5–8). Templates use a sandbox with automatic HTML escaping;
+for `primary` (grades 1-4) and `middle` (5-8). Templates use a sandbox with automatic HTML escaping;
 asset paths must remain inside the report folder. WeasyPrint continues to allow only data URIs.
 PDF covers replace duplex back pages, retaining the original cover content. Invalid cover size or
 page count fails explicitly. Default templates and public branding retain their existing appearance.
@@ -2331,7 +2352,7 @@ apply a production migration or publish a release.
 
 ---
 
-# ADR-058 — Isolated local school playground and explicit operational schedules
+# ADR-058: Isolated local school playground and explicit operational schedules
 
 **Status:** Accepted
 
@@ -2349,7 +2370,7 @@ their credentials or servers existed.
 ## Decision
 
 A school may keep a separate `compose.local.yaml` and launcher in its private deployment repo.
-The launcher builds current application source, starts isolated PostgreSQL/Redis/API/worker/web
+The launcher builds the current application source, starts isolated PostgreSQL/Redis/API/worker/web
 services, applies migrations and seeds an empty playground. Data and uploaded signatures persist
 across restarts. A local seed must verify its exact test database and refuse to overwrite existing
 work; school criteria are applied only to newly created, ungraded columns.
@@ -2376,17 +2397,17 @@ GitHub CI and dependency audit before merging.
 
 ---
 
-# ADR-059 — Whole-class rating drafts and explicit rating labels
+# ADR-059: Whole-class rating drafts and explicit rating labels
 
 **Status:** Accepted
 
 **Date:** 2026-09-10
 
-**Phase:** 2.4–2.5 (grid and Save All)
+**Phase:** 2.4-2.5 (grid and Save All)
 
 ## Context
 
-Teachers need to isolate written comments, set every 1–2–3 assessment for one pupil or a
+Teachers need to isolate written comments, set every 1-2-3 assessment for one pupil or a
 whole class, and see the report-card meanings of those ratings. The old category filter
 omitted ungrouped comments, and a full-class rubric can exceed the 500-cell save limit.
 
@@ -2418,13 +2439,17 @@ continues to require explicit overwrite confirmation.
 
 ---
 
-# ADR-060 — Teacher comments in every programme and a compact English grid
+# ADR-060: Teacher comments in every programme and a compact English grid
 
-**Status:** Accepted
+**Status:** Partially superseded by ADR-063 (middle-school English comments only)
 
 **Date:** 2026-09-10
 
 **Phase:** 2.1.3, 2.4 (column defaults and grade grid)
+
+**Current reading:** the decision below records the 2026-09-10 choice. ADR-063 removes the
+middle-English opinion field and its notes filter. Primary English and German/French comments,
+grade-4 L2 rating rules, and the compact angled English grid remain in effect.
 
 ## Context
 
@@ -2459,7 +2484,7 @@ Private deployment checks verify every grade and semester against the school's s
 
 ---
 
-# ADR-061 — Four or five sentence assessments per laptop page
+# ADR-061: Four or five sentence assessments per laptop page
 
 **Status:** Accepted
 
@@ -2480,13 +2505,13 @@ unclipped text, grade 4 English/German/French labels and faces, paging drafts, n
 
 ---
 
-# ADR-062 — Bounded bulk reads and shared field behavior
+# ADR-062: Bounded bulk reads and shared field behavior
 
 **Status:** Accepted
 
 **Date:** 2026-09-10
 
-**Phase:** 2–4 maintenance (grade fields, administration, imports and year exports)
+**Phase:** 2-4 maintenance (grade fields, administration, imports and year exports)
 
 ## Context
 
@@ -2526,10 +2551,35 @@ drift and run JavaScript lint, typecheck and production builds before merging.
 
 ---
 
+# ADR-063: No opinion field in middle-school English
+
+**Status:** Accepted
+
+**Date:** 2026-09-11
+
+**Phase:** 2.1.3, 2.4 and 4.2
+
+The developer confirmed that grades 5-8 English must not include a teacher opinion field.
+This restores the handbook's original middle-school English programme and supersedes that
+part of ADR-060. Primary English and German/French retain their comments.
+
+Remove the middle-school English default text column and reject its creation or conversion
+through the columns API. Copy and rollover use the same programme rule. A new migration
+deactivates existing middle-school English text definitions, including synthetic archive years,
+without deleting definitions, values, versions or audit records. Grids, report generation and
+archive/history views omit the retired opinion fields; audit and workbook exports retain the
+underlying historical data. Existing downloaded PDFs remain unchanged.
+
+The teacher grid has no notes filter for this programme and reserves space for the final
+angled score heading. Admin forms do not offer text columns for middle-school English.
+Tests cover creation, copying, migration idempotence, retained values and absence from reports.
+
+---
+
 # ADR template for future decisions
 
 ```md
-# ADR-063 — Title
+# ADR-064: Title
 
 **Status:** Proposed | Accepted | Superseded  
 **Date:** YYYY-MM-DD  

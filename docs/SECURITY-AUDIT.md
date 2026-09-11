@@ -1,4 +1,18 @@
-# Security audit — 2026-09-07
+# Security audit (2026-09-07)
+
+## Source follow-up (2026-09-11)
+
+The findings below preserve the 2026-09-07 audit context; their line references and branch-specific
+statements are historical. A documentation/source review now finds SEC-03's deny-by-default
+asset fetcher in `modules/reports/render.py` and SEC-04's JSON-only configuration in
+`workers/celery.py`. They are no longer waiting on a concurrent branch in this checkout.
+`tests/test_phase4.py::test_asset_fetcher_serves_data_uris_and_refuses_every_other_scheme`
+is the current fetcher regression. This follow-up did not rerun the security or application suites.
+
+Subsequent private report overlays, signature uploads, public demo identities, and pending
+assessment/PDF changes require review beyond the original findings. Use [SECURITY.md](SECURITY.md)
+for the current model and [TODO.md](TODO.md) for release evidence still required. The original
+audit's “no critical finding” is not a new assurance for today's working tree or production.
 
 ## Executive summary
 
@@ -12,14 +26,14 @@ by the concurrent PDF worker are recorded here but intentionally not modified on
 worker has implemented the routed fixes, which must land before production deployment. The
 route-by-route IDOR probe found no further bypass after the assignment boundary was added.
 
-Severity reflects likely impact to children's school records in the documented deployment, not
+Severity reflects likely impact on children's school records in the documented deployment, not
 only technical exploit complexity. “Fixed” means fixed and regression-tested on this branch.
 
 ## Findings
 
 ### High
 
-#### SEC-01 — Teachers could enumerate and alter other classes and subjects — Fixed
+#### SEC-01: Teachers could enumerate and alter other classes and subjects (Fixed)
 
 - Location: `apps/backend/src/flrc/modules/grades/permissions.py:18`,
   `apps/backend/src/flrc/modules/grades/router.py:264`,
@@ -34,7 +48,7 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
   `test_teacher_cannot_enumerate_unassigned_academic_year`, and the parameterized privileged-route
   probe in `apps/backend/tests/test_security_hardening.py`.
 
-#### SEC-02 — Hostile XLSX files could exhaust memory/CPU or silently truncate a roster — Fixed
+#### SEC-02: Hostile XLSX files could exhaust memory/CPU or silently truncate a roster (Fixed)
 
 - Location: `apps/backend/src/flrc/modules/imports/parser.py:25-63`,
   `apps/backend/src/flrc/modules/imports/parser.py:127-168`
@@ -48,7 +62,7 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
 - Evidence: ZIP-bomb, lying-dimension, missing-dimension, and external-entity tests in
   `apps/backend/tests/test_security_hardening.py`.
 
-#### SEC-03 — WeasyPrint retained its default network/local-file fetch capability — Routed fix
+#### SEC-03: WeasyPrint retained its default network/local-file fetch capability (Routed fix)
 
 - Location: `apps/backend/src/flrc/modules/reports/render.py:473`
 - Exploit scenario: if a future branding value, template field, or imported value reaches a CSS/HTML
@@ -59,7 +73,7 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
   branch. This security branch does not duplicate that concurrent edit. Production release is
   blocked until that change is merged and its tests pass.
 
-#### SEC-04 — Celery did not explicitly reject non-JSON serializers — Routed fix
+#### SEC-04: Celery did not explicitly reject non-JSON serializers (Routed fix)
 
 - Location: `apps/backend/src/flrc/workers/celery.py:10-18`
 - Exploit scenario: a broker credential compromise or future producer misconfiguration could place
@@ -70,7 +84,7 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
 
 ### Medium
 
-#### SEC-05 — Expensive and unauthenticated endpoints had no application rate limits — Fixed
+#### SEC-05: Expensive and unauthenticated endpoints had no application rate limits (Fixed)
 
 - Location: `apps/backend/src/flrc/core/rate_limit.py:24-113`,
   `apps/backend/src/flrc/main.py:100`
@@ -81,7 +95,7 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
   counters return 429 with `Retry-After`. Keys contain an HMAC, not raw addresses or user ids, and
   the control fails closed in school mode.
 
-#### SEC-06 — Remote Postgres/Redis could be configured without authenticated TLS — Fixed
+#### SEC-06: Remote Postgres/Redis could be configured without authenticated TLS (Fixed)
 
 - Location: `apps/backend/src/flrc/config.py:100-118`
 - Exploit scenario: a mistaken production URL sends session data, job messages, grades, or database
@@ -89,7 +103,7 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
 - Resolution: school-mode startup rejects remote Redis without authenticated `rediss://` and remote
   database URLs that do not require TLS.
 
-#### SEC-07 — Reusing operational secrets enlarged compromise scope — Fixed
+#### SEC-07: Reusing operational secrets enlarged compromise scope (Fixed)
 
 - Location: `apps/backend/src/flrc/config.py:83-94`
 - Exploit scenario: the same value is used for session signing, gateway authentication, and the
@@ -97,7 +111,7 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
 - Resolution: school-mode startup requires all three sufficiently random secrets to be pairwise
   distinct and rejects an enabled E2E authentication secret.
 
-#### SEC-08 — Spreadsheet exports allowed formula injection — Fixed
+#### SEC-08: Spreadsheet exports allowed formula injection (Fixed)
 
 - Location: `apps/backend/src/flrc/core/spreadsheets.py:1-13`,
   `apps/backend/src/flrc/modules/audit/router.py:162`,
@@ -106,7 +120,7 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
   executes as a formula when an administrator opens an audit CSV or year workbook.
 - Resolution: all CSV/XLSX export paths neutralize formula-like text through one shared function.
 
-#### SEC-09 — CI actions and runtime image tags were mutable — Fixed
+#### SEC-09: CI actions and runtime image tags were mutable (Fixed)
 
 - Location: `.github/workflows/ci.yml:18`, `.github/workflows/security.yml:20`,
   `apps/backend/Dockerfile:1-12`
@@ -115,14 +129,14 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
 - Resolution: third-party actions and backend runtime/build images are pinned to immutable digests;
   Dependabot remains responsible for proposed updates.
 
-#### SEC-10 — Repository history had no automated secret scan — Fixed
+#### SEC-10: Repository history had no automated secret scan (Fixed)
 
 - Location: `.github/workflows/security.yml:16-28`
 - Exploit scenario: a credential committed and later deleted remains usable from Git history but is
   missed by ordinary current-tree review.
 - Resolution: gitleaks scans full history on pull requests, main pushes, and the scheduled workflow.
 
-#### SEC-11 — Locked dependency audit missed workspace-root overrides — Fixed
+#### SEC-11: Locked dependency audit missed workspace-root overrides (Fixed)
 
 - Location: `pnpm-workspace.yaml:7-9`, `.github/workflows/security.yml:30-61`
 - Exploit scenario: vulnerable transitive `fast-uri` or `qs` releases remain selected even though
@@ -132,7 +146,7 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
 
 ### Low
 
-#### SEC-12 — API responses lacked a restrictive CSP and opener isolation — Fixed
+#### SEC-12: API responses lacked a restrictive CSP and opener isolation (Fixed)
 
 - Location: `apps/backend/src/flrc/core/middleware.py:80-97`
 - Exploit scenario: a future HTML/error response on an API URL has fewer browser containment layers
@@ -140,7 +154,7 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
 - Resolution: API responses receive deny-by-default CSP and COOP; local interactive documentation is
   exempted because it is disabled entirely in school mode.
 
-#### SEC-13 — Job identifiers needed explicit owner regression coverage — Fixed
+#### SEC-13: Job identifiers needed explicit owner regression coverage (Fixed)
 
 - Location: `apps/backend/src/flrc/modules/jobs/router.py:43-100`
 - Exploit scenario: a teacher guesses another teacher's sequential job id and requests its status or
@@ -149,7 +163,7 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
   download. Coordinators can read non-year report jobs by documented design; year exports remain
   admin-only.
 
-#### SEC-14 — Privileged object routes lacked a complete role-boundary probe — Fixed
+#### SEC-14: Privileged object routes lacked a complete role-boundary probe (Fixed)
 
 - Location: `apps/backend/tests/test_security_hardening.py`
 - Exploit scenario: a newly refactored `/{id}` handler performs object lookup before its admin or
@@ -158,7 +172,7 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
   administration, archive, reports, and jobs route. Audit/import identifiers are query parameters
   and are covered by their admin gates; system has no identifier route.
 
-#### SEC-15 — Security posture documentation understated the OAuth allowance — Fixed
+#### SEC-15: Security posture documentation understated the OAuth allowance (Fixed)
 
 - Location: `docs/SECURITY.md:77-79`
 - Exploit scenario: operators tune gateway limits around an incorrect 20-request claim and
@@ -190,5 +204,7 @@ cd apps/backend
 uv run pytest -q tests/test_security_hardening.py
 ```
 
-Release gates are recorded in the pull request with exact pass/fail counts. Production deployment
-also requires confirmation that SEC-03 and SEC-04 have merged from the coordinated PDF branch.
+At the original audit, release gates were to be recorded in the pull request with exact pass/fail
+counts, including merge confirmation for SEC-03 and SEC-04. The follow-up above records their
+presence in current source; fresh validation of the reviewed release remains required. Pytest
+uses the disposable local `flrc_test` database and clears it, so run it serially.

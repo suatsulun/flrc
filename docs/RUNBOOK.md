@@ -2,6 +2,11 @@
 
 Production public origin: `https://flrc.school.k12.tr` (replace this documented placeholder with the school-approved host before launch). Named owners must be filled in before real data: school controller, technical operator, Workspace administrator, and incident lead.
 
+Relevant handbook steps: 4.5 and 4.8-4.11. This is a procedure, not a launch record. The
+2026-09-11 source snapshot and pending validation are in [TODO.md](TODO.md). For a school VM,
+follow [SELF-HOSTING.md](SELF-HOSTING.md) and its Caddy/Compose services; Cloudflare/Render steps
+below apply only to the managed profile.
+
 ## T-7 days
 
 - Confirm Neon, Upstash, Google Drive, Cloudflare, Render, GitHub, Sentry, and OAuth projects are school-controlled and region/processor choices are approved.
@@ -9,7 +14,8 @@ Production public origin: `https://flrc.school.k12.tr` (replace this documented 
   encrypted `GATEWAY_SECRET` binding matches Render without printing either value.
 - Review [PRIVACY-DATA-MAP.md](./PRIVACY-DATA-MAP.md) with the controller.
 - Complete and record a fresh restore in [RESTORE-DRILLS.md](./RESTORE-DRILLS.md).
-- Print A5 progress, German A4, and French A4 synthetic reports on the school printer.
+- Print all four synthetic report sets (primary English, middle English, German, French) on the
+  school printer; check duplex pairing, private cover replacement, and stage-specific signers.
 - Have one coordinator and one admin complete acceptance checks. Freeze non-blocking schema changes.
 
 ## T-1 day
@@ -19,12 +25,20 @@ Run from repository root:
 ```bash
 pnpm generate
 pnpm turbo run lint typecheck test build
-cd apps/backend && uv run pytest -q
+cd apps/backend
 uv run alembic current
 uv run alembic heads
 ```
 
-`current` and `heads` must agree after migration. Tag the reviewed release only after CI is green. Trigger the backup workflow and record filename/SHA. Verify secret presence in provider dashboards without printing values. Confirm the production-only absence of the test endpoint:
+Run code checks on the development/CI test environment: pytest wipes the fixed local `flrc_test`
+database. Inspect the target deployment's `alembic current` separately, using its operator context;
+local output does not prove production is migrated. `current` and the release's `heads` must
+agree after migration. Tag the reviewed release only after CI is green.
+
+For school-hosted backup, run `docker compose run --rm backup flrc backup run` from the private
+deployment directory and record the successful filename/checksum. There is no root backup
+workflow in this application repository. Verify secret presence in provider dashboards without
+printing values. Confirm the production-only absence of the test endpoint:
 
 ```bash
 curl -i https://flrc.school.k12.tr/api/test/session
@@ -52,13 +66,21 @@ Also run the anonymous boundary checks from [SECURITY.md](./SECURITY.md). `/api/
    promoted-student numbers.
 9. Verify the admin class table, same-grade drag move, teacher-field assignment guard, and
    light/dark themes with an occasional computer user.
-10. Open first to pilot teachers, then broader staff.
+10. For a release containing ADR-063, verify grades 5-8 English omit comments in grids, archives,
+    history, and newly generated PDFs, while audit/workbook exports preserve the retained records.
+    Verify primary English and German/French comments still work.
+11. Open first to pilot teachers, then broader staff.
 
 Abort immediately for cross-user data, silent grade overwrite, locked/archive mutation, importer preview/commit divergence, wrong-student reports, non-allowlisted OAuth access, or migration revision disagreement.
 
 ## Rollback
 
 Redeploy the previous known-good API/worker image and frontend releases. Do not reflexively downgrade a production schema. Prefer a forward fix. If a destructive change occurred, restore the pre-launch dump into a new database, verify it, and switch credentials under the [incident runbook](./INCIDENT-RUNBOOK.md).
+
+For the pending `82a91f4c6d30` migration, an Alembic downgrade does not reactivate retired
+middle-English fields. An older image cannot by itself restore their active flags. Preserve the
+rows and plan a reviewed forward correction if reversal is required; do not bulk-enable columns
+that an administrator may have independently disabled.
 
 ## First school week (daily)
 
@@ -78,17 +100,18 @@ order by id desc
 limit 20;
 ```
 
-Spot-check structured logs for absence of names, email, school numbers, grades, cookies, gateway
-secrets, and request bodies.
+Spot-check structured logs for the absence of names, email, school numbers, grades, cookies,
+gateway secrets, and request bodies.
 
 ## Recurring work
 
 - Monthly: dependency/container update, `flrc purge-job-outputs`, access-role review, missing assignments, completeness anomalies.
 - Before year close: confirm both semesters are locked, store the audit export, then verify the
-  automatically created next year before assigning new student numbers. Never enter next-year
-  numbers into the archived year.
+  automatically created next year and its fresh sequential student numbers. Resolve any missing
+  or school-approved replacement numbers only in the setup year; never rewrite the archived year.
 - Quarterly or per school policy: scratch restore drill, incident tabletop, privacy/retention review, OAuth and service-account access review.
 
-`/api/healthz` is public and intentionally returns 204 with an empty body. The OAuth
-start/callback paths and static login assets are the only other anonymous surface. Never expose
-student payloads in an operations endpoint.
+`/api/healthz` is public and intentionally returns 204 with an empty body. School mode also permits
+OAuth start/callback, the origin-protected logout endpoint, and static login assets without a
+session. Demo-only exceptions are listed in [SECURITY.md](SECURITY.md). Never expose student
+payloads in an operations endpoint.

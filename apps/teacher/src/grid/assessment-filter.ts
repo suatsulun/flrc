@@ -2,7 +2,7 @@ import type { GridColumnOut } from "@flrc/api-client";
 
 export type AssessmentFilter = "all" | "notes" | `group:${string}`;
 
-export function assessmentOptions(columns: GridColumnOut[]) {
+export function assessmentOptions(columns: GridColumnOut[], showNotes = true) {
   const counts = new Map<string, number>();
   for (const column of columns) {
     if (column.group && column.value_type !== "text")
@@ -15,11 +15,15 @@ export function assessmentOptions(columns: GridColumnOut[]) {
       label,
       count,
     })),
-    {
-      id: "notes" as AssessmentFilter,
-      label: "",
-      count: columns.filter((column) => column.value_type === "text").length,
-    },
+    ...(showNotes
+      ? [
+          {
+            id: "notes" as AssessmentFilter,
+            label: "",
+            count: columns.filter((column) => column.value_type === "text").length,
+          },
+        ]
+      : []),
   ];
 }
 

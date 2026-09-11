@@ -241,6 +241,7 @@ function CreateDialog({
   const [open, setOpen] = useState(false);
   const isSecondLanguage = subject !== "english";
   const scaleOnly = grade === 4 && isSecondLanguage;
+  const allowText = subject !== "english" || grade < 5;
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -282,7 +283,12 @@ function CreateDialog({
       body: {
         grade_level: grade,
         subject,
-        value_type: scaleOnly && values.value_type === "score" ? "scale3" : values.value_type,
+        value_type:
+          scaleOnly && values.value_type === "score"
+            ? "scale3"
+            : !allowText && values.value_type === "text"
+              ? "score"
+              : values.value_type,
         owner_role: values.owner_role,
         labels,
         group_labels: Object.values(groupLabels).some(Boolean) ? groupLabels : null,
@@ -344,7 +350,7 @@ function CreateDialog({
                     <option value="score">{t("columns.valueTypes.score")}</option>
                   ) : null}
                   <option value="scale3">{t("columns.valueTypes.scale3")}</option>
-                  <option value="text">{t("columns.valueTypes.text")}</option>
+                  {allowText ? <option value="text">{t("columns.valueTypes.text")}</option> : null}
                 </NativeSelect>
               )}
             </Field>

@@ -42,7 +42,11 @@ export const GridTable = memo(function GridTable({
     return () => observer.disconnect();
   }, []);
 
-  const groups = useMemo(() => assessmentOptions(data.columns), [data.columns]);
+  const showNotes = data.meta.subject !== "english" || data.meta.grade_level < 5;
+  const groups = useMemo(
+    () => assessmentOptions(data.columns, showNotes),
+    [data.columns, showNotes],
+  );
   const selectedGroup = groups.some((group) => group.id === selection.group)
     ? selection.group
     : "all";
@@ -52,15 +56,14 @@ export const GridTable = memo(function GridTable({
   );
   const scoreCount = filtered.filter((column) => column.value_type === "score").length;
   const noteCount = filtered.filter((column) => column.value_type === "text").length;
-  // The final comment column provides room above it for the last slanted header.
+  // Reserve space for the final slanted header even when there is no comment column.
   // Smaller screens retain the readable, paged grid and the phone stepper.
   const englishOverview =
     data.meta.subject === "english" &&
     data.meta.grade_level >= 5 &&
     scoreCount > 0 &&
-    noteCount > 0 &&
     scoreCount + noteCount === filtered.length &&
-    surfaceWidth >= 154 + 184 * noteCount + 60 * scoreCount;
+    surfaceWidth >= 154 + Math.max(136, 184 * noteCount) + 60 * scoreCount;
   // Keep student controls in 184px and reserve 180px per sentence. This fits
   // four assessments at 1280px and five at 1366px with the sidebar open.
   const pageSize = englishOverview
@@ -209,7 +212,7 @@ export const GridTable = memo(function GridTable({
       ref={surface}
       data-testid="grade-grid-surface"
       aria-label={t("grid.tableLabel")}
-      className={`w-full min-w-0 overflow-visible rounded-xl border border-border bg-card shadow-card ${englishOverview ? "english-overview" : ""}`}
+      className={`w-full min-w-0 overflow-visible rounded-xl border border-border bg-card shadow-card ${englishOverview ? `english-overview ${noteCount === 0 ? "english-scores-only" : ""}` : ""}`}
       data-layout={englishOverview ? "english-overview" : "paged"}
     >
       <div
@@ -220,6 +223,7 @@ export const GridTable = memo(function GridTable({
         }
       >
         <AssessmentFilters
+          showNotes={showNotes}
           compact={!englishOverview}
           columns={data.columns}
           value={selectedGroup}

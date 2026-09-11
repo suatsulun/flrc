@@ -35,9 +35,16 @@ export function ClassAddColumn({
   const { t } = useTranslation();
   const visibleColumns = columns.filter((column) => column.is_active);
   const scaleOnly = grade === 4 && subject !== "english";
+  const allowText = subject !== "english" || grade < 5;
   const [addingColumn, setAddingColumn] = useState(false);
   const [columnLabel, setColumnLabel] = useState("");
   const [columnType, setColumnType] = useState<ValueType>("score");
+  const effectiveType =
+    scaleOnly && columnType === "score"
+      ? "scale3"
+      : !allowText && columnType === "text"
+        ? "score"
+        : columnType;
   const ownerRoles: Role[] = subject === "english" ? ["main", "skills"] : [subject];
   const createColumn = useMutation({
     ...createColumnMutation(),
@@ -56,10 +63,10 @@ export function ClassAddColumn({
       body: {
         grade_level: grade,
         subject,
-        value_type: scaleOnly && columnType === "score" ? "scale3" : columnType,
+        value_type: effectiveType,
         owner_role: columnOwner,
         labels: { tr: columnLabel.trim(), en: "", de: "", fr: "" },
-        counts_in_average: !scaleOnly && columnType === "score",
+        counts_in_average: !scaleOnly && effectiveType === "score",
       },
     });
   }
@@ -103,12 +110,12 @@ export function ClassAddColumn({
           />
           <NativeSelect
             aria-label={t("classWorkspace.columnType")}
-            value={scaleOnly && columnType === "score" ? "scale3" : columnType}
+            value={effectiveType}
             onChange={(event) => setColumnType(event.target.value as ValueType)}
           >
             {!scaleOnly ? <option value="score">{t("classWorkspace.typeScore")}</option> : null}
             <option value="scale3">{t("classWorkspace.typeScale")}</option>
-            <option value="text">{t("classWorkspace.typeText")}</option>
+            {allowText ? <option value="text">{t("classWorkspace.typeText")}</option> : null}
           </NativeSelect>
           <NativeSelect
             aria-label={t("classWorkspace.columnOwner")}

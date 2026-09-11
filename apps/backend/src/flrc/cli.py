@@ -16,7 +16,7 @@ from flrc.modules.auth.policy import allowed_google_domain, email_is_in_school_d
 from flrc.modules.backup import cli as backup_cli
 from flrc.modules.imports.fixture import make_hostile_fixture
 
-app = typer.Typer(help="FL-ReportCard maintenance commands. ")
+app = typer.Typer(help="FL-ReportCard maintenance commands.")
 app.add_typer(backup_cli.app, name="backup")
 
 CORE_SECTIONS = ("A", "B", "C", "D", "E", "F")
@@ -197,7 +197,6 @@ ENGLISH_58 = [
     ("quiz_2", "main", "score", False),
     ("performance_1", "main", "score", False),
     ("performance_2", "skills", "score", False),
-    ("teacher_comments", "main", "text", False),
 ]
 
 # Second-language score columns count in the average: the middle-school karne

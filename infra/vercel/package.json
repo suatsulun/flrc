@@ -1,0 +1,18 @@
+{
+  "name": "@flrc/demo-web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Public demo web tier: both SPAs and the same-origin /api rewrite in one Vercel project.",
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "build": "node assemble.mjs"
+  },
+  "devDependencies": {
+    "@flrc/admin": "workspace:*",
+    "@flrc/teacher": "workspace:*"
+  }
+}

@@ -54,8 +54,8 @@ automation only after the server, hostname and SSH settings are configured.
 
 ## The demo
 
-Connect Render and the Vercel projects to the public repository's `main` branch for automatic
-demo deployment; it does not wait for a tag. Use the [demo setup instructions](../infra/README.md),
+Connect Render and the single Vercel project (Root Directory `infra/vercel`, ADR-064) to the
+public repository's `main` branch for automatic demo deployment; it does not wait for a tag. Use the [demo setup instructions](../infra/README.md),
 including the synthetic database, golden branch, OAuth and reset settings. The managed school
 Render blueprint uses `ENV=school`; it is not the public demo's environment configuration.
 

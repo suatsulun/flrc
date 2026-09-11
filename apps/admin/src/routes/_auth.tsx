@@ -28,7 +28,9 @@ import { PageActivity } from "@flrc/ui/components/page-activity";
 import { LanguageSwitch } from "@flrc/ui/components/language-switch";
 import { LOGO_URL, SCHOOL_SHORT_NAME } from "@flrc/branding";
 
-const teacherUrl = import.meta.env.VITE_TEACHER_URL ?? "http://localhost:5173";
+// One public origin serves both panels (ADR-022); development runs them on two ports.
+const teacherUrl =
+  import.meta.env.VITE_TEACHER_URL ?? (import.meta.env.DEV ? "http://localhost:5173" : "/");
 
 export const Route = createFileRoute("/_auth")({
   beforeLoad: async ({ context }) => {

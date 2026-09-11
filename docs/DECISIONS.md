@@ -2601,8 +2601,11 @@ teacher output at the site root and the admin output under `admin/`, checks that
 keeps `/admin/` as its asset base, and refuses a bundle that links to a Vite development port. The
 project's `vercel.json` sets `trailingSlash: false`, rewrites `/api/:path*` to the Render API, and
 falls back to the two `index.html` files for client routes. Production builds default the panel
-cross-links to `/admin/` and `/`; `VITE_ADMIN_URL` and `VITE_TEACHER_URL` remain as overrides for
-layouts that serve the panels from different origins, such as the two-port CI preview. The per-app
+cross-links to `/admin/` and `/`; `VITE_ADMIN_URL` (a URL or path) and `VITE_TEACHER_URL` (an
+origin prefix, trailing slash stripped) remain as overrides for layouts that serve the panels from
+different origins, such as the two-port CI preview. The school web image drops its build arguments
+for them, which also fixes its admin build joining `/` and `/login` into a protocol-relative URL.
+The per-app
 `vercel.json` files and `infra/vercel-gateway` are removed. The `js` CI job builds the same package,
 so the assembled layout is checked on every pull request.
 

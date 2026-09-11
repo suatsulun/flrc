@@ -29,15 +29,17 @@ import { LanguageSwitch } from "@flrc/ui/components/language-switch";
 import { LOGO_URL, SCHOOL_SHORT_NAME } from "@flrc/branding";
 
 // One public origin serves both panels (ADR-022); development runs them on two ports.
-const teacherUrl =
-  import.meta.env.VITE_TEACHER_URL ?? (import.meta.env.DEV ? "http://localhost:5173" : "/");
+// The value is an origin prefix without a trailing slash; empty means this origin.
+const teacherOrigin = (
+  import.meta.env.VITE_TEACHER_URL ?? (import.meta.env.DEV ? "http://localhost:5173" : "")
+).replace(/\/+$/, "");
 
 export const Route = createFileRoute("/_auth")({
   beforeLoad: async ({ context }) => {
     const user = await context.queryClient.ensureQueryData(sessionOptions()).catch(() => {
-      throw redirect({ href: `${teacherUrl}/login` });
+      throw redirect({ href: `${teacherOrigin}/login` });
     });
-    if (!user.is_admin && !user.is_coordinator) throw redirect({ href: teacherUrl });
+    if (!user.is_admin && !user.is_coordinator) throw redirect({ href: `${teacherOrigin}/` });
     return { user };
   },
   component: AdminLayout,
@@ -59,7 +61,7 @@ function AdminLayout() {
       return;
     }
     queryClient.clear();
-    window.location.replace(`${teacherUrl}/login`);
+    window.location.replace(`${teacherOrigin}/login`);
   };
 
   return (
@@ -82,7 +84,7 @@ function AdminLayout() {
             ariaLabel={t("shell.language")}
           />
           <a
-            href={teacherUrl}
+            href={`${teacherOrigin}/`}
             className="hidden rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"
           >
             {t("goToTeacher")}

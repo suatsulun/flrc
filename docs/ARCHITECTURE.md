@@ -1,6 +1,15 @@
-# FL-ReportCard — Architecture Companion
+# FL-ReportCard: Architecture Companion
 
 _Deep-theory companion to `HANDBOOK.md`. The handbook is the assembly manual. This file explains the decisions underneath the assembly: domain model reasoning, deployment boundaries, security/KVKK posture, save semantics, report generation, and operational tradeoffs._
+
+## Current implementation (2026-09-11)
+
+This companion describes the current repository; `docs/TODO.md` distinguishes committed code,
+pending edits, and unverified release gates. The original fourteen-table build now has sixteen
+mapped tables. Current report and deployment behavior includes ADR-028 and ADR-053 through
+ADR-063.
+ADR-063 and the accompanying year-order/PDF-batching edits are pending in the working tree;
+they are not proof of a deployed migration. See [the AI review handoff](AI-HANDOFF.md).
 
 ## How to use this file
 
@@ -12,11 +21,11 @@ The project is an internal school report-card system. Its central constraints ar
 2. **School data is sensitive.** Student data must not appear in source control, demo data, logs, crash reports, or third-party services that do not need it.
 3. **The system must be cheap to run.** The chosen architecture deliberately fits free or near-free tiers.
 4. **The project is also a learning portfolio.** It should use real production patterns without hiding all the hard parts behind a framework.
-5. **The school year is a lifecycle.** Data changes state over time: draft, open, closed, archived, and reportable.
+5. **The school year is a lifecycle.** Academic years move from setup to active to archived; semesters open and lock within them.
 
 ---
 
-# §1 — Product shape and non-negotiables
+# §1: Product shape and non-negotiables
 
 ## §1.1 The problem
 
@@ -26,7 +35,7 @@ The system therefore has four product surfaces:
 
 - **Teacher daily surface:** fast, simple grade entry and observations.
 - **Admin setup surface:** classes, students, teachers, teaching assignments, columns, imports, lifecycle controls.
-- **Coordinator oversight surface:** completeness, exceptions, audit trails, report generation jobs.
+- **Coordinator oversight surface:** completeness, exceptions, audit trails, and report generation.
 - **Operations surface:** backups, restore drill, logging, deployment, rollback.
 
 ## §1.2 The architectural target
@@ -38,7 +47,7 @@ fl-reportcard/
 ├── apps/
 │   ├── teacher/
 │   ├── admin/
-│   └── api/
+│   └── backend/
 ├── packages/
 │   ├── ui/
 │   ├── api-client/
@@ -70,18 +79,19 @@ These "must nots" are the hidden backbone of many implementation choices.
 
 ---
 
-# §2 — Runtime architecture and hosting boundaries
+# §2: Runtime architecture and hosting boundaries
 
 ## §2.1 Deployables
 
 The system has six deployable/runtime things:
 
-1. `apps/teacher` — React SPA for normal teachers.
-2. `apps/admin` — React SPA for admins/coordinators.
-3. Public gateway — fixed path router composing the two SPAs and `/api/*` under one origin.
-4. `apps/backend` — FastAPI web service.
-5. `apps/backend` in worker mode — Celery worker, deployed separately.
-6. GitHub Actions — CI, keep-alive, backup, demo reset, and release checks.
+1. `apps/teacher`: React SPA for normal teachers.
+2. `apps/admin`: React SPA for admins/coordinators.
+3. Public gateway: fixed path router composing the two SPAs and `/api/*` under one origin.
+4. `apps/backend`: FastAPI web service.
+5. `apps/backend` in worker mode: Celery worker, deployed separately.
+6. Operations: GitHub Actions for CI, opt-in demo schedules, and releases; a school backup
+   service for nightly dumps, monthly restore tests, and archived-year bundles.
 
 The two frontends are separate because they have different blast radii. A broken admin dialog should not block every teacher from saving grades. The teacher app must stay boring, fast, and narrow.
 
@@ -90,7 +100,7 @@ The two frontends are separate because they have different blast radii. A broken
 The project supports two deployment profiles with the same application images and configuration
 contract.
 
-The preferred managed profile uses:
+The managed profile uses:
 
 - static hosting for frontends;
 - Render free web service for the API;
@@ -101,7 +111,8 @@ The preferred managed profile uses:
 - school-owned Google Drive for backups and final export storage.
 
 The school-hosted profile uses one school-controlled VM with Caddy, both compiled SPAs, FastAPI,
-the Celery worker, PostgreSQL, and Redis orchestrated by Docker Compose. Only Caddy publishes host
+the Celery worker, a backup service, PostgreSQL, and Redis orchestrated by Docker Compose
+from `infra/school-template/compose.yaml`. Only Caddy publishes host
 ports; PostgreSQL and Redis remain on the internal container network. Persistent database storage
 does not replace off-machine backups.
 
@@ -110,13 +121,16 @@ keep-alive schedule is a deliberate compromise: conserve Render free hours while
 starts during normal use. The worker has no official free worker dyno, so it runs as a web service
 with a tiny health endpoint and a Celery process command.
 
-This means every slow operation must be shaped as a job:
+Whole-year workbook exports use durable jobs:
 
 - enqueue request quickly;
 - store durable status in Postgres;
 - wake the worker if needed;
 - poll job status through the API;
 - keep Redis as a broker, not as the source of truth.
+
+The four PDF report sets are a documented exception (ADR-028): the authenticated request returns
+one PDF directly, with rendering offloaded from the async event loop. See §7 for the boundaries.
 
 ## §2.3 Same-origin proxy rule
 
@@ -144,7 +158,7 @@ compiled SPAs and performs the same routing job.
 The public browser boundary is one origin. The SPAs remain separate deployables, but the gateway
 composes them by path:
 
-Recommended production shape:
+Managed production shape:
 
 ```text
 flrc.<school-domain>/          → teacher SPA
@@ -182,8 +196,8 @@ surface.
 
 Use two database URL roles:
 
-- `DATABASE_URL` — normal application traffic; this is pooled when the provider offers a pooler.
-- `DATABASE_URL_DIRECT` — migrations and backup/restore operations; on a simple self-hosted
+- `DATABASE_URL`: normal application traffic; this is pooled when the provider offers a pooler.
+- `DATABASE_URL_DIRECT`: migrations and backup/restore operations; on a simple self-hosted
   PostgreSQL instance it may initially identify the same server.
 
 Migrations through a transaction pooler can fail in confusing ways. The direct URL is not optional ceremony; it protects schema operations.
@@ -200,43 +214,41 @@ The `job_runs` table stores:
 - status;
 - progress counters;
 - sanitized error code/message;
-- artifact pointer;
+- output metadata, deferred Postgres blob, and expiry;
 - timestamps.
 
 The UI reads job status from the API, and the API reads from Postgres.
 
 ---
 
-# §3 — Domain model
+# §3: Domain model
 
 ## §3.1 Table inventory
 
-The application deliberately uses fourteen core tables:
+The current ORM maps sixteen tables in `apps/backend/src/flrc/db/models.py`:
 
-1. `users`
-2. `teacher_allowlist`
-3. `academic_years`
-4. `classes`
-5. `students`
-6. `enrollments`
-7. `teaching_assignments`
-8. `sessions`
-9. `report_columns`
-10. `grade_values`
-11. `delegate_grants`
-12. `save_batches`
-13. `audit_entries`
-14. `job_runs`
+| Area                    | Tables                                                       |
+| ----------------------- | ------------------------------------------------------------ |
+| Identity and access     | `users`, `demo_visitors`, `report_identity_audits`           |
+| Academic structure      | `academic_years`, `semesters`, `school_classes`              |
+| Student placement       | `students`, `enrollments`, `student_languages`               |
+| Teaching and assessment | `teaching_assignments`, `column_definitions`, `grade_values` |
+| Grade accountability    | `save_batches`, `audit_entries`, `override_grants`           |
+| Background work         | `job_runs`                                                   |
 
-The number matters because it reveals a design discipline: do not create one table per UI whim. Model durable business facts only.
+The handbook's original fourteen tables were extended by `demo_visitors` (ADR-051) and
+`report_identity_audits` (ADR-057). Allowlisting is represented by active pre-registered `users`;
+there is no separate SQL allowlist or sessions table. Sessions live in Redis. Count durable
+business facts rather than treating the original table count as a permanent limit.
 
 ### Why no `grades` table per subject?
 
-Columns are data. A subject, skill, term, score, observation, or scale choice is represented by a configured `report_column`, not by a new SQL column or new table. This makes the school year configurable without migrations.
+Columns are data. A subject, skill, term, score, observation, or scale choice is represented by a configured `column_definitions` row, not by a new SQL column or new table. This makes the school year configurable without migrations.
 
 ### Why no `class_id` on `grade_values`?
 
-A grade belongs to a student enrollment, subject/assignment context, and report column. Classes are historical groupings that can change. Storing class directly on grade rows would create contradictions after roster moves.
+A grade is keyed by stable `student_id` and `column_definition_id`; its column supplies the
+semester, grade level, and subject, while enrollment supplies the class in that year. Classes are historical groupings that can change. Storing class directly on grade rows would create contradictions after roster moves.
 
 ### Why no gender column?
 
@@ -246,52 +258,42 @@ Gender is not required for report-card generation or grade entry. Import files m
 
 Academic years and semesters are state machines, not booleans.
 
-Suggested year states:
-
-- `draft` — setup is in progress; admins can import, edit, configure.
-- `active` — teachers can work in currently open semesters.
-- `closed` — no normal writes; reports and exports are allowed.
-- `archived` — historical browsing only.
-
-Suggested semester states:
-
-- `setup`
-- `open`
-- `locked`
-- `reported`
+Persisted year states are `setup`, `active`, and `archived`. Persisted semester states are
+`open` and `locked`; there are two semesters per year and at most one may be open. A newly
+created setup year starts with both locked. Activation opens semester 1; advancing locks 1 and
+opens 2; locking 2 permits explicit year close. Exceptional reopening is admin-only and locks
+the other semester first. `draft`, `closed`, and `reported` are not additional database states.
 
 Every write endpoint that changes teacher-entered grade data must pass through a lifecycle dependency such as `writable_semester`. This avoids scattering calendar logic across services.
 
 ## §3.3 Columns as data
 
-A `report_column` describes what a teacher can fill:
+A `column_definitions` row describes what a teacher can fill: semester, grade level, subject,
+owner role, localized labels/group labels, `value_type`, average participation, position, and
+active status. It is shared across classes in that grade/subject/semester.
 
-- academic year;
-- term/semester;
-- subject or subject group;
-- skill category;
-- label translations;
-- column type;
-- min/max or allowed values;
-- ordering;
-- required/optional status;
-- report visibility;
-- active/inactive status.
+The three persisted types are `score` (0-100), `scale3` (1-3), and `text` (written comments).
+There are no separate per-column required, attendance-code, min/max, or report-visibility fields.
+The backend validates values and programme eligibility.
 
-Default column sets use stable semantic identifiers in seed code, such as
-`active_class_participation`, so the fixture remains readable when wording changes. Those
-identifiers are not translation keys consumed by the frontend and are not persisted as the
-display label. The seed resolves each identifier to a complete `tr`/`en`/`de`/`fr` label object
-and stores that object with the column. This preserves the central rule that report definitions
-are school-owned data rather than application chrome.
+Default column sets use semantic identifiers in seed code. Stored labels are school-owned data,
+not frontend translation keys. Some rubric rows supply Turkish plus the report language; missing
+UI-language labels fall back through the shared `academics/fields.py` helper. UI chrome uses the
+four complete locale bundles in `packages/i18n`.
 
-Column types should be explicit. Examples:
+Current programme rules (ADR-060, amended by pending ADR-063):
 
-- numeric score;
-- three-point skill scale;
-- text observation;
-- attendance/value code;
-- second-language comment.
+- English grades 1-4: default grouped ratings plus teacher comments.
+- English grades 5-8: eleven default numeric columns; no teacher-comment fields.
+- German/French grade 4: ratings and comments, without numeric scores or averages.
+- German/French grades 5-8: configured scores, ratings, and comments.
+
+`academics/programme.py` centralizes type checks for create/update, seed, copy, and rollover.
+Live grid reads/saves and the report builder select active definitions, so the retirement migration
+must be applied before using the new application against an existing database. Migration `82a91f4c6d30` retires existing middle-English text definitions, including
+archived years, without deleting their values or audit history. Archive/history and report
+projections omit those fields; audit/workbook exports retain underlying records. The migration's
+downgrade is intentionally non-reactivating.
 
 Do not let the frontend invent validation rules. The backend returns column definitions; the UI renders cells from those definitions; the save endpoint validates again using the same persisted rules.
 
@@ -310,11 +312,12 @@ preparation or import, and activation rejects the year until all numbers are pre
 
 `users.teaching_field` constrains subject ownership: English permits `main` and `skills`; German and
 French permit only their matching roles. English users also have a required `teaching_stage`
-(`primary` for grades 1–4 or `middle` for grades 5–8). Both assignment routes enforce field and
+(`primary` for grades 1-4 or `middle` for grades 5-8). Both assignment routes enforce field and
 stage; the assignment board can filter the same five operational groups: all, primary, middle,
 German, and French.
 
-`delegate_grants` answer: _Which teacher temporarily has permission to edit another teacher's area, who granted it, why, and until when?_
+`override_grants` record a user, class, role, and expiry for temporary cross-role editing.
+They do not expand the teacher's class/subject read boundary or store a free-form reason.
 
 A teacher can save a cell only if:
 
@@ -322,7 +325,7 @@ A teacher can save a cell only if:
 2. the user is allowed and active;
 3. the academic year/semester is writable;
 4. the report column is active and applicable;
-5. the teacher owns the assignment or holds a live grant;
+5. assignment scope and the existing ownership/grant/explicit-confirmation rules pass;
 6. the submitted value matches the column type;
 7. the optimistic version check passes.
 
@@ -336,14 +339,16 @@ Every editable cell has a version. The client sends:
 
 ```json
 {
-  "studentId": "...",
-  "columnId": "...",
+  "student_id": 1,
+  "column_id": 2,
   "value": 91,
-  "expectedVersion": 3
+  "expected_version": 3
 }
 ```
 
-The backend performs structural checks, permission checks, then a compare-and-set update.
+The save request wraps up to 2,000 cells with its subject and explicit confirmation flags.
+The backend performs structural checks, permission checks, and then version-checked writes. The SQL
+below is conceptual; stored values use `score`, `scale`, or `text_value`, not a generic `value`.
 
 Conceptually:
 
@@ -354,23 +359,20 @@ SET value = :value,
     updated_by = :user_id,
     updated_at = now()
 WHERE student_id = :student_id
-  AND column_id = :column_id
+  AND column_definition_id = :column_id
   AND version = :expected_version;
 ```
 
-If `rowcount = 1`, the save applied. If `rowcount = 0`, someone else changed the cell first, or the row did not exist. The service then determines whether to insert, report conflict, or reject the write.
+If `rowcount = 1`, the save applied. If `rowcount = 0`, someone else changed the cell first, or the row did not exist. The service then determines whether to insert, report a conflict, or reject the write.
 
-The response must be per-cell, not just `ok: true`, because a batch can partly apply:
-
-- `applied`
-- `conflict`
-- `invalid`
-- `forbidden`
-- `stale_column`
+The response is per-cell because a batch can partly apply: `applied` returns cell ids and new
+versions, `conflicts` returns the competing values and attribution, and `rejected` returns a
+machine-readable reason. Use `SaveResponse` in `modules/grades/router.py` and generated client
+types for the exact contract.
 
 A successful save also writes:
 
-- one `save_batch` row for the button press;
+- one `save_batches` row for the button press;
 - one or more `audit_entries` rows for meaningful changes.
 
 The audit entry should not be noisy, but it must answer: who changed what, when, from which value to which value, and under what permission path.
@@ -385,24 +387,18 @@ This lets the client use one dirty-map shape for both new and existing values.
 
 Audit is not a debugging log. It is a business record.
 
-Audit entries should be structured and queryable:
-
-- actor user id;
-- action type;
-- entity type;
-- entity id;
-- academic year;
-- class/student/column context when relevant;
-- old value/new value for grade changes;
-- reason or grant id when relevant;
-- request id;
-- timestamp.
+Grade audit entries record batch, actor, student and column ids; old/new typed values;
+`old_existed`; forced-write status; optional override grant id; and timestamps. They support
+undo and attribution. They are not a generic audit table for every entity or lifecycle action.
+Teacher report-identity edits have their own `report_identity_audits` before/after records.
+Operational lifecycle events are logged with machine identifiers; do not claim those events
+have the same durable storage as grade audit entries.
 
 Never store sensitive free-form dumps. Store the minimum structured facts needed for accountability.
 
 ---
 
-# §4 — Implementation architecture
+# §4: Implementation architecture
 
 ## §4.1 Monorepo rationale
 
@@ -450,6 +446,8 @@ src/flrc/
 │   ├── reports/        # report data, templates, rendering, endpoints
 │   ├── jobs/           # durable job state and endpoints
 │   ├── audit/          # audit queries
+│   ├── backup/         # encryption, Drive, restore tests and archives
+│   ├── demo/           # temporary visitors and demo reset
 │   └── archive/        # archival workflows
 ├── workers/            # Celery app, tasks, and worker health process
 ├── cli.py              # Typer commands
@@ -466,7 +464,8 @@ dependencies. SQLAlchemy statements should be testable without a running server.
 
 Deployment orchestration lives under `infra/`. Development services use
 `infra/compose/compose.dev.yaml`; a school-controlled VM uses
-`infra/compose/compose.production.yaml` plus `infra/caddy/Caddyfile`; managed-provider definitions
+the copied `infra/school-template/compose.yaml` and the Caddy configuration in
+`infra/web/Caddyfile`; managed-provider definitions
 live in provider-named folders such as `infra/render/`. Application-specific Dockerfiles remain
 beside the applications they build.
 
@@ -532,7 +531,8 @@ This gives two gates:
 - the account belongs to the school domain;
 - the school/admin intentionally allowed that teacher.
 
-Departed teacher handling is immediate: deactivate allowlist entry and revoke/delete active sessions.
+Departed teacher handling is immediate: deactivate the allowlist entry and revoke/delete active
+sessions.
 The stable Google subject prevents a newly created account that reuses a departed teacher's email
 from inheriting access. Resetting that binding is an explicit admin action performed only while the
 allowlist row is inactive.
@@ -567,8 +567,8 @@ Rules:
 - API returns stable machine codes for errors and statuses;
 - frontend translates machine codes;
 - report column and group labels are stored per locale, with Turkish as the required fallback;
-- deterministic seed columns provide Turkish, English, German, and French values that fluent
-  school staff review before production;
+- seed columns provide a Turkish fallback plus available report-language translations; fluent
+  school staff review the configured labels before production;
 - seed-only semantic identifiers never become a second runtime translation system;
 - no literal UI strings in production components after the i18n step lands.
 
@@ -578,17 +578,17 @@ Backend errors should be stable and machine-readable:
 
 ```json
 {
-  "code": "SEMESTER_LOCKED",
-  "message": "This semester is locked.",
-  "details": {}
+  "detail": { "code": "semester_locked" }
 }
 ```
 
-The frontend displays localized user-facing text. Logs include the code and request id, not student data.
+This is a FastAPI exception example; middleware can return a top-level `code`. The frontend
+normalizes these envelopes and displays localized user-facing text. Logs include the code and
+request id, not student data.
 
 ---
 
-# §5 — Teacher grid architecture
+# §5: Teacher grid architecture
 
 ## §5.1 Server state vs unsaved human input
 
@@ -608,11 +608,14 @@ Each dirty entry stores:
 
 - typed value;
 - expected server version;
-- validation state;
-- last edited timestamp;
-- optional client-side note/error.
+- student and column ids.
 
-The header Save button observes dirty count. The leave guard blocks navigation when dirty count is nonzero.
+Validation/error presentation is handled outside the entry; the current `DirtyCell` has no
+persisted timestamp or client-note fields. Bulk ratings preserve the original expected version
+of an existing draft and do not submit until Save.
+
+The header Save button observes the dirty count. The leave guard blocks navigation when the dirty
+count is nonzero.
 
 ## §5.3 Cell components
 
@@ -627,7 +630,7 @@ They receive column definition, student context, server value, and dirty state. 
 
 ## §5.4 No premature virtualization
 
-A class has roughly 20–35 rows. Column count can be moderately high but still manageable. Virtualization adds keyboard, focus, pinned column, and accessibility complexity. Do not add it until measured performance proves it is needed.
+A class has roughly 20-35 rows. Column count can be moderately high but still manageable. Virtualization adds keyboard, focus, pinned column, and accessibility complexity. Do not add it until measured performance proves it is needed.
 
 The learning target is cell semantics and save correctness, not virtualization theater.
 
@@ -637,14 +640,15 @@ The grid is not a destination hidden behind a dashboard. Teacher routes expose a
 semester, grade, subject, and same-grade class tabs directly above the grid, and the default route
 opens the first usable board. Admin uses the same table metaphor for roster setup: class tabs are
 drop targets, students are rows, and column/teacher controls live at the table boundary. This keeps
-the dominant object—the class table—stable while its context changes.
+the dominant object (the class table) stable while its context changes.
 
 All primary tables use the document as their only vertical scrolling surface. They do not create
 horizontal or nested vertical scroll containers: fixed-layout columns divide the available width,
 cell controls shrink to their column, and long labels wrap. Class and context tabs wrap as well.
 This makes every field discoverable without a hidden sideways region. The shared shell's side and
-top panels can be minimized for more working width, but the expanded layout must still fit every
-column. While a student is dragged, holding the pointer near the viewport's top or bottom edge
+top panels can be minimized for more working width. Sentence assessments page across four or
+five columns at laptop widths; all configured assessments remain reachable. Middle-English numeric
+columns use the angled overview when space permits, with paging on narrower screens. While a student is dragged, holding the pointer near the viewport's top or bottom edge
 auto-scrolls the document so distant class tabs remain reachable.
 
 ## §5.5 Conflict UX
@@ -661,7 +665,7 @@ Conflict handling must be understandable to teachers who do not care about optim
 
 ---
 
-# §6 — Admin, importer, and lifecycle architecture
+# §6: Admin, importer, and lifecycle architecture
 
 ## §6.1 Admin CRUD scope
 
@@ -679,7 +683,7 @@ Included:
 - imports;
 - audit and completeness views.
 
-Excluded unless future ADR says otherwise:
+Excluded unless a future ADR says otherwise:
 
 - attendance management outside report-card needs;
 - parent accounts;
@@ -712,9 +716,11 @@ Dry-run returns:
 - blocking errors;
 - proposed class/student/enrollment changes;
 - file SHA-256;
-- short-lived import token or server-side staging reference.
+- `review_sha256` binding the original file, year, and normalized staged roster edits.
 
-Commit must include the same SHA-256. This prevents "dry-run file A, commit file B" accidents.
+Commit reparses the same bytes and validates the same typed draft operations. A reviewed commit
+includes matching file and review digests; legacy file-only commits remain supported. There is
+no required server-side staging row or import-token table (ADR-047 and ADR-048).
 
 ## §6.4 Lifecycle controls
 
@@ -722,13 +728,14 @@ Lifecycle transitions should be explicit button actions with confirmation and pr
 
 Examples:
 
-- open semester;
-- lock semester;
-- mark reports generated;
-- close academic year;
-- archive academic year.
+- create or activate a setup year;
+- advance to semester 2 or lock semester 2;
+- exceptionally reopen a semester;
+- close the active year into the archived state.
 
-Each transition writes an audit entry. Some transitions require no incomplete required fields. Others may allow exceptions but must surface them.
+Services lock lifecycle rows and enforce preconditions. Close-year verifies the typed year label
+and a fresh audit-export digest. Completeness is surfaced for the operator; it is not a universal
+required-cell blocker. Lifecycle events use structured logs; grade writes use durable audit rows.
 
 ## §6.5 Archive browsing
 
@@ -737,7 +744,7 @@ Archived data is read-only. The UI may let admins and coordinators browse previo
 Longitudinal student history should derive from enrollments and grade/report data, not by mutating old rows into a new shape.
 
 Closing a standard `YYYY-YYYY` year after both semesters are locked creates the next setup year in
-the same transaction. Class structure, teacher assignments, column templates, promoted grade 1–7
+the same transaction. Class structure, teacher assignments, column templates, promoted grade 1-7
 students, and second-language choices are copied. Grade values, old school numbers, audit entries,
 and grade 8 enrollments are not copied. The promoted enrollment keeps the same student id, which is
 the longitudinal connection, and receives a fresh sequential number in the new year. A partial
@@ -746,7 +753,7 @@ opening another.
 
 ---
 
-# §7 — Reports, jobs, exports, and operations
+# §7: Reports, jobs, exports, and operations
 
 ## §7.1 Report rendering shape
 
@@ -764,36 +771,47 @@ Jinja2 + WeasyPrint is chosen because report cards are layout-heavy documents an
 
 The Docker image carries WeasyPrint's system dependencies so production matches local execution.
 
-## §7.3 Job model
+## §7.3 Direct reports and durable export jobs
 
-PDF batches and exports are jobs because they can be slow.
+`GET /api/reports/pdf` returns a complete semester set for `english_elementary`, `english_middle`,
+`german_karne`, or `french_karne` to coordinators/admins. The data builder runs before rendering;
+WeasyPrint runs outside the async event loop. The browser keeps an opened tab in a generating
+state until the PDF arrives (ADR-028). There is no current report-job creation endpoint.
 
-A report generation request should:
+`POST /api/exports/year/{year_id}` creates an admin-only `year_export` job and enqueues its id.
+Celery uses JSON messages, ignores results, and stores progress/output in `job_runs`. Polling and
+downloads go through authenticated job routes. The seven-sheet writer streams batches of at most
+1,000 rows and neutralizes formula-like strings (ADR-062).
 
-1. create a `job_runs` row;
-2. enqueue a Celery task with the job id;
-3. return immediately;
-4. let the frontend poll `/api/jobs/{id}`;
-5. update progress in Postgres;
-6. store final artifact in durable storage;
-7. expose a short-lived download route.
+The pending PDF change bounds each WeasyPrint layout document to at most 16 render units,
+submits at most one wave per pool size, and retains bounded batches when the pool fails.
+Units represent template sheets or cards, not a universal page count. Final PDF parts and report
+DTOs still occupy memory; this does not establish constant memory for the whole request.
 
-## §7.4 Artifact durability
+## §7.4 Artifact durability and private identities
 
-Do not rely on Render filesystem for final report bundles. Render's filesystem is ephemeral. Use a durable target such as school-owned Google Drive or object storage. Local temp files are allowed only during rendering.
+Year-export blobs live temporarily in a deferred `job_runs.output_blob` column, with a 24-hour
+expiry. Downloads reject expired output; `flrc purge-job-outputs` removes expired blobs. Direct
+PDF responses are not saved there. Never rely on an API/worker's local filesystem for durability.
+
+Teacher report names and normalized PNG signatures are stored in Postgres with identity audits.
+Private templates, principal identities, signatures, and PDF covers live in the school's deployment
+repository under `branding/reports/`, mounted into report processes. Only the public branding files
+are mounted into the web service. See [branding](../branding/README.md) and ADR-057.
 
 ## §7.5 Backups
 
-The system needs backups because Neon's restore window is not the whole recovery strategy.
+The school-hosted backup service (ADR-056) makes nightly age-encrypted dumps to a school-owned
+Google Shared Drive. It retains the newest `BACKUP_RETAIN` copies (default 7), verifies a restored
+copy monthly, and creates archived-year bundles with PDFs, workbook, encrypted dump, and manifest.
+Archive bundles remain until the school removes them under its own policy. Their PDFs/workbooks
+are readable school records, not age-encrypted dumps, so Drive access remains an authorization
+boundary. The status file and deployment-repository freshness job provide operational evidence.
 
-Minimum backup story:
-
-- weekly `pg_dump` from direct database URL;
-- encrypted or access-controlled upload to school-owned Google Drive folder;
-- retention policy;
-- logged success/failure;
-- alert path when backup fails;
-- documented restore drill.
+There is no root `.github/workflows/backup.yml` in the current tree. The handbook's weekly-workflow
+example is historical. Managed deployments must arrange and prove their own compatible schedule;
+none is established by merely copying the application repo. See [SELF-HOSTING.md](SELF-HOSTING.md)
+and [RESTORE-DRILLS.md](RESTORE-DRILLS.md).
 
 ## §7.6 Restore drill
 
@@ -801,16 +819,16 @@ A backup is unproven until restored.
 
 Restore drill procedure:
 
-1. create temporary database or branch;
-2. restore latest dump;
+1. create a temporary database or branch;
+2. restore the latest dump;
 3. run smoke queries;
 4. verify expected row counts;
-5. run app against restored DB in safe mode if needed;
+5. run the app against the restored DB in safe mode if needed;
 6. record the result in an operations log.
 
 ---
 
-# §8 — Security, privacy, and KVKK posture
+# §8: Security, privacy, and KVKK posture
 
 ## §8.1 Data minimization
 
@@ -927,7 +945,7 @@ Before launch and at least once per term:
 
 ---
 
-# §9 — Testing strategy
+# §9: Testing strategy
 
 ## §9.1 Backend tests
 
@@ -964,8 +982,8 @@ Playwright should cover the actual risks:
 
 - login/session smoke through test harness or seeded auth;
 - teacher saves a grade;
-- admin closes semester and teacher cannot write;
-- two teachers edit same cell and conflict appears;
+- admin closes the semester and the teacher cannot write;
+- two teachers edit the same cell and a conflict appears;
 - report job starts and reaches downloadable status;
 - archive year is browse-only.
 
@@ -973,7 +991,7 @@ The two-user test must use isolated browser contexts or request contexts. Sharin
 
 ---
 
-# §10 — Deployment and rollback
+# §10: Deployment and rollback
 
 ## §10.1 Environments
 
@@ -1003,14 +1021,14 @@ For breaking API/client changes, use backward-compatible transitions or deploy i
 
 Rollback must be documented before launch.
 
-Frontend rollback is usually easiest: redeploy previous static build. API rollback is harder if migrations changed schema. Any destructive migration requires a special decision record and backup confirmation.
+Frontend rollback is usually easiest: redeploy the previous static build. API rollback is harder if migrations changed the schema. Any destructive migration requires a special decision record and backup confirmation.
 
 ## §10.4 First-week operations
 
 During the first week:
 
 - check job queue daily;
-- check backup action result;
+- check the backup status file and deployment-repository freshness result;
 - watch Sentry;
 - collect teacher friction points;
 - avoid adding features unless a blocker appears;
@@ -1018,14 +1036,14 @@ During the first week:
 
 ---
 
-# §11 — Performance expectations
+# §11: Performance expectations
 
 The app should feel instant for normal teacher operations.
 
 Expected scale:
 
 - around 30 teachers;
-- classes around 20–35 students;
+- classes around 20-35 students;
 - limited concurrent edits;
 - report generation in batches;
 - one school database.
@@ -1046,19 +1064,19 @@ page shows a skeleton plus a non-blocking activity indicator. Mutations disable 
 control and overlay a spinner without changing the control's width. Long jobs also publish toast
 state transitions, while errors use the same in-app feedback system. The teacher and admin class
 workspaces prefetch the other class tabs in the selected grade after the current table settles;
-this bounded warm-up is at most one grade's A–G classes, not the whole school, and each browser
+this bounded warm-up is at most one grade's A-G classes, not the whole school, and each browser
 warms those tabs sequentially to avoid multiplying a twenty-user arrival into a large request burst.
 
 The four direct PDF report sets remain synchronous at the API boundary (ADR-028), but the browser
 fetches the PDF as a blob while keeping a user-opened tab in a generating state. When rendering
-finishes that same tab receives the PDF and the initiating button returns to idle. Whole-year XLSX
+finishes, that same tab receives the PDF and the initiating button returns to idle. Whole-year XLSX
 exports remain durable background jobs with queued/running/succeeded/failed toast transitions.
 
 ---
 
-# §12 — Configuration inventory
+# §12: Configuration inventory
 
-Core backend settings:
+Core backend settings (exact definitions/defaults are in `apps/backend/src/flrc/config.py`):
 
 ```text
 ENV
@@ -1078,10 +1096,25 @@ MAX_REQUEST_BODY_BYTES
 WORKER_HEALTH_URL
 OPS_TOKEN
 SENTRY_DSN
-DRIVE_BACKUP_FOLDER_ID
-GOOGLE_APPLICATION_CREDENTIALS_JSON
-REPORT_ARTIFACT_TTL_HOURS
+SCHOOL_NAME
+SCHOOL_LOGO_PATH
+SCHOOL_BRANDING_DIR
+REPORT_RENDER_WORKERS
+BACKUP_DIR
+BACKUP_AGE_RECIPIENT
+BACKUP_AGE_IDENTITY
+GDRIVE_SERVICE_ACCOUNT_JSON
+GDRIVE_BACKUP_FOLDER_ID
+BACKUP_AT
+BACKUP_RETAIN
+BACKUP_RESTORE_TEST_DAY
+BACKUP_TIMEZONE
 ```
+
+Demo-only settings include `DEMO_PUBLIC_LOGIN`, `DEMO_VISITOR_LIMIT_PER_DAY`, the four `NEON_*`
+reset settings, and `DEMO_RESET_TIMEZONE`. `DATABASE_URL_GOLDEN_DIRECT` is consumed by API startup
+for golden-branch migrations. Test-session login uses `E2E_AUTH_SECRET` only in test mode.
+There is no configurable `REPORT_ARTIFACT_TTL_HOURS` setting in the current implementation.
 
 Rules:
 
@@ -1093,32 +1126,41 @@ Rules:
 
 ---
 
-# §13 — Decision index
+# §13: Decision index
 
 The living decision log is `DECISIONS.md`. This architecture companion assumes at least the following decisions exist:
 
-- ADR-001 — Monorepo with pnpm and Turborepo.
-- ADR-002 — Two separate SPAs.
-- ADR-003 — FastAPI instead of Django/DRF.
-- ADR-004 — Same-origin proxy for `/api/*`.
-- ADR-005 — Server-side sessions over JWT/localStorage tokens.
-- ADR-038 — Fail-closed school authentication and managed-origin isolation.
-- ADR-006 — Synthetic demo data only.
-- ADR-007 — No direct class FK on grade rows.
-- ADR-008 — Columns as data.
-- ADR-009 — Celery on Redis with Postgres job state.
-- ADR-010 — Jinja2 + WeasyPrint for PDFs.
-- ADR-011 — Neon pooled/direct URL split.
-- ADR-012 — Google OAuth + allowlist.
-- ADR-013 — i18n from first component.
-- ADR-014 — TanStack Query for server state, Zustand for dirty state.
-- ADR-015 — Excel dry-run before commit.
-- ADR-016 — Lefthook for polyglot hooks.
-- ADR-017 — Cloudflare Pages for school production frontends.
+- ADR-001: Monorepo with pnpm and Turborepo.
+- ADR-002: Two separate SPAs.
+- ADR-003: FastAPI instead of Django/DRF.
+- ADR-004: Same-origin proxy for `/api/*`.
+- ADR-005: Server-side sessions over JWT/localStorage tokens.
+- ADR-038: Fail-closed school authentication and managed-origin isolation.
+- ADR-006: Synthetic demo data only.
+- ADR-007: No direct class FK on grade rows.
+- ADR-008: Columns as data.
+- ADR-009: Celery on Redis with Postgres job state.
+- ADR-010: Jinja2 + WeasyPrint for PDFs.
+- ADR-011: Neon pooled/direct URL split.
+- ADR-012: Google OAuth + allowlist.
+- ADR-013: i18n from first component.
+- ADR-014: TanStack Query for server state, Zustand for dirty state.
+- ADR-015: Excel dry-run before commit.
+- ADR-016: Lefthook for polyglot hooks.
+- ADR-017: Cloudflare Pages for managed school production frontends.
+- ADR-028: Direct four-set PDF reports; durable background year exports.
+- ADR-035 through ADR-037: Table workspaces, yearly identity, and rollover behavior.
+- ADR-051 and ADR-052: Temporary synthetic demo visitors and nightly branch reset.
+- ADR-053 through ADR-058: Release images, runtime branding, school hosting/backups, private
+  report identities.
+- ADR-059 through ADR-061: Bulk rating drafts, comments, and assessment navigation; ADR-063
+  amends comments.
+- ADR-062: Bounded bulk reads, streaming exports, and shared field behavior.
+- ADR-063: No middle-school English opinion field (working-tree implementation pending review).
 
 ---
 
-# §14 — Change rule
+# §14: Change rule
 
 When the implementation deviates from this architecture:
 

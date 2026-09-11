@@ -127,7 +127,7 @@
     "adminDraftAccessBody": "Sie können Entwurfswerte vorbereiten. Beim Speichern bestätigen Sie die Nutzung Ihrer Verwaltungsrechte; der Vorgang bleibt im Protokoll.",
     "ownershipWarningTitle": "Diese Änderungen liegen außerhalb Ihrer Kurse",
     "ownershipWarningBody": "Prüfen Sie die zuständigen Lehrkräfte unten und bestätigen Sie, dass Sie diese Werte speichern möchten. Der Vorgang wird protokolliert.",
-    "adminOwnershipWarningBody": "Prüfen Sie die zuständigen Lehrkräfte unten. Ihre Verwaltungsrolle erlaubt diese Änderungen, bitte bestätigen Sie dennoch.",
+    "adminOwnershipWarningBody": "Prüfen Sie die zuständigen Lehrkräfte unten. Ihre Verwaltungsrolle erlaubt diese Änderungen. Bitte bestätigen Sie dennoch vor dem Speichern.",
     "confirmAndSave": "Bestätigen und speichern",
     "adminSave": "Als Verwaltung speichern",
     "emptyTitle": "Kein Notenraster eingerichtet",
@@ -136,10 +136,10 @@
     "assessmentFocusHint": "Wählen Sie eine Kategorie oder blättern Sie durch die Spalten. Ihre Entwurfswerte bleiben dabei erhalten.",
     "assessmentCategories": "Bewertungskategorien",
     "allAssessments": "Alle Bewertungen",
-    "assessmentRange": "Bewertungen {{start}}–{{end}} von {{total}}",
+    "assessmentRange": "Bewertungen {{start}}-{{end}} von {{total}}",
     "previousAssessments": "Zurück",
     "nextAssessments": "Weiter",
-    "gradeFourScaleOnly": "In Klasse 4 werden Deutsch und Französisch mit der Skala 1–2–3 und Lehrerkommentaren bewertet, ohne numerische Noten.",
+    "gradeFourScaleOnly": "In Klasse 4 werden Deutsch und Französisch mit der Skala 1-2-3 und Lehrerkommentaren bewertet, ohne numerische Noten.",
     "teacherNotes": "Lehrerkommentare",
     "bulkStudent": "Alle Bewertungen setzen",
     "bulkClass": "Bewertungen der ganzen Klasse setzen",
@@ -248,7 +248,7 @@
     "columnName": "Spaltentitel",
     "columnType": "Spaltentyp",
     "columnOwner": "Zuständiges Fach",
-    "typeScore": "Punktzahl (0–100)",
+    "typeScore": "Punktzahl (0-100)",
     "typeScale": "Dreistufige Kompetenz",
     "typeText": "Schriftliche Notiz",
     "moveColumnLeft": "Spalte nach links",
@@ -294,7 +294,7 @@
   },
   "assignmentBoard": {
     "title": "Lehrkräfte-Zuweisung",
-    "description": "Klassen aus der Ablage in ein zulässiges Fach ziehen. Englischlehrkräfte erhalten Main oder Skills; Deutsch- und Französischlehrkräfte nur ihre Sprache.",
+    "description": "Klassen aus der Ablage in das zulässige Feld einer Lehrkraft ziehen. Englischlehrkräfte erhalten die Rolle Klassenlehrkraft oder Fachlehrkraft, Deutsch- und Französischlehrkräfte nur ihre Sprache.",
     "dropHere": "Klasse hier ablegen",
     "classTray": "Klassen",
     "classTrayHint": "Eine Klasse in ein Lehrkräftefeld ziehen.",
@@ -331,7 +331,7 @@
     "deletedInfo": "Spalte gelöscht.",
     "disabledInfo": "Die Spalte enthält Noten und wurde daher deaktiviert statt gelöscht.",
     "valueTypes": {
-      "score": "Punkte 0–100",
+      "score": "Punkte 0-100",
       "scale3": "Dreistufige Skala",
       "text": "Text"
     }
@@ -396,7 +396,7 @@
       "language_changes": "Sprachwechsel",
       "unchanged": "Unverändert"
     },
-    "noYear": "Erstellen Sie vor dem Schülerimport ein Schuljahr im Status Vorbereitung.",
+    "noYear": "Erstellen Sie vor dem Schülerimport unter Akademischer Jahreslauf ein Schuljahr im Status Einrichtung.",
     "classTray": "Klassen prüfen und Schüler verschieben",
     "classTrayHint": "Klicken Sie auf eine Klasse. Ziehen Sie einen Schüler am Griff auf die Zielklasse oder nutzen Sie die Klassenauswahl in der Zeile.",
     "destinationGrade": "Jahrgang anzeigen",
@@ -465,7 +465,7 @@
     "tableLabel": "Prüfverlauf der Notenänderungen",
     "flags": "Markierungen",
     "title": "Protokollverlauf",
-    "description": "Jede Notenänderung — mit Urheber und Zeitpunkt.",
+    "description": "Jede Notenänderung mit Urheber und Zeitpunkt.",
     "allClasses": "Alle Klassen",
     "exportCsv": "CSV exportieren",
     "exporting": "CSV wird vorbereitet…",
@@ -526,8 +526,8 @@
       "year_export": "Jahresexport"
     },
     "setScopes": {
-      "english_elementary": "Klassen 1–4",
-      "english_middle": "Klassen 5–8",
+      "english_elementary": "Klassen 1-4",
+      "english_middle": "Klassen 5-8",
       "german_karne": "Deutschklassen",
       "french_karne": "Französischklassen"
     },

@@ -44,9 +44,9 @@
     "signIn": "Google ile giriş yap",
     "signingIn": "Güvenli giriş açılıyor…",
     "signInBody": "Devam etmek için yetkili okul Google hesabınızı kullanın.",
-    "coldStartNotice": "Okul saatleri dışında sunucunun açılması bir dakikayı alabilir.",
+    "coldStartNotice": "Okul saatleri dışında sunucunun açılması bir dakika kadar sürebilir.",
     "demoSignInBody": "Herhangi bir Google hesabıyla giriş yapın. En fazla 24 saat geçerli geçici bir yönetici hesabı alırsınız; Google hesabınıza ait hiçbir bilgi saklanmaz.",
-    "demoResetInfo": "Demo okulu her gün saat {{time}} (yerel saatiniz) sıfırlanır. Kaydedilmemiş değişiklikler o anda silinir.",
+    "demoResetInfo": "Demo okulu her gün saat {{time}} (yerel saatiniz) geldiğinde sıfırlanır. Kaydedilmemiş değişiklikler o anda silinir.",
     "demoResetting": "Demo sıfırlanıyor. Giriş kısa süre içinde yeniden açılacak.",
     "errors": {
       "wrong_domain": "Lütfen okul hesabınızla giriş yapın.",
@@ -59,13 +59,13 @@
     }
   },
   "demo": {
-    "banner": "Demo okulu · saat {{time}} sıfırlanır · kaydedilmemiş değişiklikler silinir",
+    "banner": "Demo okulu · sıfırlama saati {{time}} · kaydedilmemiş değişiklikler silinir",
     "bannerSoon": "Demo {{minutes}} dk sonra sıfırlanacak. Çalışmanızı şimdi kaydedin."
   },
   "dashboard": {
     "subtitle": "Kendi dersleriniz en üstte listelenir. Diğer sınıflar inceleme için açık kalır.",
     "classCount": "Etkin sınıf",
-    "courseBoards": "Ders tablosu",
+    "courseBoards": "Ders tabloları",
     "myAssignments": "Benim derslerim",
     "allClasses": "Tüm sınıflar",
     "allClassesDescription": "Yalnızca not tablosu tanımlı sınıf ve ders eşleşmeleri görünür.",
@@ -118,7 +118,7 @@
     "keepDb": "Kayıtlı değerleri koru",
     "overwrite": "Benim değerlerimi yaz",
     "grantTitle": "Geçici düzenleme izni",
-    "grantBody": "{{label}} sütununun sorumlusu {{name}}. Bir saatlik düzenleme izni istenilsin mi?",
+    "grantBody": "{{label}} sütununun sorumlusu {{name}}. Bir saatlik düzenleme izni istensin mi?",
     "grantAccept": "İzin iste",
     "noOwner": "Atanmış sorumlu yok. Bir yöneticiyle iletişime geçin.",
     "cancel": "Vazgeç",
@@ -136,17 +136,17 @@
     "assessmentFocusHint": "Bir kategori seçin veya sütunlar arasında ilerleyin. Geçiş yaparken taslak değişiklikleriniz korunur.",
     "assessmentCategories": "Değerlendirme kategorileri",
     "allAssessments": "Tüm değerlendirmeler",
-    "assessmentRange": "{{total}} değerlendirmeden {{start}}–{{end}} arası",
+    "assessmentRange": "{{total}} değerlendirmeden {{start}}-{{end}} arası",
     "previousAssessments": "Önceki",
     "nextAssessments": "Sonraki",
-    "gradeFourScaleOnly": "4. sınıf Almanca ve Fransızca değerlendirmeleri 1–2–3 ölçeği ve öğretmen görüşlerinden oluşur; sayısal ders notu kullanılmaz.",
+    "gradeFourScaleOnly": "4. sınıf Almanca ve Fransızca değerlendirmeleri 1-2-3 ölçeği ve öğretmen görüşlerinden oluşur; sayısal ders notu kullanılmaz.",
     "teacherNotes": "Öğretmen görüşleri",
     "bulkStudent": "Tüm değerlendirmeleri değiştir",
     "bulkClass": "Sınıfın tüm değerlendirmelerini değiştir",
     "bulkStudentTitle": "{{name}} için tüm değerlendirmeler",
     "bulkClassTitle": "{{name}} sınıfının tüm değerlendirmeleri",
-    "bulkStudentHint": "Bu öğrencinin {{count}} adet 1–2–3 değerlendirmesinin tamamına uygulanır.",
-    "bulkClassHint": "Bu dersteki {{students}} öğrencinin her birinin {{count}} adet 1–2–3 değerlendirmesinin tamamına uygulanır.",
+    "bulkStudentHint": "Bu öğrencinin {{count}} adet 1-2-3 değerlendirmesinin tamamına uygulanır.",
+    "bulkClassHint": "Bu dersteki {{students}} öğrencinin her birinin {{count}} adet 1-2-3 değerlendirmesinin tamamına uygulanır.",
     "bulkSaveHint": "Tüm kategorileri kapsar. Değişiklikler Kaydet ile kaydedilir.",
     "noTeacherNotes": "Bu ders için öğretmen görüşü alanı tanımlanmamış. Yönetici, Sütunlar bölümünden bir metin alanı ekleyebilir.",
     "compactDraftAccess": "Başka öğretmenlere ait alanları kaydetmek için onayınız istenir ve işlem kayda alınır."
@@ -248,7 +248,7 @@
     "columnName": "Sütun başlığı",
     "columnType": "Sütun türü",
     "columnOwner": "Sorumlu alan",
-    "typeScore": "Puan (0–100)",
+    "typeScore": "Puan (0-100)",
     "typeScale": "Üç kademeli beceri",
     "typeText": "Yazılı not",
     "moveColumnLeft": "Sütunu sola taşı",
@@ -294,7 +294,7 @@
   },
   "assignmentBoard": {
     "title": "Öğretmen görevlendirme panosu",
-    "description": "Sınıfları sağdaki listeden öğretmenin uygun alanına sürükleyin. İngilizce öğretmenleri Main veya Skills; Almanca ve Fransızca öğretmenleri yalnız kendi dillerini alır.",
+    "description": "Sınıfları sağdaki listeden öğretmenin uygun alanına sürükleyin. İngilizce öğretmenleri Sınıf veya Beceri alanını, Almanca ve Fransızca öğretmenleri yalnızca kendi dillerini alır.",
     "dropHere": "Sınıfı buraya bırakın",
     "classTray": "Sınıflar",
     "classTrayHint": "Bir sınıfı öğretmen alanına sürükleyin.",
@@ -331,7 +331,7 @@
     "deletedInfo": "Sütun silindi.",
     "disabledInfo": "Sütunda not bulunduğu için silinmek yerine devre dışı bırakıldı.",
     "valueTypes": {
-      "score": "Puan 0–100",
+      "score": "Puan 0-100",
       "scale3": "Üç kademeli ölçek",
       "text": "Metin"
     }
@@ -340,7 +340,7 @@
     "title": "Akademik yaşam döngüsü",
     "description": "Yıl ve dönem geçişlerini açıkça yürütün.",
     "automaticTitle": "Sonraki eğitim yılı otomatik hazırlanır",
-    "automaticBody": "2. dönem kilitlenip bu yıl arşivlendiğinde sonraki yıl; sınıf sekmeleri, öğretmen görevleri, sütun şablonları, bir üst sınıfa geçen öğrenciler ve yeni sıralı okul numaralarıyla oluşturulur. Notlar asla kopyalanmaz.",
+    "automaticBody": "2. dönem kilitlenip bu yıl arşivlendiğinde sonraki yıl, sınıf sekmeleri, öğretmen görevleri, sütun şablonları, bir üst sınıfa geçen öğrenciler ve yeni sıralı okul numaralarıyla birlikte oluşturulur. Notlar asla kopyalanmaz.",
     "setupReady": "Bu yıl etkinleştirilmeye hazır.",
     "missingNumbers": "Etkinleştirmeden önce sınıf tablolarındaki {{count}} öğrenciye okul numarası verin.",
     "finishActiveYear": "Bu yılı etkinleştirmeden önce {{label}} yılını tamamlayıp arşivleyin.",
@@ -396,7 +396,7 @@
       "language_changes": "Dil değişikliği",
       "unchanged": "Değişmeyen"
     },
-    "noYear": "Öğrencileri içe aktarmadan önce Eğitim yılları sayfasında bir hazırlık yılı oluşturun.",
+    "noYear": "Öğrencileri içe aktarmadan önce Akademik yaşam döngüsü sayfasında Kurulum durumunda bir eğitim yılı oluşturun.",
     "classTray": "Sınıfları incele ve öğrenci taşı",
     "classTrayHint": "İncelemek için bir sınıfa tıklayın. Öğrencinin tutamacını hedef sınıfa sürükleyin veya satırındaki sınıf seçiciyi kullanın.",
     "destinationGrade": "Sınıf düzeyini seç",
@@ -465,7 +465,7 @@
     "tableLabel": "Not değişikliği denetim geçmişi",
     "flags": "İşaretler",
     "title": "Denetim geçmişi",
-    "description": "Her not değişikliği; kimin yaptığı ve ne zaman yaptığıyla birlikte.",
+    "description": "Her not değişikliği, kimin ve ne zaman yaptığıyla birlikte.",
     "allClasses": "Tüm sınıflar",
     "exportCsv": "CSV indir",
     "exporting": "CSV hazırlanıyor…",
@@ -526,8 +526,8 @@
       "year_export": "Yıl aktarımı"
     },
     "setScopes": {
-      "english_elementary": "1–4. sınıflar",
-      "english_middle": "5–8. sınıflar",
+      "english_elementary": "1-4. sınıflar",
+      "english_middle": "5-8. sınıflar",
       "german_karne": "Almanca sınıfları",
       "french_karne": "Fransızca sınıfları"
     },
@@ -538,7 +538,7 @@
       "french_karne": "Fransızca sütunları tanımlı sınıflarda Fransızca alan her öğrenci için tek PDF."
     },
     "status": {
-      "queued": "İşçi bekleniyor…",
+      "queued": "Arka plan işçisi bekleniyor…",
       "running": "Oluşturuluyor {{progress}} / {{total}}",
       "succeeded": "Hazır",
       "failed": "Oluşturulamadı"

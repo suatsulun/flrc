@@ -6,6 +6,11 @@ Docker network. Only Caddy publishes ports. The school's private deployment repo
 pinned release, the branding, and the deployment workflow; `infra/school-template/` in this
 repository is its starting content.
 
+Relevant handbook steps: 4.5 and 4.9-4.10. For version-specific work, read
+[RELEASING.md](RELEASING.md) and [TODO.md](TODO.md): the source snapshot on 2026-09-11 includes
+post-1.2.0 and uncommitted changes that existing 1.2.0 deployment pins do not provide. This guide
+does not assert that a server, published image, backup, or migration has been verified.
+
 ## Before the server exists
 
 1. **Accounts belong to the school.** Hetzner project, DNS zone, Google Cloud project, GitHub
@@ -13,21 +18,21 @@ repository is its starting content.
    developer is invited as a member. This keeps the school the controller of its own records.
 2. **Domain.** Choose one hostname, for example `flrc.school.k12.tr`, and keep it: it is the
    session cookie host, the OAuth callback, and the certificate name.
-3. **Google OAuth client.** In the school's Google Cloud project create an OAuth client of type
+3. **Google OAuth client.** In the school's Google Cloud project, create an OAuth client of type
    Web application with user type Internal and exactly one authorized redirect URI:
    `https://<hostname>/api/auth/callback`.
 4. **Deployment repository.** Create a private repository from `infra/school-template/` (copy
    the folder's contents, including the dotfiles). Add the repository secrets and variables
    listed in its README. Merging a pull request there is the deployment approval; a paid GitHub
    plan can additionally require a reviewer on the `school` environment.
-5. **Keys.** Generate two SSH key pairs: one for the deploy workflow (`DEPLOY_SSH_KEY`), one for
+5. **Keys.** Generate two SSH key pairs: one for the deploy workflow (`DEPLOY_SSH_KEY`) and one for
    the school's operator.
 
 ## Create the server
 
 Hetzner Cloud, an EU location, Ubuntu LTS, a 4 vCPU / 8 GB plan (CX33 or the Arm CAX21; the
 images are multi-architecture). Paste `infra/hetzner/cloud-init.yaml` with the two public keys
-filled in. Point the DNS A/AAAA records at the server. After the first boot the machine has
+filled in. Point the DNS A/AAAA records at the server. After the first boot, the machine has
 Docker, a firewall admitting only SSH and HTTPS, automatic security updates with a 04:30 reboot
 window, and the `flrc` user owning `/srv/flrc`.
 
@@ -49,7 +54,7 @@ ssh-keyscan -H <server address>
 
    Never commit the filled file anywhere.
 
-2. After the server, environment file, hostname and SSH settings are ready, set repository
+2. After the server, environment file, hostname and SSH settings are ready, set the repository
    variable `SCHOOL_DEPLOY_ENABLED=true`. Run the deployment workflow manually for the first
    deployment; later merges to `main` deploy automatically. The workflow ships `compose.yaml`
    and `branding/`, pulls the pinned images, runs the migrations,
@@ -66,7 +71,8 @@ ssh-keyscan -H <server address>
 
 ## Upgrading
 
-A new application release is a new image tag. Dependabot opens a pull request in the deployment
+A new application release is a new image tag. Update backend and web pins together only after
+both images are published. Dependabot opens a pull request in the deployment
 repository; merging it is the whole upgrade. Migrations
 run in the one-shot `migrate` service before the API starts, so a failed migration leaves the old
 containers running and the workflow red.
@@ -86,7 +92,8 @@ release notes, and the backup restore procedure remains the last resort.
 - Disk: `docker system df` and the `pgdata` volume. Report PDFs are generated on demand and export
   blobs expire after 24 hours, so growth is slow.
 - Secrets rotation: edit `/srv/flrc/.env`, then `docker compose up -d`. Rotating `GATEWAY_SECRET`
-  or `SESSION_SECRET` signs every teacher out.
+  requires matching values on web and API; it does not itself invalidate Redis sessions.
+  Rotating `SESSION_SECRET` invalidates existing signed cookies and signs every teacher out.
 - Backups and academic-year archives: the section below.
 
 ## Backups, restore tests, and year archives
@@ -123,6 +130,12 @@ for academic years in the `archived` state that have no bundle in `archives/<yea
 uploads one: every non-empty report set per semester as PDF, the whole-year workbook, an encrypted
 full dump from that moment, and a `manifest.json` with checksums and counts. Archives are never
 pruned; the school deletes them under its own records policy.
+
+Only database dump files are age-encrypted by this flow. Archive PDFs and workbooks are readable
+school records protected by Shared Drive access. A database restore recovers teacher signatures
+and identity audits; private principal signatures, templates, and covers require the matching
+private deployment repository/branding backup. A new renderer does not rewrite existing Drive
+archives automatically. Verify those assets and archived report behavior during a restore drill.
 
 `backups/status.json` on the server records the last success, the last error, the last restore
 test, and the archives written. The deployment repository's `backup-check.yml` reads it every

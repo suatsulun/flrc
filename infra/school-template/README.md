@@ -1,8 +1,13 @@
-# FL-ReportCard — school deployment
+# FL-ReportCard: school deployment
 
 This repository deploys the published FL-ReportCard release to the school's server. It contains
 no application code: the application lives in the public repository, and this repository pins a
 release, carries the school's branding, and holds the deployment configuration (ADR-053).
+
+Template review: 2026-09-11. The checked-in pins are 1.2.0; later application commits and pending
+source changes require a new published release before a school consumes them. Consult
+`docs/RELEASING.md`, `docs/TODO.md`, and the target release's migration notes in the application
+repository. Do not copy its uncommitted application code into this deployment repository.
 
 | Path                                 | What it is                                                                     |
 | ------------------------------------ | ------------------------------------------------------------------------------ |
@@ -10,7 +15,7 @@ release, carries the school's branding, and holds the deployment configuration (
 | `.env.example`                       | Every setting the server's `/srv/flrc/.env` must contain                       |
 | `branding/`                          | The school's name, logo, and favicon (served, never rebuilt)                   |
 | `.github/dependabot.yml`             | Opens a pull request when a new application release exists                     |
-| `.github/workflows/deploy.yml`       | Ships `compose.yaml` and `branding/` to the server and applies                 |
+| `.github/workflows/deploy.yml`       | Ships `compose.yaml` and `branding/` to the server and applies them            |
 | `.github/workflows/backup-check.yml` | Fails every morning the nightly backup or monthly restore test did not succeed |
 
 The complete runbook (server creation, first deploy, upgrades, rollback, backups) is
@@ -32,8 +37,13 @@ schema by hand; a destructive migration is a documented decision, not a rollback
 
 Replace `branding/logo.svg`, `branding/favicon.svg`, and the strings in `branding/brand.js` and
 `branding/brand.json`, then merge. No image changes.
-Deployments restart the API, worker and backup processes so cached report branding reloads
+Deployments restart the API, worker, and backup processes so cached report branding reloads
 even when the application image tags stay the same.
+
+If the deployment uses private templates, principal signatures, or PDF covers, keep the complete
+folder mounted only into API/worker/backup. Put only `brand.js`, `logo.svg`, and `favicon.svg`
+in `branding/public/` and change the web mount to `./branding/public:/srv/branding:ro`.
+The default template uses generic public branding; private assets require this mount separation.
 
 ## Backups
 
@@ -51,6 +61,10 @@ docker compose run --rm backup flrc backup archives
 docker compose run --rm backup flrc backup status
 ```
 
+Status output is evidence only when it records an actual successful run. Database dumps are
+age-encrypted; archive PDFs/workbooks rely on Shared Drive access controls. Preserve the private
+branding revision separately so a database restore can reproduce report identities and covers.
+
 ## Secrets and settings this repository needs
 
 - Repository secrets: `DEPLOY_SSH_KEY` (private key of the `flrc` deploy user), `DEPLOY_KNOWN_HOSTS`
@@ -63,7 +77,7 @@ docker compose run --rm backup flrc backup status
 
 ## Enable server automation
 
-Set repository variable `SCHOOL_DEPLOY_ENABLED=true` only after configuring
+Set the repository variable `SCHOOL_DEPLOY_ENABLED=true` only after configuring
 `DEPLOY_HOST`, `SITE_HOST`, `DEPLOY_SSH_KEY`, and `DEPLOY_KNOWN_HOSTS` and preparing
 the server. Until then, automatic deployment and backup freshness jobs are
 skipped. Manual runs remain available and fail if required configuration is

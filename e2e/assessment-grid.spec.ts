@@ -587,6 +587,9 @@ for (const locale of ["tr", "en", "de", "fr"]) {
   test(`middle English uses all 11 score columns with slanted headers in ${locale}`, async ({
     page,
   }, testInfo) => {
+    const labels = JSON.parse(readFileSync(`packages/i18n/src/locales/${locale}.json`, "utf8")) as {
+      grid: Record<string, string>;
+    };
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.addInitScript((lng) => {
       localStorage.setItem("i18nextLng", lng);
@@ -611,7 +614,9 @@ for (const locale of ["tr", "en", "de", "fr"]) {
     await page.goto(`${teacherUrl}/classes/1/english?semester=1`);
     const surface = page.getByTestId("grade-grid-surface");
     await expect(surface).toHaveAttribute("data-layout", "english-overview");
-    await expect(page.getByTestId("assessment-heading")).toHaveCount(12);
+    await expect(page.getByTestId("assessment-heading")).toHaveCount(11);
+    await expect(page.getByTestId("cell-1-12")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: labels.grid.teacherNotes })).toHaveCount(0);
     await expect(surface.getByRole("textbox")).toHaveCount(44);
     await page.evaluate(() => document.fonts.ready);
     const bounds = await surface.evaluate((element) => {
@@ -623,7 +628,7 @@ for (const locale of ["tr", "en", "de", "fr"]) {
           return (
             rect.top >= headers.top - 1 &&
             rect.bottom <= headers.bottom &&
-            rect.right <= headers.right
+            rect.right <= element.getBoundingClientRect().right
           );
         }),
         inputWidths: [...element.querySelectorAll("input")].map(
@@ -641,7 +646,7 @@ for (const locale of ["tr", "en", "de", "fr"]) {
     const last = page.getByTestId("cell-1-11").getByRole("textbox");
     await last.focus();
     await last.press("ArrowRight");
-    await expect(page.getByTestId("cell-1-12").getByRole("button")).toBeFocused();
+    await expect(last).toBeFocused();
     await page.getByTestId("save-grid").click();
     await expect
       .poll(() => saved?.cells)
@@ -657,5 +662,12 @@ for (const locale of ["tr", "en", "de", "fr"]) {
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("radio", { name: labels.grid.stepperView, exact: true }).click();
+    await expect(page.getByRole("button", { name: labels.grid.teacherNotes })).toHaveCount(0);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath("english-phone.png"), fullPage: true });
   });
 }

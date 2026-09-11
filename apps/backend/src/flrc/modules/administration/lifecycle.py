@@ -111,7 +111,7 @@ async def list_years(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[YearOut]:
     del actor
-    years = list(await db.scalars(select(AcademicYear).order_by(AcademicYear.id.desc())))
+    years = list(await db.scalars(select(AcademicYear).order_by(AcademicYear.label.desc())))
     return [await _year_out(db, year) for year in years]
 
 

@@ -132,6 +132,37 @@ async def test_lifecycle_transitions_are_explicit(api, world):
     assert all(item["status"] == "locked" for item in locked.json()["semesters"])
 
 
+async def test_backfilled_years_sort_chronologically_and_keep_current_school_number(api, world):
+    async with TestSession() as db:
+        current = await db.get(m.AcademicYear, world.year)
+        current.label = "2026-2027"
+        for label in ("2025-2026", "2023-2024", "2024-2025"):
+            year = m.AcademicYear(label=label, status="archived")
+            db.add(year)
+            await db.flush()
+            school_class = m.SchoolClass(year_id=year.id, grade_level=4, section="A")
+            db.add(school_class)
+            await db.flush()
+            db.add(
+                m.Enrollment(
+                    year_id=year.id,
+                    class_id=school_class.id,
+                    student_id=world.student_one,
+                    school_number=100,
+                )
+            )
+        await db.commit()
+    async with api(world.admin) as client:
+        years = await client.get("/api/admin/years")
+        archived = await client.get("/api/archive/years")
+        history = await client.get(f"/api/archive/students/{world.student_one}/history")
+    labels = ["2023-2024", "2024-2025", "2025-2026", "2026-2027"]
+    assert [year["label"] for year in years.json()] == labels[::-1]
+    assert [year["label"] for year in archived.json()] == labels[-2::-1]
+    assert [year["label"] for year in history.json()["years"]] == labels
+    assert history.json()["school_number"] == 51001
+
+
 def test_import_parser_reports_conflicting_duplicate() -> None:
     data = workbook_bytes(
         [

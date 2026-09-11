@@ -18,6 +18,7 @@ from flrc.db.models import (
 )
 from flrc.db.session import get_session
 from flrc.modules.academics.fields import cell_value, pick_label
+from flrc.modules.academics.programme import has_teacher_comments
 from flrc.modules.auth.dependencies import require_coordinator_or_admin
 
 router = APIRouter(prefix="/archive", tags=["archive"])
@@ -98,7 +99,7 @@ async def list_archive_years(
         await db.scalars(
             select(AcademicYear)
             .where(AcademicYear.status == "archived")
-            .order_by(AcademicYear.id.desc())
+            .order_by(AcademicYear.label.desc())
         )
     )
     return [ArchiveYearOut(id=year.id, label=year.label, status=year.status) for year in years]
@@ -159,6 +160,11 @@ async def get_archive_grid(
             .order_by(ColumnDefinition.position)
         )
     )
+    columns = [
+        c
+        for c in columns
+        if c.value_type != "text" or has_teacher_comments(c.grade_level, c.subject)
+    ]
     roster_rows = list(
         (
             await db.execute(
@@ -239,7 +245,7 @@ async def get_student_history(
             .join(SchoolClass, SchoolClass.id == Enrollment.class_id)
             .join(AcademicYear, AcademicYear.id == Enrollment.year_id)
             .where(Enrollment.student_id == student_id)
-            .order_by(AcademicYear.id)
+            .order_by(AcademicYear.label)
         )
     ).all()
     languages = {
@@ -265,6 +271,10 @@ async def get_student_history(
     cells_by_term: dict[int, list[HistoryCell]] = {}
     terms: dict[int, Semester] = {}
     for grade, column, term in grade_rows:
+        if column.value_type == "text" and not has_teacher_comments(
+            column.grade_level, column.subject
+        ):
+            continue
         terms[term.id] = term
         cells_by_term.setdefault(term.id, []).append(
             HistoryCell(

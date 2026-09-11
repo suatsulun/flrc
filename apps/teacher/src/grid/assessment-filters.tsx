@@ -7,14 +7,16 @@ export function AssessmentFilters({
   value,
   onChange,
   compact = false,
+  showNotes = true,
 }: {
   columns: GridColumnOut[];
   value: AssessmentFilter;
   onChange: (value: AssessmentFilter) => void;
   compact?: boolean;
+  showNotes?: boolean;
 }) {
   const { t } = useTranslation();
-  const options = assessmentOptions(columns);
+  const options = assessmentOptions(columns, showNotes);
   if (options.length < 2) return null;
   return (
     <div role="group" aria-label={t("grid.assessmentCategories")} className="flex flex-wrap gap-2">

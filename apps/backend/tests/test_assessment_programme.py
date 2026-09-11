@@ -84,8 +84,111 @@ async def test_seed_includes_teacher_comments_without_grade_four_numeric_scores(
         for grade in range(1, 9):
             english = [c for c in columns if c.grade_level == grade and c.subject == "english"]
             notes = [c for c in english if c.value_type == "text"]
-            assert len(notes) == 1
-            assert notes[0].position == max(c.position for c in english)
+            assert len(notes) == (1 if grade <= 4 else 0)
+            if notes:
+                assert notes[0].position == max(c.position for c in english)
+
+
+@pytest.mark.parametrize("grade", [5, 6, 7, 8])
+async def test_middle_english_rejects_opinion_creation_and_copy(api, world, grade):
+    async with TestSession() as db:
+        year = m.AcademicYear(label="2099-2100", status="setup")
+        db.add(year)
+        await db.flush()
+        semester = m.Semester(year_id=year.id, number=1, status="open")
+        db.add(semester)
+        await db.commit()
+        params = {"semester_id": semester.id}
+    async with api(world.admin) as client:
+        body = {**column_body("english", "text", grade), "owner_role": "main"}
+        rejected = await client.post("/api/columns", params=params, json=body)
+        assert rejected.status_code == 422
+        assert rejected.json()["detail"]["code"] == "middle_english_no_comments"
+        primary = await client.post("/api/columns", params=params, json={**body, "grade_level": 4})
+        assert primary.status_code == 201
+        copied = await client.post(
+            "/api/columns/copy",
+            params=params,
+            json={
+                "source_grade_level": 4,
+                "source_subject": "english",
+                "target_grade_level": grade,
+                "target_subject": "english",
+            },
+        )
+        assert copied.status_code == 200
+        assert copied.json()["copied"] == 0
+        changed = await client.patch(
+            f"/api/columns/{world.main_column}", json={"value_type": "text"}
+        )
+        assert changed.status_code == 422
+
+
+async def test_middle_english_migration_retires_fields_but_preserves_saved_comments(api, world):
+    async with TestSession() as db:
+        note = m.ColumnDefinition(
+            semester_id=world.semester,
+            grade_level=5,
+            subject="english",
+            value_type="text",
+            owner_role="main",
+            labels={"tr": "Legacy opinion"},
+            position=20,
+        )
+        db.add(note)
+        await db.flush()
+        note_id = note.id
+        db.add(
+            m.GradeValue(
+                student_id=world.student_one,
+                column_definition_id=note_id,
+                text_value="Preserved synthetic opinion",
+                updated_by=world.main.id,
+                version=3,
+            )
+        )
+        await db.commit()
+    path = Path("migrations/versions/82a91f4c6d30_no_middle_english_comments.py")
+    spec = importlib.util.spec_from_file_location("no_middle_comments", path)
+    assert spec and spec.loader
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    engine = create_engine(TEST_URL_SYNC)
+    with engine.begin() as connection, Operations.context(MigrationContext.configure(connection)):
+        migration.upgrade()
+        migration.upgrade()
+        migration.downgrade()
+    with Session(engine) as db:
+        assert not db.get(m.ColumnDefinition, note_id).is_active
+        saved = db.scalar(select(m.GradeValue).where(m.GradeValue.column_definition_id == note_id))
+        assert (saved.text_value, saved.version) == ("Preserved synthetic opinion", 3)
+        assert db.get(m.ColumnDefinition, world.main_column).is_active
+        cards = build_report_set(db, semester_id=world.semester, kind="english_middle", locale="tr")
+        assert all(field.value_type != "text" for card in cards for field in card.fields)
+        assert "Preserved synthetic opinion" not in render_report_html(cards)
+    async with api(world.admin) as client:
+        grid = await client.get(f"/api/classes/{world.cls}/grid", params={"subject": "english"})
+        archive = await client.get(
+            f"/api/archive/classes/{world.cls}/grid", params={"subject": "english", "semester": 1}
+        )
+        history = await client.get(f"/api/archive/students/{world.student_one}/history")
+        columns = await client.get("/api/columns", params={"grade_level": 5, "subject": "english"})
+        visible_ids = [c["id"] for c in reversed(columns.json())]
+        reordered = await client.post("/api/columns/reorder", json={"ordered_ids": visible_ids})
+        assert reordered.status_code == 200
+        with_legacy = await client.post(
+            "/api/columns/reorder", json={"ordered_ids": [*visible_ids, note_id]}
+        )
+        assert with_legacy.status_code == 422
+    assert all(c["value_type"] != "text" for c in grid.json()["columns"])
+    assert all(c["value_type"] != "text" for c in archive.json()["columns"])
+    assert all(c["id"] != note_id for c in columns.json())
+    assert all(
+        c["column_id"] != note_id
+        for y in history.json()["years"]
+        for s in y["semesters"]
+        for c in s["cells"]
+    )
 
 
 async def test_correction_preserves_history_and_updates_grids_and_reports(api, world):

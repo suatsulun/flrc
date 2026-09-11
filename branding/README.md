@@ -2,13 +2,13 @@
 
 **This folder is the only place you change to put a school's identity on the product.**
 
-Two files, one command:
+Two required files, an optional favicon, and one command:
 
-| Change this   | To set                                                                |
-| ------------- | --------------------------------------------------------------------- |
-| `logo.svg`    | The logo on every screen, the sign-in page, and every report card     |
-| `brand.json`  | The school's name, short name, and accent colour                      |
-| `favicon.svg` | The browser tab icon (optional — `logo.svg` is used if you delete it) |
+| Change this   | To set                                                               |
+| ------------- | -------------------------------------------------------------------- |
+| `logo.svg`    | The logo on every screen, the sign-in page, and every report card    |
+| `brand.json`  | The school's name, short name, and accent colour                     |
+| `favicon.svg` | The browser tab icon (optional; `logo.svg` is used if you delete it) |
 
 Then run:
 
@@ -64,7 +64,7 @@ matched by hue, that is a design-token change in
 
 ## What `pnpm brand` writes
 
-Most of the product reads this folder directly — the web apps import
+Most of the product reads this folder directly: the web apps import
 `@flrc/branding`. Three kinds of consumer cannot, so the tool feeds them:
 
 | Written file                                           | Why it cannot read this folder directly      |
@@ -73,11 +73,10 @@ Most of the product reads this folder directly — the web apps import
 | `apps/{teacher,admin}/public/favicon.svg`              | `index.html` cannot import a JS module       |
 | `apps/{teacher,admin}/index.html` title + theme-colour | same                                         |
 | `apps/backend/src/flrc/modules/reports/assets/`        | The Docker image only copies `src/`          |
-
-| `apps/{teacher,admin}/public/branding/` | The runtime overlay described below |
+| `apps/{teacher,admin}/public/branding/`                | The runtime overlay described below          |
 
 These are committed, so a fresh clone works without running the tool. CI runs
-`pnpm brand:check`, which fails if any of them has drifted from this folder — so a
+`pnpm brand:check`, which fails if any of them has drifted from this folder, so a
 half-applied rebrand cannot reach `main`.
 
 ---
@@ -85,9 +84,9 @@ half-applied rebrand cannot reach `main`.
 ## Rebranding a deployment without a rebuild
 
 A school deployment does not check out this repository; it runs the published
-images (ADR-053). Its identity therefore lives in a **runtime overlay**: a folder
-with three files that the web image serves at `/branding/` and the API reads for
-report cards (ADR-054).
+images (ADR-053). Its identity therefore lives in a **runtime overlay**: three public web files
+plus `brand.json` for the backend's report branding (ADR-054). Private report assets use the
+separate mount described below.
 
 | File          | Purpose                                                            |
 | ------------- | ------------------------------------------------------------------ |
@@ -140,15 +139,15 @@ is no second place to remember and nothing to miss in a demo.
 If one codebase has to serve more than one school, the backend accepts
 environment variables that win over this folder:
 
-- `SCHOOL_NAME` — overrides `name` on printed report cards
-- `SCHOOL_LOGO_PATH` — absolute path to a logo elsewhere on disk
+- `SCHOOL_NAME`: overrides `name` on printed report cards
+- `SCHOOL_LOGO_PATH`: absolute path to a logo elsewhere on disk
 
 The frontend reads the runtime overlay described above; separate schools can share the same
 published images. Leave these two overrides unset when using the branding folder.
 
 ## Private report overlays and teacher signatures (ADR-057)
 
-School-specific report templates, principal identities and assets belong in the **private school
+School-specific report templates, principal identities, and assets belong in the **private school
 repository**, under `branding/reports/`. They are never copied into this repository or the web apps.
 `SCHOOL_BRANDING_DIR` on both API and worker points to the complete private branding folder.
 Teacher report names and PNG signatures belong to their `users` records and are edited in Admin →
@@ -179,24 +178,37 @@ An optional `reports/config.json` uses this structure:
 
 Templates live in `reports/templates/`, may extend the built-in `base.html`, and receive the
 existing report context plus `report_branding.principals` and `report_branding.assets`. Images are
-resolved to data URIs. Each `card.teachers` item has a name, role list, user id and optional signature
-data URI. A missing signature is blank; the system never generates one. All paths are relative to
-`reports/`, with traversal and escaping symlinks rejected. Missing or invalid configured assets fail
-rather than silently dropping a principal or substituting an unrelated cover.
+resolved to data URIs. Each `card.teachers` item has a name, role list, user id, and optional
+signature data URI. A missing signature is blank; the system never generates one. All paths are
+relative to `reports/`, with traversal and escaping symlinks rejected. Missing or invalid configured
+assets fail rather than silently dropping a principal or substituting an unrelated cover.
 
 German/French templates with PDF covers must produce exactly two landscape A4 pages per student.
 The first is the report face; the second is the preview cover, replaced with the original PDF page
 in the final document. Grade-specific criteria and saved values still come from configured database
-columns, not from positional guesses in a Word reference. Grades 1–4 select the primary principal;
-grades 5–8 select the middle principal.
+columns, not from positional guesses in a Word reference. Grades 1-4 select the primary principal;
+grades 5-8 select the middle principal.
 
 For a school with private report assets, create `branding/public/` containing **only** the public
-`brand.js`, `logo.svg`, and `favicon.svg` and change the web volume to
+`brand.js`, `logo.svg`, and `favicon.svg`, and change the web volume to
 `./branding/public:/srv/branding:ro`. Keep API/worker volumes as `./branding:/srv/branding:ro`.
 This separate mount is required even when using older web images; newer Caddy configurations also
 allowlist the three public files. Never copy report assets into a frontend `public/` folder.
 
 Teacher signatures and identity audit records are included in database backups. Principal assets
-and templates are maintained in the private deployment repository. Restart API and worker after an
-overlay change. Publish a release containing migration `e2a91c743b60` and upgrade both images before
-using the overlay; do not pin an image tag that has not been published.
+and templates are maintained in the private deployment repository. Restart the API and worker after
+an overlay change. Publish a release containing migration `e2a91c743b60` and upgrade both images
+before using the overlay; do not pin an image tag that has not been published.
+
+## Verification and current programme changes
+
+Relevant handbook steps: 1.10 and 4.2; repository review date: 2026-09-11. After changing source
+branding, run `pnpm brand`, `pnpm brand:check`, and `pnpm brand:test` from the application root.
+For a private runtime overlay, verify both authorized report rendering and denial of public
+access to `reports/` assets. A database backup alone does not recover private templates/principals.
+
+The pending ADR-063 removes grades 5-8 English teacher comments from new report generation while
+preserving underlying grade/audit history. Primary English and German/French retain comments.
+The PDF batching change must preserve duplex ordering and cover replacement for private layouts.
+Check these against synthetic data after upgrading to a release that actually contains the changes;
+existing 1.2.0 pins and already-downloaded reports do not change when this README is edited.

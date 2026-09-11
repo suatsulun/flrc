@@ -1,73 +1,51 @@
-# React + TypeScript + Vite
+# FL-ReportCard teacher
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The React teacher SPA opens directly on the grade table, with year, semester, grade, subject,
+and class navigation. The desktop grid and phone stepper share unsaved edits, ownership checks,
+audited saves, conflict handling, and undo. Relevant handbook steps: 1.10 and Phase 2.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Start the API and development services as described in the [root README](../../README.md).
+From the repository root:
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(["dist"]),
-  {
-    files: ["**/*.{ts,tsx}"],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+```bash
+pnpm --filter @flrc/teacher dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open `http://localhost:5173`. The `/api` proxy targets `http://localhost:8000`; set
+`VITE_API_TARGET` for a separate API. Backend `FRONTEND_ORIGIN` must match the browser origin.
+The teacher app owns the login page; the API performs Google OAuth and creates Redis sessions.
 
-```js
-// eslint.config.js
-import reactX from "eslint-plugin-react-x";
-import reactDom from "eslint-plugin-react-dom";
+## Where to work
 
-export default defineConfig([
-  globalIgnores(["dist"]),
-  {
-    files: ["**/*.{ts,tsx}"],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs["recommended-typescript"],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+- `src/routes/`: route guards and the selected academic context.
+- `src/grid/grid-table.tsx`, `stepper.tsx`: desktop and single-pupil views.
+- `src/grid/assessment-filter.ts`, `assessment-filters.tsx`: categories and teacher notes.
+- `src/grid/dirty-store.ts`: unsaved cells and pupil/class rating drafts in Zustand.
+- `../../packages/ui/`: shared presentational controls and design tokens.
+- `../../packages/api-client/` and `../../packages/i18n/`: generated contract and UI translations.
+
+TanStack Query owns server-confirmed values; Zustand owns what the teacher has typed but has not
+saved. Category/page changes must preserve drafts. Bulk 1-2-3 controls edit ratings only and wait
+for Save; one request permits at most 2,000 cells. Conflicts require explicit resolution.
+
+Sentence assessments fit four columns at 1280px and five at 1366px with the sidebar open.
+At sufficient width, middle-school English uses an overview with 45-degree headings.
+The pending ADR-063 changes show its eleven default score columns without teacher notes on
+desktop or phone. Primary English and German/French retain comments.
+
+## Check
+
+```bash
+pnpm --filter @flrc/teacher lint
+pnpm --filter @flrc/teacher typecheck
+pnpm --filter @flrc/teacher build
 ```
+
+There is no teacher `test` script. Browser coverage lives at the root, particularly
+`e2e/assessment-grid.spec.ts`, `e2e/conflict.spec.ts`, and `e2e/responsiveness.spec.ts`.
+Use the synthetic test stack documented in `playwright.config.ts` and CI, with both
+`E2E_BASE_URL` and `E2E_ADMIN_BASE_URL` set for isolated ports. Playwright does not launch servers.
+The two-user conflict test must continue using independent authenticated contexts.
+See the [AI handoff](../../docs/AI-HANDOFF.md) before reviewing the pending changes.

@@ -44,7 +44,7 @@
     "signIn": "Sign in with Google",
     "signingIn": "Opening secure sign-in…",
     "signInBody": "Use your authorized school Google account to continue.",
-    "coldStartNotice": "Outside school hours the server may take up to a minute to wake.",
+    "coldStartNotice": "Outside school hours, the server may take up to a minute to wake.",
     "demoSignInBody": "Sign in with any Google account. You get a temporary administrator account for up to 24 hours; nothing about your Google account is stored.",
     "demoResetInfo": "The demo school resets every day at {{time}} (your local time). Unsaved edits are lost then.",
     "demoResetting": "The demo is being reset. Sign-in will be available again in a moment.",
@@ -131,15 +131,15 @@
     "confirmAndSave": "Confirm and save",
     "adminSave": "Save as administrator",
     "emptyTitle": "No grade grid is configured",
-    "emptyBody": "This class and subject has no students or assessment columns in the active semester.",
+    "emptyBody": "This class and subject have no students or assessment columns in the active semester.",
     "assessmentFocus": "Assessments",
     "assessmentFocusHint": "Choose a category or move through the columns. Your unsaved changes stay in place as you browse.",
     "assessmentCategories": "Assessment categories",
     "allAssessments": "All assessments",
-    "assessmentRange": "Assessments {{start}}–{{end}} of {{total}}",
+    "assessmentRange": "Assessments {{start}}-{{end}} of {{total}}",
     "previousAssessments": "Previous",
     "nextAssessments": "Next",
-    "gradeFourScaleOnly": "Grade 4 German and French use 1–2–3 assessments and teacher comments, without numeric scores.",
+    "gradeFourScaleOnly": "Grade 4 German and French use 1-2-3 assessments and teacher comments, without numeric scores.",
     "teacherNotes": "Teacher notes",
     "bulkStudent": "Set all ratings",
     "bulkClass": "Set ratings for the whole class",
@@ -248,7 +248,7 @@
     "columnName": "Column title",
     "columnType": "Column type",
     "columnOwner": "Responsible field",
-    "typeScore": "Score (0–100)",
+    "typeScore": "Score (0-100)",
     "typeScale": "Three-level skill",
     "typeText": "Written note",
     "moveColumnLeft": "Move column left",
@@ -331,7 +331,7 @@
     "deletedInfo": "Column deleted.",
     "disabledInfo": "The column already holds grades, so it was disabled instead of deleted.",
     "valueTypes": {
-      "score": "Score 0–100",
+      "score": "Score 0-100",
       "scale3": "Three-point scale",
       "text": "Text"
     }
@@ -396,9 +396,9 @@
       "language_changes": "Language changes",
       "unchanged": "Unchanged"
     },
-    "noYear": "Create a setup year in Academic years before importing students.",
+    "noYear": "Create a setup year on the Academic lifecycle page before importing students.",
     "classTray": "Browse and move students",
-    "classTrayHint": "Click a class to review it. Drag a student's handle onto a class to move them, or use the class selector in their row.",
+    "classTrayHint": "Click a class to review it. Drag a student’s handle onto a class to move them, or use the class selector in their row.",
     "destinationGrade": "Browse grade",
     "gradeLabel": "Grade {{grade}}",
     "allClasses": "All classes",
@@ -526,8 +526,8 @@
       "year_export": "Year export"
     },
     "setScopes": {
-      "english_elementary": "Grades 1–4",
-      "english_middle": "Grades 5–8",
+      "english_elementary": "Grades 1-4",
+      "english_middle": "Grades 5-8",
       "german_karne": "German classes",
       "french_karne": "French classes"
     },

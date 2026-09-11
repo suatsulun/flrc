@@ -20,7 +20,9 @@ test("class tables clear languages, drag new notes, and remove columns and stude
   }
   await page.getByRole("button", { name: "Add column", exact: true }).click();
   await page.getByLabel("Column title").fill("Synthetic Dragged Note");
-  await page.getByLabel("Column type").selectOption("text");
+  // Grades 5-8 English take no written notes (ADR-063), so the text type is not offered.
+  await expect(page.getByLabel("Column type").locator('option[value="text"]')).toHaveCount(0);
+  await page.getByLabel("Column type").selectOption("scale3");
   await page.getByRole("button", { name: "Add", exact: true }).click();
   const headers = page.getByTestId("class-column-header");
   await expect(headers.last()).toContainText("Synthetic Dragged Note");
@@ -109,7 +111,7 @@ test("class form drafts survive switching between table and removal panels", asy
   await name.fill("Synthetic Unsaved Student");
   await page.getByRole("button", { name: "Add column", exact: true }).click();
   await page.getByLabel("Column title").fill("Synthetic Unsaved Column");
-  await page.getByLabel("Column type").selectOption("text");
+  await page.getByLabel("Column type").selectOption("scale3");
   await page.getByRole("radio", { name: "Remove", exact: true }).click();
   await expect(page.getByTestId("class-roster-surface")).toBeHidden();
   await expect(page.getByRole("button", { name: "Add column", exact: true })).toBeHidden();
@@ -117,6 +119,6 @@ test("class form drafts survive switching between table and removal panels", asy
   await expect(number).toHaveValue("98997");
   await expect(name).toHaveValue("Synthetic Unsaved Student");
   await expect(page.getByLabel("Column title")).toHaveValue("Synthetic Unsaved Column");
-  await expect(page.getByLabel("Column type")).toHaveValue("text");
+  await expect(page.getByLabel("Column type")).toHaveValue("scale3");
   await context.close();
 });

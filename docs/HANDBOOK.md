@@ -1,25 +1,53 @@
-# FL-ReportCard — The Builder's Handbook
+# FL-ReportCard: The Builder's Handbook
 
-_The complete assembly manual. Like an IKEA guide: every step tells you **what** we're building, **why**, then walks from a vague hint down to the exact screws. You choose how deep to read — but the exact instructions are always there at the bottom of every step, so you can never be stranded._
+_The complete assembly manual. Like an IKEA guide: every step tells you **what** we're building, **why**, then walks from a vague hint down to the exact screws. You choose how deep to read, but the exact instructions are always there at the bottom of every step, so you can never be stranded._
 
-_This handbook supersedes BUILD-STEPS.md. The old ARCHITECTURE.md stays alive as the deep-theory companion — domain model reasoning, decision records, KVKK — and is cited as "ARCH §x.x"._
+_This handbook supersedes BUILD-STEPS.md. The old ARCHITECTURE.md stays alive as the deep-theory companion (domain model reasoning, decision records, KVKK) and is cited as "ARCH §x.x"._
+
+## Current checkout (2026-09-11)
+
+This is the learning/build manual, not a claim that every example still matches the finished
+application. Steps retain their original assembly snippets; current amendments below describe
+accepted changes. When maintaining this checkout, inspect the corresponding source and tests
+before replacing a file with a historical snippet. Report any remaining mismatch using the
+source-of-truth protocol in [AGENTS.md](../AGENTS.md).
+
+Use [TODO.md](TODO.md) for open work and [AI-HANDOFF.md](AI-HANDOFF.md) for a review-first prompt.
+The local `v1.2.0` tag predates several commits, while manifests still read `1.2.0`. The pending
+ADR-063 migration and year-order/PDF-batching changes are not verified deployment state.
+
+| Handbook scope            | Current implementation amendment                                                                                                                               |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0-1: tooling and skeleton | Node 26.8.1, pnpm 11.25.0, Python 3.13 are pinned locally. Existing apps are implemented; do not scaffold over them.                                           |
+| 1.5, 2.1, 4.1: schema     | Fourteen original tables plus `demo_visitors` and `report_identity_audits`; exact names are in ARCH §3.1.                                                      |
+| 2.1: assessment programme | Grade 4 German/French permit ratings and comments without numeric averages. Pending ADR-063 removes grades 5-8 English comments.                               |
+| 2.4-2.6: grid/save        | Four/five sentence columns at laptop widths, angled middle-English overview, pupil/class rating drafts, maximum 2,000 cells per save.                          |
+| 2.11, 4.6: tests          | Frontend packages have no standalone `test` script. Use root Playwright, configured test servers, and the existing synthetic backend suite.                    |
+| 3.5, 3.9-3.10: years      | Rollover preserves student identity and assigns fresh year-scoped numbers. Pending lists sort by label, not insertion id.                                      |
+| 4.2-4.4: reports          | Four PDF sets return directly from `/api/reports/pdf` (ADR-028); year XLSX exports remain durable Celery jobs. Private report overlays/signatures use ADR-057. |
+| 4.5, 4.9-4.10: operations | School deployment consumes paired images, runtime branding, nightly encrypted backups, and monthly restore tests from `infra/school-template/`.                |
+
+Backend pytest fixtures wipe the fixed local `flrc_test` database; migration tests also downgrade
+it. Runs must be serialized on disposable test data. Root Playwright does not launch servers and
+its seeded suite must not share a mutable database with another run. Historical green exit lists
+below are learning checkpoints, not fresh release evidence.
 
 ## Handbook status
 
-| Part       | Contents                                                                                                                                                                                      | Status       |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| I          | The whole architecture: every app, tool, and service — what it is, its job here, why it beat the alternatives                                                                                 | ✅ this file |
-| II         | How to read a step (the legend)                                                                                                                                                               | ✅ this file |
-| III        | Phase 0 — Day zero, full depth                                                                                                                                                                | ✅ this file |
-| IV         | Phase 1 — Walking skeleton, steps 1.1–1.6, full depth                                                                                                                                         | ✅ this file |
-| IV (cont.) | Phase 1 steps 1.7–1.11 (OAuth, guards, client generation, frontend shells, deploy + CI)                                                                                                       | ✅ this file |
-| V          | Phase 2 — The grid, complete (2.1–2.11: schema, columns API + editor, assignments, grid endpoint + UI, dirty store, batch save + conflicts, grants, undo, audit viewer, phone stepper, tests) | ✅ this file |
-| VI         | Phase 3 — Admin lifecycle + importer, full depth                                                                                                                                              | ✅ this file |
-| VII        | Phase 4 — PDFs, Celery, backups, E2E, launch, full depth                                                                                                                                      | ✅ this file |
+| Part       | Contents                                                                                                                                                                                     | Status       |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| I          | The whole architecture: every app, tool, and service (what it is, its job here, why it beat the alternatives)                                                                                | ✅ this file |
+| II         | How to read a step (the legend)                                                                                                                                                              | ✅ this file |
+| III        | Phase 0: Day zero, full depth                                                                                                                                                                | ✅ this file |
+| IV         | Phase 1: Walking skeleton, steps 1.1-1.6, full depth                                                                                                                                         | ✅ this file |
+| IV (cont.) | Phase 1 steps 1.7-1.11 (OAuth, guards, client generation, frontend shells, deploy + CI)                                                                                                      | ✅ this file |
+| V          | Phase 2: The grid, complete (2.1-2.11: schema, columns API + editor, assignments, grid endpoint + UI, dirty store, batch save + conflicts, grants, undo, audit viewer, phone stepper, tests) | ✅ this file |
+| VI         | Phase 3: Admin lifecycle + importer, full depth                                                                                                                                              | ✅ this file |
+| VII        | Phase 4: PDFs, Celery, backups, E2E, launch, full depth                                                                                                                                      | ✅ this file |
 
 ---
 
-# Part I — The Whole Architecture
+# Part I: The Whole Architecture
 
 Read this once before touching a keyboard, then come back whenever a step names something and you've forgotten why it exists. Every entry answers four questions: **What is it? What is its job in this project? Why did it win (and over what)? Where will you meet it?**
 
@@ -41,14 +69,14 @@ You are building **six deployable things** and **three shared packages**, all li
                      └── every /api/* request is PROXIED ──┐
                          (same-origin rewrite)              │
                                                           ▼
-                                              apps/backend  — FastAPI
+                                              apps/backend (FastAPI)
                                               on Render (free web service #1)
                                                 │        │
                         reads/writes ───────────┘        └───── enqueues jobs +
                                 ▼                               "wake up" pings
                         Neon PostgreSQL                              │
                         (one database,                               ▼
-                         every year,                     apps/backend worker mode — Celery
+                         every year,                     apps/backend worker mode (Celery)
                          EU Frankfurt)                   on Render (free web service #2,
                                 ▲                        disguised as a web app)
                                 │                              │
@@ -69,7 +97,7 @@ lines follows the hosting boundaries without widening the browser's session boun
 
 That diagram is the **managed profile**, not a dependency baked into the code. The supported
 school-hosted profile runs Caddy, both static frontend builds, FastAPI, Celery, PostgreSQL, and
-Redis on a school-controlled VM through `infra/compose/compose.production.yaml`. Caddy preserves
+Redis on a school-controlled VM through `infra/school-template/compose.yaml`. Caddy preserves
 the same-origin `/api/*` contract. The two profiles use the same application image and settings;
 Neon, Upstash, Render, and Caddy never appear in business-code imports.
 
@@ -81,123 +109,123 @@ Neon, Upstash, Render, and Caddy never appear in business-code imports.
 
 - _What:_ JavaScript with a static type system compiled away at build time.
 - _Job here:_ the entire browser side. Types are the guardrails that let you refactor a grid with 15 column types without fear.
-- _Why it won:_ over plain JavaScript because a grade grid is exactly the kind of app where "is this cell's value a number, a 1–3 scale, or text?" must be answered by the compiler, not by a runtime crash in front of a teacher. There was no real competitor; TS is the industry default and the job-listing keyword.
+- _Why it won:_ over plain JavaScript because a grade grid is exactly the kind of app where "is this cell's value a number, a 1-3 scale, or text?" must be answered by the compiler, not by a runtime crash in front of a teacher. There was no real competitor; TS is the industry default and the job-listing keyword.
 - _You'll meet it:_ everywhere from §1.1.
 
 **Python 3.13** (everything in `apps/backend`)
 
 - _What:_ the backend language, run through `uv`.
 - _Job here:_ the API, the Celery worker, the Excel importer, the PDF renderer, the seed CLI.
-- _Why it won:_ over Node/Express or NestJS because (a) you're deliberately building a two-language résumé — full-stack means both sides of the fence; (b) the Python data-tooling ecosystem (openpyxl, WeasyPrint) is simply better at this project's ugliest jobs; (c) FastAPI + SQLAlchemy 2.0 + Alembic is one of the most-requested backend stacks in job listings right now. Over Django because Django's batteries (admin, templates, its ORM) mostly duplicate things you're building yourself on purpose — you'd fight the framework to learn less.
+- _Why it won:_ over Node/Express or NestJS because (a) you're deliberately building a two-language résumé (full-stack means both sides of the fence); (b) the Python data-tooling ecosystem (openpyxl, WeasyPrint) is simply better at this project's ugliest jobs; (c) FastAPI + SQLAlchemy 2.0 + Alembic is one of the most-requested backend stacks in job listings right now. Over Django because Django's batteries (admin, templates, its ORM) mostly duplicate things you're building yourself on purpose; you'd fight the framework to learn less.
 - _You'll meet it:_ §1.3 onward.
 
 ## I.3 The frontend stack, piece by piece
 
 **React 19**
 
-- _What:_ the UI library — components, hooks, one-way data flow.
+- _What:_ the UI library: components, hooks, one-way data flow.
 - _Job here:_ renders both SPAs; the grid alone justifies it.
-- _Why it won:_ over Vue/Svelte/Solid not on technical merit (all four are fine) but on two project goals: you already think in React, and React remains the overwhelming majority of frontend job listings in your market. This project's innovation budget is spent on the backend and the grid logic — the view library is deliberately the boring choice. Version 19 specifically because it's current and you've already absorbed its changes (you hit the `FormEvent` deprecation months ago).
+- _Why it won:_ over Vue/Svelte/Solid not on technical merit (all four are fine) but on two project goals: you already think in React, and React remains the overwhelming majority of frontend job listings in your market. This project's innovation budget is spent on the backend and the grid logic; the view library is deliberately the boring choice. Version 19 specifically because it's current and you've already absorbed its changes (you hit the `FormEvent` deprecation months ago).
 - _You'll meet it:_ §1.1.3.
 
 **Vite**
 
-- _What:_ the dev server + build tool. Serves your source over native ES modules in development (instant startup, instant hot-reload) and bundles with Rollup for production.
-- _Job here:_ runs both SPAs locally, builds them for deploy, and hosts two critical config points — the dev proxy (`/api` → localhost:8000) and the Tailwind plugin.
-- _Why it won:_ over Next.js because Next's whole value is server-side rendering and server components — machinery for SEO and first-paint on public pages. FL-ReportCard is an auth-walled internal tool; there is nothing to SEO and nobody to impress before login. SSR here would mean running a Node server for pages that could have been free static files — you'd pay complexity _and_ lose the free-hosting math. Over CRA/webpack because those are the previous era.
+- _What:_ the dev server + build tool. Serves your source over native ES modules in development (instant startup, instant hot-reload) and creates production bundles using the version pinned in the app manifest.
+- _Job here:_ runs both SPAs locally, builds them for deploy, and hosts two critical config points: the dev proxy (`/api` → localhost:8000) and the Tailwind plugin.
+- _Why it won:_ over Next.js because Next's whole value is server-side rendering and server components, machinery for SEO and first-paint on public pages. FL-ReportCard is an auth-walled internal tool; there is nothing to SEO and nobody to impress before login. SSR here would mean running a Node server for pages that could have been free static files; you'd pay complexity _and_ lose the free-hosting math. Over CRA/webpack because those are the previous era.
 - _You'll meet it:_ §1.1.3, §1.10.1.
 
 **Tailwind CSS v4**
 
-- _What:_ utility-class CSS — you style in the markup with composable classes; v4 moved configuration into CSS itself (`@import "tailwindcss"`, `@theme` tokens) with a dedicated Vite plugin.
+- _What:_ utility-class CSS: you style in the markup with composable classes; v4 moved configuration into CSS itself (`@import "tailwindcss"`, `@theme` tokens) with a dedicated Vite plugin.
 - _Job here:_ every pixel of both apps; also the design language shadcn/ui components are built from.
-- _Why it won:_ over CSS Modules / styled-components because in a two-app monorepo, utilities + a shared token theme keep the apps visually identical without a "design system project" you don't have time for. v4 specifically (not v3) because it's current, faster, and its CSS-first config is where the ecosystem moved — and because _you already use it_; consistency with your own muscle memory is worth something. **Watch-out baked into CLAUDE.md:** v3 tutorials with `tailwind.config.js` are everywhere online and wrong for you.
+- _Why it won:_ over CSS Modules / styled-components because in a two-app monorepo, utilities + a shared token theme keep the apps visually identical without a "design system project" you don't have time for. v4 specifically (not v3) because it's current, faster, and its CSS-first config is where the ecosystem moved, and because _you already use it_; consistency with your own muscle memory is worth something. **Watch-out baked into AGENTS.md:** v3 tutorials with `tailwind.config.js` are everywhere online and wrong for you.
 - _You'll meet it:_ §1.10.2.
 
 **shadcn/ui**
 
-- _What:_ not a component _library_ but a component _generator_ — it copies accessible, Tailwind-styled source components (built on Radix primitives) into your own repo, where you own and edit them.
+- _What:_ not a component _library_ but a component _generator_: it copies accessible, Tailwind-styled source components (built on Radix primitives) into your own repo, where you own and edit them.
 - _Job here:_ dialogs (conflict! grant! confirm!), popovers (text cells), dropdowns, the data tables of the admin panel, buttons, toasts.
-- _Why it won:_ over MUI/Chakra/Ant because those are opinionated black boxes — you'd theme against them forever and the grid's custom cells would fight their styling engine. shadcn gives you production-quality _source_ you can crack open, which doubles as a component-patterns tutorial. It's also, frankly, what 2026 job listings picture when they say "modern React UI."
+- _Why it won:_ over MUI/Chakra/Ant because those are opinionated black boxes; you'd theme against them forever and the grid's custom cells would fight their styling engine. shadcn gives you production-quality _source_ you can crack open, which doubles as a component-patterns tutorial. It's also, frankly, what 2026 job listings picture when they say "modern React UI."
 - _You'll meet it:_ §1.10.2, then every dialog in Phase 2.
 
 **TanStack Router**
 
-- _What:_ a fully type-safe router — routes are files, params and search-params are typed end to end, and loaders/`beforeLoad` hooks integrate with data fetching.
+- _What:_ a fully type-safe router: routes are files, params and search-params are typed end to end, and loaders/`beforeLoad` hooks integrate with data fetching.
 - _Job here:_ all navigation; the auth guard (`beforeLoad` checks `/api/me`, redirects to login); typed search params carry the year-switcher and class/subject selection; its `useBlocker` powers the "you have unsaved grades" leave-guard.
-- _Why it won:_ over React Router v7 (which you already know) precisely _because_ you already know it — zero new learning is a cost, not a saving, in a learning project. TanStack Router's typed params eliminate a whole class of "undefined is not a string" bugs in a URL-heavy app (year, class, subject, student index all live in the URL). It also completes a coherent story — Query, Table, Router from one ecosystem — that demos well. **Escape hatch, pre-authorized:** if its type ceremony is still fighting you at the end of day two, switch to React Router v7 without shame and write the ADR; the grid doesn't care.
+- _Why it won:_ over React Router v7 (which you already know) precisely _because_ you already know it: zero new learning is a cost, not a saving, in a learning project. TanStack Router's typed params eliminate a whole class of "undefined is not a string" bugs in a URL-heavy app (year, class, subject, student index all live in the URL). It also completes a coherent story (Query, Table, Router from one ecosystem) that demos well. **Escape hatch, pre-authorized:** if its type ceremony is still fighting you at the end of day two, switch to React Router v7 without shame and write the ADR; the grid doesn't care.
 - _You'll meet it:_ §1.10.3.
 
 **TanStack Query v5**
 
-- _What:_ the server-state manager — caching, deduplication, background refetching, and mutation lifecycles for anything fetched from an API.
+- _What:_ the server-state manager: caching, deduplication, background refetching, and mutation lifecycles for anything fetched from an API.
 - _Job here:_ owns _every byte the server has confirmed_: the grid data, `/api/me`, column lists, job statuses (its `refetchInterval` is the whole job-polling UI). After a save, `setQueryData` merges the new cell versions into the cache with no refetch flash.
-- _Why it won:_ over "fetch in useEffect + useState" because that road leads to hand-rolled caching bugs that Query solved a decade of ago (stale closures, race conditions, duplicate requests). Over Redux-with-thunks because server cache is not application state — modeling it as state is the classic 2018 mistake. Over SWR because Query's mutation API and devtools are stronger, and it pairs with the generated client (see hey-api below) which emits Query hooks directly.
-- _You'll meet it:_ §1.10.3, then §2.3–§2.6 hard.
+- _Why it won:_ over "fetch in useEffect + useState" because that road leads to hand-rolled caching bugs that Query solved a decade ago (stale closures, race conditions, duplicate requests). Over Redux-with-thunks because server cache is not application state; modeling it as state is the classic 2018 mistake. Over SWR because Query's mutation API and devtools are stronger, and it pairs with the generated client (see hey-api below), which emits Query hooks directly.
+- _You'll meet it:_ §1.10.3, then §2.3 through §2.6 hard.
 
-**TanStack Table v8**
+**TanStack Table** (the current teacher manifest declares 9.x)
 
-- _What:_ a _headless_ table engine — it computes row models, header groups, and cell contexts; you render every `<td>` yourself.
-- _Job here:_ the grade grid: grouped headers (the "Listening / Reading / Speaking" categories), a stable student identity column, and — crucially — _your_ cell components (score input, three-face toggle, text popover) mounted inside its cell contexts. Also the admin panel's data tables and the bulk-move row selection.
-- _Why it won:_ your call in the original questionnaire, and the right one. Over AG Grid / Handsontable because those ship the cells, the editing, the everything — you'd configure a product instead of learning to build one, and their licenses lurk. Over fully hand-rolling because header-group math and row modeling are solved problems with zero learning payoff; the learning is in the _cells_ and the save pipeline, which stay 100% yours either way.
+- _What:_ a _headless_ table engine: it computes row models, header groups, and cell contexts; you render every `<td>` yourself.
+- _Job here:_ the grade grid: grouped headers (the "Listening / Reading / Speaking" categories), a stable student identity column, and, crucially, _your_ cell components (score input, three-face toggle, text popover) mounted inside its cell contexts. Also the admin panel's data tables and the bulk-move row selection.
+- _Why it won:_ your call in the original questionnaire, and the right one. Over AG Grid / Handsontable because those ship the cells, the editing, the everything; you'd configure a product instead of learning to build one, and their licenses lurk. Over fully hand-rolling because header-group math and row modeling are solved problems with zero learning payoff; the learning is in the _cells_ and the save pipeline, which stay 100% yours either way.
 - _You'll meet it:_ §2.4.
 
 **Zustand**
 
-- _What:_ a tiny global-state library — a store is a hook, state updates are plain function calls, no providers or reducers required.
-- _Job here:_ exactly one store with one job: the **dirty map** — every cell the teacher has edited but not saved, keyed `studentId:columnId`, holding the typed value and the version the client last saw. Save All drains it; the leave-guard watches its count; the phone stepper and the desktop grid share it.
-- _Why it won:_ over Redux Toolkit because one map does not justify actions/slices/devtools ceremony. Over React Context because the grid re-renders on every keystroke if naive context holds the map — Zustand's selector subscriptions keep typing 60fps. Over "just component state" because the dirty map must outlive view switches (grid ↔ stepper) and be readable by the header's Save button. The deeper reason it exists at all: **Query owns what the server said; Zustand owns what the human typed and hasn't sent.** Keeping those separate is the single most quotable design sentence in this app. (ARCH decision #14.)
+- _What:_ a tiny global-state library: a store is a hook, state updates are plain function calls, no providers or reducers required.
+- _Job here:_ exactly one store with one job: the **dirty map**, every cell the teacher has edited but not saved, keyed `studentId:columnId`, holding the typed value and the version the client last saw. Save All drains it; the leave-guard watches its count; the phone stepper and the desktop grid share it.
+- _Why it won:_ over Redux Toolkit because one map does not justify actions/slices/devtools ceremony. Over React Context because the grid re-renders on every keystroke if naive context holds the map; Zustand's selector subscriptions keep typing 60fps. Over "just component state" because the dirty map must outlive view switches (grid ↔ stepper) and be readable by the header's Save button. The deeper reason it exists at all: **Query owns what the server said; Zustand owns what the human typed and hasn't sent.** Keeping those separate is the single most quotable design sentence in this app. (ARCH decision #14.)
 - _You'll meet it:_ §2.5.
 
 **react-hook-form + Zod v4**
 
 - _What:_ RHF manages form state via uncontrolled inputs (fast, minimal re-renders); Zod declares validation schemas in TypeScript that double as parsed types.
-- _Job here:_ every admin form — column editor, teacher allowlist, student edit, class dialogs. Zod schemas are written to _mirror the generated API types_, so a form literally cannot drift from what the backend accepts.
+- _Job here:_ every admin form: column editor, teacher allowlist, student edit, class dialogs. Zod schemas are written to _mirror the generated API types_, so a form literally cannot drift from what the backend accepts.
 - _Why it won:_ RHF over Formik because Formik is effectively unmaintained legacy; over hand-rolled `useState` forms because the admin panel has a dozen forms and you'd re-implement dirty/touched/error logic a dozen times. Zod over Yup because Zod is TypeScript-first (`z.infer` gives you the type for free) and is the shared language of the modern stack; v4 because current.
 - _You'll meet it:_ §2.1.3, then every admin dialog.
 
 **i18next + react-i18next**
 
-- _What:_ the translation runtime — JSON resource bundles per language, a `t("key")` function, React bindings, a browser language detector.
+- _What:_ the translation runtime: JSON resource bundles per language, a `t("key")` function, React bindings, a browser language detector.
 - _Job here:_ four locales (TR/EN/DE/FR) across both apps from day one; the API returns machine _codes_ and the frontend translates them; DB-stored column labels arrive already localized so only UI chrome lives in the bundles.
-- _Why it won:_ over react-intl/Lingui mostly on ecosystem weight and simplicity — i18next is the default answer, its detector and namespace model fit a two-app monorepo, and there's an ESLint plugin (`no-literal-string`) that mechanically enforces the house rule. The _real_ decision isn't the library — it's doing i18n **from the first component**, because retrofitting translations onto a finished app is the most tedious refactor in frontend work. (ARCH §4/1.10.)
+- _Why it won:_ over react-intl/Lingui mostly on ecosystem weight and simplicity: i18next is the default answer, its detector and namespace model fit a two-app monorepo, and there's an ESLint plugin (`no-literal-string`) that mechanically enforces the house rule. The _real_ decision isn't the library; it's doing i18n **from the first component**, because retrofitting translations onto a finished app is the most tedious refactor in frontend work. (ARCH §4/1.10.)
 - _You'll meet it:_ §1.10.4, completion in §4.4.
 
 ## I.4 The backend stack, piece by piece
 
 **FastAPI**
 
-- _What:_ the Python web framework — async request handling, dependency injection, and automatic OpenAPI schema generation straight from your type hints.
+- _What:_ the Python web framework: async request handling, dependency injection, and automatic OpenAPI schema generation straight from your type hints.
 - _Job here:_ every endpoint; its **dependency system** is secretly the app's security architecture (`current_user`, `require_admin`, `writable_semester` are all dependencies); its auto-generated `openapi.json` is the contract the TypeScript client is generated from.
-- _Why it won:_ over Flask because Flask gives you routing and a shrug — you'd bolt on validation, docs, and async by hand. Over Django/DRF because you're building the admin, the ORM patterns, and the auth _on purpose, to learn them_; Django would do them for you in ways you'd then have to un-learn. Over Litestar (a genuinely good newer rival) on ecosystem size and job-listing frequency.
+- _Why it won:_ over Flask because Flask gives you routing and a shrug; you'd bolt on validation, docs, and async by hand. Over Django/DRF because you're building the admin, the ORM patterns, and the auth _on purpose, to learn them_; Django would do them for you in ways you'd then have to un-learn. Over Litestar (a genuinely good newer rival) on ecosystem size and job-listing frequency.
 - _You'll meet it:_ §1.3.
 
 **Pydantic v2 + pydantic-settings**
 
 - _What:_ Pydantic turns type-annotated classes into runtime validators/parsers (it's what FastAPI uses for request/response models); pydantic-settings reads the same kind of class from environment variables and `.env` files.
 - _Job here:_ every request body and response model; every Excel row (the importer's `RowModel` _is_ a Pydantic class); and the single `Settings` object that is the only place environment configuration exists.
-- _Why it won:_ it's not really a choice — it's FastAPI's native tongue — but it earns its place independently in the importer, where "parse, don't validate" turns hostile spreadsheet rows into typed objects or precise cell-addressed errors.
+- _Why it won:_ it's not really a choice (it's FastAPI's native tongue), but it earns its place independently in the importer, where "parse, don't validate" turns hostile spreadsheet rows into typed objects or precise cell-addressed errors.
 - _You'll meet it:_ §1.3.2, importer in Phase 3.
 
 **SQLAlchemy 2.0**
 
 - _What:_ the database toolkit and ORM. The 2.0 style means fully typed models (`Mapped[int]`, `mapped_column(...)`) and one query language (`select()`) for both raw and ORM use.
-- _Job here:_ all fourteen tables; **two engines on purpose** — an async engine (asyncpg driver) inside FastAPI, a plain sync engine (psycopg driver) inside the Celery worker and the seed CLI, because Celery's execution model is synchronous and pretending otherwise buys pain.
-- _Why it won:_ over Django ORM (wrong framework), over SQLModel (a thin wrapper that leaks at exactly the advanced spots this app hits — versioned updates, `ON CONFLICT`, composite constraints), over raw SQL everywhere (maximum learning, one-third the shipping speed; you'll still write the two most interesting statements — the compare-and-set UPDATE and the conflict-tolerant INSERT — essentially by hand through SQLAlchemy Core). It is also, with no serious rival, _the_ Python database skill employers ask for.
+- _Job here:_ the original fourteen tables (now sixteen after ADR-051 and ADR-057); **two engines on purpose**: an async engine (asyncpg driver) inside FastAPI, a plain sync engine (psycopg driver) inside the Celery worker and the seed CLI, because Celery's execution model is synchronous and pretending otherwise buys pain.
+- _Why it won:_ over Django ORM (wrong framework), over SQLModel (a thin wrapper that leaks at exactly the advanced spots this app hits: versioned updates, `ON CONFLICT`, composite constraints), over raw SQL everywhere (maximum learning, one-third the shipping speed; you'll still write the two most interesting statements, the compare-and-set UPDATE and the conflict-tolerant INSERT, essentially by hand through SQLAlchemy Core). It is also, with no serious rival, _the_ Python database skill employers ask for.
 - _You'll meet it:_ §1.5.
 
 **Alembic**
 
-- _What:_ SQLAlchemy's migration tool — it diffs your models against the live schema and generates versioned upgrade/downgrade scripts.
+- _What:_ SQLAlchemy's migration tool: it diffs your models against the live schema and generates versioned upgrade/downgrade scripts.
 - _Job here:_ the only way schema changes ever happen. The discipline (autogenerate → _read the diff_ → apply; never edit an applied migration) is half the lesson.
-- _Why it won:_ no real alternative in this stack; the choice inside it was using its **async template** (`alembic init -t async`) so it drives the asyncpg engine without hand surgery, and the rule that migrations use Neon's **direct** endpoint while the app uses the **pooled** one — DDL through a transaction-mode pooler misbehaves in ways that eat afternoons.
+- _Why it won:_ no real alternative in this stack; the choice inside it was using its **async template** (`alembic init -t async`) so it drives the asyncpg engine without hand surgery, and the rule that migrations use Neon's **direct** endpoint while the app uses the **pooled** one; DDL through a transaction-mode pooler misbehaves in ways that eat afternoons.
 - _You'll meet it:_ §1.5.5.
 
 **Authlib**
 
 - _What:_ the OAuth/OIDC client library, with Starlette/FastAPI integration.
-- _Job here:_ the entire Google sign-in dance — redirect out with `state`, exchange the returned code for tokens, cryptographically validate the ID token — after which _your_ code takes over for the two gates that matter: the `hd` domain claim and the pre-registered allowlist.
-- _Why it won:_ over fastapi-users (would finish auth in an hour and teach you nothing — this is 30% of the backend's educational value), over hand-rolling the protocol with httpx (real learning, but token validation is exactly where DIY security goes quietly wrong), over Auth0/Firebase/Clerk (a third-party processor of children's-school data — detonates the KVKK story, and the school already rejected third-party auth).
+- _Job here:_ the entire Google sign-in dance (redirect out with `state`, exchange the returned code for tokens, cryptographically validate the ID token), after which _your_ code takes over for the two gates that matter: the `hd` domain claim and the pre-registered allowlist.
+- _Why it won:_ over fastapi-users (would finish auth in an hour and teach you nothing; this is 30% of the backend's educational value), over hand-rolling the protocol with httpx (real learning, but token validation is exactly where DIY security goes quietly wrong), over Auth0/Firebase/Clerk (a third-party processor of children's-school data, which detonates the KVKK story, and the school already rejected third-party auth).
 - _You'll meet it:_ §1.7.
 
 **redis-py + itsdangerous** (sessions)
@@ -207,89 +235,97 @@ Neon, Upstash, Render, and Caddy never appear in business-code imports.
   TTL; the browser holds only that id, _signed_, in a host-only `HttpOnly` cookie. Log out a
   departed teacher = delete a Redis key. That instant revocability is the entire argument for
   sessions over JWTs (ARCH decisions #5 and #38).
-- _You'll meet it:_ §1.7.2–.3.
+- _You'll meet it:_ §1.7.2 through §1.7.3.
 
 **Celery 5**
 
-- _What:_ the task-queue framework — the API drops job messages into Redis; a separate worker process picks them up and runs them.
+- _What:_ the task-queue framework: the API drops job messages into Redis; a separate worker process picks them up and runs them.
 - _Job here:_ the slow stuff: rendering a class's 30 PDFs, zipping them, the year-Excel export. A teacher's save must never wait behind a PDF.
-- _Why it won:_ your explicit call — Celery is the CV keyword — and the constraints it drags in became the syllabus: Render's free tier has no worker dyno type (so the worker _masquerades as a web service_ with a `/health` stub), workers fall asleep (so the API _pings them awake_ on enqueue and on every status poll), and Upstash counts commands (so Celery runs with gossip/mingle/heartbeat off and **no Redis result backend** — job state lives in a Postgres `job_runs` row instead). ARQ or Dramatiq would have been gentler; the ADR saying _why you know that_ is worth more than the gentleness. (ARCH decision #9, §7/4.3.)
+- _Why it won:_ your explicit call (Celery is the CV keyword), and the constraints it drags in became the syllabus: Render's free tier has no worker dyno type (so the worker _masquerades as a web service_ with a `/health` stub), workers fall asleep (so the API _pings them awake_ on enqueue and on every status poll), and Upstash counts commands (so Celery runs with gossip/mingle/heartbeat off and **no Redis result backend**; job state lives in a Postgres `job_runs` row instead). ARQ or Dramatiq would have been gentler; the ADR saying _why you know that_ is worth more than the gentleness. (ARCH decision #9, §7/4.3.)
 - _You'll meet it:_ §4.3.
 
 **openpyxl**
 
 - _What:_ reads and writes `.xlsx` files cell by cell.
-- _Job here:_ both directions — parsing the school's hostile roster workbook (read-only mode, header hunting, footer heuristics, and the deliberate _discarding_ of the gender column) and writing the year-export backup workbook.
-- _Why it won:_ over pandas because pandas is a dataframe engine wearing an Excel reader as a hat — its dtype coercion turns school numbers into floats and its 60 MB of dependency buys nothing here. You want cells with addresses, because your error messages must say "sheet 5/B, cell C14".
+- _Job here:_ both directions: parsing the school's hostile roster workbook (read-only mode, header hunting, footer heuristics, and the deliberate _discarding_ of the gender column) and writing the year-export backup workbook.
+- _Why it won:_ over pandas because pandas is a dataframe engine wearing an Excel reader as a hat; its dtype coercion turns school numbers into floats and its 60 MB of dependency buys nothing here. You want cells with addresses, because your error messages must say "sheet 5/B, cell C14".
 - _You'll meet it:_ Phase 3.
 
 **WeasyPrint + Jinja2**
 
 - _What:_ Jinja2 renders HTML from templates + data; WeasyPrint turns HTML/CSS into print-grade PDF, honoring `@page` sizes and page breaks.
-- _Job here:_ all three report-card types — A5 landscape progress reports and the A4 bilingual karnes — from the same CSS skills you already own.
-- _Why it won:_ over ReportLab (hand-placing bilingual nested tables by x/y coordinate — no), over headless Chromium printing (a 200 MB browser inside a 512 MB dyno), over LaTeX (beautiful, wrong decade for a one-person team), over **Typst** — the genuinely exciting modern option, pip-installable, no system deps — which lost only because HTML/CSS reuses skills you're selling; it's earmarked as a one-evening Phase-4 experiment and blog post. WeasyPrint's cost: system libraries (pango, cairo) — which is _why_ the API ships as a Docker image. (ARCH decision #10.)
+- _Job here:_ all three report-card types (A5 landscape progress reports and the A4 bilingual karnes) from the same CSS skills you already own.
+- _Why it won:_ over ReportLab (hand-placing bilingual nested tables by x/y coordinate: no), over headless Chromium printing (a 200 MB browser inside a 512 MB dyno), over LaTeX (beautiful, wrong decade for a one-person team), over **Typst** (the genuinely exciting modern option, pip-installable, no system deps), which lost only because HTML/CSS reuses skills you're selling; it's earmarked as a one-evening Phase-4 experiment and blog post. WeasyPrint's cost: system libraries (pango, cairo), which is _why_ the API ships as a Docker image. (ARCH decision #10.)
 - _You'll meet it:_ §4.2.
 
 **Typer, Faker, structlog, Sentry, pytest & friends**
 
-- _Typer:_ CLI framework (decorator-per-command) for the `flrc` tool — seed, reset, later export. Chosen over argparse for ergonomics and over Click for its type-hint-native design.
-- _Faker (tr_TR):_ generates the fictional school. Its deterministic seeding is what makes screenshots reproducible and the **synthetic-data-only** rule (no real student ever enters repo/demo/logs — ARCH §8.5) actually livable.
-- _structlog:_ JSON event logs (`grade_batch_saved`, `import_committed`) with a request-id bound to every line — your only forensics on a no-APM budget. Chosen over stdlib logging config because structured events are grep-able facts, not prose.
+- _Typer:_ CLI framework (decorator-per-command) for the `flrc` tool: seed, reset, later export. Chosen over argparse for ergonomics and over Click for its type-hint-native design.
+- _Faker (tr_TR):_ generates the fictional school. Its deterministic seeding is what makes screenshots reproducible and the **synthetic-data-only** rule (no real student ever enters repo/demo/logs; see ARCH §8.5) actually livable.
+- _structlog:_ JSON event logs (`grade_batch_saved`, `import_committed`) with a request-id bound to every line (your only forensics on a no-APM budget). Chosen over stdlib logging config because structured events are grep-able facts, not prose.
 - _Sentry:_ crash reporting for API and both SPAs, with `send_default_pii=False` and a scrubber so student data never rides along in a stack trace.
-- _pytest + httpx + time-machine:_ the backend test stack — the app runs in-process via `ASGITransport` (no server, no ports), dependencies get overridden to fake any user, and time-machine freezes clocks so "grant expires after one hour" is a test, not a hope. Playwright joins in Phase 4 for the two-browsers-collide E2E crown jewel.
+- _pytest + httpx + time-machine:_ the backend test stack: the app runs in-process via `ASGITransport` (no server, no ports), dependencies get overridden to fake any user, and time-machine freezes clocks so "grant expires after one hour" is a test, not a hope. Playwright joins in Phase 4 for the two-browsers-collide E2E crown jewel.
 
 ## I.5 The tooling belt
 
-**pnpm** — the JS package manager. Strict `node_modules` (no phantom dependencies), a content-addressed store (fast, disk-cheap), and first-class **workspaces** — the mechanism that lets `apps/teacher` depend on `@flrc/ui` as source. Over npm/yarn: correctness + speed + it's what modern monorepos assume.
+**pnpm**: the JS package manager. Strict `node_modules` (no phantom dependencies), a content-addressed store (fast, disk-cheap), and first-class **workspaces**, the mechanism that lets `apps/teacher` depend on `@flrc/ui` as source. Over npm/yarn: correctness + speed + it's what modern monorepos assume.
 
-**Turborepo** — the task runner over the workspace. You declare that `build` depends on your dependencies' `build` (`"dependsOn": ["^build"]`), it computes the graph, runs in parallel, and caches by content hash — including the Python tasks, which join via `package.json` script shims calling `uv run`. Over Nx: Nx is more powerful and heavier-vocabularied than three apps need. Over nothing: "run lint in six packages in the right order" gets old on day two.
+**Turborepo**: the task runner over the workspace. You declare that `build` depends on your dependencies' `build` (`"dependsOn": ["^build"]`), it computes the graph, runs in parallel, and caches by content hash, including the Python tasks, which join via `package.json` script shims calling `uv run`. Over Nx: Nx is more powerful and heavier-vocabularied than three apps need. Over nothing: "run lint in six packages in the right order" gets old on day two.
 
-**uv** — Python's package/project manager (from the Ruff people). Creates the venv, resolves and locks (`uv.lock`), installs at Rust speed, runs tools (`uv run pytest`). Over pip+venv: 10–100× faster and lockfile-correct. Over Poetry: the ecosystem's mindshare visibly moved in 2024–25; uv is the current answer and the one worth having on a CV.
+**uv**: Python's package/project manager (from the Ruff people). Creates the venv, resolves and locks (`uv.lock`), installs at Rust speed, runs tools (`uv run pytest`). Over pip+venv: 10-100× faster and lockfile-correct. Over Poetry: the ecosystem's mindshare visibly moved in 2024-25; uv is the current answer and the one worth having on a CV.
 
-**Ruff + mypy** — Ruff is linter _and_ formatter (replaces flake8, isort, Black in one Rust binary; its `UP` rules quietly teach modern Python idioms as you write). mypy adds static types, started permissive and ratcheted. Over the old five-tool pile: one config, one speed.
+**Ruff + mypy**: Ruff is linter _and_ formatter (replaces flake8, isort, Black in one Rust binary; its `UP` rules quietly teach modern Python idioms as you write). mypy adds static types, started permissive and ratcheted. Over the old five-tool pile: one config, one speed.
 
-**ESLint 10 (flat config) + Prettier** — lint and format for TS. ESLint 10 removes the legacy eslintrc system entirely and resolves flat configs from each linted file, which fits this multi-app workspace. This project standardizes development and CI on Node 26. Over Biome (fast, rising): the shadcn/React ecosystem's examples and most employers still assume ESLint; noted as the road not taken.
+**ESLint 10 (flat config) + Prettier**: lint and format for TS. ESLint 10 removes the legacy eslintrc system entirely and resolves flat configs from each linted file, which fits this multi-app workspace. This project standardizes development and CI on Node 26. Over Biome (fast, rising): the shadcn/React ecosystem's examples and most employers still assume ESLint; noted as the road not taken.
 
-**Lefthook** — git hooks from one YAML, polyglot and fast: on pre-commit it runs Prettier/ESLint on staged TS _and_ Ruff on staged Python. Over Husky+lint-staged (JS-centric) and pre-commit (Python-centric): one tool that doesn't pick a side in a two-language repo.
+**Lefthook**: git hooks from one YAML, polyglot and fast: on pre-commit it runs Prettier/ESLint on staged TS _and_ Ruff on staged Python. Over Husky+lint-staged (JS-centric) and pre-commit (Python-centric): one tool that doesn't pick a side in a two-language repo.
 
-**Docker + Compose** — Compose runs Postgres 18 and Redis locally with one command (the compose file _is_ the repo's onboarding doc); the Dockerfile is the exact artifact Render runs, killing "works on my machine" — and it's the only sane way to ship WeasyPrint's system libraries. Multi-stage with uv keeps the image small.
+**Docker + Compose**: Compose runs Postgres 18 and Redis locally with one command (the compose file _is_ the repo's onboarding doc); the Dockerfile is the exact artifact Render runs, killing "works on my machine", and it's the only sane way to ship WeasyPrint's system libraries. Multi-stage with uv keeps the image small.
 
-**@hey-api/openapi-ts** — the contract machine: reads the committed `openapi.json` snapshot FastAPI produced, emits a typed fetch client _plus TanStack Query hooks_. The frontend never hand-writes a request type; a CI job regenerates and fails on diff, so "someone changed the API and forgot the client" dies at PR time. Over tRPC (needs a TS backend), GraphQL (a second API paradigm for one consumer), orval (fine; hey-api's Query plugin is the tighter fit).
+**@hey-api/openapi-ts**: the contract machine. It reads the committed `openapi.json` snapshot FastAPI produced and emits a typed fetch client _plus TanStack Query hooks_. The frontend never hand-writes a request type; a CI job regenerates and fails on diff, so "someone changed the API and forgot the client" dies at PR time. Over tRPC (needs a TS backend), GraphQL (a second API paradigm for one consumer), orval (fine; hey-api's Query plugin is the tighter fit).
 
-**GitHub Actions + Dependabot/CodeQL** — Actions is CI
-(lint/typecheck/test/contract/security on every PR) _and_ the free always-awake robot: keep-alive
-pings on school hours, weekly `pg_dump` to Drive, nightly demo reset. Dependabot opens
-dependency-update PRs; CodeQL and dependency review block common code and supply-chain risks.
+**GitHub Actions + Dependabot/CodeQL**: Actions is CI
+(lint/typecheck/test/contract/security on every PR), opt-in school-hours demo keepalive, nightly
+demo reset, and release publishing. School-hosted backups run in the dedicated Compose service;
+its private repository checks freshness. Dependabot proposes dependency updates. CodeQL and
+dependency review are enabled only when the configured GitHub entitlement supports them.
 
 ## I.6 The services (where it all runs, and what "free" costs)
+
+Provider quotas and pricing in this original planning table are historical assumptions, not a
+current availability or cost check. Verify the chosen provider account before deployment.
 
 This table describes the managed profile taught by the deployment steps. If the school does not
 fund or approve those providers, ADR-019's school-hosted profile replaces the hosting rows with a
 school-controlled VM, Caddy, PostgreSQL, and Redis. It does not remove the requirements for TLS,
 monitoring, security updates, off-machine backups, or a restore drill.
 
-| Service                      | Role                                             | Why this one                                                                                                   | The catch you design around                                                                                                                                        |
-| ---------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Neon**                     | PostgreSQL, one DB, all years, EU-Frankfurt      | Real Postgres with scale-to-zero, generous free storage for data this small, built-in pooler, branches for dev | 5-min autosuspend (→ `pool_pre_ping`); pooled vs **direct** URL split (migrations use direct); only a 6-hour restore window (→ §4.5 backups are non-optional)      |
-| **Upstash**                  | Redis: sessions + Celery broker, EU              | Serverless Redis with TLS, free tier fits ~30 users easily                                                     | 500K commands/month — the whole "quiet Celery" configuration exists because of this number                                                                         |
-| **Render**                   | The API and the worker, as two free web services | Docker deploys, health checks, blueprints (`infra/render/render.yaml`), honest free tier                       | 750 instance-hours/month **shared**, 15-min sleep, ~45 s cold start, **no free worker type** → worker wears a web-service costume; keep-alive only on school hours |
-| **Vercel**                   | The _demo_ frontends + `/api` rewrite proxy      | You know it; monorepo-native; rewrites make same-origin trivial                                                | Hobby ToS = personal/non-commercial → demo only, never school prod                                                                                                 |
-| **Cloudflare Pages**         | The _school_ frontends + public path gateway     | No non-commercial clause, unlimited static bandwidth, and it can compose separate builds under one origin      | The gateway must order `/api/*`, `/admin/*`, then the teacher catch-all; the admin build must be base-path-safe                                                    |
-| **Google (Workspace OAuth)** | Identity                                         | The school already issues every teacher an account — no passwords to store, ever                               | Consent screen: External+test-users for the demo client, **Internal** under the school's Workspace for prod; the `hd` _claim_ (not the login hint) is the proof    |
-| **Google Drive**             | Backup destination                               | Backups land in a folder **the school owns** — the data never gains a new home; a KVKK pitch line, verbatim    | Needs a service account granted access to that one folder                                                                                                          |
-| **Sentry**                   | Error tracking, all three apps                   | Free tier fits; sourcemaps make SPA crashes readable                                                           | Must be configured to scrub — student data never enters an error payload                                                                                           |
+| Service                      | Role                                             | Why this one                                                                                                   | The catch you design around                                                                                                                                                                              |
+| ---------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Neon**                     | PostgreSQL, one DB, all years, EU-Frankfurt      | Real Postgres with scale-to-zero, generous free storage for data this small, built-in pooler, branches for dev | 5-min autosuspend (→ `pool_pre_ping`); pooled vs **direct** URL split (migrations use direct); only a 6-hour restore window (→ §4.5 backups are non-optional)                                            |
+| **Upstash**                  | Redis: sessions + Celery broker, EU              | Serverless Redis with TLS, free tier fits ~30 users easily                                                     | 500K commands/month; the whole "quiet Celery" configuration exists because of this number                                                                                                                |
+| **Render**                   | The API and the worker, as two free web services | Docker deploys, health checks, blueprints (`infra/render/render.yaml`), honest free tier                       | 750 instance-hours/month **shared**, 15-min sleep, ~45 s cold start, **no free worker type** → worker wears a web-service costume; keep-alive only on school hours                                       |
+| **Vercel**                   | The _demo_ frontends + `/api` rewrite proxy      | You know it; monorepo-native; rewrites make same-origin trivial                                                | Hobby ToS = personal/non-commercial → demo only, never school prod                                                                                                                                       |
+| **Cloudflare Pages**         | The _school_ frontends + public path gateway     | No non-commercial clause, unlimited static bandwidth, and it can compose separate builds under one origin      | The gateway must order `/api/*`, `/admin/*`, then the teacher catch-all; the admin build must be base-path-safe                                                                                          |
+| **Google (Workspace OAuth)** | Identity                                         | The school already issues every teacher an account: no passwords to store, ever                                | Consent screen: External+test-users for local development; published consent for the public demo; **Internal** under the school's Workspace for prod; the `hd` _claim_ (not the login hint) is the proof |
+| **Google Drive**             | Backup destination                               | Backups land in a folder **the school owns**: the data never gains a new home; a KVKK pitch line, verbatim     | Needs a service account granted access to that one folder                                                                                                                                                |
+| **Sentry**                   | Error tracking, all three apps                   | Free tier fits; sourcemaps make SPA crashes readable                                                           | Must be configured to scrub; student data never enters an error payload                                                                                                                                  |
 
 ## I.7 Follow one grade through the machine
 
 The best way to hold the architecture in your head is to trace **one teacher saving one score**:
 
 1. Kıvılcım types **91** into Progress Exam 1 for a student. The **ScoreCell** component validates the keystrokes and, on blur, writes `{value: 91, expectedVersion: 3}` into the **Zustand** dirty map. Nothing has left the browser.
-2. She presses **Save All**. The teacher app drains the dirty map into one request body and calls the **generated client's** save mutation — a typed function that hey-api built from FastAPI's own schema, wrapped in a **TanStack Query** mutation.
+2. She presses **Save All**. The teacher app drains the dirty map into one request body and calls the **generated client's** save mutation, a typed function that hey-api built from FastAPI's own schema, wrapped in a **TanStack Query** mutation.
 3. The browser sends `POST /api/classes/12/grid/save` _to its own origin_. **Vercel/Cloudflare** matches the `/api/*` rewrite and proxies it to **Render**. Because it's same-origin, the `flrc_session` cookie rides along under `SameSite=Lax` with zero ceremony.
 4. **FastAPI** wakes (or was kept warm by the school-hours ping). The **Origin-check middleware** approves the request. The `current_user` dependency unsigns the cookie with **itsdangerous**, looks the session id up in **Upstash Redis**, loads Kıvılcım from **Neon**. The `writable_semester` dependency confirms semester 1 is open.
-5. The save service checks she owns the `main` role for class 12 (or holds a live grant), then runs the one statement the whole app pivots on — an **SQLAlchemy** UPDATE whose WHERE clause says `AND version = 3`. Rowcount 1: applied, version becomes 4, and an **audit_entry** + **save_batch** row commit in the same transaction. Rowcount 0: someone got there first, and a conflict record with the other teacher's name goes back instead.
-6. The response returns `applied` with new versions. TanStack Query's `setQueryData` merges them into the cached grid — no refetch flash — and the store clears those dirty keys. The Save button ticks to ✓.
-7. Months later that cell is ink: a coordinator clicks Generate, FastAPI enqueues a **Celery** task into Upstash and _pings the worker's `/health` awake_; the worker assembles the card dict, **Jinja2** renders HTML, **WeasyPrint** prints it into an A5 PDF inside the Docker image that carried pango for exactly this moment, and the zip lands behind a download link tracked by a **Postgres job_run** row.
+5. The save service checks she owns the `main` role for class 12 (or holds a live grant), then runs the one statement the whole app pivots on: an **SQLAlchemy** UPDATE whose WHERE clause says `AND version = 3`. Rowcount 1: applied, version becomes 4, and an **audit_entry** + **save_batch** row commit in the same transaction. Rowcount 0: someone got there first, and a conflict record with the other teacher's name goes back instead.
+6. The response returns `applied` with new versions. TanStack Query's `setQueryData` merges them into the cached grid (no refetch flash), and the store clears those dirty keys. The Save button ticks to ✓.
+7. Months later that cell is ink: a coordinator requests one of the four report sets through
+   `/api/reports/pdf`. The builder assembles the report data, **Jinja2** renders HTML, and
+   **WeasyPrint** produces the PDF outside the API's async event loop. The browser opens that
+   response directly. A whole-year workbook follows the separate **Celery** path: queue its job id,
+   record progress/output in **Postgres `job_runs`**, and download through the authenticated API.
 
 Every tool in Part I appears in that story or guards it. If a step ever feels arbitrary later, re-read the trace.
 
@@ -298,21 +334,21 @@ Every tool in Part I appears in that story or guards it. If a step ever feels ar
 ```
 fl-reportcard/
 ├── apps/
-│   ├── teacher/        React SPA — the grid, the stepper, teachers' daily life
-│   ├── admin/          React SPA — columns, roster, lifecycle, import, reports, audit
-│   └── backend/        Python — FastAPI app + Celery worker + CLI + templates
+│   ├── teacher/        React SPA: the grid, the stepper, teachers' daily life
+│   ├── admin/          React SPA: columns, roster, lifecycle, import, reports, audit
+│   └── backend/        Python: FastAPI app + Celery worker + CLI + templates
 │       ├── src/flrc/   installable package; feature modules plus core/, db/, workers/
 │       ├── migrations/ Alembic
 │       ├── tests/      pytest
 │       └── Dockerfile  backend and worker image
 ├── packages/
 │   ├── ui/             shared shadcn components + the three grid cells
-│   ├── api-client/     GENERATED — openapi.json snapshot + typed client + Query hooks
+│   ├── api-client/     GENERATED: openapi.json snapshot + typed client + Query hooks
 │   └── i18n/           the four locale bundles + init
 ├── e2e/                Playwright (Phase 4)
 ├── docs/               HANDBOOK.md (this) · ARCHITECTURE.md · DECISIONS.md
 ├── infra/              Compose, Caddy, and managed deployment definitions
-├── .github/workflows/  ci.yml · keepalive.yml · backup.yml
+├── .github/workflows/  ci.yml · security.yml · keepalive.yml · demo-reset.yml · release.yml
 ├── turbo.json          the task graph
 ├── pnpm-workspace.yaml the workspace definition
 └── AGENTS.md           AI-assistant working rules
@@ -322,28 +358,28 @@ Rule of thumb for "where does this file go": if two apps need it → `packages/`
 
 ---
 
-# Part II — How to read a step (the legend)
+# Part II: How to read a step (the legend)
 
-Every numbered step in Parts III–VII is assembled from the same labeled pieces, always in this order:
+Every numbered step in Parts III through VII is assembled from the same labeled pieces, always in this order:
 
-- **What we're building** — the outcome of the step, in one or two plain sentences. The picture on the IKEA box.
-- **Why** — the reasons this exists and why now; what breaks or gets expensive later without it.
-- **Layer 1 · Nudge** — the vague hint. _Stop reading here first_ and try; struggling briefly is the point of the whole format.
-- **Layer 2 · Guide** — the concrete approach: names of functions, files, options; the shape of the solution without the final text.
-- **Layer 3 · Exact assembly** — the IKEA panel: exact commands, exact file paths, and exact contents. For configuration and boilerplate this is verbatim. For application logic it is complete too — read it only when Layers 1–2 didn't get you there, and even then, _type it, don't paste it_; your fingers are part of your memory.
-- **Check** — the proof the step is done: a command and what it must print, or a click and what you must see. Never continue on a red Check.
-- **If it breaks** — the most likely failures and their fixes, so being stuck has a first page to turn to.
-- **Docs / Why deeper** — the one official docs page worth opening, and the ARCH § that holds the long-form reasoning.
+- **What we're building**: the outcome of the step, in one or two plain sentences. The picture on the IKEA box.
+- **Why**: the reasons this exists and why now; what breaks or gets expensive later without it.
+- **Layer 1 · Nudge**: the vague hint. _Stop reading here first_ and try; struggling briefly is the point of the whole format.
+- **Layer 2 · Guide**: the concrete approach (names of functions, files, options); the shape of the solution without the final text.
+- **Layer 3 · Exact assembly**: the IKEA panel (exact commands, exact file paths, and exact contents). For configuration and boilerplate this is verbatim. For application logic it is complete too; read it only when Layers 1-2 didn't get you there, and even then, _type it, don't paste it_; your fingers are part of your memory.
+- **Check**: the proof the step is done: a command and what it must print, or a click and what you must see. Never continue on a red Check.
+- **If it breaks**: the most likely failures and their fixes, so being stuck has a first page to turn to.
+- **Docs / Why deeper**: the one official docs page worth opening, and the ARCH § that holds the long-form reasoning.
 
 Session ritual: end on a green Check → commit. Stuck longer than 90 minutes after Layer 3 and "If it breaks" → take the step's escape hatch if it names one, write the ADR, move on.
 
 ---
 
-# Part III — Phase 0: Day zero (one sitting, no app code)
+# Part III. Phase 0: Day zero (one sitting, no app code)
 
-## Step 0.1 — Install the workshop
+## Step 0.1: Install the workshop
 
-**What we're building:** an Arch machine that can run containers, JavaScript tooling, and Python tooling — the three power tools every later step assumes.
+**What we're building:** an Arch machine that can run containers, JavaScript tooling, and Python tooling: the three power tools every later step assumes.
 
 **Why:** every "it doesn't work" in week one traces back to a missing or half-installed tool. One careful hour now buys silence later. Docker specifically needs two things people always forget: the _service_ running and your _user_ in the docker group.
 
@@ -358,7 +394,7 @@ sudo pacman -S --needed git docker docker-compose uv nodejs npm
 sudo systemctl enable --now docker.service
 sudo usermod -aG docker $USER
 # log out and back in (or run: newgrp docker) so the group applies
-npm install --global pnpm@11
+npm install --global pnpm@11.25.0
 ```
 
 **Check:**
@@ -371,12 +407,12 @@ git --version && node -v && pnpm -v && uv --version
 **If it breaks:**
 
 - `permission denied … docker.sock` → you skipped the re-login after `usermod`; `newgrp docker` for this shell or log out/in.
-- `pnpm: command not found` after changing fnm versions → pnpm was installed under the previous Node installation; run `npm install --global pnpm@11` again while Node 26 is active.
+- `pnpm: command not found` after changing fnm versions → pnpm was installed under the previous Node installation; run `npm install --global pnpm@11.25.0` again while Node 26 is active.
 - Node version drift → `.node-version` is the local source of truth; `node -v` must report v26 before installing or running pnpm.
 
 **Docs:** wiki.archlinux.org/title/Docker · pnpm.io/installation
 
-## Step 0.2 — The repository skeleton
+## Step 0.2: The repository skeleton
 
 **What we're building:** the empty-but-shaped repo: folders, docs, ignore rules, first commit.
 
@@ -391,7 +427,7 @@ git --version && node -v && pnpm -v && uv --version
 ```bash
 git clone git@github.com:<you>/fl-reportcard.git && cd fl-reportcard
 mkdir -p apps packages infra docs e2e .github/workflows
-# copy in: docs/HANDBOOK.md docs/ARCHITECTURE.md CLAUDE.md
+# copy in: docs/HANDBOOK.md docs/ARCHITECTURE.md AGENTS.md
 touch docs/DECISIONS.md
 cat > .gitignore << 'EOF'
 node_modules/
@@ -412,15 +448,16 @@ git add -A && git commit -m "chore: repo skeleton" && git push
 
 **If it breaks:** SSH clone refused → add your key (`ssh-keygen -t ed25519`, paste `.pub` into GitHub → Settings → SSH keys), test `ssh -T git@github.com`.
 
-## Step 0.3 — Google OAuth demo client
+## Step 0.3: Google OAuth demo client
 
 **What we're building:** the Google-side half of login: a project, a consent screen, and a Web-application OAuth client whose redirect URI points at your future local API.
 
-**Why:** §1.7 needs a client ID + secret to exist _before_ you write auth code, and Google's console is fiddly enough that doing it fresh mid-coding-session wrecks momentum. The demo client stays "External + test users" forever; the school gets its own _Internal_ client under their Workspace much later — two clients so redirect URIs never mix (ARCH §4/1.7).
+**Why:** §1.7 needs a client ID + secret to exist _before_ you write auth code, and Google's console is fiddly enough that doing it fresh mid-coding-session wrecks momentum. A local development client can use "External + test users"; the public demo uses the published
+consent configuration in `infra/README.md` (ADR-051 and ADR-052); the school gets its own _Internal_ client under their Workspace much later; two clients so redirect URIs never mix (ARCH §4/1.7).
 
 **Layer 1 · Nudge:** console.cloud.google.com → new project → consent screen → credentials → OAuth client (Web) → one redirect URI: your local API's callback.
 
-**Layer 2 · Guide:** the consent screen wants a user type (**External**), an app name, your email twice, and — critically — **you added as a test user**, or your own logins will be refused. The client wants exactly `http://localhost:8000/api/auth/callback` as an authorized redirect URI (scheme, port and path must match to the character; Google compares strings, not intentions).
+**Layer 2 · Guide:** the consent screen wants a user type (**External**), an app name, your email twice, and, critically, **you added as a test user**, or your own logins will be refused. The client wants exactly `http://localhost:8000/api/auth/callback` as an authorized redirect URI (scheme, port and path must match to the character; Google compares strings, not intentions).
 
 **Layer 3 · Exact assembly:**
 
@@ -435,31 +472,31 @@ git add -A && git commit -m "chore: repo skeleton" && git push
 
 **Docs:** developers.google.com/identity/openid-connect/openid-connect
 
-## Step 0.4 — Read the theory once
+## Step 0.4: Read the theory once
 
 **What:** tonight, away from the keyboard, read ARCH §3 (the domain model) end to end, and skim §I.7's grade-save trace again.
 
-**Why:** §3 is the only theory that genuinely pays before code exists — every table you'll type in §1.5 is motivated there, and the save algorithm you'll build in Phase 2 stops being clever and starts being obvious once §3.5 has settled overnight. Everything else in ARCH is better read _after_ the step that cites it.
+**Why:** §3 is the only theory that genuinely pays before code exists: every table you'll type in §1.5 is motivated there, and the save algorithm you'll build in Phase 2 stops being clever and starts being obvious once §3.5 has settled overnight. Everything else in ARCH is better read _after_ the step that cites it.
 
 **Check:** you can answer, from memory, "why do grade rows not reference the class?" and "what does version 0 mean?". If not, re-read §3.4.
 
 ---
 
-# Part IV — Phase 1: The walking skeleton
+# Part IV. Phase 1: The walking skeleton
 
-**Phase goal:** by the end, a deployed app logs you in with your real Google account, FastAPI answers through a same-origin proxy, CI is green, and a fake school lives in the database. Nothing more — and deliberately so: every later feature lands faster on a deployed skeleton than on a perfect local one.
+**Phase goal:** by the end, a deployed app logs you in with your real Google account, FastAPI answers through a same-origin proxy, CI is green, and a fake school lives in the database. Nothing more, and deliberately so: every later feature lands faster on a deployed skeleton than on a perfect local one.
 
-## Step 1.1 — The monorepo takes shape
+## Step 1.1: The monorepo takes shape
 
 ### 1.1.1 Workspace root
 
-**What we're building:** the root `package.json` + `pnpm-workspace.yaml` + Turborepo — the frame every package bolts onto.
+**What we're building:** the root `package.json` + `pnpm-workspace.yaml` + Turborepo: the frame every package bolts onto.
 
-**Why:** pnpm workspaces make `apps/*` and `packages/*` one installable universe (so `@flrc/teacher` can import `@flrc/ui` as source); Turborepo reads one JSON of task wiring and gives you "run everything, in order, in parallel, cached" — which is the difference between a monorepo and a folder of regrets.
+**Why:** pnpm workspaces make `apps/*` and `packages/*` one installable universe (so `@flrc/teacher` can import `@flrc/ui` as source); Turborepo reads one JSON of task wiring and gives you "run everything, in order, in parallel, cached", which is the difference between a monorepo and a folder of regrets.
 
 **Layer 1 · Nudge:** `pnpm init` at the root, mark it private, tell pnpm where packages live, add turbo, describe six tasks.
 
-**Layer 2 · Guide:** `pnpm-workspace.yaml` needs one key, `packages:`, listing the two globs. `turbo.json` (v2 schema — the key is `tasks`, not the old `pipeline`) declares: `build` depends on `^build` (caret = "my dependencies' build first") and outputs `dist/**`; `lint`, `typecheck`, `test` are plain; `generate` will later chain schema-export → client-generation; `dev` is uncached and persistent.
+**Layer 2 · Guide:** `pnpm-workspace.yaml` needs one key, `packages:`, listing the two globs. `turbo.json` (v2 schema: the key is `tasks`, not the old `pipeline`) declares: `build` depends on `^build` (caret = "my dependencies' build first") and outputs `dist/**`; `lint`, `typecheck`, `test` are plain; `generate` will later chain schema-export → client-generation; `dev` is uncached and persistent.
 
 **Layer 3 · Exact assembly:**
 
@@ -487,7 +524,7 @@ Edit the root `package.json` to exactly:
 }
 ```
 
-(Replace the `packageManager` placeholder with whatever `pnpm -v` printed — that field pins the
+(Replace the `packageManager` placeholder with whatever `pnpm -v` printed; that field pins the
 version for CI and teammates.)
 
 Create `pnpm-workspace.yaml`:
@@ -514,21 +551,21 @@ Create `turbo.json`:
 }
 ```
 
-**Check:** `pnpm turbo run build --dry-run` prints a summary with "Tasks: 0" and no error — an empty graph is the correct graph today.
+**Check:** `pnpm turbo run build --dry-run` prints a summary with "Tasks: 0" and no error; an empty graph is the correct graph today.
 
 **If it breaks:** `Could not find turbo.json` → you're not at the repo root. Complaints about `pipeline` → you pasted a Turborepo v1 example from an old blog; the key is `tasks`.
 
-**Docs:** turborepo.dev/docs — read the "Structuring a repository" page now, ten minutes. **Why deeper:** ARCH decision #1.
+**Docs:** turborepo.dev/docs; read the "Structuring a repository" page now, ten minutes. **Why deeper:** ARCH decision #1.
 
 ### 1.1.2 The two SPAs
 
 **What we're building:** `apps/teacher` and `apps/admin`, scaffolded by Vite's React-TS template and renamed into the `@flrc` scope.
 
-**Why:** two apps, not one with role-routing, because teachers and admins have different bundles, different deploy targets at the school, and different blast radii — an admin-panel bug should not be able to take down grade entry. (ARCH §2.)
+**Why:** two apps, not one with role-routing, because teachers and admins have different bundles, different deploy targets at the school, and different blast radii; an admin-panel bug should not be able to take down grade entry. (ARCH §2.)
 
 **Layer 1 · Nudge:** `pnpm create vite` twice with the react-ts template; fix each `package.json` name.
 
-**Layer 2 · Guide:** the template drops a runnable app with `dev`/`build`/`preview` scripts. You change: `"name"` → `@flrc/teacher` / `@flrc/admin`, and add a `"typecheck": "tsc -b --noEmit"` script so Turborepo's task finds a target. Delete the demo CSS noise now or in 1.10 — your call.
+**Layer 2 · Guide:** the template drops a runnable app with `dev`/`build`/`preview` scripts. You change: `"name"` → `@flrc/teacher` / `@flrc/admin`, and add a `"typecheck": "tsc -b --noEmit"` script so Turborepo's task finds a target. Delete the demo CSS noise now or in 1.10; your call.
 
 **Layer 3 · Exact assembly:**
 
@@ -543,15 +580,15 @@ In `apps/teacher/package.json` set `"name": "@flrc/teacher", "private": true` an
 pnpm install
 ```
 
-**Check:** `pnpm --filter @flrc/teacher dev` → the Vite starter spins at `localhost:5173`. Ctrl-C, same for admin (it'll pick 5174 if 5173 is busy — fine).
+**Check:** `pnpm --filter @flrc/teacher dev` → the Vite starter spins at `localhost:5173`. Ctrl-C, same for admin (it'll pick 5174 if 5173 is busy, which is fine).
 
 **If it breaks:** `--filter` matches nothing → the `name` field wasn't saved, or you didn't re-run `pnpm install` after renaming (pnpm indexes workspaces at install time).
 
 ### 1.1.3 The three shared packages
 
-**What we're building:** `@flrc/ui`, `@flrc/i18n`, `@flrc/api-client` as **source-consumed internal packages** — no build step, the consuming app's Vite compiles them.
+**What we're building:** `@flrc/ui`, `@flrc/i18n`, `@flrc/api-client` as **source-consumed internal packages**: no build step, the consuming app's Vite compiles them.
 
-**Why:** the "internal packages" pattern (Turborepo's own recommendation) deletes the entire class of "did you rebuild the shared package?" bugs. `main` pointing at a `.ts` file looks illegal and is, for _published_ packages — for workspace-internal ones it's the whole trick.
+**Why:** the "internal packages" pattern (Turborepo's own recommendation) deletes the entire class of "did you rebuild the shared package?" bugs. `main` pointing at a `.ts` file looks illegal and is, for _published_ packages; for workspace-internal ones it's the whole trick.
 
 **Layer 1 · Nudge:** three folders, each a `package.json` whose `main`/`types` point into `src/index.ts`, plus a stub export. One shared `tsconfig.base.json` at the root that everything extends.
 
@@ -576,7 +613,7 @@ pnpm install
 }
 ```
 
-For each of `packages/ui`, `packages/i18n`, `packages/api-client` — shown for `ui`, repeat with the name changed:
+For each of `packages/ui`, `packages/i18n`, `packages/api-client` (shown for `ui`; repeat with the name changed):
 
 `packages/ui/package.json`
 
@@ -602,7 +639,7 @@ For each of `packages/ui`, `packages/i18n`, `packages/api-client` — shown for 
 export const Hello = () => <p>flrc ui alive</p>;
 ```
 
-(That file must be `index.tsx` since it contains JSX — name it `src/index.tsx` and point `main`/`types` at it. The other two packages keep plain `index.ts` with e.g. `export const placeholder = true;`.)
+(That file must be `index.tsx` since it contains JSX; name it `src/index.tsx` and point `main`/`types` at it. The other two packages keep plain `index.ts` with e.g. `export const placeholder = true;`.)
 
 Also make both **apps'** `tsconfig.json` extend the base (keep Vite's references structure if the template used `tsconfig.app.json`; extend from there).
 
@@ -622,15 +659,15 @@ In `apps/teacher/src/App.tsx`, import `{ Hello }` from `@flrc/ui` and render it.
 
 **Check:** the page shows _flrc ui alive_; edit the string in `packages/ui/src/index.tsx` → hot-reloads in the app. That round trip _is_ the monorepo working.
 
-**If it breaks:** "Failed to resolve import @flrc/ui" → `pnpm install` after adding the dependency; or the `main` path doesn't match the actual filename (`index.ts` vs `index.tsx`). JSX error inside the package → the base tsconfig's `jsx: "react-jsx"` isn't being inherited — check the `extends` chain.
+**If it breaks:** "Failed to resolve import @flrc/ui" → `pnpm install` after adding the dependency; or the `main` path doesn't match the actual filename (`index.ts` vs `index.tsx`). JSX error inside the package → the base tsconfig's `jsx: "react-jsx"` isn't being inherited; check the `extends` chain.
 
-Commit: `feat: monorepo scaffold` — and write **DECISIONS.md #1** (monorepo, pnpm+Turborepo, internal-packages-as-source, over: two repos / Nx) in your own words. Ten minutes, do it now; the habit is the deliverable.
+Commit: `feat: monorepo scaffold`, and write **DECISIONS.md #1** (monorepo, pnpm+Turborepo, internal-packages-as-source, over: two repos / Nx) in your own words. Ten minutes, do it now; the habit is the deliverable.
 
-## Step 1.2 — Tooling baseline (format, lint, hooks)
+## Step 1.2: Tooling baseline (format, lint, hooks)
 
 ### 1.2.1 Prettier
 
-**What / Why:** one formatter, root-level, so diffs are content not whitespace, and code review (even self-review) reads clean.
+**What / Why:** one formatter, root-level, so diffs are content, not whitespace, and code review (even self-review) reads clean.
 
 **Layer 3 · Exact assembly:**
 
@@ -638,7 +675,7 @@ Commit: `feat: monorepo scaffold` — and write **DECISIONS.md #1** (monorepo, p
 pnpm add -D prettier -w
 ```
 
-Root `.prettierrc`: `{ "singleQuote": true, "semi": true, "printWidth": 100 }` (taste — pick once, never discuss again). Root `.prettierignore`:
+Root `.prettierrc`: `{ "singleQuote": true, "semi": true, "printWidth": 100 }` (taste: pick once, never discuss again). Root `.prettierignore`:
 
 ```
 dist/
@@ -649,11 +686,11 @@ pnpm-lock.yaml
 
 (The generated client is machine-formatted; fighting it wastes hooks.)
 
-**Check:** `pnpm prettier --check .` runs; it may list files — `pnpm prettier --write .` once, commit as `style: prettier pass`.
+**Check:** `pnpm prettier --check .` runs; it may list files; `pnpm prettier --write .` once, commit as `style: prettier pass`.
 
 ### 1.2.2 ESLint 10, flat config, per app
 
-**What we're building:** ESLint 10 flat config in both apps and `packages/ui` — JS recommended + typescript-eslint + React hooks rules. ESLint 10 only supports flat config and looks for `eslint.config.js` starting from each linted file, so every lint target owns its config and dependencies.
+**What we're building:** ESLint 10 flat config in both apps and `packages/ui`: JS recommended + typescript-eslint + React hooks rules. ESLint 10 only supports flat config and looks for `eslint.config.js` starting from each linted file, so every lint target owns its config and dependencies.
 
 **Why:** the hooks rules alone (deps arrays, conditional hooks) prevent the two most common React footguns; typescript-eslint catches the unsafe-`any` drift that strict tsconfig can't see in expressions.
 
@@ -692,15 +729,15 @@ export default defineConfig([
 For `packages/ui`, ensure its manifest declares `"type": "module"` so Node loads
 `eslint.config.js` as ESM. Use the same config without the app-only React Refresh rules.
 
-The template already gave you a `"lint": "eslint src"` script — keep it (add it where missing).
+The template already gave you a `"lint": "eslint src"` script; keep it (add it where missing).
 
-**Check:** `pnpm turbo run lint` — three packages, all pass (the Vite template code is clean).
+**Check:** `pnpm turbo run lint`; three packages, all pass (the Vite template code is clean).
 
 **If it breaks:** ESLint cannot find a config → v10 searches from the linted file, so confirm that package has its own `eslint.config.js`. Node compatibility error → use the Node 26 version in `.node-version`. `reactHooks.configs.flat.recommended` undefined → the React Hooks plugin is stale; install the pinned major above.
 
 ### 1.2.3 Lefthook
 
-**What we're building:** git hooks from one YAML: staged TS gets Prettier+ESLint, staged Python (from §1.3 on) gets Ruff — commit refuses if any fail.
+**What we're building:** git hooks from one YAML: staged TS gets Prettier+ESLint, staged Python (from §1.3 on) gets Ruff; commit refuses if any fail.
 
 **Why:** hooks convert "I'll lint later" into physics. Lefthook specifically because it's one fast binary that treats both languages as equals (ARCH decision #16).
 
@@ -739,13 +776,13 @@ pre-commit:
       run: pnpm eslint --no-warn-ignored {staged_files}
 ```
 
-(The `ruff` block will simply never match until §1.3 creates Python files — harmless now, armed later.)
+(The `ruff` block will simply never match until §1.3 creates Python files: harmless now, armed later.)
 
 **Check:** add a deliberately unformatted line to any `.ts` file, `git add`, `git commit` → the hook blocks with Prettier's complaint; fix; commit passes. Revert the vandalism.
 
-**If it breaks:** hooks don't fire at all → `pnpm lefthook install` writes `.git/hooks`; re-run it after any fresh clone (add a root `"prepare": "lefthook install"` script so pnpm does it automatically — do that now).
+**If it breaks:** hooks don't fire at all → `pnpm lefthook install` writes `.git/hooks`; re-run it after any fresh clone (add a root `"prepare": "lefthook install"` script so pnpm does it automatically; do that now).
 
-## Step 1.3 — The FastAPI skeleton
+## Step 1.3: The FastAPI skeleton
 
 ### 1.3.1 Project + dependencies
 
@@ -755,7 +792,7 @@ pre-commit:
 
 **Layer 1 · Nudge:** initialize a packaged uv application, add `fastapi[standard]` and `pydantic-settings`, then shape `src/flrc/` with `main.py`, `config.py`, and a `modules/system/` feature.
 
-**Layer 2 · Guide:** `uv init apps/backend` writes `pyproject.toml` and pins Python in `.python-version`. The `[standard]` extra matters — bare `fastapi` has no dev server CLI. Delete uv's sample file; create the package by hand. Add ruff/mypy/pytest as dev deps and configure them in the same `pyproject.toml` (one file to rule the Python side).
+**Layer 2 · Guide:** `uv init apps/backend` writes `pyproject.toml` and pins Python in `.python-version`. The `[standard]` extra matters: bare `fastapi` has no dev server CLI. Delete uv's sample file; create the package by hand. Add ruff/mypy/pytest as dev deps and configure them in the same `pyproject.toml` (one file to rule the Python side).
 
 **Layer 3 · Exact assembly:**
 
@@ -788,11 +825,11 @@ ignore_missing_imports = true
 module-name = "flrc"
 ```
 
-(`I` = import sorting, `UP` = pyupgrade — Ruff will quietly modernize your Python as you write; that's a feature, accept its fixes and read them.)
+(`I` = import sorting, `UP` = pyupgrade. Ruff will quietly modernize your Python as you write; that's a feature, so accept its fixes and read them.)
 
 **Check:** `uv run python -c "import fastapi; print(fastapi.__version__)"` prints a version; `cat .python-version` shows 3.13.
 
-### 1.3.2 Settings — the only place configuration exists
+### 1.3.2 Settings: the only place configuration exists
 
 **What we're building:** `src/flrc/config.py`, a typed `Settings` object that reads environment variables (and a local `.env`), plus the `.env.example` that documents every knob.
 
@@ -847,13 +884,13 @@ OPS_TOKEN=change-me
 
 **Check:** `uv run python -c "from flrc.config import settings; print(settings.env, settings.allowed_google_domain)"` prints your values.
 
-**If it breaks:** settings ignore your `.env` → you're running from the wrong directory (`env_file=".env"` is relative to the process CWD; run api commands from `apps/backend`). A value "won't change" → real environment variables beat `.env` — check `echo $DATABASE_URL`.
+**If it breaks:** settings ignore your `.env` → you're running from the wrong directory (`env_file=".env"` is relative to the process CWD; run api commands from `apps/backend`). A value "won't change" → real environment variables beat `.env`; check `echo $DATABASE_URL`.
 
 ### 1.3.3 The app factory + healthz
 
 **What we're building:** `src/flrc/main.py` with a `create_app()` factory and the first feature router in `src/flrc/modules/system/router.py`.
 
-**Why the factory:** tests will build private app instances with overridden dependencies (fake users, scratch DBs); a module-level-only `app` makes that impossible. It also forces you to meet FastAPI's dependency-override mechanism early — Phase 2's permission tests live on it. **Why `/api` prefix even server-side:** the proxy forwards `/api/*` verbatim; if the backend also serves under `/api`, dev and prod paths are byte-identical and a whole class of "works locally" bugs never exists. Docs move under the prefix too, so `/api/docs` works through the proxy.
+**Why the factory:** tests will build private app instances with overridden dependencies (fake users, scratch DBs); a module-level-only `app` makes that impossible. It also forces you to meet FastAPI's dependency-override mechanism early; Phase 2's permission tests live on it. **Why `/api` prefix even server-side:** the proxy forwards `/api/*` verbatim; if the backend also serves under `/api`, dev and prod paths are byte-identical and a whole class of "works locally" bugs never exists. Docs move under the prefix too, so `/api/docs` works through the proxy.
 
 **Layer 3 · Exact assembly:** `src/flrc/modules/system/router.py`:
 
@@ -923,19 +960,19 @@ pnpm --filter @flrc/backend dev        # in one terminal
 curl -i localhost:8000/api/healthz    # → 204, empty body
 ```
 
-Open `http://localhost:8000/api/docs` — Swagger UI with one endpoint. Then `pnpm turbo run lint typecheck` from the root — six packages, all green. Commit: `feat(backend): fastapi skeleton + settings`.
+Open `http://localhost:8000/api/docs`: Swagger UI with one endpoint. Then `pnpm turbo run lint typecheck` from the root: six packages, all green. Commit: `feat(backend): fastapi skeleton + settings`.
 
 **If it breaks:** `fastapi: command not found` → the `[standard]` extra is missing. Turbo can't find the api tasks → you skipped the root `pnpm install`. mypy shouts about pydantic → you're on an ancient mypy; `uv lock --upgrade-package mypy`.
 
-**Docs:** fastapi.tiangolo.com — read "First Steps" and "Settings and Environment Variables". **Why deeper:** ARCH §4/1.3.
+**Docs:** fastapi.tiangolo.com; read "First Steps" and "Settings and Environment Variables". **Why deeper:** ARCH §4/1.3.
 
-## Step 1.4 — Local services + the shipping container
+## Step 1.4: Local services + the shipping container
 
 ### 1.4.1 Docker Compose: Postgres + Redis
 
 **What we're building:** one command that raises the two stateful services the whole backend leans on, with health checks so "up" means _ready_.
 
-**Why containers for these and not the API:** you edit the API constantly (host process, instant reload); you never edit Postgres — you just need version-pinned instances that reset cleanly. The compose file is also the repo's onboarding doc: any reviewer can run your stack with one command.
+**Why containers for these and not the API:** you edit the API constantly (host process, instant reload); you never edit Postgres; you just need version-pinned instances that reset cleanly. The compose file is also the repo's onboarding doc: any reviewer can run your stack with one command.
 
 **Layer 1 · Nudge:** two services, pinned images, exposed default ports, a named volume for Postgres, health checks (`pg_isready`, `redis-cli ping`).
 
@@ -1014,7 +1051,7 @@ CMD ["sh", "-c", "uvicorn flrc.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 
 Add `apps/backend/.dockerignore`: `.venv`, `__pycache__`, `.env*`, `tests/`.
 
-**Check:** `docker build -t flrc-api apps/backend` succeeds; `docker run --rm -p 8001:8000 flrc-api` → `curl localhost:8001/api/healthz` answers (healthz touches no DB — that's why it can).
+**Check:** `docker build -t flrc-api apps/backend` succeeds; `docker run --rm -p 8001:8000 flrc-api` → `curl localhost:8001/api/healthz` answers (healthz touches no DB; that's why it can).
 
 **If it breaks:** `uv.lock not found` → you haven't run any `uv add` yet in this folder, or you're building from the wrong context path (the final `apps/backend` argument _is_ the context). `ModuleNotFoundError: flrc` → the project lacks its uv build-system declaration, or `COPY src ./src` is missing.
 
@@ -1043,11 +1080,11 @@ Commit: `feat: compose + api dockerfile`.
 
 **Docs:** docs.astral.sh/uv/guides/integration/docker · postgresql.org/docs/current/collation.html. **Why deeper:** ARCH §4/1.4.
 
-## Step 1.5 — SQLAlchemy 2.0 + Alembic + the first eight tables
+## Step 1.5: SQLAlchemy 2.0 + Alembic + the first eight tables
 
 ### 1.5.1 Dependencies + the declarative base
 
-**What we're building:** the foundation every model stands on — a `Base` class carrying a **naming convention**, and a timestamp mixin.
+**What we're building:** the foundation every model stands on: a `Base` class carrying a **naming convention**, and a timestamp mixin.
 
 **Why the naming convention before anything else:** without it, Postgres invents constraint names (`semesters_number_check`) and Alembic's autogenerated migrations become undiffable noise; with it, every index/unique/check/FK gets a deterministic, readable name, and reading a migration diff becomes a two-minute code review instead of archaeology. This is the single highest-leverage five lines in the backend.
 
@@ -1090,13 +1127,13 @@ class TimestampMixin:
 
 ### 1.5.2 The eight Phase-1 models
 
-**What we're building:** `src/flrc/db/models.py` — users, years, semesters, classes, students, enrollments, student languages, teaching assignments. Grades/audit/grants wait for Phase 2, when needing them will make you understand them.
+**What we're building:** `src/flrc/db/models.py`: users, years, semesters, classes, students, enrollments, student languages, teaching assignments. Grades/audit/grants wait for Phase 2, when needing them will make you understand them.
 
-**Why each constraint is where it is:** the CHECKs make illegal states unrepresentable at the last line of defense (the app validates too, but apps have bugs); the composite UNIQUEs _are_ business rules ("one enrollment per student per year" — the sentence and the constraint are the same thing); `search_name` exists because Turkish İ/ı breaks naive case-insensitive search (Python's `casefold()` at write time is the fix — ARCH §6/3.1); and note what's _absent_: no gender, no birthdate, no class FK anywhere near future grades.
+**Why each constraint is where it is:** the CHECKs make illegal states unrepresentable at the last line of defense (the app validates too, but apps have bugs); the composite UNIQUEs _are_ business rules ("one enrollment per student per year"; the sentence and the constraint are the same thing); `search_name` exists because Turkish İ/ı breaks naive case-insensitive search (Python's `casefold()` at write time is the fix; see ARCH §6/3.1); and note what's _absent_: no gender, no birthdate, no class FK anywhere near future grades.
 
 **Layer 1 · Nudge:** eight classes, 2.0 style only (`Mapped[]`, `mapped_column`), `BigInteger + Identity()` PKs, constraints in `__table_args__` with explicit `name=` on every CheckConstraint (the convention needs it).
 
-**Layer 2 · Guide:** field lists live in ARCH §3.1 and the step 1.5 spec of the old BUILD-STEPS — or just below. Statuses are `str` columns with IN-list CHECKs, defaults set Python-side (`default="setup"`), which is honest for an app that is its database's only writer.
+**Layer 2 · Guide:** field lists live in ARCH §3.1 and the step 1.5 spec of the old BUILD-STEPS, or just below. Statuses are `str` columns with IN-list CHECKs, defaults set Python-side (`default="setup"`), which is honest for an app that is its database's only writer.
 
 **Layer 3 · Exact assembly:** `src/flrc/db/models.py`:
 
@@ -1208,11 +1245,11 @@ class TeachingAssignment(TimestampMixin, Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
 ```
 
-Read it back against ARCH §3.1 once — every table there, nothing extra, and say out loud why `enrollments` has a `class_id` but nothing else ever will.
+Read it back against ARCH §3.1 once (every table there, nothing extra), and say out loud why `enrollments` has a `class_id` but nothing else ever will.
 
 ### 1.5.3 The async session plumbing
 
-**What we're building:** one engine, one sessionmaker, one dependency — the only three database objects FastAPI ever sees.
+**What we're building:** one engine, one sessionmaker, one dependency: the only three database objects FastAPI ever sees.
 
 **Layer 3 · Exact assembly:** `src/flrc/db/session.py`:
 
@@ -1232,17 +1269,17 @@ async def get_session() -> AsyncIterator[AsyncSession]:
         yield session
 ```
 
-`pool_pre_ping=True` is Neon insurance bought early: after its 5-minute autosuspend, dead pooled connections get detected and replaced transparently instead of throwing at a teacher. `expire_on_commit=False` keeps ORM objects readable after commit — the default (True) causes mystifying lazy-load errors in async code.
+`pool_pre_ping=True` is Neon insurance bought early: after its 5-minute autosuspend, dead pooled connections get detected and replaced transparently instead of throwing at a teacher. `expire_on_commit=False` keeps ORM objects readable after commit; the default (True) causes mystifying lazy-load errors in async code.
 
 ### 1.5.4 Alembic, the async template, and your first migration
 
 **What we're building:** a migrations directory wired to your metadata and your settings, plus migration #0001 containing all eight tables.
 
-**Why the ceremony matters:** migrations are the only schema change mechanism from now until forever — including against the archived years of 2030. The discipline (autogenerate → **read the diff line by line** → apply; one migration per PR; never edit an applied one) is what makes that safe. And the pooled/direct rule: **the app uses Neon's pooled URL, Alembic uses the direct one** — DDL through a transaction-mode pooler fails in ways that look like haunted hardware.
+**Why the ceremony matters:** migrations are the only schema change mechanism from now until forever, including against the archived years of 2030. The discipline (autogenerate → **read the diff line by line** → apply; one migration per PR; never edit an applied one) is what makes that safe. And the pooled/direct rule: **the app uses Neon's pooled URL, Alembic uses the direct one**; DDL through a transaction-mode pooler fails in ways that look like haunted hardware.
 
 **Layer 1 · Nudge:** `alembic init -t async migrations` from `apps/backend`; point `env.py` at your metadata and your settings; autogenerate; read; upgrade.
 
-**Layer 2 · Guide:** three edits in `migrations/env.py`: (1) import your models module _for its side effect_ (tables register on `Base.metadata` at import — miss this and autogenerate produces an empty migration); (2) set `target_metadata = Base.metadata`; (3) feed the URL from settings, with an env-var override hook for tests.
+**Layer 2 · Guide:** three edits in `migrations/env.py`: (1) import your models module _for its side effect_ (tables register on `Base.metadata` at import; miss this and autogenerate produces an empty migration); (2) set `target_metadata = Base.metadata`; (3) feed the URL from settings, with an env-var override hook for tests.
 
 **Layer 3 · Exact assembly:**
 
@@ -1256,7 +1293,7 @@ In `migrations/env.py`: near the top, after `config = context.config`, add:
 import os
 
 from flrc.config import settings
-from flrc.db import models  # noqa: F401  — imported so tables register on the metadata
+from flrc.db import models  # noqa: F401  - imported so tables register on the metadata
 from flrc.db.base import Base
 
 config.set_main_option(
@@ -1273,7 +1310,7 @@ Then:
 uv run alembic revision --autogenerate -m "core tables"
 ```
 
-**Now read the generated file** in `migrations/versions/` against this checklist before applying: 8 `op.create_table` calls · every CheckConstraint present with a `ck_<table>_<name>` name · the composite uniques on semesters/school_classes/enrollments/student_languages/teaching_assignments · indexes on `users.email` and `students.search_name` · FKs named `fk_…`. Anything missing means a model typo — fix the model, delete the revision file, regenerate (never hand-patch revision #1).
+**Now read the generated file** in `migrations/versions/` against this checklist before applying: 8 `op.create_table` calls · every CheckConstraint present with a `ck_<table>_<name>` name · the composite uniques on semesters/school_classes/enrollments/student_languages/teaching_assignments · indexes on `users.email` and `students.search_name` · FKs named `fk_…`. Anything missing means a model typo: fix the model, delete the revision file, regenerate (never hand-patch revision #1).
 
 ```bash
 uv run alembic upgrade head
@@ -1291,7 +1328,7 @@ uv run alembic downgrade -1 && uv run alembic upgrade head    # round-trips clea
 
 ### 1.5.5 The migration guard test
 
-**What we're building:** a pytest that proves `upgrade head` works from an empty database — the cheap insurance that catches 90% of migration accidents in CI, forever.
+**What we're building:** a pytest that proves `upgrade head` works from an empty database: the cheap insurance that catches 90% of migration accidents in CI, forever.
 
 **Layer 2 · Guide:** a scratch database (`flrc_test`), the Alembic _command API_ (`alembic.command.upgrade`) driven from Python, and the `FLRC_MIGRATIONS_URL` override you planted in env.py.
 
@@ -1313,19 +1350,19 @@ def test_migrations_apply_from_zero() -> None:
     command.upgrade(cfg, "head")
 ```
 
-**Check:** `uv run pytest -q` → 1 passed. Commit: `feat(api): schema v1 + alembic`. Write **DECISIONS.md** entries: naming conventions, text+CHECK over native enums, pooled-vs-direct rule, bigint IDs (and the UUIDv7 paragraph — ARCH decision #17).
+**Check:** `uv run pytest -q` → 1 passed. Commit: `feat(api): schema v1 + alembic`. Write **DECISIONS.md** entries: naming conventions, text+CHECK over native enums, pooled-vs-direct rule, bigint IDs (and the UUIDv7 paragraph; see ARCH decision #17).
 
 **Docs:** the SQLAlchemy 2.0 ORM quickstart + Alembic's "Auto Generating Migrations" page (its list of what autogenerate _cannot_ detect is required reading). **Why deeper:** ARCH §4/1.5, §3.1.
 
-## Step 1.6 — The seed CLI and the fictional school
+## Step 1.6: The seed CLI and the fictional school
 
-**What we're building:** `uv run flrc seed` — a deterministic four-year fake school. It contains three archived years plus active 2026–2027, 52 classes per year (A–F at every grade and G in grades 1, 3, 5, and 7), exactly 22 students per class, and 28 teachers. School numbers run from 1 through 1,144 independently in every year.
+**What we're building:** `uv run flrc seed`: a deterministic four-year fake school. It contains three archived years plus active 2026-2027, 52 classes per year (A-F at every grade and G in grades 1, 3, 5, and 7), exactly 22 students per class, and 28 teachers. School numbers run from 1 through 1,144 independently in every year.
 
-**Why it's a product feature, not a convenience:** this data _is_ the public demo, the screenshot source, and the test substrate. Determinism (fixed Faker seed) makes screenshots reproducible; the your-real-email trick is what lets Step 1.7's OAuth log you in before any admin UI exists; and the hard rule rides on top — **real student data never enters this system's repo, demo, or fixtures** (ARCH §8.5). Note it seeds no gender field because no gender field exists.
+**Why it's a product feature, not a convenience:** this data _is_ the public demo, the screenshot source, and the test substrate. Determinism (fixed Faker seed) makes screenshots reproducible; the your-real-email trick is what lets Step 1.7's OAuth log you in before any admin UI exists; and the hard rule rides on top: **real student data never enters this system's repo, demo, or fixtures** (ARCH §8.5). Note it seeds no gender field because no gender field exists.
 
-**Layer 1 · Nudge:** Typer app in `src/flrc/cli.py`, registered as a console script; a **sync** engine (a CLI has no event loop to win — and this is your first meeting with the two-engine reality of ARCH decision #6); Faker `tr_TR`; deterministic plans building teachers → years → classes → connected yearly enrollments.
+**Layer 1 · Nudge:** Typer app in `src/flrc/cli.py`, registered as a console script; a **sync** engine (a CLI has no event loop to win, and this is your first meeting with the two-engine reality of ARCH decision #6); Faker `tr_TR`; deterministic plans building teachers → years → classes → connected yearly enrollments.
 
-**Layer 2 · Guide:** `uv add typer faker "psycopg[binary]"` — psycopg is the sync driver; derive the sync URL by swapping `+asyncpg` → `+psycopg`. Structure: `reset()` deletes child tables before parents (FK order); `seed_class_plans()` is the testable allocation contract; `seed()` flushes after inserting parents so generated ids exist for children. A–F rosters reuse the previous year's student identities at the next grade. Missing G destinations model departures, new grade/G rosters model arrivals, and every enrollment receives that year's sequential number. Register `flrc = "flrc.cli:app"` under `[project.scripts]`.
+**Layer 2 · Guide:** `uv add typer faker "psycopg[binary]"`: psycopg is the sync driver; derive the sync URL by swapping `+asyncpg` → `+psycopg`. Structure: `reset()` deletes child tables before parents (FK order); `seed_class_plans()` is the testable allocation contract; `seed()` flushes after inserting parents so generated ids exist for children. A-F rosters reuse the previous year's student identities at the next grade. Missing G destinations model departures, new grade/G rosters model arrivals, and every enrollment receives that year's sequential number. Register `flrc = "flrc.cli:app"` under `[project.scripts]`.
 
 **Layer 3 · Exact assembly:** the maintained implementation is
 `apps/backend/src/flrc/cli.py`; keeping a second full copy here caused the handbook to drift from the
@@ -1346,8 +1383,8 @@ GERMAN_KEYS = ("german-01", "german-02")
 FRENCH_KEYS = ("french-01", "french-02")
 ```
 
-`seed_class_plans()` assigns only primary English keys to grades 1–4, only secondary English keys
-to grades 5–8, and language keys only to German/French roles in grades where L2 exists. The supplied
+`seed_class_plans()` assigns only primary English keys to grades 1-4, only secondary English keys
+to grades 5-8, and language keys only to German/French roles in grades where L2 exists. The supplied
 `--my-email` account occupies `my-account`, so all of its teaching assignments are middle-school
 English `main` or `skills` roles. Past years have two filled, locked semesters; the current year has
 a filled open semester 1 and a prepared locked semester 2. Written-note columns are populated in
@@ -1377,19 +1414,19 @@ docker compose -f infra/compose/compose.dev.yaml exec postgres psql -U flrc -c \
   "select teaching_field, count(*) from users group by 1;"                                # English 24 · German 2 · French 2
 ```
 
-`tests/test_seed_plan.py` proves the class/staff boundaries and the complete A–F promotion path.
-Run `seed` twice with the same seed value against a reset DB — identical names, assignments, grades,
+`tests/test_seed_plan.py` proves the class/staff boundaries and the complete A-F promotion path.
+Run `seed` twice with the same seed value against a reset DB. Identical names, assignments, grades,
 and notes both times: that's determinism working.
 
 **If it breaks:** `flrc: command not found` → `uv sync` after adding `[project.scripts]` (scripts install at sync time). FK violation during reset → your delete order drifted from the list above. `psycopg` import error → the `[binary]` extra didn't install; re-run the add.
 
-**Docs:** typer.tiangolo.com · faker.readthedocs.io (the `tr_TR` provider page). **Why deeper:** ARCH §4/1.6 — the demo-data doctrine, worth re-reading now that it's real.
+**Docs:** typer.tiangolo.com · faker.readthedocs.io (the `tr_TR` provider page). **Why deeper:** ARCH §4/1.6, the demo-data doctrine, worth re-reading now that it's real.
 
 ---
 
-## Step 1.7 — Google OAuth + Redis sessions (the centerpiece; budget 2–3 days)
+## Step 1.7: Google OAuth + Redis sessions (the centerpiece; budget 2-3 days)
 
-**The one topology rule before any code:** the browser must **never see the Render domain** — not for API calls, and _not for the OAuth dance either_. Login starts at `<your-origin>/api/auth/login`, Google redirects back to `<your-origin>/api/auth/callback`, and the proxy carries both to FastAPI. That way the session cookie gets set on _your_ origin (localhost:5173 in dev, the Vercel/CF domain in prod), which is the only place it's any use. If you ever type `:8000` or `onrender.com` into a browser bar during auth, you're testing the wrong universe.
+**The one topology rule before any code:** the browser must **never see the Render domain**, not for API calls, and _not for the OAuth dance either_. Login starts at `<your-origin>/api/auth/login`, Google redirects back to `<your-origin>/api/auth/callback`, and the proxy carries both to FastAPI. That way the session cookie gets set on _your_ origin (localhost:5173 in dev, the Vercel/CF domain in prod), which is the only place it's any use. If you ever type `:8000` or `onrender.com` into a browser bar during auth, you're testing the wrong universe.
 
 - [ ] **Console fix first (2 min):** in the Google console (Step 0.3 client), **add** the redirect URI `http://localhost:5173/api/auth/callback`. The `:8000` one can stay; you just won't use it.
 
@@ -1402,9 +1439,9 @@ mkdir -p src/flrc/modules/auth && touch src/flrc/modules/auth/__init__.py
 
 ### 1.7.2 The session store
 
-**What we're building:** four small functions over Redis — the entire server side of "being logged in."
+**What we're building:** four small functions over Redis: the entire server side of "being logged in."
 
-**Why sessions in Redis and not JWTs:** revocation. When a teacher leaves in October, you flip `is_active` and delete their keys — done, instantly, everywhere. A stateless JWT keeps working until expiry unless you build a denylist, at which point you've rebuilt sessions with extra steps. (ARCH decision #5 — this is a top-five interview question and you're about to own it from experience.)
+**Why sessions in Redis and not JWTs:** revocation. When a teacher leaves in October, you flip `is_active` and delete their keys: done, instantly, everywhere. A stateless JWT keeps working until expiry unless you build a denylist, at which point you've rebuilt sessions with extra steps. (ARCH decision #5; this is a top-five interview question and you're about to own it from experience.)
 
 **Layer 1 · Nudge:** key `session:<random-id>` → value user-id, with an absolute expiry no later
 than the end of one school day. Reading a session does not extend it indefinitely.
@@ -1422,9 +1459,9 @@ tests are the executable assembly contract.
 
 ### 1.7.3 Cookie signing
 
-**What we're building:** the browser-side half — the session id, cryptographically signed so it can't be forged, in an `HttpOnly` cookie.
+**What we're building:** the browser-side half: the session id, cryptographically signed so it can't be forged, in an `HttpOnly` cookie.
 
-**Why sign at all, if the id is random anyway:** defense in depth — a signature turns "guess a valid-looking key and make Redis do lookups" into "forge HMAC-SHA," and it gives you tamper-evidence for free. Why `HttpOnly`: JavaScript can never read it, so even an XSS hole can't exfiltrate the session. Why `SameSite=Lax`: cross-site POSTs won't carry it (CSRF layer one), but Google's top-level redirect back to you still will (which is exactly what login needs).
+**Why sign at all, if the id is random anyway:** defense in depth: a signature turns "guess a valid-looking key and make Redis do lookups" into "forge HMAC-SHA," and it gives you tamper-evidence for free. Why `HttpOnly`: JavaScript can never read it, so even an XSS hole can't exfiltrate the session. Why `SameSite=Lax`: cross-site POSTs won't carry it (CSRF layer one), but Google's top-level redirect back to you still will (which is exactly what login needs).
 
 **Layer 3 · Exact assembly:** use the maintained
 `src/flrc/modules/auth/cookies.py` implementation. School mode names the cookie
@@ -1435,11 +1472,11 @@ record. Clearing the cookie must repeat its path/security attributes.
 
 ### 1.7.4 The OAuth routes
 
-**What we're building:** `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout` —
+**What we're building:** `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout`:
 Authlib runs the protocol; _your_ code runs the domain, verified-email, allowlist, and stable-account
 gates.
 
-**Walkthrough — what actually happens when Ayşe clicks "Sign in":** login generates a random `state`, stashes it in a short-lived cookie (that's what Starlette's SessionMiddleware is for here), and redirects her browser to Google's authorize endpoint carrying your client_id, the redirect_uri, the scopes, and that state. She consents on Google's page. Google redirects her browser to `<your-origin>/api/auth/callback?code=…&state=…`. Authlib checks the state matches (CSRF protection _on the flow itself_), then — server to server, browser uninvolved — POSTs the code plus your client secret to Google's token endpoint and receives tokens, **validating the ID token's signature and claims** against Google's published keys. Only now does your code run: is the `hd` claim your school's domain (the _claim_ is proof; the `hd` hint on the way out was cosmetics)? Is the email a pre-registered active user? Both yes → mint a session, set the cookie, land her on the app. Any no → bounce to `/login?error=<code>` and let i18n do the talking.
+**Walkthrough (what actually happens when Ayşe clicks "Sign in"):** login generates a random `state`, stashes it in a short-lived cookie (that's what Starlette's SessionMiddleware is for here), and redirects her browser to Google's authorize endpoint carrying your client_id, the redirect_uri, the scopes, and that state. She consents on Google's page. Google redirects her browser to `<your-origin>/api/auth/callback?code=…&state=…`. Authlib checks the state matches (CSRF protection _on the flow itself_), then (server to server, browser uninvolved) POSTs the code plus your client secret to Google's token endpoint and receives tokens, **validating the ID token's signature and claims** against Google's published keys. Only now does your code run: is the `hd` claim your school's domain (the _claim_ is proof; the `hd` hint on the way out was cosmetics)? Is the email a pre-registered active user? Both yes → mint a session, set the cookie, land her on the app. Any no → bounce to `/login?error=<code>` and let i18n do the talking.
 
 The final gate is stricter than the original two-gate walkthrough: require
 `email_verified=true`, require the email itself to use the exact hosted domain, and bind the
@@ -1528,7 +1565,7 @@ async def logout(request: Request, response: Response) -> None:
     cookies.clear_session_cookie(response)
 ```
 
-Wire it into the factory — `src/flrc/main.py` gains, inside `create_app()` before `include_router`:
+Wire it into the factory; `src/flrc/main.py` gains, inside `create_app()` before `include_router`:
 
 ```python
 from starlette.middleware.sessions import SessionMiddleware
@@ -1555,7 +1592,7 @@ school mode) is the actual login. Different jobs, both legitimate.
 
 ### 1.7.5 The `current_user` dependency
 
-**What we're building:** the function every protected route depends on — cookie → signature → Redis → user row, with a distinct machine code at each failure.
+**What we're building:** the function every protected route depends on: cookie → signature → Redis → user row, with a distinct machine code at each failure.
 
 **Why codes, not sentences:** the frontend translates codes through i18n; prose from the backend can't be translated and shouldn't be trusted for display. This is the error-contract pattern the whole app uses (ARCH invariant #7).
 
@@ -1634,7 +1671,7 @@ async def origin_check_middleware(request: Request, call_next):
 
 And in the factory: `app.middleware("http")(origin_check_middleware)`.
 
-### 1.7.7 `GET /api/me` — the SPA's bootstrap
+### 1.7.7 `GET /api/me`: the SPA's bootstrap
 
 **Layer 3 · Exact assembly:** `src/flrc/modules/auth/me.py`:
 
@@ -1702,26 +1739,26 @@ async def me(
 Import `router as me_router` from `flrc.modules.auth.me`, then include it in the factory with
 `app.include_router(me_router, prefix="/api")`.
 
-**Check 1.7 (in order — the API alone, before any frontend):**
+**Check 1.7 (in order; the API alone, before any frontend):**
 
 1. `docker compose -f infra/compose/compose.dev.yaml up -d` · `uv run flrc seed --my-email <your-real-school-email>` · start the API.
-2. There's no SPA yet, so simulate the proxy with the API origin _once_, knowingly: temporarily set `FRONTEND_ORIGIN=http://localhost:8000` in `.env`, add `http://localhost:8000/api/auth/callback` back in the console if you removed it, restart, and visit `http://localhost:8000/api/auth/login` **with your school account**. You should bounce through Google and land on a 404 at `:8000/` — irrelevant; open devtools → Application → Cookies: `flrc_session`, HttpOnly ✓.
+2. There's no SPA yet, so simulate the proxy with the API origin _once_, knowingly: temporarily set `FRONTEND_ORIGIN=http://localhost:8000` in `.env`, add `http://localhost:8000/api/auth/callback` back in the console if you removed it, restart, and visit `http://localhost:8000/api/auth/login` **with your school account**. You should bounce through Google and land on a 404 at `:8000/` (irrelevant); open devtools → Application → Cookies: `flrc_session`, HttpOnly ✓.
 3. `http://localhost:8000/api/me` in that same browser → your JSON, with your assignments from the seed.
 4. `http://localhost:8000/api/docs` → try `POST /api/auth/logout` → `/api/me` now 401 `not_authenticated`.
-5. Log in with a personal Gmail → redirected with `?error=wrong_domain` (no `hd` claim on personal accounts — working as intended).
+5. Log in with a personal Gmail → redirected with `?error=wrong_domain` (no `hd` claim on personal accounts; working as intended).
 6. Revert `FRONTEND_ORIGIN` to `http://localhost:5173`; the full proxied loop gets its real check in 1.10.
 
-**If it breaks:** `redirect_uri_mismatch` → the console URI and `{frontend_origin}/api/auth/callback` differ by one character; read both aloud. `mismatching_state` → the SessionMiddleware isn't registered, or you started on one origin and finished on another (the topology rule again). `hd` always missing → you're testing with a personal account. Login loop with no cookie → `secure=True` on plain http; confirm `ENV=dev`. School account refused by Google itself → the Workspace admin restricts third-party apps; they must allowlist your client ID (a school-side toggle — note it for the pitch).
+**If it breaks:** `redirect_uri_mismatch` → the console URI and `{frontend_origin}/api/auth/callback` differ by one character; read both aloud. `mismatching_state` → the SessionMiddleware isn't registered, or you started on one origin and finished on another (the topology rule again). `hd` always missing → you're testing with a personal account. Login loop with no cookie → `secure=True` on plain http; confirm `ENV=dev`. School account refused by Google itself → the Workspace admin restricts third-party apps; they must allowlist your client ID (a school-side toggle; note it for the pitch).
 
-**Docs:** docs.authlib.org (Starlette client page) · the MDN `Set-Cookie` page — read the SameSite section properly once. **Why deeper:** ARCH §4/1.7, decisions #4–#5.
+**Docs:** docs.authlib.org (Starlette client page) · the MDN `Set-Cookie` page; read the SameSite section properly once. **Why deeper:** ARCH §4/1.7, decisions #4 and #5.
 
 Commit: `feat(api): google oauth, sessions, origin guard, /me`.
 
-## Step 1.8 — Role guards + the test harness
+## Step 1.8: Role guards + the test harness
 
 ### 1.8.1 The guard dependencies
 
-**What we're building:** `require_admin`, `require_coordinator_or_admin`, and the two status guards (`writable_semester`, `writable_year`) — small now, load-bearing forever.
+**What we're building:** `require_admin`, `require_coordinator_or_admin`, and the two status guards (`writable_semester`, `writable_year`): small now, load-bearing forever.
 
 **Why 401 vs 403 is not pedantry:** 401 means "I don't know you" (client redirects to login); 403 means "I know you and no" (client shows _not permitted_). Mixing them breaks frontend logic and is a real interview probe. And the status guards are the entire archive feature wearing a two-function trench coat (ARCH §3.2): every write route that depends on them today is automatically read-only the day a year is archived.
 
@@ -1773,7 +1810,7 @@ async def writable_year(db: AsyncSession = Depends(get_session)) -> AcademicYear
     return year
 ```
 
-Give the matrix something admin-only to bite on — `src/flrc/modules/auth/admin.py`:
+Give the matrix something admin-only to bite on, in `src/flrc/modules/auth/admin.py`:
 
 ```python
 from fastapi import APIRouter, Depends
@@ -1793,9 +1830,9 @@ async def admin_ping(_=Depends(require_admin)) -> dict[str, bool]:
 
 ### 1.8.2 The harness + the matrix
 
-**What we're building:** a `conftest.py` that can build the app _as anyone_ — no cookies, no Google, no server — and the first rows of the role × endpoint matrix that will grow every phase into the most valuable test file in the repo.
+**What we're building:** a `conftest.py` that can build the app _as anyone_ (no cookies, no Google, no server) and the first rows of the role × endpoint matrix that will grow every phase into the most valuable test file in the repo.
 
-**Why dependency overrides are the trick:** `create_app()` returns a fresh app whose `dependency_overrides[current_user]` can be a lambda returning any `User` you like. The rest of the stack — routing, validation, your guards — runs for real. This is the payoff of the factory from 1.3.3.
+**Why dependency overrides are the trick:** `create_app()` returns a fresh app whose `dependency_overrides[current_user]` can be a lambda returning any `User` you like. The rest of the stack (routing, validation, your guards) runs for real. This is the payoff of the factory from 1.3.3.
 
 **Layer 3 · Exact assembly:** `uv add --dev pytest-asyncio` and add to `pyproject.toml`:
 
@@ -1854,21 +1891,21 @@ async def test_matrix(client_as, method, path, role, expected):
     assert response.status_code == expected
 ```
 
-**Check:** `uv run pytest -q` → all green (plus the migration test from 1.5.5). Break `require_admin` on purpose (invert the condition), watch two rows fail, restore. That red run is the point — you just proved the matrix guards you.
+**Check:** `uv run pytest -q` → all green (plus the migration test from 1.5.5). Break `require_admin` on purpose (invert the condition), watch two rows fail, restore. That red run is the point: you just proved the matrix guards you.
 
-**If it breaks:** `async def functions are not natively supported` → the `asyncio_mode = "auto"` block didn't land. `/api/me` as a role blows up on the DB → correct and expected later; today the override returns before any query — if it doesn't, check your override targets `current_user` itself, not a copy.
+**If it breaks:** `async def functions are not natively supported` → the `asyncio_mode = "auto"` block didn't land. `/api/me` as a role blows up on the DB → correct and expected later; today the override returns before any query; if it doesn't, check that your override targets `current_user` itself, not a copy.
 
 Commit: `feat(api): guards + role matrix harness`. **Docs:** fastapi's "Testing Dependencies with Overrides" page.
 
-## Step 1.9 — The generated, typed API client
+## Step 1.9: The generated, typed API client
 
 **What we're building:** `packages/api-client` filled by a machine: FastAPI's schema snapshot → a typed fetch client + TanStack Query helpers. The frontend will never hand-write a request type; CI will fail anyone who changes the API and forgets to regenerate.
 
-**Why a snapshot file, not a live URL:** generating from a committed `openapi.json` keeps CI hermetic (no server to boot) and turns the schema itself into a reviewable diff in every PR — you _see_ the API change next to the code change.
+**Why a snapshot file, not a live URL:** generating from a committed `openapi.json` keeps CI hermetic (no server to boot) and turns the schema itself into a reviewable diff in every PR: you _see_ the API change next to the code change.
 
 ### 1.9.1 Humane operation ids + the export script
 
-**Layer 2 · Guide:** by default FastAPI mints operation ids like `me_api_me_get`, which become hook names like `useMeApiMeGetQuery` — legal, hideous. A `generate_unique_id_function` returning `route.name` (= the function name) fixes it, at the price of one rule: **endpoint function names must be unique across the whole app.** You've been following it accidentally; now it's law.
+**Layer 2 · Guide:** by default FastAPI mints operation ids like `me_api_me_get`, which become hook names like `useMeApiMeGetQuery`: legal, hideous. A `generate_unique_id_function` returning `route.name` (= the function name) fixes it, at the price of one rule: **endpoint function names must be unique across the whole app.** You've been following it accidentally; now it's law.
 
 **Layer 3 · Exact assembly:** in `src/flrc/main.py`:
 
@@ -1922,7 +1959,7 @@ Scripts in `packages/api-client/package.json`: `"generate": "openapi-ts"`. Root 
 "generate": "pnpm --filter @flrc/backend run generate && pnpm --filter @flrc/api-client run generate"
 ```
 
-Run `pnpm generate`, then open `packages/api-client/src/` and **read what appeared** — a `types.gen.ts` (your Pydantic models as TS), an `sdk.gen.ts` (one typed function per endpoint), a client file, and a TanStack file exporting things like `meOptions()`. Make `src/index.ts` re-export exactly the files that exist (names shift slightly between hey-api versions — two minutes of looking beats any guide):
+Run `pnpm generate`, then open `packages/api-client/src/` and **read what appeared**: a `types.gen.ts` (your Pydantic models as TS), an `sdk.gen.ts` (one typed function per endpoint), a client file, and a TanStack file exporting things like `meOptions()`. Make `src/index.ts` re-export exactly the files that exist (names shift slightly between hey-api versions; two minutes of looking beats any guide):
 
 ```ts
 export * from "./types.gen";
@@ -1935,19 +1972,19 @@ Commit everything generated, including `openapi.json`.
 
 **Check:** run `pnpm generate` a second time → `git status` clean (determinism proven); `pnpm --filter @flrc/api-client typecheck` green; grep the generated types for `MeOut` and admire your Pydantic model speaking TypeScript.
 
-**If it breaks:** plugin name errors → hey-api reshuffles plugin ids occasionally; their Getting Started page is a 2-minute read and authoritative over this handbook. Empty-looking output → the config's `input` path is relative to the package folder — run generate _from_ the package (the script does).
+**If it breaks:** plugin name errors → hey-api reshuffles plugin ids occasionally; their Getting Started page is a 2-minute read and authoritative over this handbook. Empty-looking output → the config's `input` path is relative to the package folder; run generate _from_ the package (the script does).
 
-**Docs:** heyapi.dev. **Why deeper:** ARCH §4/1.9 — the no-diff CI check lands in 1.11 and completes this contract.
+**Docs:** heyapi.dev. **Why deeper:** ARCH §4/1.9; the no-diff CI check lands in 1.11 and completes this contract.
 
 Commit: `feat: generated api client`.
 
-## Step 1.10 — The frontend shells: proxy, Tailwind, router, i18n, login
+## Step 1.10: The frontend shells (proxy, Tailwind, router, i18n, login)
 
 Build everything in `apps/teacher` first; 1.10.6 turns the admin app into a 30-minute echo.
 
 ### 1.10.1 The dev proxy (do this before anything renders)
 
-**What / Why:** Vite forwards `/api/*` to FastAPI so the browser sees one origin — the local twin of the Vercel rewrite. From this moment, the SPA only ever calls relative `/api/...` paths; dev and prod become byte-identical to the browser, and the whole cookie story from 1.7 holds.
+**What / Why:** Vite forwards `/api/*` to FastAPI so the browser sees one origin, the local twin of the Vercel rewrite. From this moment, the SPA only ever calls relative `/api/...` paths; dev and prod become byte-identical to the browser, and the whole cookie story from 1.7 holds.
 
 **Layer 3 · Exact assembly:** `apps/teacher/vite.config.ts`:
 
@@ -1961,15 +1998,15 @@ export default defineConfig({
 });
 ```
 
-**Check:** with the API running, `curl localhost:5173/api/healthz` (yes, 5173) answers — Vite is now your reverse proxy.
+**Check:** with the API running, `curl localhost:5173/api/healthz` (yes, 5173) answers: Vite is now your reverse proxy.
 
 ### 1.10.2 Tailwind v4 + shadcn/ui
 
-**What we're building:** styling that works across the monorepo — Tailwind v4 through its Vite plugin, shadcn components generated into `packages/ui` so both apps share them.
+**What we're building:** styling that works across the monorepo: Tailwind v4 through its Vite plugin, shadcn components generated into `packages/ui` so both apps share them.
 
-**Why the ceremony around shadcn:** it _copies source into your repo_ rather than installing a dependency, and in a monorepo the right home for that source is the shared package — set up once, imported twice.
+**Why the ceremony around shadcn:** it _copies source into your repo_ rather than installing a dependency, and in a monorepo the right home for that source is the shared package: set up once, imported twice.
 
-**Layer 2 · Guide:** Tailwind v4 = two moves: the Vite plugin, and `@import "tailwindcss";` at the top of your CSS (no `tailwind.config.js` — v4 discovers classes by following the module graph, which is exactly why source-consumed `packages/ui` Just Works). For shadcn, their **Monorepo** docs page is the authority: it wants a `components.json` in the app _and_ in `packages/ui`, with aliases pointing component output at the package. Mirror their template with the `@flrc/ui` name.
+**Layer 2 · Guide:** Tailwind v4 = two moves: the Vite plugin, and `@import "tailwindcss";` at the top of your CSS (no `tailwind.config.js`; v4 discovers classes by following the module graph, which is exactly why source-consumed `packages/ui` Just Works). For shadcn, their **Monorepo** docs page is the authority: it wants a `components.json` in the app _and_ in `packages/ui`, with aliases pointing component output at the package. Mirror their template with the `@flrc/ui` name.
 
 **Layer 3 · Exact assembly:**
 
@@ -1983,7 +2020,7 @@ Add `tailwindcss()` to the Vite plugins array (import from `@tailwindcss/vite`).
 @import "tailwindcss";
 ```
 
-Prepare `packages/ui` to host components — its `package.json` gains React as a peer plus subpath exports:
+Prepare `packages/ui` to host components; its `package.json` gains React as a peer plus subpath exports:
 
 ```json
 {
@@ -2008,13 +2045,13 @@ pnpm dlx shadcn@latest add button
 
 **Check:** in `App.tsx`, `import { Button } from '@flrc/ui/components/button'` renders a styled button via the dev server. If Tailwind classes inside the package have no effect, your `@import "tailwindcss"` line is missing or the Vite plugin isn't registered.
 
-**If it breaks:** shadcn's CLI questions drift between versions — when in doubt, answer to match their monorepo template's file layout, then verify by reading where `button.tsx` actually landed and fixing `components.json` aliases to agree. This is a config negotiation, not a correctness problem.
+**If it breaks:** shadcn's CLI questions drift between versions; when in doubt, answer to match their monorepo template's file layout, then verify by reading where `button.tsx` actually landed and fixing `components.json` aliases to agree. This is a config negotiation, not a correctness problem.
 
 ### 1.10.3 TanStack Router + Query + the auth guard
 
 **What we're building:** file-based routes (`/login`, and a `_auth` layout that walls off everything else), a Query client, and a `beforeLoad` that turns 401s into redirects.
 
-**Why `beforeLoad` + `ensureQueryData`:** the guard runs _before_ any protected component renders, and `ensureQueryData` means the `/api/me` result is fetched once and cached — the dashboard reads the same cache entry for free. One request, two consumers, zero flicker.
+**Why `beforeLoad` + `ensureQueryData`:** the guard runs _before_ any protected component renders, and `ensureQueryData` means the `/api/me` result is fetched once and cached; the dashboard reads the same cache entry for free. One request, two consumers, zero flicker.
 
 **Layer 3 · Exact assembly:**
 
@@ -2023,7 +2060,7 @@ pnpm --filter @flrc/teacher add @tanstack/react-router @tanstack/react-query @fl
 pnpm --filter @flrc/teacher add -D @tanstack/router-plugin
 ```
 
-Vite plugins order matters — router plugin first:
+Vite plugin order matters; router plugin first:
 
 ```ts
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
@@ -2043,7 +2080,7 @@ import { initI18n } from "@flrc/i18n";
 import { routeTree } from "./routeTree.gen";
 import "./index.css";
 
-client.setConfig({ baseUrl: "" }); // relative /api — the proxy is the origin
+client.setConfig({ baseUrl: "" }); // relative /api; the proxy is the origin
 initI18n();
 
 const queryClient = new QueryClient();
@@ -2075,7 +2112,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 ```
 
-`src/routes/_auth.tsx` — the wall:
+`src/routes/_auth.tsx`, the wall:
 
 ```tsx
 import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
@@ -2094,15 +2131,15 @@ export const Route = createFileRoute("/_auth")({
 });
 ```
 
-(`meOptions` is the generated name for your `me` operation — if your hey-api version names it differently, the generated TanStack file is one `grep me` away; trust the file over the handbook.)
+(`meOptions` is the generated name for your `me` operation; if your hey-api version names it differently, the generated TanStack file is one `grep me` away; trust the file over the handbook.)
 
-`src/routes/login.tsx` and `src/routes/_auth/index.tsx` — next step supplies their content alongside i18n. Run the dev server once now: the router plugin writes `src/routeTree.gen.ts` (gitignore it or commit it — pick one, be consistent; committing is simpler).
+`src/routes/login.tsx` and `src/routes/_auth/index.tsx`: the next step supplies their content alongside i18n. Run the dev server once now: the router plugin writes `src/routeTree.gen.ts` (gitignore it or commit it, but pick one and be consistent; committing is simpler).
 
 ### 1.10.4 The i18n package + the two pages
 
-**What we're building:** `@flrc/i18n` initialized with four languages, and the first two screens written under the house rule that starts _now_: **no user-visible string literal in JSX, ever** — everything through `t()`.
+**What we're building:** `@flrc/i18n` initialized with four languages, and the first two screens written under the house rule that starts _now_: **no user-visible string literal in JSX, ever**; everything goes through `t()`.
 
-**Why now and not "when we translate":** the rule costs nothing per component and saves a legendary refactor; §4.4 becomes translation work instead of surgery. The API's error _codes_ land here too — `?error=wrong_domain` becomes a Turkish sentence in the bundle, a German one next year, and the backend never knew.
+**Why now and not "when we translate":** the rule costs nothing per component and saves a legendary refactor; §4.4 becomes translation work instead of surgery. The API's error _codes_ land here too: `?error=wrong_domain` becomes a Turkish sentence in the bundle, a German one next year, and the backend never knew.
 
 **Layer 3 · Exact assembly:**
 
@@ -2130,7 +2167,7 @@ mkdir -p packages/i18n/src/locales
 }
 ```
 
-`en.json` mirrors it in English (write it now); create `de.json` and `fr.json` as copies of `en.json` with a `"_TODO": "translate"` first key — §4.4 pays this debt on purpose.
+`en.json` mirrors it in English (write it now); create `de.json` and `fr.json` as copies of `en.json` with a `"_TODO": "translate"` first key; §4.4 pays this debt on purpose.
 
 `packages/i18n/src/index.ts`:
 
@@ -2258,12 +2295,12 @@ locally but owns `/admin` in the public deployment, so its static assets and cli
 base-path-safe from the beginning.
 
 **Why one login surface:** authentication belongs to the teacher app. A logged-out visitor who
-types `/admin` goes to the normal teacher login, signs in, lands on the teacher dashboard, and—if
-authorized—uses the “Go to admin panel” link. The admin SPA has no login page and OAuth has no
+types `/admin` goes to the normal teacher login, signs in, lands on the teacher dashboard, and, if
+authorized, uses the “Go to admin panel” link. The admin SPA has no login page and OAuth has no
 admin return target. Local development still has two origins, so the Origin middleware must trust
 both even though production composes them under one origin.
 
-**Layer 3 · Exact assembly — frontend:** repeat the authenticated shell in `apps/admin`, but do not
+**Layer 3 · Exact assembly (frontend):** repeat the authenticated shell in `apps/admin`, but do not
 create `routes/login.tsx`. Use Vite `base: "/admin/"` and `server.port: 5174`; give TanStack Router
 `basepath: "/admin"`. In the admin `_auth` guard, `/api/me` failure redirects externally to
 `${VITE_TEACHER_URL}/login`, an authenticated user without `is_admin` redirects to
@@ -2271,7 +2308,7 @@ create `routes/login.tsx`. Use Vite `base: "/admin/"` and `server.port: 5174`; g
 teacher login. The teacher dashboard shows its admin link only when `user.is_admin`; its local
 default is `http://localhost:5174/admin`.
 
-**Layer 3 · Exact assembly — backend:** (1) `config.py` gains
+**Layer 3 · Exact assembly (backend):** (1) `config.py` gains
 `admin_origin: str = "http://localhost:5174"` (and `.env.example` follows). (2) `middleware.py`: build
 `allowed_origins = {settings.frontend_origin, settings.admin_origin}` and check `origin in
 allowed_origins` in the fallback branch. (3) `src/flrc/modules/auth/router.py` always uses the
@@ -2292,19 +2329,19 @@ Origin middleware.
 
 Commit: `feat(web): shells, i18n, auth loop, admin origin`. **Docs:** tanstack.com/router (file-based routing guide) · ui.shadcn.com/docs/monorepo · react.i18next.com. **Why deeper:** ARCH §4/1.10 and the site-vs-origin lesson.
 
-## Step 1.11 — Deploy the skeleton + CI (it ships today)
+## Step 1.11: Deploy the skeleton + CI (it ships today)
 
 ### 1.11.1 Neon
 
 **What / Why:** the production database, EU-Frankfurt for the KVKK posture (ARCH §8), with the pooled/direct split you've been prepping for since 1.5.
 
-**Layer 3 · Exact assembly:** neon.com → new project `flrc`, region **AWS eu-central-1 (Frankfurt)**, Postgres 18. From the dashboard copy **two** connection strings: the pooled one (host contains `-pooler`) and the direct one. Convert both for asyncpg — scheme `postgresql+asyncpg://` and, because asyncpg doesn't speak `sslmode`, change the query string to `ssl=require`:
+**Layer 3 · Exact assembly:** neon.com → new project `flrc`, region **AWS eu-central-1 (Frankfurt)**, Postgres 18. From the dashboard copy **two** connection strings: the pooled one (host contains `-pooler`) and the direct one. Convert both for asyncpg: scheme `postgresql+asyncpg://` and, because asyncpg doesn't speak `sslmode`, change the query string to `ssl=require`:
 
 ```
 postgresql+asyncpg://user:pass@ep-xxx-pooler.eu-central-1.aws.neon.tech/neondb?ssl=require
 ```
 
-One code amendment while you're here — the seed CLI's sync engine must translate both the driver _and_ the SSL knob (psycopg wants `sslmode`, asyncpg wants `ssl` — dialect trivia that costs an hour if unlearned). In `src/flrc/cli.py`:
+One code amendment while you're here: the seed CLI's sync engine must translate both the driver _and_ the SSL knob (psycopg wants `sslmode`, asyncpg wants `ssl`; dialect trivia that costs an hour if unlearned). In `src/flrc/cli.py`:
 
 ```python
 def sync_engine():
@@ -2314,7 +2351,7 @@ def sync_engine():
     return create_engine(url, pool_pre_ping=True)
 ```
 
-Migrate and seed the cloud (fake data only — this is the public demo):
+Migrate and seed the cloud (fake data only; this is the public demo):
 
 ```bash
 FLRC_MIGRATIONS_URL="<direct-url>" uv run alembic upgrade head
@@ -2327,11 +2364,11 @@ Also create a `dev` branch in Neon's UI for future experiments; `main` is sacred
 
 ### 1.11.2 Upstash
 
-**Layer 3:** console.upstash.com → create Redis → region EU (Frankfurt/Ireland — nearest to Render's Frankfurt) → copy the **TLS** URL (`rediss://…`). That's it until env-var time.
+**Layer 3:** console.upstash.com → create Redis → region EU (Frankfurt/Ireland, nearest to Render's Frankfurt) → copy the **TLS** URL (`rediss://…`). That's it until env-var time.
 
 ### 1.11.3 Render (plus one Dockerfile fix)
 
-**What / Why:** the API goes live as a Docker web service; the committed `infra/render/render.yaml` blueprint makes the setup reproducible — infrastructure as code, and the school-side redeploy story.
+**What / Why:** the API goes live as a Docker web service; the committed `infra/render/render.yaml` blueprint makes the setup reproducible: infrastructure as code, and the school-side redeploy story.
 
 **The startup command:** the Dockerfile runs `bin/start-api.sh`. In `ENV=demo`, this script first
 applies pending Alembic migrations through `DATABASE_URL_DIRECT`, then starts Uvicorn with trusted
@@ -2382,12 +2419,12 @@ dashboard.render.com → New → **Blueprint** → your repo → it reads the fi
 the Vercel gateway below). Deploy.
 
 **Check:** `curl -i https://flrc-api.onrender.com/api/healthz` → 204 with an empty body. Then
-watch it sleep: wait 20 minutes, curl again, feel the cold start — that's the free tier you
+watch it sleep: wait 20 minutes, curl again, feel the cold start; that's the free tier you
 budgeted for (ARCH §2.2).
 
 **If it breaks:** blueprint rejects `runtime` → older accounts want `env: docker`; flip the key. Build can't find `uv.lock` → `rootDir` missing. Healthcheck failing forever → the CMD isn't honoring `$PORT`.
 
-### 1.11.4 Vercel — two app projects behind one public gateway
+### 1.11.4 Vercel: two app projects behind one public gateway
 
 **What / Why:** teacher and admin stay independently deployed, but the browser sees one origin:
 
@@ -2399,7 +2436,7 @@ https://flrc.suatsulun.com/api/*   Render API through the gateway
 
 One host-only `flrc_session` cookie now covers both panels without a broad cookie `Domain`.
 
-**Layer 3 · Exact assembly — app projects:** create the teacher and admin Vercel projects from the
+**Layer 3 · Exact assembly (app projects):** create the teacher and admin Vercel projects from the
 same repo with Root Directories `apps/teacher` and `apps/admin`. Keep the SPA fallbacks in each
 app's `vercel.json`. Confirm the admin app builds with Vite base `/admin/` and TanStack Router
 basepath `/admin`. Record both stable production `*.vercel.app` deployment domains; these are
@@ -2412,7 +2449,7 @@ teacher: VITE_ADMIN_URL=https://flrc.suatsulun.com/admin
 admin:   VITE_TEACHER_URL=https://flrc.suatsulun.com
 ```
 
-**Layer 3 · Exact assembly — gateway:** add `infra/vercel-gateway/vercel.json` with the stable
+**Layer 3 · Exact assembly (gateway):** add `infra/vercel-gateway/vercel.json` with the stable
 app/API domains:
 
 ```json
@@ -2465,7 +2502,7 @@ Remove the old teacher/admin custom-domain callback URIs after the new loop pass
 Vercel preview domains only for deployment diagnostics; separate preview hosts do not promise a
 shared login.
 
-**Check — the deployed money moment:** in a fresh browser profile, open `/admin` and confirm it
+**Check (the deployed money moment):** in a fresh browser profile, open `/admin` and confirm it
 redirects to `/login`. Sign in, land on the teacher dashboard, use the admin-only link, and confirm
 `/api/me` succeeds without another Google redirect. Log out from admin, then revisit `/`; it must
 show the teacher login page. DevTools must show one host-only `flrc_session` cookie for
@@ -2480,7 +2517,7 @@ origin.
 
 ### 1.11.5 CI
 
-**What / Why:** every PR proves lint, types, tests, and the API↔client contract — the robot that makes solo development safe.
+**What / Why:** every PR proves lint, types, tests, and the API↔client contract: the robot that makes solo development safe.
 
 **Layer 3 · Exact assembly:** `.github/workflows/ci.yml`:
 
@@ -2572,7 +2609,7 @@ response model without regenerating → the **contract** job fails exactly as de
 name: keepalive
 on:
   schedule:
-    - cron: "*/10 5-14 * * 1-5" # every 10 min, 05:00–14:59 UTC, weekdays = Turkish school hours
+    - cron: "*/10 5-14 * * 1-5" # every 10 min, 05:00-14:59 UTC, weekdays = Turkish school hours
   workflow_dispatch:
 
 jobs:
@@ -2582,7 +2619,7 @@ jobs:
       - run: curl -fsS https://flrc-api.onrender.com/api/healthz
 ```
 
-The math this encodes lives in ARCH §2.2 (~480 of 750 shared hours once the worker exists); outside the window, first request eats the cold start — say so honestly in the README and in a small footer note on the login page (a `t()` key, naturally).
+The math this encodes lives in ARCH §2.2 (~480 of 750 shared hours once the worker exists). Outside the window, the first request eats the cold start; say so honestly in the README and in a small footer note on the login page (a `t()` key, naturally).
 
 ### Phase 1 exit checklist
 
@@ -2598,29 +2635,35 @@ The math this encodes lives in ARCH §2.2 (~480 of 750 shared hours once the wor
 git tag phase-1 && git push --tags
 ```
 
-Take the evening off. You have a deployed, authenticated, contract-tested, bilingual-ready skeleton — most "learn full-stack" journeys never reach this sentence.
+Take the evening off. You have a deployed, authenticated, contract-tested, bilingual-ready skeleton; most "learn full-stack" journeys never reach this sentence.
 
 ---
 
-# Part V — Phase 2: The grade grid
+# Part V. Phase 2: The grade grid
 
-**Phase goal:** two teachers edit 5/A simultaneously without ever silently overwriting each other; foreign columns demand (and grant) one-hour permission; undo restores a batch; the admin reads everything in the audit log; and a phone gets a layout thumbs can actually use. This phase is where the app earns its existence — budget the full two and a half weeks and enjoy it.
+**Phase goal:** two teachers edit 5/A simultaneously without ever silently overwriting each other; foreign columns demand (and grant) one-hour permission; undo restores a batch; the admin reads everything in the audit log; and a phone gets a layout thumbs can actually use. This phase is where the app earns its existence; budget the full two and a half weeks and enjoy it.
 
-**One structural note before 2.1:** all five Phase-2 tables (column definitions, grade values, save batches, audit entries, override grants) arrive in **one migration** at the start, because ARCH §3.4–3.5 designed them as one interlocking mechanism — the save path writes audit rows, audit rows power undo, grants annotate audit. Creating them together also means the columns API can implement its delete-or-disable branch honestly from day one instead of carrying a TODO.
+**One structural note before 2.1:** all five Phase-2 tables (column definitions, grade values, save batches, audit entries, override grants) arrive in **one migration** at the start, because ARCH §3.4-3.5 designed them as one interlocking mechanism: the save path writes audit rows, audit rows power undo, grants annotate audit. Creating them together also means the columns API can implement its delete-or-disable branch honestly from day one instead of carrying a TODO.
 
-## Step 2.1 — Column definitions: schema, API, seed, editor
+## Step 2.1: Column definitions (schema, API, seed, editor)
 
-**Current school rule (ADR-049):** Grade 4 German/French columns use only `scale3` and never
-count toward a numeric average. No score or text columns are allowed. The shared programme
-rule is enforced in create/update, copy, seed, and rollover. Migration `f4b82d903e61` disables
-legacy non-scale columns in active/setup years while preserving saved values and archived years.
-The seed examples below predate this correction; the executable seed is authoritative for this rule.
+**Current school rules (ADR-060, amended by pending ADR-063):** Grade 4 German/French accept
+`scale3` and `text`, never numeric scores or averages. Primary English and all configured L2
+programmes retain comments. Grades 5-8 English have eleven default scores and no opinion field.
+`academics/programme.py` supplies shared checks for create/update, seed, copy and rollover.
+
+Migration `f4b82d903e61` historically disabled grade-4 L2 non-scale columns in non-archived years.
+`7d26cb91a540` later supplied missing comment definitions without reactivating disabled ones.
+Pending migration `82a91f4c6d30` retires middle-English text definitions across years while
+preserving definitions, values, versions and audits. Its downgrade does not reactivate them.
+Live/archive/history/report projections omit the retired fields; audit and workbook exports
+retain underlying history. These are successive migrations, not reasons to edit applied files.
 
 ### 2.1.1 The Phase-2 schema (one migration, five tables)
 
-**What we're building:** the tables from ARCH §3.3–3.5, exactly as designed — columns as _data_, one row per student × column, batches, audit, grants.
+**What we're building:** the tables from ARCH §3.3-3.5, exactly as designed: columns as _data_, one row per student × column, batches, audit, grants.
 
-**Why the shapes are what they are (the 60-second recap):** a `column_definition` row is what the admin's + button creates — no migration, ever (invariant #2). A `grade_value` is unique per (student, column) and knows nothing about classes (invariant #1) — that ignorance is why moved students keep grades. `version` is the optimistic-concurrency counter (invariant #4). Audit rows store both old and new values so undo is just the audit log replayed backwards; `old_existed` distinguishes "was 0" from "was empty" — a distinction schools care about. Grants live in Postgres, not Redis-with-TTL, because _who had permission when_ is itself audit data (ARCH §3.5).
+**Why the shapes are what they are (the 60-second recap):** a `column_definition` row is what the admin's + button creates; no migration, ever (invariant #2). A `grade_value` is unique per (student, column) and knows nothing about classes (invariant #1); that ignorance is why moved students keep grades. `version` is the optimistic-concurrency counter (invariant #4). Audit rows store both old and new values so undo is just the audit log replayed backwards; `old_existed` distinguishes "was 0" from "was empty", a distinction schools care about. Grants live in Postgres, not Redis-with-TTL, because _who had permission when_ is itself audit data (ARCH §3.5).
 
 **Layer 1 · Nudge:** five models in `models.py`, JSONB for the four-language labels, CHECKs everywhere a bare string could lie, then one autogenerate you actually read.
 
@@ -2724,11 +2767,11 @@ Read the diff against: 5 create_table · the composite unique on grade_values ·
 
 ### 2.1.2 The columns API
 
-**What we're building:** admin-only CRUD plus two operations CRUD doesn't have: **reorder** (the up/down arrows) and **copy** (September's sanity — duplicating a column set to another grade or the twin language).
+**What we're building:** admin-only CRUD plus two operations CRUD doesn't have: **reorder** (the up/down arrows) and **copy** (September's sanity: duplicating a column set to another grade or the twin language).
 
-**Why the delete branch has two outcomes:** a column with grades is _history_; the – button hides it (`is_active=false`) instead of destroying data, and tells the admin which case happened. Cascade-deleting grades from a UI button is a résumé-ending feature (ARCH §3.3).
+**Why the delete branch has two outcomes:** a column with grades is _history_; the minus button hides it (`is_active=false`) instead of destroying data, and tells the admin which case happened. Cascade-deleting grades from a UI button is a résumé-ending feature (ARCH §3.3).
 
-**Layer 1 · Nudge:** one router; every write depends on `require_admin` _and_ `writable_semester` (column edits target the open semester only — your spec); server-side rule: an L2 column must be owned by its own language's teacher.
+**Layer 1 · Nudge:** one router; every write depends on `require_admin` _and_ `writable_semester` (column edits target the open semester only, per your spec); server-side rule: an L2 column must be owned by its own language's teacher.
 
 **Layer 3 · Exact assembly:** `src/flrc/modules/academics/columns.py`:
 
@@ -2977,13 +3020,19 @@ async def copy_columns(
     return {"copied": len(sources)}
 ```
 
-Include the router in the factory, then — the reflex that never skips — `pnpm generate` and commit the client diff. From now on the handbook stops reminding you; the contract CI job does it instead.
+Include the router in the factory, then (the reflex that never skips) `pnpm generate` and commit the client diff. From now on the handbook stops reminding you; the contract CI job does it instead.
 
-**Check:** in `/api/docs` as no one, `GET /columns` → 401; the guard matrix in `test_guards.py` gains four rows for `/api/columns` (401 / teacher 403 / coordinator 403 / admin 200 — the admin case needs the DB-backed harness from 2.6.3; add the first three now, leave a TODO row).
+**Check:** in `/api/docs` as no one, `GET /columns` → 401; the guard matrix in `test_guards.py` gains four rows for `/api/columns` (401 / teacher 403 / coordinator 403 / admin 200; the admin case needs the DB-backed harness from 2.6.3, so add the first three now and leave a TODO row).
 
 ### 2.1.3 Seed the real column sets
 
-**What / Why:** every `flrc reset && flrc seed` should yield playable grids — the real 5–8 English set (from ARCH §1.3 and your Card A photo), an L2 set for grades 4–8 in both languages, and the primary grouped-scale set for 1–4. Without this, every grid test starts with ten minutes of admin clicking.
+**Maintenance note:** the compact seed assembly below teaches column storage and predates the
+expanded report rubrics. Current defaults are `ENGLISH_58`, `L2_SCORE_ITEMS`, `KARNE_ROWS`,
+`PRIMARY_ROWS`, and `seed_columns()` in `src/flrc/cli.py`; do not replace them with this shorter
+sample. The active programme rules in Step 2.1 apply before definitions are added. Never use
+`flrc reset` against an existing school dataset.
+
+**What / Why:** every `flrc reset && flrc seed` should yield playable grids: the real 5-8 English set (from ARCH §1.3 and your Card A photo), an L2 set for grades 4-8 in both languages, and the primary grouped-scale set for 1-4. Without this, every grid test starts with ten minutes of admin clicking.
 
 **Why the seed uses semantic keys:** names such as `active_class_participation` make the
 fixture readable and stable, but they are seed-code identifiers only. The values written to
@@ -3163,19 +3212,25 @@ def seed_columns(db: Session, semester_id: int) -> None:
             ))
 ```
 
-In `seed()`, keep a handle on semester 1 (assign it to a variable before `add_all`, flush, then `seed_columns(db, sem1.id)` right after). Re-run `flrc reset && flrc seed` locally and against Neon.
+In `seed()`, keep a handle on semester 1 (assign it to a variable before `add_all`, flush, then `seed_columns(db, sem1.id)` right after). Use the current seed only in a confirmed disposable synthetic environment; do not reset a
+shared development, demo, or school database as part of a documentation check.
 
-**Check:** `select subject, grade_level, count(*) from column_definitions group by 1,2 order by 2,1;` — English rows for grades 1–8 (6 items for 1–4, 12 for 5–8), German+French for 4–8 (8 each). Also query `select count(*) from column_definitions where not (labels ?& array['tr','en','de','fr']);` — it returns `0`. Have fluent school staff review the seed catalog before production; deterministic fixture translations are product copy, not a substitute for language review.
+**Check:** inspect active definitions per semester, subject and grade rather than summing
+all four seeded years. Middle-English defaults contain eleven scores and no text; grade-4 L2
+contains ratings and comments but no scores. Check `tests/test_seed_plan.py` and
+`tests/test_assessment_programme.py` against the current constants. Some rubric labels store
+Turkish plus the report language and use fallback; do not require four keys on every database
+label. Have fluent school staff review the configured labels before production.
 
 ### 2.1.4 The admin column editor
 
-**What we're building:** the +/– screen from your original spec — pick a grade and subject, see the columns, add one through a validated dialog, reorder with arrows, remove with honest feedback about the delete-vs-disable outcome.
+**What we're building:** the +/- screen from your original spec: pick a grade and subject, see the columns, add one through a validated dialog, reorder with arrows, remove with honest feedback about the delete-vs-disable outcome.
 
 **Why RHF + Zod arrive here:** this is the first real form, and the pattern you establish (Zod schema → resolver → typed `useForm`) repeats through every admin dialog in Phase 3. One scope cut remains for newly created custom columns: the dialog edits the **Turkish label only** and mirrors it into the other three languages until §4.4 adds full four-language editing. The built-in seed catalog is already translated in all four locales; custom content uses Turkish fallback until an admin supplies its translations.
 
-**Layer 1 · Nudge:** a route whose grade/subject live in _typed search params_ (bookmarkable state — the TanStack Router way), a query for the list, four mutations, one dialog.
+**Layer 1 · Nudge:** a route whose grade/subject live in _typed search params_ (bookmarkable state, the TanStack Router way), a query for the list, four mutations, one dialog.
 
-**Layer 2 · Guide:** generated names follow the operation ids: `listColumnsOptions` / `listColumnsQueryKey`, `createColumnMutation`, `deleteColumnMutation`, `reorderColumnsMutation`, `copyColumnsMutation` — if your hey-api version styles them differently, the generated TanStack file is the authority; grep it once. Reorder UX: swap locally, send the _full_ id order. Delete UX: run the mutation, then toast whichever of `{deleted, disabled}` came back.
+**Layer 2 · Guide:** generated names follow the operation ids: `listColumnsOptions` / `listColumnsQueryKey`, `createColumnMutation`, `deleteColumnMutation`, `reorderColumnsMutation`, `copyColumnsMutation`. If your hey-api version styles them differently, the generated TanStack file is the authority; grep it once. Reorder UX: swap locally, send the _full_ id order. Delete UX: run the mutation, then toast whichever of `{deleted, disabled}` came back.
 
 **Layer 3 · Exact assembly:**
 
@@ -3311,7 +3366,7 @@ const ColumnsPage = () => {
               variant="destructive"
               onClick={() => remove.mutate({ path: { column_id: col.id } })}
             >
-              –
+              -
             </Button>
           </li>
         ))}
@@ -3382,7 +3437,7 @@ const CreateDialog = ({
           <div>
             <Label>{t("columns.valueType")}</Label>
             <select className="w-full rounded border p-2" {...form.register("value_type")}>
-              <option value="score">0–100</option>
+              <option value="score">0-100</option>
               <option value="scale3">🙁 😐 🙂</option>
               <option value="text">{t("columns.text")}</option>
             </select>
@@ -3414,17 +3469,17 @@ const CreateDialog = ({
 };
 ```
 
-Add the new i18n keys (`columns.*`, `subjects.*`, `roles.*`, `forms.*`) to `tr.json`/`en.json` as you hit them — the missing-key console warnings are your checklist.
+Add the new i18n keys (`columns.*`, `subjects.*`, `roles.*`, `forms.*`) to `tr.json`/`en.json` as you hit them; the missing-key console warnings are your checklist.
 
-**Check:** open `/columns?grade=5&subject=english` → the twelve seeded columns; add "Deneme" (appears last), move it up twice, delete it (`deletedInfo` toast). Change subject to German → owner-role dropdown collapses to just `german`. Bookmark the URL, reopen — same view: search params carrying state, as promised.
+**Check:** open `/columns?grade=5&subject=english` → the twelve seeded columns; add "Deneme" (appears last), move it up twice, delete it (`deletedInfo` toast). Change subject to German → owner-role dropdown collapses to just `german`. Bookmark the URL and reopen: same view, with search params carrying state as promised.
 
 **If it breaks:** mutations 403 → you're logged into the _teacher_ app's session as a non-admin seed user; log in as yourself. Query never refetches after create → your `listColumnsQueryKey` call doesn't include the same `{ query }` object shape the options call used.
 
-## Step 2.2 — Teaching assignments
+## Step 2.2: Teaching assignments
 
-**What we're building:** the data that makes column _ownership_ real — per class, four dropdowns (main / skills / german / french) choosing a teacher — plus the three tiny read endpoints the admin screens keep reusing (classes, users, a class's assignments).
+**What we're building:** the data that makes column _ownership_ real: per class, four dropdowns (main / skills / german / french) choosing a teacher, plus the three tiny read endpoints the admin screens keep reusing (classes, users, a class's assignments).
 
-**Why an upsert:** `unique (class_id, role)` means "assign" and "reassign" are one statement — Postgres's `INSERT … ON CONFLICT DO UPDATE`, which you'll meet again in the save path. History of _who owned when_ rides on the audit trail's `updated_by`, good enough for v1 (ARCH §5/2.2).
+**Why an upsert:** `unique (class_id, role)` means "assign" and "reassign" are one statement, Postgres's `INSERT … ON CONFLICT DO UPDATE`, which you'll meet again in the save path. History of _who owned when_ rides on the audit trail's `updated_by`, good enough for v1 (ARCH §5/2.2).
 
 **Layer 3 · Exact assembly:** `src/flrc/modules/academics/assignments.py`:
 
@@ -3545,19 +3600,19 @@ async def upsert_assignment(
     return {"ok": True}
 ```
 
-Register, `pnpm generate`. The admin UI is your first solo flight: `_auth/assignments.tsx` = a class `<select>` (from `listClassesOptions`), then four labeled `<select>`s over `listUsersOptions` data, each firing `upsertAssignmentMutation` on change and invalidating `getAssignmentsQueryKey` — structurally a smaller `columns.tsx`. Build it from that sentence before peeking back at 2.1.4.
+Register, `pnpm generate`. The admin UI is your first solo flight: `_auth/assignments.tsx` = a class `<select>` (from `listClassesOptions`), then four labeled `<select>`s over `listUsersOptions` data, each firing `upsertAssignmentMutation` on change and invalidating `getAssignmentsQueryKey`; structurally, a smaller `columns.tsx`. Build it from that sentence before peeking back at 2.1.4.
 
-**Check:** reassign 5/A's skills teacher; `select * from teaching_assignments where class_id=<class-id-for-5/A>;` shows the new user; log in as that seeded teacher (you can't — no Google account — so verify via `/api/me` in 2.6's test world instead, or just trust psql today and let the grid's `owner_name` prove it visually in 2.4).
+**Check:** reassign 5/A's skills teacher; `select * from teaching_assignments where class_id=<class-id-for-5/A>;` shows the new user; log in as that seeded teacher (you can't, as there's no Google account, so verify via `/api/me` in 2.6's test world instead, or just trust psql today and let the grid's `owner_name` prove it visually in 2.4).
 
-## Step 2.3 — The grid read endpoint
+## Step 2.3: The grid read endpoint
 
 **What we're building:** one GET that returns everything a class-grid render needs in a single round trip: localized columns with ownership flags, the roster (L2-filtered when the subject is a language), every existing cell with its `version`, and the meta the UI's chrome feeds on (statuses, live grants, your last batch).
 
-**Why the payload is designed before the code:** the response shape _is_ the contract between three consumers — the desktop grid, the phone stepper, and (later) the card assembler's cousin. Design it on paper, then make the code match. Two conventions carry the whole concurrency story: **a missing cell key means version 0**, and every present cell carries the version the client must echo back at save time. And no pagination, deliberately — a class is physically capped around 30 students; knowing when _not_ to paginate is also a skill (ARCH §5/2.3).
+**Why the payload is designed before the code:** the response shape _is_ the contract between three consumers: the desktop grid, the phone stepper, and (later) the card assembler's cousin. Design it on paper, then make the code match. Two conventions carry the whole concurrency story: **a missing cell key means version 0**, and every present cell carries the version the client must echo back at save time. And no pagination, deliberately: a class is physically capped around 30 students; knowing when _not_ to paginate is also a skill (ARCH §5/2.3).
 
 **Layer 1 · Nudge:** load class → its year's current semester → active columns for (semester, grade, subject) → roster via enrollments (∩ student_languages when L2) → one query for all grade_values in (roster × columns) → assemble.
 
-**Layer 2 · Guide:** ownership per column = "does the teaching assignment for this class's `owner_role` point at me"; `owner_name` comes along for the grant dialog's wording. Label resolution: pick `labels[locale]` with TR fallback. `my_last_batch.undoable` is true only if the batch isn't consumed and the semester is still open — the undo button's enable logic, computed server-side once.
+**Layer 2 · Guide:** ownership per column = "does the teaching assignment for this class's `owner_role` point at me"; `owner_name` comes along for the grant dialog's wording. Label resolution: pick `labels[locale]` with TR fallback. `my_last_batch.undoable` is true only if the batch isn't consumed and the semester is still open: the undo button's enable logic, computed server-side once.
 
 **Layer 3 · Exact assembly:** `src/flrc/modules/grades/router.py`:
 
@@ -3798,7 +3853,7 @@ async def get_grid(
 
 Register the router, `pnpm generate`.
 
-**Check:** find a class you teach — `select class_id, role from teaching_assignments ta join users u on u.id=ta.user_id where u.email='<you>';` — plant one cell by hand so the payload has something to say:
+**Check:** find a class you teach (`select class_id, role from teaching_assignments ta join users u on u.id=ta.user_id where u.email='<you>';`) and plant one cell by hand so the payload has something to say:
 
 ```sql
 insert into grade_values (student_id, column_definition_id, score, version, updated_by, created_at, updated_at)
@@ -3808,26 +3863,32 @@ where e.class_id = <your-class-id> and cd.grade_level = <its-grade> and cd.subje
 limit 1;
 ```
 
-Then, logged into the teacher app, run in the browser console: `fetch('/api/classes/<id>/grid?subject=english').then(r => r.json()).then(console.log)` — inspect: your columns carry `owned_by_you` correctly per your seeded roles; exactly one row has a `cells` entry with `version: 1`; switch `subject=german` on a grade-5 class and watch the roster shrink to the German kids. That shrink is `student_language` doing its one job.
+Then, logged into the teacher app, run in the browser console: `fetch('/api/classes/<id>/grid?subject=english').then(r => r.json()).then(console.log)`. Inspect: your columns carry `owned_by_you` correctly per your seeded roles; exactly one row has a `cells` entry with `version: 1`; switch `subject=german` on a grade-5 class and watch the roster shrink to the German kids. That shrink is `student_language` doing its one job.
 
 **If it breaks:** every `owned_by_you` false → you're checking a class you don't teach (the seed round-robins assignments; use the SQL above, don't guess). `cells` empty despite the insert → the insert's column belonged to a different semester/grade than the grid asked for.
 
-## Step 2.4 — The grid UI: TanStack Table, three cells, keyboard-first
+## Step 2.4: The grid UI (TanStack Table, three cells, keyboard-first)
+
+**Current notes and bulk editing (ADR-059 through ADR-063):** primary English and German/French
+include a final notes filter in both table and stepper. Grades 5-8 English have no notes
+filter. Their wide numeric overview reserves room for the last angled heading without a comment
+column. Pupil/class 1-2-3 controls stage all rating columns, including hidden categories, in
+Zustand; only Save submits them. Scores and written comments are left intact.
 
 **Readable assessment navigation (ADR-049, capacity updated in ADR-061):** show four sentence
 columns at a 1280px viewport and five at 1366px or wider, with category filters and previous/next
 controls in configured order. Narrow screens show fewer columns. Keep complete normal-case
-labels and student names visible, explain the 1–2–3 scale,
+labels and student names visible, explain the 1-2-3 scale,
 and retain drafts across assessment pages. Save includes hidden draft cells. Check with
 `pnpm exec playwright test e2e/assessment-grid.spec.ts` against the teacher dev server.
 
-**What we're building:** the screen teachers will judge the whole project by — grouped headers, an always-visible student identity column, per-type editable cells, and Enter-moves-down-the-column keyboard flow (the grade-entry motion you know from Excel). Foreign columns render locked; edits into them are _intercepted before a keystroke is lost_ (the grant dialog plugs in at 2.7 — today a toast holds its place).
+**What we're building:** the screen teachers will judge the whole project by: grouped headers, an always-visible student identity column, per-type editable cells, and Enter-moves-down-the-column keyboard flow (the grade-entry motion you know from Excel). Foreign columns render locked; edits into them are _intercepted before a keystroke is lost_ (the grant dialog plugs in at 2.7; today a toast holds its place).
 
-**Why headless was the right call, felt concretely:** TanStack Table computes header groups and row models; every `<td>` is yours — which is precisely what lets a cell be a Zustand-connected input instead of a string. The cells live in `packages/ui` as _presentational_ components (value in, `onCommit` out) so the phone stepper reuses them untouched in 2.10; all state wiring stays in the page.
+**Why headless was the right call, felt concretely:** TanStack Table computes header groups and row models; every `<td>` is yours, which is precisely what lets a cell be a Zustand-connected input instead of a string. The cells live in `packages/ui` as _presentational_ components (value in, `onCommit` out) so the phone stepper reuses them untouched in 2.10; all state wiring stays in the page.
 
 **Layer 1 · Nudge:** three components keyed on `value_type`; a `refs` map keyed `"row:col"` plus one keydown handler = the whole navigation system; build TanStack column defs from the API's `columns`, nesting them under `columnHelper.group` when `group` labels run.
 
-**Layer 3 · Exact assembly — the cells:**
+**Layer 3 · Exact assembly (the cells):**
 
 ```bash
 pnpm --filter @flrc/teacher add @tanstack/react-table zustand
@@ -3960,7 +4021,7 @@ export const LockedCell = ({ value, onAttempt }: { value: CellValue; onAttempt: 
 );
 ```
 
-**Layer 3 · Exact assembly — the page.** First the store it leans on (built fully in 2.5, needed as a stub now) — `apps/teacher/src/grid/dirty-store.ts`:
+**Layer 3 · Exact assembly (the page).** First the store it leans on (built fully in 2.5, needed as a stub now), `apps/teacher/src/grid/dirty-store.ts`:
 
 ```ts
 import { create } from "zustand";
@@ -4197,21 +4258,21 @@ const GridPage = () => {
 };
 ```
 
-Link the dashboard to it: on `_auth/index.tsx`, render the user's `assignments` as links to `/classes/$classId/$subject` (role `main`/`skills` → subject `english`; `german`/`french` → that subject) — a five-line `map`, your solo flight.
+Link the dashboard to it: on `_auth/index.tsx`, render the user's `assignments` as links to `/classes/$classId/$subject` (role `main`/`skills` → subject `english`; `german`/`french` → that subject): a five-line `map`, your solo flight.
 
-**Check:** open one of your classes. Type a full column of scores using only Enter — eyes never leave the numbers. Space-cycle a scale cell on an L2 grid (🙁 → 😐 → 🙂 → blank). Open a text popover, type, click away — the cell shows the preview with the amber unsaved tint. Retype a cell back to its planted server value — the tint _disappears_ (the equal-to-server branch working). Columns owned by colleagues wear 🔒 and answer with the toast naming them. Nothing persists on refresh yet — correct; persistence is the next two steps.
+**Check:** open one of your classes. Type a full column of scores using only Enter; eyes never leave the numbers. Space-cycle a scale cell on an L2 grid (🙁 → 😐 → 🙂 → blank). Open a text popover, type, click away: the cell shows the preview with the amber unsaved tint. Retype a cell back to its planted server value: the tint _disappears_ (the equal-to-server branch working). Columns owned by colleagues wear 🔒 and answer with the toast naming them. Nothing persists on refresh yet, which is correct; persistence is the next two steps.
 
 **If it breaks:** every column locked including yours → you're viewing a class you don't teach (grid tells the truth; check via the dashboard links, not a typed URL). A second scrollbar appears → remove overflow sizing from the table wrapper and keep `w-full table-fixed`; the document owns row scrolling. A field disappears sideways → a child still has a fixed/minimum width; make the control `w-full min-w-0` and allow its header to wrap. Enter jumps two rows → your keydown handler runs on both the input and a parent; it belongs on the cell only.
 
-**Docs:** tanstack.com/table — the "Column Groups" and "Editable Data" guides. **Why deeper:** ARCH §5/2.4 (including why virtualization is _deliberately_ absent at 30 rows — leave that comment in the code; reviewers notice chosen omissions).
+**Docs:** tanstack.com/table, the "Column Groups" and "Editable Data" guides. **Why deeper:** ARCH §5/2.4 (including why virtualization is _deliberately_ absent at 30 rows; leave that comment in the code, as reviewers notice chosen omissions).
 
-## Step 2.5 — Save All: draining the dirty map
+## Step 2.5: Save All (draining the dirty map)
 
 **What we're building:** the header button that sends only what changed, four visible states (idle → saving → saved ✓ → error), cache-merge without a refetch flash, and two leave-guards so unsaved grades can't be lost to a stray click.
 
-**Why the merge instead of an invalidate:** an invalidate refetches the whole grid and repaints every cell — a visible blink and a wasted query. `setQueryData` surgically writes the returned new versions (and the values you already know, from the dirty map) into the cache; the grid re-renders only the touched cells and the amber tints melt away. This is the "Query owns server truth" boundary earning rent (invariant #6).
+**Why the merge instead of an invalidate:** an invalidate refetches the whole grid and repaints every cell: a visible blink and a wasted query. `setQueryData` surgically writes the returned new versions (and the values you already know, from the dirty map) into the cache; the grid re-renders only the touched cells and the amber tints melt away. This is the "Query owns server truth" boundary earning rent (invariant #6).
 
-**Layer 1 · Nudge:** one `useSaveGrid` hook owning the mutation, the conflict list, and the accept/cancel handlers — the button and the dialog become dumb consumers of it.
+**Layer 1 · Nudge:** one `useSaveGrid` hook owning the mutation, the conflict list, and the accept/cancel handlers; the button and the dialog become dumb consumers of it.
 
 **Layer 3 · Exact assembly:** `apps/teacher/src/grid/use-save-grid.ts`:
 
@@ -4329,7 +4390,7 @@ export const useSaveGrid = ({ classId, subject, gridKey }: Args) => {
 };
 ```
 
-In the grid page: hold the query key once (`const gridKey = getGridQueryKey({ path: …, query: … })` — use the same object shapes as the options call), call the hook, and mount in the header:
+In the grid page: hold the query key once (`const gridKey = getGridQueryKey({ path: …, query: … })`; use the same object shapes as the options call), call the hook, and mount in the header:
 
 ```tsx
 const dirtyCount = useDirtyStore((s) => Object.keys(s.cells).length);
@@ -4368,17 +4429,17 @@ useEffect(() => {
 }, [classId, subject, t]);
 ```
 
-(`useBlocker`'s exact option shape has shifted between TanStack Router minors — if the signature disagrees, its "Navigation Blocking" docs page settles it in one minute.)
+(`useBlocker`'s exact option shape has shifted between TanStack Router minors; if the signature disagrees, its "Navigation Blocking" docs page settles it in one minute.)
 
-**Check (limited until 2.6 exists):** edit three cells → the button reads "Save (3)"; retype one back to server value → "(2)"; try navigating to the dashboard → the confirm fires; hard-refresh → the browser's own dialog fires. Saving itself 404s — the endpoint is next.
+**Check (limited until 2.6 exists):** edit three cells → the button reads "Save (3)"; retype one back to server value → "(2)"; try navigating to the dashboard → the confirm fires; hard-refresh → the browser's own dialog fires. Saving itself 404s; the endpoint is next.
 
-## Step 2.6 — Batch save: the algorithm the whole app pivots on
+## Step 2.6: Batch save, the algorithm the whole app pivots on
 
-**What we're building:** `POST /classes/{id}/grid/save` implementing ARCH §3.5 exactly — per-cell structural gates, optimistic version compare, insert-vs-update paths, force semantics, one batch + audit rows per request, and a response the dialog can render verbatim. Then the tests that make it trustworthy, then the dialog.
+**What we're building:** `POST /classes/{id}/grid/save` implementing ARCH §3.5 exactly: per-cell structural gates, optimistic version compare, insert-vs-update paths, force semantics, one batch + audit rows per request, and a response the dialog can render verbatim. Then the tests that make it trustworthy, then the dialog.
 
-**Why `SELECT … FOR UPDATE` + version compare (and how it relates to the WHERE-clause idiom):** ARCH teaches `UPDATE … WHERE version = :expected` — compare-and-set in one statement. Here you'll implement its equally-correct sibling: lock the row (`with_for_update`), compare versions in Python, write. The row lock closes the same race the WHERE clause closes, _and_ hands you the old values for the audit entry in the same read — one trip instead of two. Say both versions of this sentence in interviews; knowing they're equivalent is the point. New cells can't be locked (no row yet), so the insert path uses Postgres's `ON CONFLICT DO NOTHING` + rowcount — a lost insert race _is_ the "two people filled an empty cell" conflict from your spec, reported, never silent.
+**Why `SELECT … FOR UPDATE` + version compare (and how it relates to the WHERE-clause idiom):** ARCH teaches `UPDATE … WHERE version = :expected`: compare-and-set in one statement. Here you'll implement its equally correct sibling: lock the row (`with_for_update`), compare versions in Python, write. The row lock closes the same race the WHERE clause closes, _and_ hands you the old values for the audit entry in the same read: one trip instead of two. Say both versions of this sentence in interviews; knowing they're equivalent is the point. New cells can't be locked (no row yet), so the insert path uses Postgres's `ON CONFLICT DO NOTHING` + rowcount; a lost insert race _is_ the "two people filled an empty cell" conflict from your spec, reported, never silent.
 
-**Layer 1 · Nudge:** gates in order — column known and active? student in this roster? value legal for the type? caller owns the role or holds a grant (admins own everything)? — reject cells structurally before touching rows; then per cell: existing row → lock, compare-or-force, write, audit; no row → conditional insert; collect three lists; one batch if anything applied; hydrate conflict author names after the loop.
+**Layer 1 · Nudge:** gates in order: column known and active? student in this roster? value legal for the type? caller owns the role or holds a grant (admins own everything)? Reject cells structurally before touching rows; then per cell: existing row → lock, compare-or-force, write, audit; no row → conditional insert; collect three lists; one batch if anything applied; hydrate conflict author names after the loop.
 
 **Layer 3 · Exact assembly:** append to `src/flrc/modules/grades/router.py` (new imports: `IntegrityError` not needed; add `insert as pg_insert` from the postgresql dialect, `Field` from pydantic, and `writable_semester`):
 
@@ -4393,7 +4454,7 @@ class SaveCellIn(BaseModel):
 class SaveRequest(BaseModel):
     subject: Subject
     force: bool = False
-    cells: list[SaveCellIn] = Field(min_length=1, max_length=500)
+    cells: list[SaveCellIn] = Field(min_length=1, max_length=2000)
 
 
 class AppliedOut(BaseModel):
@@ -4573,7 +4634,7 @@ async def save_grid(
                             GradeValue.column_definition_id == cell.column_id,
                         )
                     )
-                ).scalar_one()  # the racer's row — falls through to conflict
+                ).scalar_one()  # the racer's row; falls through to conflict
             else:
                 raw_conflicts.append({
                     "cell": cell, "col": col, "current_value": None,
@@ -4641,7 +4702,7 @@ async def save_grid(
 
 `pnpm generate`, commit.
 
-### 2.6.3 The tests — before the dialog, on purpose
+### 2.6.3 The tests: before the dialog, on purpose
 
 **What / Why:** the algorithm's scary paths become executable facts. This needs a real database (locks, `ON CONFLICT`, transactions), so the harness grows: session-scoped migration onto `flrc_test`, a wipe-between-tests fixture, and a `get_session` override pointing at the test engine.
 
@@ -4808,11 +4869,11 @@ async def test_invalid_value_rejected(api, world):
     assert res.json()["rejected"][0]["code"] == "invalid_value"
 ```
 
-**Check:** `uv run pytest -q` — all green (guards, migrations, six save tests). Break the version compare on purpose (`==` → `>=`), watch `test_stale_version…` fail, restore. That red run is the contract.
+**Check:** `uv run pytest -q`, all green (guards, migrations, six save tests). Break the version compare on purpose (`==` → `>=`), watch `test_stale_version…` fail, restore. That red run is the contract.
 
 ### 2.6.4 The conflict dialog
 
-**What / Why:** your answer 13, rendered: every conflicted cell listed by student and column, _yours vs current_, the other author named; **Accept all** resends exactly those cells with `force=true`; **Cancel** returns them to database truth (invalidate + clear). Warning-amber, not danger-red — colleagues colliding is normal life, not an incident.
+**What / Why:** your answer 13, rendered: every conflicted cell listed by student and column, _yours vs current_, the other author named; **Accept all** resends exactly those cells with `force=true`; **Cancel** returns them to database truth (invalidate + clear). Warning-amber, not danger-red: colleagues colliding is normal life, not an incident.
 
 **Layer 3 · Exact assembly:** `apps/teacher/src/grid/conflict-dialog.tsx`:
 
@@ -4872,7 +4933,7 @@ export const ConflictDialog = ({
 
 Mount it in the grid page fed by the hook: `<ConflictDialog conflicts={save.conflicts} onAccept={save.acceptConflicts} onCancel={save.cancelConflicts} />`.
 
-**Check — the money moment (record it):** two browser profiles. Profile A = you (Google login). Profile B needs a second real account… which you don't have — so cheat honestly for the demo: temporarily give one seeded teacher your _personal_ Gmail via psql (`update users set email='<your-gmail>' where email='teacher00@example-school.k12.tr';`) and add that Gmail as a test user in the console — wrong-domain check blocks it though (`hd` gate). Cleaner: flip _yourself_ between roles instead — in profile B, log in as you, but first swap the class's `main` assignment to teacher00 and grant yourself nothing; hmm — simplest of all: use the **API docs as the second writer**. In profile A, edit a cell but _don't save_. In a terminal, force the collision as the seeded main teacher via pytest's world?… Stop: the honest tool for a second human is **Playwright's bypass in Phase 4**. For _today_, the two-window demo works with A = browser, B = `psql` playing the colleague:
+**Check, the money moment (record it):** two browser profiles. Profile A = you (Google login). Profile B needs a second real account… which you don't have, so cheat honestly for the demo: temporarily give one seeded teacher your _personal_ Gmail via psql (`update users set email='<your-gmail>' where email='teacher00@example-school.k12.tr';`) and add that Gmail as a test user in the console. The wrong-domain check blocks it, though (`hd` gate). Cleaner: flip _yourself_ between roles instead. In profile B, log in as you, but first swap the class's `main` assignment to teacher00 and grant yourself nothing; hmm, simplest of all: use the **API docs as the second writer**. In profile A, edit a cell but _don't save_. In a terminal, force the collision as the seeded main teacher via pytest's world?… Stop: the honest tool for a second human is **Playwright's bypass in Phase 4**. For _today_, the two-window demo works with A = browser, B = `psql` playing the colleague:
 
 ```sql
 update grade_values set score = 90, version = version + 1,
@@ -4880,25 +4941,25 @@ update grade_values set score = 90, version = version + 1,
 where student_id=<s> and column_definition_id=<c>;
 ```
 
-Now press Save in profile A → the dialog lists that cell, current **90**, author named. **Overwrite** wins (version jumps again); repeat and **Keep database values** refetches 90 into the cell and drops your edit. Screen-record the second run — 30 seconds, portfolio gold. (Phase 4's two-context Playwright test makes this collision fully automatic with two real "users"; the note about why lives there.)
+Now press Save in profile A → the dialog lists that cell, current **90**, author named. **Overwrite** wins (version jumps again); repeat and **Keep database values** refetches 90 into the cell and drops your edit. Screen-record the second run: 30 seconds, portfolio gold. (Phase 4's two-context Playwright test makes this collision fully automatic with two real "users"; the note about why lives there.)
 
-**If it breaks:** dialog opens but Accept silently no-ops → `acceptConflicts` built cells from an empty dirty map because Cancel-then-Accept ordering cleared it; Accept must read the dirty map _before_ clearing (the hook above does — check you didn't reorder). Conflict shows `updated_by: null` for the psql write → you set `updated_by` to a user id that isn't in `users`; the join found nobody, which is the code telling the truth.
+**If it breaks:** dialog opens but Accept silently no-ops → `acceptConflicts` built cells from an empty dirty map because Cancel-then-Accept ordering cleared it; Accept must read the dirty map _before_ clearing (the hook above does; check you didn't reorder). Conflict shows `updated_by: null` for the psql write → you set `updated_by` to a user id that isn't in `users`; the join found nobody, which is the code telling the truth.
 
-Commit: `feat: batch save with optimistic concurrency + conflict dialog`. **DECISIONS.md** entries now, while it's hot: partial-apply over all-or-nothing · FOR-UPDATE-plus-compare vs WHERE-clause CAS (equivalent, chose the one that feeds audit) · clearing a cell nulls the field but keeps the row+version (a deliberate refinement of "empty = no row": _never-touched_ = no row; _cleared_ = null — undo and audit both need the distinction).
+Commit: `feat: batch save with optimistic concurrency + conflict dialog`. **DECISIONS.md** entries now, while it's hot: partial-apply over all-or-nothing · FOR-UPDATE-plus-compare vs WHERE-clause CAS (equivalent, chose the one that feeds audit) · clearing a cell nulls the field but keeps the row+version (a deliberate refinement of "empty = no row": _never-touched_ = no row; _cleared_ = null; undo and audit both need the distinction).
 
 ---
 
-## Step 2.7 — The one-hour grant
+## Step 2.7: The one-hour grant
 
-**What we're building:** the speed bump from your answer 11, end to end — first keystroke into a colleague's column opens a dialog _naming the owner_; Accept mints a one-hour permission; the columns unlock with a countdown chip; the server re-checks on every save regardless.
+**What we're building:** the speed bump from your answer 11, end to end: first keystroke into a colleague's column opens a dialog _naming the owner_; Accept mints a one-hour permission; the columns unlock with a countdown chip; the server re-checks on every save regardless.
 
-**Why the dialog names the owner and wears amber:** the social function is a speed bump, not a lock — helping colleagues is legitimate, mistaken columns are the enemy. Naming Kıvılcım makes the teacher _think of Kıvılcım_ for one second, which is the entire mechanism. Danger-red would tell a lie about severity. And why a Postgres row instead of a Redis TTL key, one more time out loud: expiry-by-deletion destroys the evidence, and _who had permission to touch whose columns, when_ is itself audit data (ARCH §3.5).
+**Why the dialog names the owner and wears amber:** the social function is a speed bump, not a lock: helping colleagues is legitimate; mistaken columns are the enemy. Naming Kıvılcım makes the teacher _think of Kıvılcım_ for one second, which is the entire mechanism. Danger-red would tell a lie about severity. And why a Postgres row instead of a Redis TTL key, one more time out loud: expiry-by-deletion destroys the evidence, and _who had permission to touch whose columns, when_ is itself audit data (ARCH §3.5).
 
-**Layer 1 · Nudge:** one upsert endpoint returning the expiry; the save path from 2.6 already honors live grants — you built the consumer before the producer, on purpose. Client side: a `pendingCol` state, one dialog, a chip ticking off `meta.my_grants`.
+**Layer 1 · Nudge:** one upsert endpoint returning the expiry; the save path from 2.6 already honors live grants; you built the consumer before the producer, on purpose. Client side: a `pendingCol` state, one dialog, a chip ticking off `meta.my_grants`.
 
-**Layer 2 · Guide — the timezone lesson hiding here:** `expires_at` compares against `func.now()` _inside Postgres_. So compute the expiry in Postgres too (`now() + interval '1 hour'`) — one clock, no naive-vs-aware datetime fights between Python and asyncpg. This also means Python time-freezing libraries can't test expiry (they freeze the wrong clock); the honest test rewinds the row itself.
+**Layer 2 · Guide (the timezone lesson hiding here):** `expires_at` compares against `func.now()` _inside Postgres_. So compute the expiry in Postgres too (`now() + interval '1 hour'`): one clock, no naive-vs-aware datetime fights between Python and asyncpg. This also means Python time-freezing libraries can't test expiry (they freeze the wrong clock); the honest test rewinds the row itself.
 
-**Layer 3 · Exact assembly — backend** (append to `src/flrc/modules/grades/router.py`; new imports: `text` from sqlalchemy):
+**Layer 3 · Exact assembly: backend** (append to `src/flrc/modules/grades/router.py`; new imports: `text` from sqlalchemy):
 
 ```python
 class GrantBody(BaseModel):
@@ -4965,9 +5026,9 @@ async def test_expired_grant_is_rejected(api, world):
     assert saved.json()["rejected"][0]["code"] == "not_owner"
 ```
 
-(Notice what the second test does _not_ use: a time-freezing library. The check lives on Postgres's clock — rewinding the row is the only honest lever.)
+(Notice what the second test does _not_ use: a time-freezing library. The check lives on Postgres's clock; rewinding the row is the only honest lever.)
 
-**Layer 3 · Exact assembly — frontend.** `apps/teacher/src/grid/grant-dialog.tsx`:
+**Layer 3 · Exact assembly: frontend.** `apps/teacher/src/grid/grant-dialog.tsx`:
 
 ```tsx
 import { useTranslation } from "react-i18next";
@@ -5052,7 +5113,7 @@ const chips = data?.meta.my_grants.map((g) => {
 // header: {chips}  ·  page bottom: <GrantDialog col={pendingCol} onAccept={requestGrant} onClose={() => setPendingCol(null)} />
 ```
 
-One server nuance the naive version misses: `expires_at` arrives as a naive-UTC ISO string (no `Z`), and `new Date("…")` would read it as _local_ time. Fix at the source — teach FastAPI to serialize it honestly by declaring `GrantOut.expires_at: datetime` and appending a serializer, or simplest: change the response model field to string via `expires_at.isoformat() + "Z"` in a field_serializer. Add to `GrantOut`:
+One server nuance the naive version misses: `expires_at` arrives as a naive-UTC ISO string (no `Z`), and `new Date("…")` would read it as _local_ time. Fix at the source: teach FastAPI to serialize it honestly by declaring `GrantOut.expires_at: datetime` and appending a serializer, or simplest: change the response model field to string via `expires_at.isoformat() + "Z"` in a field_serializer. Add to `GrantOut`:
 
 ```python
 from pydantic import field_serializer
@@ -5066,21 +5127,21 @@ class GrantOut(BaseModel):
         return dt.isoformat() + "Z"
 ```
 
-(Do the same on `LastBatchOut.created_at` — same disease. This naive-UTC-plus-Z convention is a pragmatic v1 stance; note it in DECISIONS.md with the `timezone=True` column upgrade as the road not taken _yet_.)
+(Do the same on `LastBatchOut.created_at`; same disease. This naive-UTC-plus-Z convention is a pragmatic v1 stance; note it in DECISIONS.md with the `timezone=True` column upgrade as the road not taken _yet_.)
 
-**Check:** as yourself, open a class where you hold `main` — the skills columns wear 🔒. Press a key in one → the dialog names the skills teacher → Accept → columns unlock, chip reads "skills · 60 min", entering values works, and the audit (2.9 will show it; psql today) carries `via_grant_id`. Rewind the grant in psql (the test's `update`), wait for the 30-second tick → columns re-lock. `uv run pytest -q` → the two grant tests green.
+**Check:** as yourself, open a class where you hold `main`; the skills columns wear 🔒. Press a key in one → the dialog names the skills teacher → Accept → columns unlock, chip reads "skills · 60 min", entering values works, and the audit (2.9 will show it; psql today) carries `via_grant_id`. Rewind the grant in psql (the test's `update`), wait for the 30-second tick → columns re-lock. `uv run pytest -q` → the two grant tests green.
 
-**If it breaks:** columns never unlock after Accept → the grid invalidate used a different query-key shape than the options call. Chip shows a huge negative number → the `Z`-serializer isn't applied and your timezone is ahead of UTC — exactly the bug the serializer exists for; nice to have met it.
+**If it breaks:** columns never unlock after Accept → the grid invalidate used a different query-key shape than the options call. Chip shows a huge negative number → the `Z`-serializer isn't applied and your timezone is ahead of UTC, exactly the bug the serializer exists for; nice to have met it.
 
-## Step 2.8 — Undo: the audit log, replayed backwards
+## Step 2.8: Undo, the audit log replayed backwards
 
-**What we're building:** one button — "Undo my last save (12 cells, 14:02)" — that restores the previous values of your most recent batch _in this class_, using the same optimistic machinery as save: cells someone else touched since are reported, never clobbered. An undo is itself a batch (`is_undo=true`), so undoing an undo is redo, for free.
+**What we're building:** one button, "Undo my last save (12 cells, 14:02)", that restores the previous values of your most recent batch _in this class_, using the same optimistic machinery as save: cells someone else touched since are reported, never clobbered. An undo is itself a batch (`is_undo=true`), so undoing an undo is redo, for free.
 
-**Why there's no undo storage:** the audit entries already hold `old_*` and `new_*`. Undo = "for each entry of my last batch, if the cell still shows my `new`, put back my `old`." Restoring an insert (`old_existed=false`) _deletes_ the row — true absence returns, and the grid's version-0 convention picks it up untouched (ARCH §3.5).
+**Why there's no undo storage:** the audit entries already hold `old_*` and `new_*`. Undo = "for each entry of my last batch, if the cell still shows my `new`, put back my `old`." Restoring an insert (`old_existed=false`) _deletes_ the row: true absence returns, and the grid's version-0 convention picks it up untouched (ARCH §3.5).
 
 **Layer 1 · Nudge:** find the caller's newest batch for the class → 409 `nothing_to_undo` if none or already consumed → per entry: lock the row, value-compare against the entry's `new_*`, restore or report → wrap restorations in a new batch → mark the old one `undone`.
 
-**Layer 2 · Guide:** the "did it change since?" check is a **value** compare, not a version compare — the entry doesn't know which version its write produced, but it knows exactly what it wrote. Extract the conflict-hydration tail of 2.6 (author + student name lookups) into a module-level `_hydrate_conflicts(db, raw)` and reuse it here; the refactor is five minutes and the reuse is the design vindicating itself.
+**Layer 2 · Guide:** the "did it change since?" check is a **value** compare, not a version compare: the entry doesn't know which version its write produced, but it knows exactly what it wrote. Extract the conflict-hydration tail of 2.6 (author + student name lookups) into a module-level `_hydrate_conflicts(db, raw)` and reuse it here; the refactor is five minutes and the reuse is the design vindicating itself.
 
 **Layer 3 · Exact assembly** (append to `src/flrc/modules/grades/router.py`; first do the `_hydrate_conflicts` extraction so both endpoints share it):
 
@@ -5198,15 +5259,15 @@ async def undo_grid(
     return SaveResponse(applied=applied, conflicts=conflicts, rejected=[])
 ```
 
-(`_first_non_null` is the two-line helper picking the populated member of the value triple; `_hydrate_conflicts` is your 2.6 extraction — adjust its input to these dict keys while extracting, so both callers pass the same shape. Yes, this means revisiting 2.6's tail for ten minutes; that's what extraction means.)
+(`_first_non_null` is the two-line helper picking the populated member of the value triple; `_hydrate_conflicts` is your 2.6 extraction; adjust its input to these dict keys while extracting, so both callers pass the same shape. Yes, this means revisiting 2.6's tail for ten minutes; that's what extraction means.)
 
-`pnpm generate`. Frontend: next to Save All —
+`pnpm generate`. Frontend: next to Save All:
 
 ```tsx
 const undo = useMutation({
   ...undoGridMutation(),
   onSuccess: (res) => {
-    qc.invalidateQueries({ queryKey: gridKey }); // undo is rare — a refetch is honest here
+    qc.invalidateQueries({ queryKey: gridKey }); // undo is rare; a refetch is honest here
     if (res.conflicts.length) toast.warning(t("grid.undoPartial", { count: res.conflicts.length }));
     else toast(t("grid.undone"));
   },
@@ -5278,17 +5339,17 @@ async def test_undo_of_undo_is_redo(api, world):
     assert gv.score == 90
 ```
 
-**Check:** pytest green (four new); in the browser, save three cells, press Undo — values revert, tints stay clean, the button disappears (batch consumed) and _reappears_ pointing at the undo batch itself (redo, discovered rather than built). Have psql "colleague" edit one cell between save and undo → the partial-undo toast counts it.
+**Check:** pytest green (four new); in the browser, save three cells, press Undo: values revert, tints stay clean, the button disappears (batch consumed) and _reappears_ pointing at the undo batch itself (redo, discovered rather than built). Have psql "colleague" edit one cell between save and undo → the partial-undo toast counts it.
 
 **If it breaks:** redo test finds score 85 → you marked the _undo_ batch `undone=True` too; only the batch being consumed flips. `version: 0` cells refuse re-entry in the UI → the grid cache still holds the old version; the invalidate-on-undo exists precisely for this.
 
 Commit: `feat: grants + undo`.
 
-## Step 2.9 — The audit viewer
+## Step 2.9: The audit viewer
 
-**What we're building:** the admin page that makes the whole trust story visible — every change, filterable by class/teacher/student/date, old → new, forced flag, grant reference — plus a CSV export, paged with a **keyset cursor**.
+**What we're building:** the admin page that makes the whole trust story visible (every change, filterable by class/teacher/student/date, old → new, forced flag, grant reference), plus a CSV export, paged with a **keyset cursor**.
 
-**Why keyset and not offset:** `OFFSET 5000` re-counts five thousand rows to show page 101, and rows inserted _while paging_ shift everything (the classic drift-under-writes bug). Keyset — "give me 50 rows with `id <` the last one I saw" — is O(page), stable under writes, and the modern default. Your `bigint identity` ids are time-ordered, so id alone is a valid cursor; note in DECISIONS.md that non-monotonic ids would need the composite `(created_at, id)` form (ARCH §5/2.9).
+**Why keyset and not offset:** `OFFSET 5000` re-counts five thousand rows to show page 101, and rows inserted _while paging_ shift everything (the classic drift-under-writes bug). Keyset ("give me 50 rows with `id <` the last one I saw") is O(page), stable under writes, and the modern default. Your `bigint identity` ids are time-ordered, so id alone is a valid cursor; note in DECISIONS.md that non-monotonic ids would need the composite `(created_at, id)` form (ARCH §5/2.9).
 
 **Layer 1 · Nudge:** one joined select over five tables, ordered `id DESC`, `LIMIT 51` (fetch one extra = the cheapest `has_more`), a `cursor` query param feeding `id < :cursor`; the CSV endpoint is the same query without limits, streamed.
 
@@ -5448,11 +5509,11 @@ async def export_audit_csv(
     )
 ```
 
-One deliberate bug above — the `?? ` line is TypeScript syntax that a copy-paste habit smuggled into Python; it will not parse. Fix it yourself to `item.new_value or ""` and delete the dead branch. (Yes, this is a planted exercise: the fastest way to prove you _read_ Layer 3 instead of pasting it. From here on, assume everything, and read everything.)
+One deliberate bug above: the `?? ` line is TypeScript syntax that a copy-paste habit smuggled into Python; it will not parse. Fix it yourself to `item.new_value or ""` and delete the dead branch. (Yes, this is a planted exercise: the fastest way to prove you _read_ Layer 3 instead of pasting it. From here on, assume everything, and read everything.)
 
 Register, `pnpm generate`.
 
-**Layer 3 — the UI**, `apps/admin/src/routes/_auth/audit.tsx`, the `useInfiniteQuery` pattern (the generated helpers are single-page; infinite paging composes the generated _SDK function_ manually — a good seam to understand):
+**Layer 3: the UI**, `apps/admin/src/routes/_auth/audit.tsx`, the `useInfiniteQuery` pattern (the generated helpers are single-page; infinite paging composes the generated _SDK function_ manually, a good seam to understand):
 
 ```tsx
 import { useState } from "react";
@@ -5547,21 +5608,21 @@ const AuditPage = () => {
 };
 ```
 
-**Check:** generate ~120 entries by saving in a loop from the grid (or a quick psql `insert … select`), page through with Load more — then, while a next page exists, make one _new_ save in another tab and keep paging: no row duplicates, no skips. That non-event is keyset pagination working; offset pagination would have stuttered. Open the CSV — Turkish characters intact (UTF-8), `∅` marking was-empty cells. Filter by class; the admin can now answer "who entered this 90 and when" in ten seconds — say that sentence in the school pitch.
+**Check:** generate ~120 entries by saving in a loop from the grid (or a quick psql `insert … select`), page through with Load more; then, while a next page exists, make one _new_ save in another tab and keep paging: no row duplicates, no skips. That non-event is keyset pagination working; offset pagination would have stuttered. Open the CSV: Turkish characters intact (UTF-8), `∅` marking was-empty cells. Filter by class; the admin can now answer "who entered this 90 and when" in ten seconds. Say that sentence in the school pitch.
 
-**If it breaks:** `SyntaxError` on the export module → you found the planted bug; well met. `created_at` renders shifted by your UTC offset → the `+ 'Z'` on the client is doing the same repair as 2.7's serializer — pick one approach (serializers server-side is the cleaner ADR) and make it uniform across `AuditItemOut` too.
+**If it breaks:** `SyntaxError` on the export module → you found the planted bug; well met. `created_at` renders shifted by your UTC offset → the `+ 'Z'` on the client is doing the same repair as 2.7's serializer; pick one approach (serializers server-side is the cleaner ADR) and make it uniform across `AuditItemOut` too.
 
-## Step 2.10 — The phone stepper
+## Step 2.10: The phone stepper
 
-**What we're building:** the same grid, projected for thumbs — below 640 px (or on demand via a toggle) the class renders as _one student at a time_: their editable fields stacked as a labeled form, prev/next navigation, "7 / 30", and the same Save All in a sticky footer. Same query, same dirty store, same cells.
+**What we're building:** the same grid, projected for thumbs: below 640 px (or on demand via a toggle), the class renders as _one student at a time_: their editable fields stacked as a labeled form, prev/next navigation, "7 / 30", and the same Save All in a sticky footer. Same query, same dirty store, same cells.
 
-**Why a different projection instead of a squeezed grid:** nobody types 0–100 into a 40-px cell with thumbs. Because 2.4 kept the cells presentational and 2.5 kept unsaved edits in a store _outside_ the view, the stepper is mostly composition — switching views mid-edit keeps every dirty cell, which is the architecture demonstrating itself. Ship the manual toggle even on desktop and watch which view colleagues choose in September: that observation is a genuine "user research on a live product" interview story (ARCH §5/2.10).
+**Why a different projection instead of a squeezed grid:** nobody types 0-100 into a 40-px cell with thumbs. Because 2.4 kept the cells presentational and 2.5 kept unsaved edits in a store _outside_ the view, the stepper is mostly composition: switching views mid-edit keeps every dirty cell, which is the architecture demonstrating itself. Ship the manual toggle even on desktop and watch which view colleagues choose in September: that observation is a genuine "user research on a live product" interview story (ARCH §5/2.10).
 
 **Layer 1 · Nudge:** a `useIsPhone()` matchMedia hook + a `view` state (`auto | grid | stepper`); extract the 2.4 table into `<GridTable />`; a `<StepperView />` maps one row's columns through the same cell dispatch, minus keyboard nav.
 
-**Layer 2 · Guide:** the only refactor with teeth: 2.4's `Cell` closure captured `navKey`/`register`. Split it — a pure `cellCommit(row, col)` factory and a `CellSwitch` that takes optional nav props. Table passes nav; stepper doesn't. Locked columns render read-only in the stepper too, tapping into the same grant dialog.
+**Layer 2 · Guide:** the only refactor with teeth: 2.4's `Cell` closure captured `navKey`/`register`. Split it: a pure `cellCommit(row, col)` factory and a `CellSwitch` that takes optional nav props. Table passes nav; stepper doesn't. Locked columns render read-only in the stepper too, tapping into the same grant dialog.
 
-**Layer 3 · Exact assembly** — the hook and the view, `apps/teacher/src/grid/stepper.tsx`:
+**Layer 3 · Exact assembly:** the hook and the view, `apps/teacher/src/grid/stepper.tsx`:
 
 ```tsx
 import { useEffect, useState } from "react";
@@ -5629,17 +5690,22 @@ export const StepperView = ({
 };
 ```
 
-In the grid page: `const isPhone = useIsPhone();` + `const [view, setView] = useState<'auto' | 'grid' | 'stepper'>('auto');` + `const showStepper = view === 'stepper' || (view === 'auto' && isPhone);` — header gains a small toggle button; the body renders `showStepper ? <StepperView data={data} renderCell={(col, row) => <CellSwitch col={col} row={row} />} /> : <GridTable … />`; the Save All / Undo header goes `sticky bottom-0` on phones (a `fixed inset-x-0 bottom-0 border-t bg-background p-3 sm:static sm:border-0 sm:p-0` wrapper does it). The `CellSwitch` extraction: identical body to 2.4's `Cell`, with `onNavKey`/`cellRef` passed only when the table calls it.
+In the grid page: `const isPhone = useIsPhone();` + `const [view, setView] = useState<'auto' | 'grid' | 'stepper'>('auto');` + `const showStepper = view === 'stepper' || (view === 'auto' && isPhone);`. The header gains a small toggle button; the body renders `showStepper ? <StepperView data={data} renderCell={(col, row) => <CellSwitch col={col} row={row} />} /> : <GridTable … />`; the Save All / Undo header goes `sticky bottom-0` on phones (a `fixed inset-x-0 bottom-0 border-t bg-background p-3 sm:static sm:border-0 sm:p-0` wrapper does it). The `CellSwitch` extraction: identical body to 2.4's `Cell`, with `onNavKey`/`cellRef` passed only when the table calls it.
 
-**Check — on your actual phone**, against the deployed preview (push the branch; Vercel gives you a preview URL): open a class, enter one full student's grades with thumbs only, tap next, rotate the phone — nothing overflows; toggle to grid view and back — the dirty count survives the switch (watch the badge); Save All from the sticky footer. Then the toggle on desktop: notice the stepper is… actually pleasant. File that feeling for September.
+**Check, on your actual phone**, against the deployed preview (push the branch; Vercel gives you a preview URL): open a class, enter one full student's grades with thumbs only, tap next, rotate the phone, and nothing overflows; toggle to grid view and back, and the dirty count survives the switch (watch the badge); Save All from the sticky footer. Then the toggle on desktop: notice the stepper is… actually pleasant. File that feeling for September.
 
-**If it breaks:** dirty cells vanish on view switch → a view is holding its own copy of values instead of reading the store (a `useState(value)` initialized once — the cells already handle this via the `useEffect` sync; check you didn't wrap them). The fixed footer covers the last field → the stepper's `pb-24` exists for exactly that; keep them in sync.
+**If it breaks:** dirty cells vanish on view switch → a view is holding its own copy of values instead of reading the store (a `useState(value)` initialized once; the cells already handle this via the `useEffect` sync, so check you didn't wrap them). The fixed footer covers the last field → the stepper's `pb-24` exists for exactly that; keep them in sync.
 
-## Step 2.11 — Phase 2 test pass + exit
+## Step 2.11: Phase 2 test pass + exit
 
-**What we're building:** the frontend's first tests (the three cells and the store — the pieces whose regressions would silently corrupt grades), plus the grown backend matrix, plus the exit ritual.
+**Existing-checkout amendment:** the Vitest setup below is part of the original learning plan;
+current teacher/admin manifests do not contain a `test` script or that test-runner dependency.
+Use the implemented backend regressions and root Playwright suite. Do not install an additional
+runner merely to make a historical command work. Read the app READMEs for current commands.
 
-**Layer 3 · Exact assembly — Vitest:**
+**What we're building:** the frontend's first tests (the three cells and the store, the pieces whose regressions would silently corrupt grades), plus the grown backend matrix, plus the exit ritual.
+
+**Layer 3 · Exact assembly (Vitest):**
 
 ```bash
 pnpm --filter @flrc/teacher add -D vitest jsdom @testing-library/react @testing-library/user-event @testing-library/jest-dom
@@ -5654,7 +5720,7 @@ In `apps/teacher/vite.config.ts` add (and a triple-slash `/// <reference types="
   },
 ```
 
-`src/test-setup.ts`: `import '@testing-library/jest-dom/vitest';` — and set the package script `"test": "vitest run"` so Turborepo's `test` task picks it up. Two files to write:
+`src/test-setup.ts`: `import '@testing-library/jest-dom/vitest';`, and set the package script `"test": "vitest run"` so Turborepo's `test` task picks it up. Two files to write:
 
 `src/grid/dirty-store.test.ts`:
 
@@ -5686,7 +5752,7 @@ describe("dirty store", () => {
 });
 ```
 
-`packages/ui/src/grid/cells.test.tsx` (give `packages/ui` the same dev-deps + a vitest config, or simpler: put this file in the teacher app importing from `@flrc/ui/grid/cells` — fewer configs, same coverage):
+`packages/ui/src/grid/cells.test.tsx` (give `packages/ui` the same dev-deps + a vitest config, or simpler: put this file in the teacher app importing from `@flrc/ui/grid/cells`; fewer configs, same coverage):
 
 ```tsx
 import { render, screen } from "@testing-library/react";
@@ -5728,7 +5794,7 @@ describe("Scale3Cell", () => {
 });
 ```
 
-An MSW-driven test of the whole conflict-dialog flow is the natural next rung — it's deliberately _not_ required for the phase exit (Playwright covers the flow end-to-end in Phase 4 with a real backend); if the itch strikes, mswjs.io's Vitest quickstart is a one-evening add, and the ADR either way is worth a line.
+An MSW-driven test of the whole conflict-dialog flow is the natural next rung. It's deliberately _not_ required for the phase exit (Playwright covers the flow end-to-end in Phase 4 with a real backend); if the itch strikes, mswjs.io's Vitest quickstart is a one-evening add, and the ADR either way is worth a line.
 
 **Backend matrix growth:** add rows to `test_guards.py` for `POST /api/columns` (401 / teacher 403 / coordinator 403), `GET /api/audit` (same trio), `POST /api/classes/1/grid/save` (401), `POST /api/classes/1/grants` (401). The admin-200 cases live in the DB-backed suites already.
 
@@ -5740,7 +5806,7 @@ An MSW-driven test of the whole conflict-dialog flow is the natural next rung �
 - ✅ Undo restores, deletes fresh inserts, reports blocked cells, and redoes
 - ✅ Audit viewer pages under concurrent writes without dupes; CSV opens with Turkish intact
 - ✅ Phone stepper used on a real phone; dirty count survives the view toggle
-- ✅ Run the app in German for ten minutes — every string you meet is a `t()` key (leaks go on a list, fixed now, not in §4.4)
+- ✅ Run the app in German for ten minutes: every string you meet is a `t()` key (leaks go on a list, fixed now, not in §4.4)
 - ✅ DECISIONS.md: grants-in-Postgres · undo-as-audit-replay · FOR-UPDATE-vs-CAS equivalence · cleared-vs-never-touched · keyset pagination · naive-UTC-plus-Z serialization stance · stepper-as-projection
 - ✅ `git tag phase-2 && git push --tags`
 
@@ -5748,7 +5814,7 @@ The hardest engineering in the project is now behind you. Phases 3 and 4 are bro
 
 ---
 
-# Part VI — Phase 3: The admin lifecycle
+# Part VI. Phase 3: The admin lifecycle
 
 **Phase goal:** by the end, the school can run the boring, consequential work around the grid without touching SQL: maintain students and teachers, move one child or thirty between classes without losing grades, switch the second language, import a hostile school workbook with a dry-run first, advance semesters and years through explicit state transitions, browse archives, and answer “what happened to this student?” from one history screen.
 
@@ -5762,19 +5828,19 @@ The hardest engineering in the project is now behind you. Phases 3 and 4 are bro
 > creation, number editing, class moves, second language, column setup, and class teacher assignment
 > live in the `/classes` table workspace. The separate `/students` route redirects there. The old
 > CRUD walkthrough remains below as design history, not as code to copy. Closing a standard year
-> creates the next setup year automatically and promotes grades 1–7 with empty numbers; activation
+> creates the next setup year automatically and promotes grades 1-7 with empty numbers; activation
 > requires those numbers to be filled. See the current models, migration
 > `a4f93b7c2d10`, and ADRs for exact assembly.
 
-## Step 3.1 — The admin resource pattern, built once on students
+## Step 3.1: The admin resource pattern, built once on students
 
-**What we're building:** the first admin roster projection and the backend pattern the rest of this phase copies: year-filtered students with Turkish-safe search, create, edit, and a history link. The production UI now places these controls directly in the class table. We deliberately do **not** add “delete student” — historical identity is not disposable.
+**What we're building:** the first admin roster projection and the backend pattern the rest of this phase copies: year-filtered students with Turkish-safe search, create, edit, and a history link. The production UI now places these controls directly in the class table. We deliberately do **not** add “delete student”: historical identity is not disposable.
 
 **Why students first:** this resource exercises every recurring concern at once: search, pagination, uniqueness within one academic year, forms, server validation, URL search params, empty states, and a dangerous temptation to delete. Solve that pattern once and teachers/classes become repetition instead of invention.
 
 **Layer 1 · Nudge:** backend first: `GET /api/admin/students?year_id=&q=&cursor=&limit=` plus year/class-aware POST/PATCH. Normalize names with the same `casefold()` rule the seed used. Search by `search_name` and `Enrollment.school_number`. Frontend: the class table is the primary workspace; the standalone route may remain only as a compatibility redirect.
 
-**Layer 2 · Guide:** keyset pagination is by `(search_name, id)`, not offset. `q` becomes `q.casefold().strip()`; if it is all digits, search the selected year's enrollment number exactly _or_ names containing the text. The API returns `next_cursor` as an opaque base64 JSON token. POST rejects a number already used in the same year with `409 duplicate_school_number`; the same number in another year is valid. PATCH updates `search_name` whenever `full_name` changes, while number edits update only the selected enrollment. The class-table row exposes Edit and History — no Delete action exists.
+**Layer 2 · Guide:** keyset pagination is by `(search_name, id)`, not offset. `q` becomes `q.casefold().strip()`; if it is all digits, search the selected year's enrollment number exactly _or_ names containing the text. The API returns `next_cursor` as an opaque base64 JSON token. POST rejects a number already used in the same year with `409 duplicate_school_number`; the same number in another year is valid. PATCH updates `search_name` whenever `full_name` changes, while number edits update only the selected enrollment. The class-table row exposes Edit and History; no Delete action exists.
 
 **Layer 3 · Exact assembly:** create `apps/backend/src/flrc/modules/administration/names.py`:
 
@@ -5999,20 +6065,20 @@ The table columns are **School no. · Full name · Actions**. Search placeholder
 
 Commit: `feat(admin): student management pattern`.
 
-## Step 3.2 — Teachers, allowlisting, and live session revocation
+## Step 3.2: Teachers, allowlisting, and live session revocation
 
 **What we're building:** the user administration screen: pre-register an email before first login, edit display name/roles, deactivate a teacher, and revoke every live Redis session immediately.
 
-**Why this is not ordinary CRUD:** `users` is both the allowlist and authorization source.
+**Why this is not ordinary CRUD:** `users` is both the allowlist and the authorization source.
 Deactivation must be atomic from the school's point of view: the database says inactive **and**
 existing sessions stop working now. Even an eight-hour cookie that ignores dismissal is not access
 control.
 
 **Layer 1 · Nudge:** POST/PATCH users, never delete them. Keep a reverse index from user id to session ids in Redis. `create_session` adds to it; logout removes; deactivation deletes every referenced session key.
 
-**Layer 2 · Guide:** session keys become `session:<sid>`; reverse set `user_sessions:<user_id>`. When creating: pipeline `SETEX session:<sid> ...` + `SADD user_sessions:<uid> <sid>` + `EXPIRE` reverse set slightly longer than session TTL. When reading a session, reject inactive users from Postgres even if the Redis key survives. On deactivate, fetch members, delete their `session:*` keys and the set. The DB commit comes first; session revocation follows and is retried once — a stale session still fails at the `is_active` DB check.
+**Layer 2 · Guide:** session keys become `session:<sid>`; reverse set `user_sessions:<user_id>`. When creating: pipeline `SETEX session:<sid> ...` + `SADD user_sessions:<uid> <sid>` + `EXPIRE` reverse set slightly longer than session TTL. When reading a session, reject inactive users from Postgres even if the Redis key survives. On deactivate, fetch members, delete their `session:*` keys and the set. The DB commit comes first; session revocation follows and is retried once; a stale session still fails at the `is_active` DB check.
 
-**Layer 3 · Exact assembly — session index:** amend `src/flrc/modules/auth/sessions.py`:
+**Layer 3 · Exact assembly (session index):** amend `src/flrc/modules/auth/sessions.py`:
 
 ```python
 SESSION_TTL_SECONDS = 14 * 24 * 60 * 60
@@ -6085,9 +6151,9 @@ if was_active and not target.is_active:
 return UserOut.from_model(target, revoked_sessions=revoked)
 ```
 
-**Frontend:** `/users` table: Name · Email · Admin · Coordinator · Status · Actions. The primary button says **Allow teacher** rather than Add user — language teaches the security model. Deactivate requires a confirm dialog naming the person and saying existing sessions will be revoked. Never expose a password field; there are no passwords.
+**Frontend:** `/users` table: Name · Email · Admin · Coordinator · Status · Actions. The primary button says **Allow teacher** rather than Add user; language teaches the security model. Deactivate requires a confirm dialog naming the person and saying existing sessions will be revoked. Never expose a password field; there are no passwords.
 
-**Check:** log in as a seeded teacher in a separate browser profile. As admin, deactivate them. Refresh the teacher window → immediate 401/login, without waiting for cookie expiry. Reactivate them; they may sign in again. Try deactivating yourself and the last admin — both blocked.
+**Check:** log in as a seeded teacher in a separate browser profile. As admin, deactivate them. Refresh the teacher window → immediate 401/login, without waiting for cookie expiry. Reactivate them; they may sign in again. Try deactivating yourself and the last admin: both blocked.
 
 **If it breaks:** old sessions keep working → the current-user dependency trusts Redis without reloading `User` from Postgres. New logins fail for an allowlisted address → email normalization differs between OAuth and admin creation; centralize `normalize_email = value.strip().casefold()`.
 
@@ -6095,7 +6161,7 @@ return UserOut.from_model(target, revoked_sessions=revoked)
 
 Commit: `feat(admin): teacher allowlist and session revocation`.
 
-## Step 3.3 — Classes and the assignment matrix
+## Step 3.3: Classes and the assignment matrix
 
 **What we're building:** class administration for a year plus one compact assignment matrix that answers: who owns main English, skills, German, and French for every class?
 
@@ -6103,9 +6169,9 @@ Commit: `feat(admin): teacher allowlist and session revocation`.
 
 **Layer 1 · Nudge:** one classes endpoint, one teachers lookup, one bulk assignment PUT. Upsert each `(class, role)` pair; `null` means delete that assignment.
 
-**Layer 2 · Guide:** setup/active year can be edited; archived year is read-only. Creating a class validates grade 1–8, normalizes section to uppercase Turkish-safe text, and rejects duplicate grade+section within the year. Deleting a class is allowed only in a setup year and only if it has no enrollments, save batches, or assignments; otherwise use 409 with a reason. Assignments require active users. The bulk body is a list so Save All can commit the matrix atomically.
+**Layer 2 · Guide:** setup/active year can be edited; archived year is read-only. Creating a class validates grade 1-8, normalizes section to uppercase Turkish-safe text, and rejects duplicate grade+section within the year. Deleting a class is allowed only in a setup year and only if it has no enrollments, save batches, or assignments; otherwise use 409 with a reason. Assignments require active users. The bulk body is a list so Save All can commit the matrix atomically.
 
-**Layer 3 · Exact assembly — API contract:** `src/flrc/modules/administration/classes.py`:
+**Layer 3 · Exact assembly (API contract):** `src/flrc/modules/administration/classes.py`:
 
 ```python
 class ClassOut(BaseModel):
@@ -6169,13 +6235,13 @@ Commit once after the loop. Return the full fresh matrix, not just `204`; the cl
 
 **Frontend:** `/classes?year=<id>` has two tabs: **Classes** and **Assignments**. The assignment tab is a table, one row per class, four combobox columns. Inactive users never appear as choices, but a stale assignment to a now-inactive user is rendered as a red chip until corrected. Local changes live in component state with a sticky **Save assignments (N)** button.
 
-**Check:** clear 5/A's skills teacher, open teacher grid as the main teacher: skills-owned columns show no owner and cannot be requested through the grant flow until an owner exists — the UI should say “No owner assigned; contact admin.” Assign one, refresh, owner appears.
+**Check:** clear 5/A's skills teacher, open teacher grid as the main teacher: skills-owned columns show no owner and cannot be requested through the grant flow until an owner exists. The UI should say “No owner assigned; contact admin.” Assign one, refresh, owner appears.
 
 **If it breaks:** duplicate assignment rows → the bulk path inserted without first querying the unique pair. Archived year mutates → every write must call a helper that rejects `year.status == 'archived'`, not just hide buttons.
 
 Commit: `feat(admin): classes and assignment matrix`.
 
-## Step 3.4 — Enrollment moves, bulk moves, and the L2 switch
+## Step 3.4: Enrollment moves, bulk moves, and the L2 switch
 
 **What we're building:** the roster operations administrators actually perform after September: move one student to another class, select many and move them together, and switch German/French for one or many students.
 
@@ -6183,9 +6249,9 @@ Commit: `feat(admin): classes and assignment matrix`.
 
 **Layer 1 · Nudge:** roster endpoint returns enrollment + language. Move endpoint takes student ids and target class. Language endpoint upserts/deletes year-scoped `StudentLanguage`. Validate same year and grade compatibility.
 
-**Layer 2 · Guide:** permit same-grade moves by default. Cross-grade moves require `allow_grade_change=true` and a second confirm because column sets differ. Moving to the current class is a no-op. Bulk mutation is all-or-nothing. L2 supports `german`, `french`, or `null`; null removes the language row. The school programme starts L2 in Grade 4. Use the shared `academics/programme.py` constant for roster editing and synthetic data. Grades 1–3 reject new L2 assignments; clearing an existing selection is always allowed in a writable year.
+**Layer 2 · Guide:** permit same-grade moves by default. Cross-grade moves require `allow_grade_change=true` and a second confirm because column sets differ. Moving to the current class is a no-op. Bulk mutation is all-or-nothing. L2 supports `german`, `french`, or `null`; null removes the language row. The school programme starts L2 in Grade 4. Use the shared `academics/programme.py` constant for roster editing and synthetic data. Grades 1-3 reject new L2 assignments; clearing an existing selection is always allowed in a writable year.
 
-**Layer 3 · Exact assembly — service first:** `src/flrc/modules/administration/roster_service.py`:
+**Layer 3 · Exact assembly (service first):** `src/flrc/modules/administration/roster_service.py`:
 
 ```python
 from sqlalchemy import select
@@ -6261,11 +6327,12 @@ DELETE /api/admin/classes/{class_id}/roster/{student_id}
 
 For language upsert, preload existing rows into `{student_id: row}`. For each student: delete if `language is None`; update if row exists; otherwise insert. Validate every student has an enrollment in that year.
 
-**Frontend:** class roster table gains checkboxes. Toolbar appears only when selection is nonempty: **Move N students · Set second language**. The single-row action uses the same dialogs with one id — no parallel code paths. Before cross-grade move, the dialog states: “Grades are retained on the student record, but the destination grade may use different columns.”
+**Frontend:** class roster table gains checkboxes. Toolbar appears only when selection is nonempty: **Move N students · Set second language**. The single-row action uses the same dialogs with one id; no parallel code paths. Before cross-grade move, the dialog states: “Grades are retained on the student record, but the destination grade may use different columns.”
 
-**Class-table removal and column placement (ADR-048):** a Remove tab lists students and all assessment columns for the selected grade, subject, and semester. Student removal confirms the current class/year, removes only that enrollment and its year-scoped L2 choice, and preserves the student, other years, saved grades, and grade audit rows. Archived years reject it. Column removal uses the existing delete-or-disable API and states that columns are shared across the grade. Column-header handles support drag placement; arrow controls remain available for keyboard/touch. Reorder sends the complete column set for one grade/subject/semester, including inactive definitions, and rejects duplicate, partial, or mixed-scope lists.
+**Class-table removal and column placement (ADR-048):** a Remove tab lists students and all assessment columns for the selected grade, subject, and semester. Student removal confirms the current class/year, removes only that enrollment and its year-scoped L2 choice, and preserves the student, other years, saved grades, and grade audit rows. Archived years reject it. Column removal uses the existing delete-or-disable API and states that columns are shared across the grade. Column-header handles support drag placement; arrow controls remain available for keyboard/touch. Reorder sends the complete column set for one grade/subject/semester, including inactive definitions except programme-ineligible middle-English text fields under
+ADR-063, and rejects duplicate, partial, or mixed-scope lists.
 
-**Check — prove the invariant:** enter three grades for a student in 5/A. Move them to 5/B. Open 5/B's same subject grid: the grades are there. Move back: still there. Switch German → French: the English grades remain; German grid drops the student; French grid gains them.
+**Check (prove the invariant):** enter three grades for a student in 5/A. Move them to 5/B. Open 5/B's same subject grid: the grades are there. Move back: still there. Switch German → French: the English grades remain; German grid drops the student; French grid gains them.
 
 **If it breaks:** moved student appears in both classes → you inserted a second enrollment instead of updating the year-unique one. Grades vanish → some query still filters grade values by class identity instead of deriving the roster first and then fetching by student ids.
 
@@ -6273,7 +6340,7 @@ For language upsert, preload existing rows into `{student_id: row}`. For each st
 
 Commit: `feat(admin): roster moves and second-language switching`.
 
-## Step 3.5 — The year and semester state machine
+## Step 3.5: The year and semester state machine
 
 **What we're building:** the lifecycle screen and the transition endpoints that turn `setup → active → archived` and `semester open ↔ locked` into explicit business operations rather than direct status edits.
 
@@ -6281,14 +6348,14 @@ Commit: `feat(admin): roster moves and second-language switching`.
 
 **Layer 1 · Nudge:** no `PATCH /years/{id}` for status. Use verb endpoints: create setup year, activate, advance semester, reopen, close year. Centralize transition logic in a service and lock the year row `FOR UPDATE`.
 
-**Layer 2 · Guide — legal transitions:**
+**Layer 2 · Guide (legal transitions):**
 
 - Create year → `setup`; both semester rows exist and are `locked`.
 - Activate setup year → previous active year must be archived or absent; semester 1 becomes `open`.
 - Advance from semester 1 → lock 1, open 2.
 - Lock semester 2 → both locked; year remains active until explicit close-year.
 - Reopen a semester → admin only, year active, lock the other semester first; the UI labels this exceptional.
-- Close year → both semesters must be locked; year becomes `archived`; no grade/admin mutations thereafter. For a standard `YYYY-YYYY` label, the same transaction idempotently creates the next setup year, copies semesters/classes/columns/assignments, promotes grades 1–7, preserves language, and assigns fresh sequential year-scoped school numbers.
+- Close year → both semesters must be locked; year becomes `archived`; no grade/admin mutations thereafter. For a standard `YYYY-YYYY` label, the same transaction idempotently creates the next setup year, copies semesters/classes/columns/assignments, promotes grades 1-7, preserves language, and assigns fresh sequential year-scoped school numbers.
 
 **Layer 3 · Exact assembly:** `src/flrc/modules/administration/lifecycle_service.py`:
 
@@ -6345,23 +6412,23 @@ db.add_all([
 await db.commit()
 ```
 
-Activation runs inside one transaction, rejects another `active` year, and sets semester 1 open. Advance locks 1 and opens 2. Reopen requires `body.confirm_label == year.label` and logs a structured event `semester_reopened` with actor/year/semester — no student values in logs.
+Activation runs inside one transaction, rejects another `active` year, and sets semester 1 open. Advance locks 1 and opens 2. Reopen requires `body.confirm_label == year.label` and logs a structured event `semester_reopened` with actor/year/semester; no student values in logs.
 
-**Frontend:** `/lifecycle` renders years as cards with a vertical state timeline. Only legal next actions are buttons. Exceptional reopen sits behind a Danger Zone accordion and typed confirmation. Show counts before transitions: classes, students, filled cells, unfilled cells. That count is informational, not a blocker — schools may intentionally leave cells blank.
+**Frontend:** `/lifecycle` renders years as cards with a vertical state timeline. Only legal next actions are buttons. Exceptional reopen sits behind a Danger Zone accordion and typed confirmation. Show counts before transitions: classes, students, filled cells, unfilled cells. That count is informational, not a blocker; schools may intentionally leave cells blank.
 
 **Guard hardening:** update every Phase-3 write helper to reject archived years. Keep `writable_semester` as the grade-write gate. Add `writable_year` to roster, classes, assignments, importer commit.
 
-**Check:** activate a setup year; semester 1 opens. Save a grade. Advance semester; the old grid becomes read-only and semester 2 columns become current. Reopen 1; only 1 is open. Try two concurrent activation requests against two setup years — one wins, one 409s.
+**Check:** activate a setup year; semester 1 opens. Save a grade. Advance semester; the old grid becomes read-only and semester 2 columns become current. Reopen 1; only 1 is open. Try two concurrent activation requests against two setup years: one wins, one 409s.
 
 **If it breaks:** both semesters open → lock the pair before opening the selected semester and retain the partial unique index on `semesters(year_id) WHERE status='open'`. Two active years → add a partial unique index in a migration **only if your concurrency test proves the service lock cannot protect across different year rows**; the preferred database belt-and-braces form is `CREATE UNIQUE INDEX ... ON academic_years ((status)) WHERE status='active'`.
 
 Commit: `feat(admin): explicit academic lifecycle state machine`.
 
-## Step 3.6 — Build the hostile Excel fixture before the importer
+## Step 3.6: Build the hostile Excel fixture before the importer
 
 **What we're building:** a deterministic workbook generator that creates the ugly input you expect from real school exports: title rows, merged cells, inconsistent headers, blank lines, formula-like school numbers, footer totals, one sheet named `5/A`, another with a class column, and a gender column that the parser intentionally discards.
 
-**Why fixture-first:** importers fail on files, not abstractions. A synthetic hostile workbook gives you a permanent regression suite without committing real student data — the project's synthetic-only rule stays intact.
+**Why fixture-first:** importers fail on files, not abstractions. A synthetic hostile workbook gives you a permanent regression suite without committing real student data; the project's synthetic-only rule stays intact.
 
 **Layer 1 · Nudge:** `openpyxl.Workbook()`, two sheets, deliberately inconsistent shapes, fixed fake names/numbers, then a Typer command.
 
@@ -6418,13 +6485,13 @@ def make_import_fixture(out: Path = Path("tests/fixtures/roster-hostile.xlsx")) 
     typer.echo(f"wrote {out}")
 ```
 
-**Check:** `uv run flrc make-import-fixture && unzip -l tests/fixtures/roster-hostile.xlsx | head` — an xlsx is a zip, and the command proves you generated a real workbook. Open it once in LibreOffice/Excel and smile at the mess.
+**Check:** `uv run flrc make-import-fixture && unzip -l tests/fixtures/roster-hostile.xlsx | head`; an xlsx is a zip, and the command proves you generated a real workbook. Open it once in LibreOffice/Excel and smile at the mess.
 
 **If it breaks:** openpyxl refuses a filename → ensure parent directory exists. The workbook opens repaired → a merged range was populated in a non-top-left cell; only write the anchor.
 
 Commit: `test(importer): hostile synthetic workbook fixture`.
 
-## Step 3.7 — The importer parser: normalize hostile input into typed rows
+## Step 3.7: The importer parser, normalizing hostile input into typed rows
 
 **What we're building:** a pure parser whose only job is `bytes → ImportPlan`. It finds headers, normalizes Turkish variants, parses classes/languages, skips footers, and returns precise cell-addressed errors and warnings. It does not touch the database.
 
@@ -6432,7 +6499,7 @@ Commit: `test(importer): hostile synthetic workbook fixture`.
 
 **Layer 1 · Nudge:** read-only workbook, scan first 25 rows for a header set, map synonyms to canonical names, parse each subsequent row until footer heuristics fire, validate through Pydantic.
 
-**Layer 2 · Guide — canonical fields:** `school_number`, `full_name`, `grade_level`, `section`, `language`. Required: number and name. Class may come from sheet title (`5/A`) or cells. Language optional. Gender is never mapped. Keep source location on each row (`sheet`, `row_number`) for errors. The canonical display delimiter is `/`; the importer still accepts `-` in hostile or legacy input.
+**Layer 2 · Guide (canonical fields):** `school_number`, `full_name`, `grade_level`, `section`, `language`. Required: number and name. Class may come from sheet title (`5/A`) or cells. Language optional. Gender is never mapped. Keep source location on each row (`sheet`, `row_number`) for errors. The canonical display delimiter is `/`; the importer still accepts `-` in hostile or legacy input.
 
 **Layer 3 · Exact assembly:** create `src/flrc/modules/imports/parser.py`:
 
@@ -6628,19 +6695,19 @@ def parse_workbook(data: bytes) -> ImportPlan:
 
 **Check:** `uv run pytest -q tests/test_importer.py` green. Print the plan once and verify every issue includes a human source location.
 
-**If it breaks:** `ReadOnlyCell` has no coordinate in your openpyxl version → iterate normal cells or construct `get_column_letter(index + 1) + str(row_no)`. `51001` becomes `51001.0` → explicit integer equivalence check is load-bearing.
+**If it breaks:** `ReadOnlyCell` has no coordinate in your openpyxl version → iterate normal cells or construct `get_column_letter(index + 1) + str(row_no)`. `51001` becomes `51001.0` → the explicit integer equivalence check is load-bearing.
 
 Commit: `feat(importer): pure hostile-workbook parser`.
 
-## Step 3.8 — Dry-run → commit: one parser, two endpoints, zero surprises
+## Step 3.8: Dry-run → commit (one parser, two endpoints, zero surprises)
 
 **What we're building:** the admin import workflow. Upload for a dry-run, inspect exactly what will create/update/move, then commit **the same bytes** by hash. Review the whole roster through scrolling pages, filter by grade/class, and stage class moves, additions, exclusions, or second-language edits before committing. The server reparses the original file and validates the separate, narrowly typed draft operations (ADR-048).
 
 **Why the hash handshake:** a preview is only meaningful if commit applies the file that produced it. Trusting a replacement row list would bypass the parser. Re-uploading the original file keeps parsing authoritative, while a second digest binds the reviewed file, target year, and all validated draft operations.
 
-**Layer 1 · Nudge:** two multipart endpoints, same `read_limited_xlsx()` helper, same parser. Dry-run compares plan to DB. Commit rejects parser errors and SHA mismatch, then creates classes/students, updates names, moves enrollments, upserts languages in one transaction.
+**Layer 1 · Nudge:** two multipart endpoints, same `read_limited_xlsx()` helper, same parser. Dry-run compares plan to DB. Commit rejects parser errors and SHA mismatch, then creates classes/students, updates names, moves enrollments, and upserts languages in one transaction.
 
-**Layer 2 · Guide — preview counts:** `new_students`, `renamed_students`, `new_classes`, `new_enrollments`, `moved_students`, `language_changes`, `unchanged`, plus issues. Counts cover the entire workbook. Each preview page contains up to 100 normalized rows by default, per-row actions, `total_rows`, `filtered_rows`, `next_offset`, and class counts. Scrolling requests subsequent pages. Search, grade, section, language, and action filters run on the full parsed roster before pagination. Max file size 10 MiB; extension and ZIP signature checked.
+**Layer 2 · Guide (preview counts):** `new_students`, `renamed_students`, `new_classes`, `new_enrollments`, `moved_students`, `language_changes`, `unchanged`, plus issues. Counts cover the entire workbook. Each preview page contains up to 100 normalized rows by default, per-row actions, `total_rows`, `filtered_rows`, `next_offset`, and class counts. Scrolling requests subsequent pages. Search, grade, section, language, and action filters run on the full parsed roster before pagination. Max file size 10 MiB; extension and ZIP signature checked.
 
 **Layer 3 · Exact assembly:** `src/flrc/modules/imports/router.py`:
 
@@ -6685,13 +6752,13 @@ Core commit order:
 7. Load year enrollments; insert or update `class_id`.
 8. Upsert/delete `StudentLanguage` to match the file's explicit language value.
 9. Commit once.
-10. `structlog.info("import_committed", actor_id=..., year_id=..., sha256=..., counts=...)` — counts only, never names.
+10. `structlog.info("import_committed", actor_id=..., year_id=..., sha256=..., counts=...)`: counts only, never names.
 
 **Important language rule:** an empty language cell is authoritative **only if the workbook had a recognized language column**. When the workbook has no language column at all, leave existing language records untouched. Add `language_present: bool` to the normalized row or plan metadata so absence and blank are not conflated.
 
 **Frontend:** `/import` is a three-state page: Choose file → Preview → Result. Keep the `File` object in React state, server-reviewed pages in TanStack Query, and all unsaved roster edits with undo history in a per-review Zustand store. The left grade selector immediately filters all classes in that grade. Class targets support both click-to-filter and drag-to-move; each row also has a class selector for keyboard/touch access, a second-language selector with an empty option, and an exclusion button. An add-student form stages a new row. The table follows the page scroll and loads more near its end. Changing file/year clears the draft. Commit is disabled during review refreshes, after errors, and for an empty roster. Send the same `File`, both digests, and all reviewed draft operations. Filters affect only the view, never which students are committed. After success, invalidate affected caches and show one durable result card with counts.
 
-**Check — the money run:** upload the hostile fixture. Preview names the sheets/cells, says exactly what will be created, and ignores gender. Commit. Upload the same file again: preview should be almost entirely `unchanged`; commit should produce no duplicate students or enrollments. Modify one class in the workbook and dry-run → one move.
+**Check (the money run):** upload the hostile fixture. Preview names the sheets/cells, says exactly what will be created, and ignores gender. Commit. Upload the same file again: preview should be almost entirely `unchanged`; commit should produce no duplicate students or enrollments. Modify one class in the workbook and dry-run → one move.
 
 **If it breaks:** second import duplicates rows → you keyed by workbook row identity instead of school number/year unique constraints. Commit differs from preview → compare logic was duplicated; both endpoints must call the same function. Existing L2 disappears from a workbook without an L2 column → you collapsed “column absent” into “blank cell.”
 
@@ -6699,7 +6766,7 @@ Core commit order:
 
 Commit: `feat(admin): dry-run and idempotent roster importer`.
 
-## Step 3.9 — Audit export and the close-year ceremony
+## Step 3.9: Audit export and the close-year ceremony
 
 **What we're building:** a complete year audit CSV plus the final state transition to archive. Closing is intentionally ceremonial: export first, inspect/retain it, then type the year label to close.
 
@@ -6736,7 +6803,7 @@ Close algorithm:
 - require `status == active`;
 - require both semesters `locked`;
 - require exact `confirm_label`;
-- regenerate the audit export bytes **inside the close request** and compare digest — yes, this is extra work; it proves the supplied export still matches current audit state;
+- regenerate the audit export bytes **inside the close request** and compare digest (yes, this is extra work; it proves the supplied export still matches current audit state);
 - set year archived, commit;
 - structured log `year_archived` with actor/year/digest/counts.
 
@@ -6750,7 +6817,12 @@ After the archive write, invoke the rollover service before commit. Never copy g
 
 Commit: `feat(admin): audit export and close-year ceremony`.
 
-## Step 3.10 — Archive browsing and student history
+## Step 3.10: Archive browsing and student history
+
+**Pending 2026-09-11 correction:** admin/archive year lists order by descending year label;
+student history orders ascending. Database insertion ids are not academic chronology. Review
+nonstandard labels explicitly. ADR-063 omits retired middle-English comments from archive/history
+projections without deleting historical grade or audit records.
 
 **What we're building:** read-only views for old years plus a student timeline that survives moves, renames, language switches, and new academic years.
 
@@ -6760,7 +6832,7 @@ Commit: `feat(admin): audit export and close-year ceremony`.
 
 **Layer 2 · Guide:** do not call the live `get_grid()` route handler from another route. Extract a service `build_grid_snapshot(...)` that both live grid and archive browser can call with an explicit semester and `read_only=True`. This prevents the archive from inheriting “choose current open semester” behavior.
 
-**Layer 3 · Exact assembly — endpoints:** `src/flrc/modules/archive/router.py` guarded by `require_coordinator_or_admin`:
+**Layer 3 · Exact assembly (endpoints):** `src/flrc/modules/archive/router.py` guarded by `require_coordinator_or_admin`:
 
 ```text
 GET /api/archive/years
@@ -6802,17 +6874,17 @@ class StudentHistoryOut(BaseModel):
     years: list[HistoryYear]
 ```
 
-Query strategy: fetch the student; all enrollments joined to year/class; all language rows; all grade values joined to column→semester→year; assemble in Python dictionaries. This is a history page for one child, not a million-row analytics endpoint — clarity beats one monstrous JSON aggregation.
+Query strategy: fetch the student; all enrollments joined to year/class; all language rows; all grade values joined to column→semester→year; assemble in Python dictionaries. This is a history page for one child, not a million-row analytics endpoint; clarity beats one monstrous JSON aggregation.
 
 **Frontend:** `/archive` starts with year cards, drills to classes and read-only grids. `/students/$studentId/history` shows a timeline. Link to History from live roster, student list, and archive. Every archived screen carries a permanent **Read only** badge; no disabled edit controls pretending to be interactive.
 
-**Check:** student moved 5/A → 5/B midyear still shows one year entry with the current class and all grade values. After closing the year and creating the next, the same student history gains a second year rather than a second identity.
+**Check:** a student moved 5/A → 5/B midyear still shows one year entry with the current class and all grade values. After closing the year and creating the next, the same student history gains a second year rather than a second identity.
 
 **If it breaks:** archived grid shows semester 2 when you ask for 1 → a helper still auto-selects “open else max.” Archive service must take an explicit semester id/number. Student appears twice → importer created a new student because school number matching drifted.
 
 Commit: `feat(admin): archive browser and student history`.
 
-## Step 3.11 — Coordinator surfaces: overview, completeness, and exceptions
+## Step 3.11: Coordinator surfaces (overview, completeness, and exceptions)
 
 **What we're building:** a coordinator dashboard that answers operational questions without granting admin powers: Which classes are incomplete? Which teacher assignments are missing? Which report sets are ready? Which recent saves/conflicts deserve attention?
 
@@ -6820,7 +6892,7 @@ Commit: `feat(admin): archive browser and student history`.
 
 **Layer 1 · Nudge:** read-only aggregate endpoints behind `require_coordinator_or_admin`; no N+1 loops. Return counts and exception lists, not giant grade payloads.
 
-**Layer 2 · Guide — useful cards:** active year/semester; total students; classes; active teachers; filled/expected grade cells by class and subject; missing role assignments; active grants; saves in last 24h. “Expected” means roster × active columns for the relevant subject, with L2 roster filtering.
+**Layer 2 · Guide (useful cards):** active year/semester; total students; classes; active teachers; filled/expected grade cells by class and subject; missing role assignments; active grants; saves in last 24h. “Expected” means roster × active columns for the relevant subject, with L2 roster filtering.
 
 **Layer 3 · Exact assembly:** `src/flrc/modules/administration/coordinator.py`:
 
@@ -6855,13 +6927,13 @@ A “filled” cell is a `grade_values` row whose type-specific field is non-nul
 
 Commit: `feat(coordinator): school-wide completeness surfaces`.
 
-## Step 3.12 — Phase 3 test pass, generated client, and exit
+## Step 3.12: Phase 3 test pass, generated client, and exit
 
 **What we're building:** the proof that administrative convenience did not weaken the safety model.
 
 **Layer 1 · Nudge:** expand the role matrix, run importer fixtures, concurrency-test lifecycle transitions, and test the domain invariant around moves.
 
-**Layer 3 · Exact assembly — minimum backend matrix additions:**
+**Layer 3 · Exact assembly (minimum backend matrix additions):**
 
 ```text
 GET  /api/admin/students                 anonymous 401 · teacher 403 · coordinator 403 · admin 200
@@ -6921,25 +6993,26 @@ You now have a system a school can operate, not merely a grade grid developers c
 
 ---
 
-# Part VII — Phase 4: Reports, jobs, backups, E2E, and launch
+# Part VII. Phase 4: Reports, jobs, backups, E2E, and launch
 
 **Phase goal:** the school can generate printable report bundles without blocking an API request, watch durable progress, download the result after a worker restart, export a whole academic year, restore the database from an off-site backup, and run the two-browser collision automatically in CI. Then the demo topology becomes a school-owned production deployment with a written runbook and a named rollback path.
 
-**One last table, and only one:** Part I promised fourteen SQLAlchemy tables. Phase 1 created eight; Phase 2 created five; Phase 3 intentionally created none. `job_runs` is table fourteen. It is the durable truth for every slow operation: queued, running, progress, success/failure, output metadata, and a short-lived output blob. Celery carries messages; Postgres carries facts.
+**Original Phase-4 table count:** Part I originally planned fourteen SQLAlchemy tables. Phase 1 created eight; Phase 2 created five; Phase 3 intentionally created none. `job_runs` completed that original fourteen-table design; later ADR-051 and ADR-057 added
+`demo_visitors` and `report_identity_audits`. `job_runs` is the durable truth for every slow operation: queued, running, progress, success/failure, output metadata, and a short-lived output blob. Celery carries messages; Postgres carries facts.
 
 **One operational correction worth making explicit:** Render's container filesystem is not a durable artifact store. A PDF zip written only to `/tmp` can disappear on restart, sleep, or redeploy. For this school's small workload, completed job output lives temporarily in `job_runs.output_blob` and is purged after 24 hours. That avoids another vendor, keeps authorization on the same API, and makes the download survive worker restarts. If the school later generates hundreds of megabytes per day, move the blob behind an object-storage adapter; the API contract does not need to change.
 
-## Step 4.1 — `job_runs`: durable state for slow work
+## Step 4.1: `job_runs`, durable state for slow work
 
-**What we're building:** the final table, a job service, and three API operations: create, inspect, download. No Celery yet — first make the state machine truthful on its own.
+**What we're building:** the final table, a job service, and three API operations: create, inspect, download. No Celery yet; first make the state machine truthful on its own.
 
 **Why before the worker:** queues are delivery mechanisms, not databases. If the browser asks “is my PDF done?”, the answer must come from a row you control, not from Celery's ephemeral internal state or a Redis result backend that spends commands and complicates retention.
 
-**Layer 1 · Nudge:** model status transitions, output metadata/blob, progress counters, requester, kind, payload. Keep payload machine data only — ids, report kind, locale — never student names.
+**Layer 1 · Nudge:** model status transitions, output metadata/blob, progress counters, requester, kind, payload. Keep payload machine data only (ids, report kind, locale), never student names.
 
-**Layer 2 · Guide:** statuses: `queued`, `running`, `succeeded`, `failed`. Kinds: `progress_pdf`, `german_karne`, `french_karne`, `year_export`. Output is nullable until success. Error code is machine-safe and generic. `output_expires_at` is set 24 hours after success. Authorization: requester may inspect/download their own job; coordinators/admins may inspect report jobs; only admins may inspect year-export jobs if that export contains all school data.
+**Layer 2 · Guide:** statuses: `queued`, `running`, `succeeded`, `failed`. Kinds: `progress_pdf`, `german_karne`, `french_karne`, `year_export`. Output is nullable until success. Error code is machine-safe and generic. `output_expires_at` is set 24 hours after success. Authorization: the requester may inspect/download their own job; coordinators/admins may inspect report jobs; only admins may inspect year-export jobs if that export contains all school data.
 
-**Layer 3 · Exact assembly:** append to `src/flrc/db/models.py` (new imports: `LargeBinary`, `Text`, and `JSONB` is already present):
+**Layer 3 · Exact assembly:** append to `src/flrc/db/models.py` (new imports: `LargeBinary` and `Text`; `JSONB` is already present):
 
 ```python
 class JobRun(TimestampMixin, Base):
@@ -7179,7 +7252,14 @@ Do **not** delete the job row; history is operational evidence. Delete only the 
 
 Commit: `feat(jobs): durable job state and expiring outputs`.
 
-## Step 4.2 — Report cards as pure data, then HTML, then PDF
+## Step 4.2: Report cards as pure data, then HTML, then PDF
+
+**Current renderer:** `modules/reports/builder.py` assembles typed contexts, `branding.py`
+resolves optional private overlays/teacher identities, and `render.py` selects the current
+primary-English, middle-English or karne template. See ADR-057 and `branding/README.md`.
+Pending ADR-063 removes middle-English comments from generated reports. The pending memory
+change caps layout batches at 16 render units in both pooled and serial fallback paths;
+review duplex cover replacement and page order, not just whether the output is a valid PDF.
 
 **What we're building:** the reporting pipeline in three separable layers:
 
@@ -7193,17 +7273,17 @@ The three report kinds are one A5-landscape progress report and two A4 bilingual
 
 **Layer 1 · Nudge:** Pydantic/dataclass report view model, builder service, one progress template, one bilingual template parameterized by German/French, print CSS, PDF smoke tests.
 
-**Layer 2 · Guide — report rules:**
+**Layer 2 · Guide (report rules):**
 
 - progress report: A5 landscape, one student per PDF, all active English columns for the chosen semester/grade;
 - German/French karne: A4 portrait, only students enrolled in that L2 for the year, only matching subject columns;
 - average uses only score columns with `counts_in_average=True` and non-null values;
 - scale/text never enter arithmetic;
 - labels resolve requested locale → Turkish fallback;
-- cleared/null values render as em dash, never `0`;
+- cleared/null values render as an em dash, never `0`;
 - filenames begin with school number so sorting is deterministic.
 
-**Layer 3 · Exact assembly — dependencies:**
+**Layer 3 · Exact assembly (dependencies):**
 
 ```bash
 cd apps/backend
@@ -7507,7 +7587,7 @@ def render_card_pdf(card: ReportCard) -> bytes:
 
 `templates/bilingual.html` uses `@page { size: A4 portrait; margin: 12mm; }`, a two-language heading, student meta, grouped table, and signature area. Keep translation strings in a small report translation dictionary keyed by `tr/de/fr/en`; do not reach into React i18next JSON from Python at runtime. The shared semantic keys may match, but the services should not import browser packages.
 
-**Testing the PDF, not merely “file exists”:** `tests/test_reports.py` creates a card, calls `render_card_pdf`, asserts `pdf.startswith(b"%PDF-")`, then uses `pypdf.PdfReader(io.BytesIO(pdf))` to check exactly one page and the expected MediaBox dimensions within tolerance. Also test the HTML escapes a student name containing `<script>` — Jinja autoescape must turn it into text.
+**Testing the PDF, not merely “file exists”:** `tests/test_reports.py` creates a card, calls `render_card_pdf`, asserts `pdf.startswith(b"%PDF-")`, then uses `pypdf.PdfReader(io.BytesIO(pdf))` to check exactly one page and the expected MediaBox dimensions within tolerance. Also test that the HTML escapes a student name containing `<script>`; Jinja autoescape must turn it into text.
 
 **Check:** render three synthetic PDFs locally and open them. Print preview: no clipping, Turkish characters correct, A5 landscape actually landscape, A4 actually portrait. Test one very long name and one long text comment.
 
@@ -7517,17 +7597,22 @@ def render_card_pdf(card: ReportCard) -> bytes:
 
 Commit: `feat(reports): pure card models, HTML templates, PDF renderer`.
 
-## Step 4.3 — Celery: one quiet worker, no result backend, durable progress in Postgres
+## Step 4.3: Celery, one quiet worker, no result backend, durable progress in Postgres
 
-**What we're building:** the asynchronous execution path: API creates a job, enqueues its id, sends a best-effort wake-up ping, and returns immediately. A separate service consumes the id, renders sequentially, updates Postgres progress, stores the final zip, and marks success/failure.
+**Current delivery amendment (ADR-028):** the API directly returns four report sets through
+`GET /api/reports/pdf`; it does not expose the report-job creation route illustrated below.
+Celery currently processes whole-year exports via `workers/tasks/exports.py`. Retain durable
+`job_runs`, JSON-only messages, and no result backend for that implemented job path.
+
+**What we're building:** the asynchronous execution path: the API creates a job, enqueues its id, sends a best-effort wake-up ping, and returns immediately. A separate service consumes the id, renders sequentially, updates Postgres progress, stores the final zip, and marks success/failure.
 
 **Why “job id only” in the queue:** Redis messages should be tiny and non-sensitive. The worker reloads authoritative ids/payload from Postgres. Never put student names, grade values, or report HTML into Redis.
 
-**Layer 1 · Nudge:** Celery app + sync task + worker start script + tiny health app. Quiet flags: no gossip, mingle, heartbeat; no Redis result backend; one task at a time.
+**Layer 1 · Nudge:** Celery app + sync task + worker start script + tiny health app. Quiet flags: no gossip, mingle, or heartbeat; no Redis result backend; one task at a time.
 
-**Layer 2 · Guide:** task delivery is at-least-once, so the worker must be idempotent. At task start, lock the job. If already `succeeded`, return. If `running` with recent heartbeat, return/retry; for this one-worker design, marking queued→running under row lock is enough. `acks_late=True` means a killed worker can redeliver; durable job state protects duplication. Prefetch 1 prevents one worker from hoarding multiple report batches.
+**Layer 2 · Guide:** task delivery is at-least-once, so the worker must be idempotent. At task start, lock the job. If already `succeeded`, return. If `running` with recent heartbeat, return/retry; for this one-worker design, marking queued→running under row lock is enough. `acks_late=True` means a killed worker can redeliver; durable job state protects against duplication. Prefetch 1 prevents one worker from hoarding multiple report batches.
 
-**Layer 3 · Exact assembly — dependencies:**
+**Layer 3 · Exact assembly (dependencies):**
 
 ```bash
 uv add celery "redis[hiredis]" httpx
@@ -7745,7 +7830,7 @@ Also call the helper from job-status polling while a job is queued. Do not make 
 
 Commit: `feat(worker): quiet celery report pipeline with durable progress`.
 
-## Step 4.4 — Report center, year export, and the four-language finish
+## Step 4.4: Report center, year export, and the four-language finish
 
 **What we're building:** one coordinator/admin Report Center that starts PDF jobs, polls with TanStack Query, downloads completed bundles, starts a whole-year XLSX export, and exposes job history. In the same pass, the two SPAs receive the complete TR/EN/DE/FR sweep promised since Phase 1.
 
@@ -7755,9 +7840,9 @@ Commit: `feat(worker): quiet celery report pipeline with durable progress`.
 
 **Layer 1 · Nudge:** report form → create mutation → query `refetchInterval` while queued/running → progress bar → download link when succeeded.
 
-**Layer 2 · Guide:** preserve active job ids in URL search params or session storage so a refresh does not lose progress. Poll every 2 seconds while active, stop on terminal state. A 410 download expiry shows “Generate again,” not a broken anchor.
+**Layer 2 · Guide:** preserve active job ids in URL search params or session storage so a refresh does not lose progress. Poll every 2 seconds while active; stop on terminal state. A 410 download expiry shows “Generate again,” not a broken anchor.
 
-**Layer 3 · Exact assembly — query options:**
+**Layer 3 · Exact assembly (query options):**
 
 ```ts
 const jobQuery = useQuery({
@@ -7782,6 +7867,11 @@ failed      Could not generate · error code · Generate again
 Never show raw exception text. The job id is the support handle.
 
 ### 4.4.2 The whole-year XLSX export
+
+**Current implementation (ADR-062):** one streaming writer emits seven sheets, reads at most
+1,000 rows per batch, closes a result before committing progress, and preserves formula
+neutralization. `tests/test_bulk_operations.py` covers query budgets and the larger synthetic
+export. Use that implementation when maintaining exports, not the earlier assembly sketch.
 
 **What we're building:** an operational portability file with one workbook and seven sheets: Students, Enrollments, Languages, Assignments, Columns, Grades, Audit.
 
@@ -7837,19 +7927,19 @@ def export_year_job(job_id: int) -> None:
             raise
 ```
 
-Use explicit column order and ids in every sheet. For Grades include student school number, column id/label, semester, subject, typed value, version, updated_by id, timestamps. For Audit include the same portable columns as the close-year CSV.
+Use explicit column order and ids in every sheet. For Grades, include student school number, column id/label, semester, subject, typed value, version, updated_by id, and timestamps. For Audit, include the same portable columns as the close-year CSV.
 
-Create endpoint `POST /api/exports/year/{year_id}` behind `require_admin`, return 202 job. The report center has an admin-only **Year export** card.
+Create the endpoint `POST /api/exports/year/{year_id}` behind `require_admin` and return a 202 job. The report center has an admin-only **Year export** card.
 
 ### 4.4.3 The i18n completion pass
 
 The original Phase-2 column editor mirrored Turkish into all locales for newly created custom
 columns as a scope cut; the built-in seed catalog was already translated. Remove the editor cut
-now. Column editor gets four tabs/inputs: TR, EN, DE, FR for `labels` and optional `group_labels`.
-Require Turkish; other fields may fall back to Turkish but the UI marks fallback with a subtle
-badge. Keep report-label values in Postgres—do not move the seed catalog into browser i18next
-resources. Remove the temporary `"_TODO": "translate"` sentinel from `de.json`/`fr.json`; Phase
-1's deliberate UI-chrome debt is paid here.
+now. The column editor gets four tabs/inputs: TR, EN, DE, FR for `labels` and optional
+`group_labels`. Require Turkish; other fields may fall back to Turkish, but the UI marks the
+fallback with a subtle badge. Keep report-label values in Postgres; do not move the seed catalog
+into browser i18next resources. Remove the temporary `"_TODO": "translate"` sentinel from
+`de.json`/`fr.json`; Phase 1's deliberate UI-chrome debt is paid here.
 
 Run a literal-string audit:
 
@@ -7860,13 +7950,21 @@ rg -n --glob '*.{ts,tsx}' "(toast|title|description|placeholder)=['\"]" apps/tea
 
 These regexes are imperfect by design; they are a flashlight, not a compiler. Add/enable the chosen i18next literal-string ESLint rule if it fits your config without false-positive warfare. Every route title, dialog, toast, empty state, error code, job status, importer issue code, lifecycle action, and report label must have all four locale keys.
 
-**Check:** run admin and teacher apps in each language. Generate German and French PDFs while UI locale differs from report locale. Printed labels follow report locale, UI chrome follows UI locale. Change a column's German label and regenerate: PDF changes without code deploy.
+**Check:** run admin and teacher apps in each language. Generate German and French PDFs while UI locale differs from report locale. Printed labels follow the report locale; UI chrome follows the UI locale. Change a column's German label and regenerate: PDF changes without code deploy.
 
 **If it breaks:** polling continues forever on failure → terminal statuses include both succeeded and failed. Refresh loses job → id was only component state. Excel opens a cell as a formula → `safe_xlsx_text` missing on user-controlled strings.
 
 Commit: `feat(reports): report center, year export, complete i18n`.
 
-## Step 4.5 — Weekly off-site backup to the school's Google Drive, plus a real restore drill
+## Step 4.5: Weekly off-site backup to the school's Google Drive, plus a real restore drill
+
+**School-hosted amendment (ADR-056):** the current `flrc backup` service makes nightly
+age-encrypted dumps with recorded status, monthly automated restore tests, and persistent
+archived-year bundles in the school's Shared Drive. It runs from the private deployment's
+Compose stack, not a root backup workflow. Follow [SELF-HOSTING.md](SELF-HOSTING.md) and
+[RESTORE-DRILLS.md](RESTORE-DRILLS.md). There is no `.github/workflows/backup.yml` in this tree.
+The weekly workflow below remains the original managed-profile teaching example; it is not
+an installed backup or proof that the school's restoration procedure has passed.
 
 **What we're building:** a scheduled GitHub Actions workflow that runs `pg_dump` against Neon's **direct** connection, uploads the custom-format dump to a school-owned Google Drive location, prunes old backups, and can be triggered manually. Then we restore one dump into a scratch database and prove the app can read it.
 
@@ -7876,7 +7974,7 @@ Commit: `feat(reports): report center, year export, complete i18n`.
 
 **Layer 1 · Nudge:** custom-format `pg_dump`, timestamped filename, SHA-256 sidecar, service-account JSON secret, Drive folder id, retention 12 copies, manual restore workflow.
 
-**Layer 2 · Guide — secrets:**
+**Layer 2 · Guide (secrets):**
 
 - `PG_DUMP_URL`: plain PostgreSQL direct URL (`postgresql://...`), not SQLAlchemy's `+asyncpg` URL and not pooled.
 - `GDRIVE_SERVICE_ACCOUNT_JSON`: whole service-account credential JSON.
@@ -7884,7 +7982,7 @@ Commit: `feat(reports): report center, year export, complete i18n`.
 
 Do not echo any of them. GitHub Actions job permissions: `contents: read` only.
 
-**Layer 3 · Exact assembly — upload script:** `scripts/upload_backup_to_drive.py`:
+**Layer 3 · Exact assembly (upload script):** `scripts/upload_backup_to_drive.py`:
 
 ```python
 from __future__ import annotations
@@ -7995,7 +8093,7 @@ jobs:
 
 Scheduling at minute 17 instead of the top of the hour avoids the common peak where scheduled workflow execution can be delayed. Manual `workflow_dispatch` is essential for the pre-launch proof.
 
-**Restore drill — local first:** download a backup and sidecar from the school Drive, verify hash, then:
+**Restore drill (local first):** download a backup and sidecar from the school Drive, verify the hash, then:
 
 ```bash
 sha256sum -c flrc-....dump.sha256
@@ -8013,7 +8111,7 @@ docker compose -f infra/compose/compose.dev.yaml exec postgres psql -U flrc -d f
   "select count(*) as students from students; select count(*) as grades from grade_values;"
 ```
 
-Then point a temporary local API at `flrc_restore`, start it, log in through an E2E bypass or run an authenticated API test, and open an archived grid. Record date, backup filename, counts, result in `docs/RESTORE-DRILLS.md`.
+Then point a temporary local API at `flrc_restore`, start it, log in through an E2E bypass or run an authenticated API test, and open an archived grid. Record the date, backup filename, counts, and result in `docs/RESTORE-DRILLS.md`.
 
 **Check:** manual workflow green; two files arrive in the school-owned folder; hash verifies; restore succeeds; row counts sane; one read path works against restored DB.
 
@@ -8023,19 +8121,19 @@ Then point a temporary local API at `flrc_restore`, start it, log in through an 
 
 Commit: `ops: weekly school-owned backup and restore drill`.
 
-## Step 4.6 — Playwright: the two-browser collision becomes automatic
+## Step 4.6: Playwright, where the two-browser collision becomes automatic
 
 **What we're building:** real E2E tests against real FastAPI/Postgres/Redis and built SPAs, including the crown jewel: two isolated authenticated browser contexts edit the same grade, one wins, the other sees a named conflict, then overwrites deliberately.
 
 **Why now:** unit tests proved algorithms. E2E proves the seams: proxy, cookie, router, generated client, Query cache, Zustand dirty state, conflict dialog, and server concurrency all cooperate in an actual browser.
 
-**The auth problem:** CI must not automate Google login. The correct escape hatch is a route that literally cannot exist outside `ENV=test`, protected by an E2E secret, and creates a normal server-side session for a seeded user. Production never includes the router.
+**The auth problem:** CI must not automate Google login. The correct escape hatch is a route that literally cannot exist outside `ENV=test`, is protected by an E2E secret, and creates a normal server-side session for a seeded user. Production never includes the router.
 
 **Layer 1 · Nudge:** test-only session endpoint, deterministic E2E seed, Playwright projects, two storage states/contexts, one collision test.
 
 **Layer 2 · Guide:** use multiple `BrowserContext`s with different saved storage states. Each context gets independent cookies, exactly like two humans. Seed one teacher as the column owner and one admin/coordinator account as the second writer. Never share one page/context and pretend it is two users.
 
-**Layer 3 · Exact assembly — install:**
+**Layer 3 · Exact assembly (install):**
 
 ```bash
 pnpm add -D @playwright/test -w
@@ -8119,7 +8217,7 @@ if settings.env == "test":
 
 That conditional is security-critical. Add a production-mode test asserting `/api/test/session` is 404 even with a secret header.
 
-Create deterministic `flrc seed-e2e` command: one active year, semester 1 open, class 5/A, two students, two users:
+Create a deterministic `flrc seed-e2e` command: one active year, semester 1 open, class 5/A, two students, two users:
 
 ```text
 owner@example-school.k12.tr   teacher, owns main role
@@ -8229,13 +8327,13 @@ Add stable `data-testid="cell-${studentId}-${columnId}"` only where semantic rol
 
 **Check:** run the collision test five times with `--repeat-each=5`; no flakes. Break the version check in save service → test fails. Restore it.
 
-**If it breaks:** both contexts appear as same user → you reused one storage state/context. Test route accidentally exists in dev/prod → conditional router registration missing. Random 401 → request context cookie origin differs from page origin.
+**If it breaks:** both contexts appear as the same user → you reused one storage state/context. Test route accidentally exists in dev/prod → conditional router registration missing. Random 401 → request context cookie origin differs from page origin.
 
 **Docs:** Playwright authentication and multiple-role/browser-context guides.
 
 Commit: `test(e2e): real two-browser grade conflict and critical flows`.
 
-## Step 4.7 — Observability without leaking student data
+## Step 4.7: Observability without leaking student data
 
 **What we're building:** request ids, structured JSON logs, Sentry for crashes, and a scrubber that treats student data as toxic in telemetry.
 
@@ -8243,9 +8341,9 @@ Commit: `test(e2e): real two-browser grade conflict and critical flows`.
 
 **Layer 1 · Nudge:** request-id middleware, structlog context, Sentry `send_default_pii=False`, request bodies and local variables disabled, recursive event/breadcrumb scrubbing, frontend Sentry with replay off unless separately approved.
 
-**Layer 2 · Guide — allowed fields:** request id, route template, status, duration, actor id, class id, year id, job id, batch id, counts, error code. Avoid names, emails, school numbers, grade values, OAuth tokens, cookies, request bodies, import rows.
+**Layer 2 · Guide (allowed fields):** request id, route template, status, duration, actor id, class id, year id, job id, batch id, counts, error code. Avoid names, emails, school numbers, grade values, OAuth tokens, cookies, request bodies, import rows.
 
-**Layer 3 · Exact assembly — dependencies:**
+**Layer 3 · Exact assembly (dependencies):**
 
 ```bash
 uv add structlog "sentry-sdk[fastapi]"
@@ -8348,13 +8446,13 @@ default; screenshots/DOM can expose student data.
 
 Commit: `ops: structured request telemetry with privacy scrubbers`.
 
-## Step 4.8 — Security and KVKK launch hardening
+## Step 4.8: Security and KVKK launch hardening
 
 **What we're building:** the final threat-model pass before real children enter the database. This is not “add a security header and declare victory”; it is a concrete checklist tied to the system's actual trust boundaries.
 
 **Layer 1 · Nudge:** secrets, cookies, origins, OAuth domain claim, allowlist, test-route absence, least privilege, output retention, logs, backups, dependencies, data-subject operations, incident path.
 
-**Layer 2 · Guide — the launch gates:**
+**Layer 2 · Guide (the launch gates):**
 
 ### Identity and session
 
@@ -8385,7 +8483,7 @@ Commit: `ops: structured request telemetry with privacy scrubbers`.
 - No gender, birthdate, national id, home address.
 - Synthetic data only in repo, screenshots, tests, demos, logs.
 - Job output blob purged after 24h.
-- Audit retained according to school's written retention rule; do not invent a period in code without administrative approval.
+- Audit retained according to the school's written retention rule; do not invent a period in code without administrative approval.
 - Error telemetry scrubbed; frontend replay off.
 
 ### Infrastructure
@@ -8407,7 +8505,7 @@ Commit: `ops: structured request telemetry with privacy scrubbers`.
 - `pnpm audit`/`uv` ecosystem checks are advisory inputs, not blind auto-fix commands.
 - Container rebuild at least monthly or on critical base-image CVE.
 
-**Layer 3 · Exact assembly — security headers:** static frontends add `_headers` (or host equivalent):
+**Layer 3 · Exact assembly (security headers):** static frontends add `_headers` (or host equivalent):
 
 ```text
 /*
@@ -8421,7 +8519,7 @@ Commit: `ops: structured request telemetry with privacy scrubbers`.
   Content-Security-Policy: default-src 'self'; connect-src 'self' https://*.ingest.sentry.io; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com
 ```
 
-Treat CSP as a tested starting point. Browser console must be clean on login, grid, import, report download, Sentry initialization. Tighten Sentry host to your actual DSN origin instead of broad wildcard if practical.
+Treat CSP as a tested starting point. Browser console must be clean on login, grid, import, report download, Sentry initialization. Tighten the Sentry host to your actual DSN origin instead of a broad wildcard if practical.
 
 Backend tests that are launch blockers:
 
@@ -8454,7 +8552,14 @@ Create `docs/INCIDENT-RUNBOOK.md`: who disables access, how to deactivate all us
 
 Commit: `security: launch hardening and privacy operations docs`.
 
-## Step 4.9 — School production deployment: one frontend origin, Internal OAuth, API + worker
+## Step 4.9: School production deployment with one frontend origin, Internal OAuth, API + worker
+
+**School-hosted alternative (ADR-053 through ADR-058):** start from `infra/school-template/` in
+a private school deployment repository. It pins both published images and carries the branding;
+Caddy serves both SPAs and proxies the API. The migration, API, worker, and backup services share
+the backend image. Use [SELF-HOSTING.md](SELF-HOSTING.md), [RELEASING.md](RELEASING.md), and
+[RUNBOOK.md](RUNBOOK.md) for the current procedure. The assembly below describes the managed
+Cloudflare/Render profile; do not mix its provider steps into a school VM deployment.
 
 **What we're building:** the school-owned topology promised in Part I:
 
@@ -8486,7 +8591,7 @@ The browser sees one origin. Deploy the admin build with `/admin/` as its Vite b
 its TanStack Router basepath. The gateway strips `/admin` when fetching the admin Pages upstream,
 but the browser URL stays unchanged. Never accept an upstream target URL from query parameters.
 
-**Layer 3 · Exact assembly — Cloudflare gateway contract:** create one Worker/gateway in front of
+**Layer 3 · Exact assembly (Cloudflare gateway contract):** create one Worker/gateway in front of
 the two Pages deployments and Render. Its routing table, in this exact order, is:
 
 ```text
@@ -8526,7 +8631,7 @@ return await oauth.google.authorize_redirect(request, redirect_uri)
 On success, redirect to the teacher dashboard. Send all errors to `/login?error=...`. Anonymous
 admin visits also redirect there; after authentication, an admin enters `/admin` through the
 role-gated dashboard link. The OAuth state cookie and `flrc_session` both belong to the public
-host. Keep the session cookie host-only—do not add a `Domain` attribute.
+host. Keep the session cookie host-only; do not add a `Domain` attribute.
 
 Production settings:
 
@@ -8564,7 +8669,7 @@ Worker web service:
 ./bin/start-worker-web.sh
 ```
 
-Use `infra/render/render.yaml` if you want infrastructure-as-code, but never commit secret values. Configure health paths `/api/healthz` and `/health` respectively.
+Use `infra/render/render.yaml` if you want infrastructure-as-code, but never commit secret values. Configure the health paths `/api/healthz` and `/health`, respectively.
 
 **OAuth school client:** under the school's Google Cloud/Workspace control, create a separate
 production Web application client. Register the one exact public callback URI above. Keep the demo
@@ -8577,9 +8682,9 @@ Before the first OAuth login, run migrations and create the only bootstrap admin
 active admin exists, the command refuses further bootstrap changes; use the authenticated admin
 table for every later account.
 
-**Migration discipline on launch:** deploy code that is backward-compatible with current schema; run `alembic upgrade head` against direct URL; then switch traffic/use deployment. Never auto-run destructive migrations blindly on every web process boot — two services racing migration is the wrong robot.
+**Migration discipline on launch:** deploy code that is backward-compatible with the current schema; run `alembic upgrade head` against the direct URL; then switch traffic/use deployment. Never auto-run destructive migrations blindly on every web process boot; two services racing a migration is the wrong robot.
 
-**Check — full production loop:** teacher URL → Google school login → teacher SPA → `/api/me`
+**Check (full production loop):** teacher URL → Google school login → teacher SPA → `/api/me`
 same-origin → `/admin` opens without another login → logout there → `/` is logged out too. Then
 sign in again, save a grade, refresh, and generate a report: API 202, worker wakes, job progresses,
 download succeeds after worker restart. Run one manual backup.
@@ -8590,7 +8695,12 @@ download succeeds after worker restart. Run one manual backup.
 
 Commit: `deploy: school production topology`.
 
-## Step 4.10 — The launch runbook, rollback, and first-week operations
+## Step 4.10: The launch runbook, rollback, and first-week operations
+
+**Current operator entry point:** [RUNBOOK.md](RUNBOOK.md) contains the maintained checklist,
+including paired image upgrades, backup service commands, and the pending comment-migration
+rollback caveat. Treat the original walkthrough below as teaching context. Release readiness
+must be recorded for the actual reviewed revision in [TODO.md](TODO.md).
 
 **What we're building:** the document that lets Future You operate the system at 08:15 on a Monday when teachers are waiting. Launch is not a button; it is a sequence with abort conditions.
 
@@ -8598,7 +8708,7 @@ Commit: `deploy: school production topology`.
 
 **Layer 2 · Guide:** create `docs/RUNBOOK.md` with commands and exact dashboards/owners. A runbook is executable prose: no “check the database”; write the query/URL/expected result.
 
-**Layer 3 · Exact assembly — launch sequence:**
+**Layer 3 · Exact assembly (launch sequence):**
 
 ### T-7 days
 
@@ -8625,7 +8735,7 @@ uv run alembic heads
 
 They must agree after migration.
 
-- Verify secrets by **presence**, never print values.
+- Verify secrets by **presence**; never print values.
 - Confirm no test route:
 
 ```bash
@@ -8636,8 +8746,8 @@ curl -i https://flrc.school.k12.tr/api/test/session
 ### Launch window
 
 1. Announce maintenance/pilot window.
-2. Take pre-launch backup; record filename + SHA.
-3. Run `alembic upgrade head` against direct URL.
+2. Take a pre-launch backup; record the filename + SHA.
+3. Run `alembic upgrade head` against the direct URL.
 4. Deploy API.
 5. Deploy worker.
 6. Deploy teacher/admin SPAs.
@@ -8658,17 +8768,17 @@ Abort/rollback if any of these occur:
 
 - authenticated users see another user's identity/data;
 - grade save silently overwrites without conflict;
-- archived/locked semester accepts write;
+- archived/locked semester accepts a write;
 - importer preview differs from commit;
-- report output contains wrong student's data;
-- OAuth allows non-allowlisted user;
+- report output contains the wrong student's data;
+- OAuth allows a non-allowlisted user;
 - migration partially applies or current/head disagree.
 
 ### Rollback
 
-Code rollback: redeploy previous known-good image/frontend release.
+Code rollback: redeploy the previous known-good image/frontend release.
 
-Schema rollback: **do not reflexively run `alembic downgrade` on production data**. Prefer forward-fix unless the migration was explicitly designed/tested reversible and no new data depends on it. If corruption/destructive migration occurred, restore pre-launch backup into a new database, verify, switch connection only through the incident plan.
+Schema rollback: **do not reflexively run `alembic downgrade` on production data**. Prefer forward-fix unless the migration was explicitly designed/tested reversible and no new data depends on it. If corruption or a destructive migration occurred, restore the pre-launch backup into a new database, verify, and switch the connection only through the incident plan.
 
 ### First week, every school day
 
@@ -8702,7 +8812,7 @@ limit 20;
 ### Monthly
 
 - Dependency update window.
-- Purge expired job blobs check.
+- Check that expired job blobs were purged.
 - Access review: active users/admins/coordinators.
 - Review missing assignments and completeness anomalies.
 
@@ -8714,18 +8824,18 @@ limit 20;
 - OAuth/service-account access review.
 
 **Operator endpoints:** keep `/api/healthz` public and bodyless (204). If you add deeper
-`/api/ops/*` diagnostics, protect with `OPS_TOKEN` and never expose student payloads. A useful
+`/api/ops/*` diagnostics, protect them with `OPS_TOKEN` and never expose student payloads. A useful
 private health response contains DB/Redis reachability and worker URL status, nothing else.
 
 **Check:** hand the runbook to another technically competent person. They should be able to deploy, verify, identify a stuck job, and perform the restore drill without asking what you meant. Any question they ask becomes a runbook edit.
 
 Commit: `docs: production launch and operations runbook`.
 
-## Step 4.11 — Final test pass and Phase 4 exit
+## Step 4.11: Final test pass and Phase 4 exit
 
-**What we're building:** the final proof bundle — automated tests, manual print/restore checks, security gates, operational ownership, and the release tag.
+**What we're building:** the final proof bundle: automated tests, manual print/restore checks, security gates, operational ownership, and the release tag.
 
-**Layer 3 · Exact assembly — run everything:**
+**Layer 3 · Exact assembly (run everything):**
 
 ```bash
 pnpm generate
@@ -8756,9 +8866,9 @@ Required automated proof:
 - report data/HTML/PDF tests green;
 - job state/download/expiry/purge tests green;
 - Celery task idempotence test green;
-- year export opens and has seven expected sheets;
-- E2E two-context collision green five repeated runs;
-- production mode test route 404;
+- year export opens and has the seven expected sheets;
+- E2E two-context collision green across five repeated runs;
+- production-mode test route 404;
 - origin/security guards green.
 
 Required manual proof:
@@ -8766,12 +8876,12 @@ Required manual proof:
 - Print one A5 progress PDF on the actual school printer.
 - Print one German and one French A4 report.
 - Long Turkish names and text do not clip.
-- Generate 30-student class zip on production-like worker.
-- Kill/restart worker and verify completed job download survives.
-- Run manual backup; restore it; open one grid against restored DB.
-- Deactivate a logged-in teacher and watch session die.
+- Generate a 30-student class zip on a production-like worker.
+- Kill/restart the worker and verify the completed job download survives.
+- Run a manual backup; restore it; open one grid against the restored DB.
+- Deactivate a logged-in teacher and watch the session die.
 - Run UI in TR, EN, DE, FR.
-- Use teacher grid on desktop and phone.
+- Use the teacher grid on desktop and phone.
 - Admin imports a synthetic workbook through dry-run and commit.
 - Coordinator reads completeness but cannot mutate admin resources.
 
@@ -8786,17 +8896,17 @@ Required manual proof:
 - ✅ Weekly `pg_dump` lands in school-governed Drive with SHA sidecar and retention.
 - ✅ A real restore drill succeeded and is recorded.
 - ✅ Playwright's two authenticated contexts reproduce the collision automatically.
-- ✅ Test auth route is impossible in school environment.
+- ✅ Test auth route is impossible in the school environment.
 - ✅ Logs/Sentry contain ids/counts/error codes, not names/grades/emails.
 - ✅ Security/data map/incident/runbook docs reviewed by the responsible school owner.
 - ✅ Production teacher/admin apps use same-origin `/api` proxies.
-- ✅ School OAuth client is separate from demo client.
+- ✅ School OAuth client is separate from the demo client.
 - ✅ Launch rollback path names code rollback and database restore explicitly.
 - ✅ `git tag v1.0.0 && git push --tags`.
 
 ---
 
-# Epilogue — What you actually built
+# Epilogue: What you actually built
 
 Not a CRUD tutorial. Not a portfolio dashboard with fake cards. A bilingual, multi-role school information system with:
 
@@ -8814,4 +8924,4 @@ Not a CRUD tutorial. Not a portfolio dashboard with fake cards. A bilingual, mul
 
 The most valuable sentence in the whole project is still the one from Part I: **TanStack Query owns what the server said; Zustand owns what the human typed and hasn't sent.** The runner-up is the domain invariant Phase 3 proved: **moving a student changes an enrollment, not a grade.**
 
-Keep `DECISIONS.md` written in your own words. Keep the demo synthetic. And when a future employer asks for a hard bug, do not show them a to-do app — show them two teachers colliding on version 3 of the same grade, the database refusing to lie, and the UI making the human choose what happens next.
+Keep `DECISIONS.md` written in your own words. Keep the demo synthetic. And when a future employer asks for a hard bug, do not show them a to-do app; show them two teachers colliding on version 3 of the same grade, the database refusing to lie, and the UI making the human choose what happens next.

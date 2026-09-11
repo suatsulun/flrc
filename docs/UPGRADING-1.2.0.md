@@ -1,7 +1,12 @@
 # Upgrading to 1.2.0
 
+These notes describe the local `v1.2.0` tag. The 2026-09-11 documentation refresh confirmed that
+current HEAD and pending working-tree edits extend that tag even though manifests still say
+`1.2.0`. Image publication and installed school versions were not checked. See
+[RELEASING.md](RELEASING.md) before assigning newer changes to a release.
+
 This release adds teacher report names and PNG signatures, private school report templates and
-principal identities, notes-only filtering, and student/class bulk 1–2–3 drafts. It also includes
+principal identities, notes-only filtering, and student/class bulk 1-2-3 drafts. It also includes
 the scheduled-operation and branding-file security fixes merged since 1.1.0.
 
 ## Database and compatibility
@@ -44,3 +49,16 @@ teacher signatures. Leave the additive database migration in place so new identi
 audit history are retained; do not run the destructive Alembic downgrade as an application rollback.
 Existing exported PDFs remain unchanged; newly generated reports use the currently configured
 templates and identities. For database recovery, use the encrypted backup and restore procedure.
+
+## Changes after this tag
+
+`7d26cb91a540` restores missing default comments in configured non-archived programmes. It is
+present at HEAD but absent from the local `v1.2.0` tag. The subsequent, currently untracked
+`82a91f4c6d30` deactivates grades 5-8 English text definitions across years under ADR-063;
+primary English and German/French retain comments. Saved values and audit history remain stored,
+and the deactivation downgrade intentionally does not reactivate fields.
+
+Assessment page-density changes, shared language controls, bounded bulk reads/streaming exports,
+and pending year sorting/PDF layout batches also need the next release's own validation and notes.
+Do not apply these descriptions to an already-published 1.2.0 image or assume that reverting to it
+will undo the data changes. Previously downloaded PDFs and stored archive bundles are unchanged.

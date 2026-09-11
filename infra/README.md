@@ -10,10 +10,10 @@ infra/
 ├── compose/
 │   └── compose.dev.yaml           (local PostgreSQL + Redis)
 ├── school-template/               (starting content of a school's private deployment repo:
-│   ├── compose.yaml                pinned images, five services, private network)
+│   ├── compose.yaml                pinned images, API/worker/backup/web, DB/Redis, migration job)
 │   ├── .env.example
 │   ├── branding/
-│   └── .github/                   (Dependabot bumps, SSH deploy with required reviewer)
+│   └── .github/                   (Dependabot bumps, SSH deploy, backup freshness check)
 ├── hetzner/
 │   └── cloud-init.yaml            (server first boot: Docker, firewall, updates, users)
 ├── web/
@@ -25,11 +25,17 @@ infra/
     └── render.yaml
 ```
 
-The school-hosted runbook is `docs/SELF-HOSTING.md`.
+The school-hosted runbook is [docs/SELF-HOSTING.md](../docs/SELF-HOSTING.md).
 
-The development Compose file will run PostgreSQL and Redis. The production file will define the
-school-hosted VM topology. Managed and self-hosted deployments use the same application images and
-environment-variable contracts.
+The development Compose file runs PostgreSQL 18 and Redis 8. The school template defines the
+current VM topology with published images. Managed and self-hosted deployments share application
+settings; provider configuration remains specific to each profile. Relevant handbook steps:
+1.4, 1.11, and 4.5/4.9.
+
+As of the 2026-09-11 source review, template image pins use 1.2.0. The current HEAD and uncommitted
+changes extend the local 1.2.0 tag; see [release notes and gates](../docs/RELEASING.md). Inspect the
+pending `82a91f4c6d30` migration before the next release. Editing docs or source does not apply it
+to a database, restart a server, or publish an image.
 
 ## Demo database migrations
 
@@ -64,9 +70,9 @@ as a temporary administrator of the shared synthetic school (ADR-051). Keep
 and any users they create use it, so no real address is stored. Set `SESSION_TTL_SECONDS=86400`
 so one session may last the full 24-hour visitor lifetime, and optionally
 `DEMO_VISITOR_LIMIT_PER_DAY` (default 500). The demo OAuth client's consent screen must be
-published to production first; Google's Testing status admits only listed test users. The flag
-refuses to start unless the nightly reset below is configured, because visitor edits would
-otherwise accumulate until a manual `flrc reset` and reseed.
+published to production first; Google's Testing status admits only listed test users. With the
+flag set, the API refuses to start unless the nightly reset below is configured, because visitor
+edits would otherwise accumulate until a manual `flrc reset` and reseed.
 
 ## Nightly demo reset
 
@@ -84,15 +90,20 @@ connection strings do not change.
 3. Add the same token as the `DEMO_OPS_TOKEN` repository secret. The `demo-reset.yml` workflow
    posts to `/api/ops/demo/reset` at 00:00 Istanbul time and polls `/api/ops/demo/status` until
    the day's reset is recorded. Manual runs use `workflow_dispatch`.
-4. On start the API migrates and, if empty, seeds `main`, then migrates `demo`. The in-process
+4. On start, the API migrates and, if empty, seeds `main`, then migrates `demo`. The in-process
    self-heal loop notices that no reset is recorded for today and performs the first restore
    within a minute; it does the same after a missed schedule or a cold start.
 5. Publish the demo OAuth consent screen, then set `DEMO_PUBLIC_LOGIN=true`.
 
-During a reset every data route answers `503 demo_resetting` for a few seconds, all sessions are
+During a reset, every data route answers `503 demo_resetting` for a few seconds, all sessions are
 revoked, and visitors sign in again afterwards. The reset date, lock, and last error live in
 Redis under `demo:reset:*`; `GET /api/ops/demo/status` with the `X-Ops-Token` header shows them.
 Neither the ops token nor the Neon key ever reaches logs or telemetry.
+
+Scheduled reset and keepalive workflows require `DEMO_RESET_ENABLED=true` and
+`DEMO_KEEPALIVE_ENABLED=true`, respectively, in the repository that owns the demo. A skipped
+workflow does not prove the operation ran. School backup scheduling lives in the private Compose
+deployment; this repository has no root `backup.yml` workflow.
 
 ## Managed school boundary
 

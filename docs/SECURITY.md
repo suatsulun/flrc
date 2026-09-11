@@ -8,19 +8,26 @@ No system can honestly promise that it is impossible to compromise. This documen
 controls, public exceptions, deployment obligations, and tests used to make unauthorized access
 fail closed.
 
+Maintained against repository source on 2026-09-11 (handbook Steps 1.7-1.8 and 4.8).
+This describes implemented controls and required checks, not a fresh penetration test or proof
+of provider configuration. See [the dated audit](SECURITY-AUDIT.md), [open gates](TODO.md), and
+[the review handoff](AI-HANDOFF.md).
+
 ## Authentication gates
 
 A request reaches school data only after all of these checks:
 
 1. HTTPS reaches the one public school origin.
-2. The Cloudflare gateway adds a secret header. Direct requests to the managed API origin receive
-   `404`, except for the information-free liveness endpoint.
+2. The selected gateway adds a secret header: Cloudflare for managed hosting or Caddy for the
+   school VM. Direct requests to the managed API origin receive `404`, except for the
+   information-free liveness endpoint. On the VM, the API has no published host port.
 3. The browser presents a signed, host-only, `HttpOnly`, `Secure`, `SameSite=Lax` session
    cookie.
-4. The random session id exists in Redis and has not reached its eight-hour absolute expiry.
+4. The random session id exists in Redis and has not reached its configured absolute expiry
+   (eight hours by default, at most eight hours in school mode).
 5. The referenced user still exists, is active, and still has an email in the configured school
    domain.
-6. Role and class/subject permissions required by the endpoint pass.
+6. The role and class/subject permissions required by the endpoint pass.
 
 For teacher-facing academic routes, an assignment is also a read boundary. A teacher can enumerate
 only academic years, classes, and subjects for which that teacher has a `teaching_assignments` row.
@@ -67,8 +74,7 @@ disabled in `ENV=school`.
 - session duration is between 15 minutes and eight hours;
 - request-body size is between 1 KiB and 25 MiB;
 - remote PostgreSQL URLs require TLS;
-- remote Redis uses authenticated `rediss://`;
-- session, gateway, and operations secrets are pairwise distinct.
+- remote Redis uses authenticated `rediss://`.
 
 All `/api` responses are `Cache-Control: no-store, private`, vary on cookies, and carry
 restrictive browser headers. Unsafe methods require the exact public `Origin`. Request bodies are
@@ -94,8 +100,21 @@ openssl rand -base64 48
 pnpm exec wrangler secret put GATEWAY_SECRET
 ```
 
-Store the same value as Render's `GATEWAY_SECRET`. Generate separate values for
-`SESSION_SECRET` and `OPS_TOKEN`.
+These gateway-secret commands apply to managed hosting. Store the same value as Render's
+`GATEWAY_SECRET`. On a school VM, the private deployment environment supplies the matching
+secret to Caddy and the API. Generate separate values for `SESSION_SECRET` and `OPS_TOKEN`.
+
+## Report and export boundaries
+
+PDF generation uses an asset fetcher that permits renderer-created `data:` URIs and denies
+network/local-file fetching. Private overlay paths are validated, and only public branding files
+are served by the web container. Teacher signature uploads are normalized PNGs; identity edits
+have dedicated audit records. Celery accepts JSON only and has no result backend.
+
+The pending ADR-063 change hides middle-English opinion fields without deleting saved values or
+audits. Hidden fields are not erased data: authenticated audit/workbook exports and backups retain
+them. Historical downloaded reports are unchanged. Include this distinction in retention and
+incident handling; see [PRIVACY-DATA-MAP.md](PRIVACY-DATA-MAP.md).
 
 ## First administrator
 
@@ -147,6 +166,11 @@ cd apps/backend
 uv run pytest -q tests/test_security_launch.py tests/test_auth_security.py tests/test_guards.py
 ```
 
+First inspect the test fixtures: this command migrates and clears local `flrc_test`. Use only a
+disposable test database, with no concurrent pytest run. Add `tests/test_security_hardening.py`,
+`tests/test_report_identity.py`, and `tests/test_report_overlay.py` for report/asset reviews.
+The asset fetcher regression lives in `tests/test_phase4.py`.
+
 The locked-dependency audit always scans both production lockfiles. CodeQL scans Python and
 TypeScript, and dependency review rejects newly introduced moderate-or-higher runtime
 vulnerabilities, when GitHub Advanced Security is available. Private repositories without that
@@ -181,3 +205,8 @@ Provider configuration is still part of the boundary: enable Cloudflare “Alway
 school-owned Google OAuth client configured as Internal where available, register only the exact
 callback URL, protect provider accounts with MFA, and restrict the direct API by inbound IP rules
 when the selected Render plan supports them.
+
+For school-hosted production, replace the Render probe with confirmation that PostgreSQL, Redis,
+and the API have no published ports and Caddy alone accepts public traffic. Verify `/branding/`
+serves only the public logo, favicon, and brand script; private report templates/signatures must
+not be retrievable. Follow the chosen profile rather than assuming both gateways are present.

@@ -1,55 +1,59 @@
-# FL-ReportCard release checklist
+# FL-ReportCard current work and release checklist
 
-The handbook remains the build history and source of teaching detail. This file tracks only work
-that is still relevant to the current table-first release.
+Repository review date: **2026-09-11**. Relevant handbook scope: Phase 2 assessment editing,
+Phase 3 lifecycle/archive behavior, and Phase 4 reports, backups, and release checks.
 
-## Table-first academic workspace
+## Version and evidence boundary
 
-- [x] Open the teacher app directly on a usable grade table.
-- [x] Keep academic year, semester, grade, subject, and class tabs above the teacher grid.
-- [x] Combine admin roster, class tabs, yearly numbers, languages, column controls, and class teacher
-      assignments in one table workspace.
-- [x] Add same-grade drag-and-drop class moves that preserve stable student identity, grades, and
-      notes.
-- [x] Add a teacher-centered assignment board with All, Primary, Middle, German, and French filters,
-      plus field and school-stage guards.
-- [x] Use a lower-glare light and dark palette shared by both apps.
+Root and backend manifests say `1.2.0`, but the local `v1.2.0` tag predates current `HEAD`
+(`07667b0`). Post-tag commits include ADR-060 to ADR-062. The working tree additionally contains
+ADR-063, an untracked migration, year sorting, and PDF batching changes. Do not describe all
+current source as shipped in 1.2.0. Publication and live deployment were not checked in this refresh.
 
-## Academic-year correctness
+The checked items below describe implementation present in source, not a fresh test pass.
+The earlier checklist recorded successful gates but did not identify their exact commit or run;
+those marks cannot validate the newer working tree.
 
-- [x] Move school numbers from students to year-specific enrollments.
-- [x] Allow the same number to be reused by different students in different academic years.
-- [x] Keep continuing students connected through a stable student id when their number changes.
-- [x] Create the next consecutive setup year after both semesters are locked and the current year is
-      archived.
-- [x] Copy class structure, teacher assignments, column templates, promoted grade 1–7 enrollments,
-      and second-language choices.
-- [x] Never copy grades, audit history, or old school numbers into the next year; assign fresh
-      sequential year-scoped numbers.
-- [x] Block activation if any setup-year enrollment is still missing a school number.
+## Implemented baseline
 
-## Release gate
+- [x] Teacher and admin class tables with year/semester/grade/subject/class navigation.
+- [x] Same-grade enrollment moves preserving student identity, grades, and notes.
+- [x] Year-specific school numbers, fresh sequential numbers on rollover, and activation guards.
+- [x] Field/stage-checked assignments and archived-year write protection.
+- [x] Versioned grade saves, explicit conflicts, grants, audit, and undo.
+- [x] Category filters, notes, whole-pupil/class rating drafts, and a 2,000-cell save bound.
+- [x] Four/five sentence columns at laptop widths and the angled middle-English overview.
+- [x] Import review with file/review hashes and bounded bulk queries.
+- [x] Streaming year workbooks, private report overlays, teacher signatures, and identity audit.
+- [x] School backup service with encryption, freshness checks, restore tests, and year archives.
+- [x] Authentication hardening, dependency audit, secret scanning, and synthetic regression suites.
 
-- [x] Apply the complete Alembic chain from zero on a disposable database.
-- [x] Run repository lint, typecheck, test, and production-build tasks under the shared heavy-job
-      lock.
-- [x] Run the two-user grade conflict E2E test.
-- [x] Run the Chromium admin-table E2E for year context, sorted inline student creation, class-tab
-      dragging, column creation, and both themes.
-- [x] Exercise 20 simultaneous grid readers and enforce teacher/column field compatibility in API
-      regression tests.
-- [x] Enumerate every API data route and prove anonymous requests fail closed.
-- [x] Enforce verified Workspace claims, admin pre-registration, stable Google identity binding,
-      secure absolute sessions, HTTPS, trusted hosts, private gateway origin, and no-store API
-      responses.
-- [x] Add the always-on locked-dependency audit and weekly Dependabot coverage; enable CodeQL and
-      dependency review with `GHAS_ENABLED=true` when the repository plan provides GitHub Advanced
-      Security.
-- [ ] Complete the production-provider security pass: Internal OAuth where available, exact
-      callback, MFA, encrypted gateway secret on both sides, Cloudflare Always Use HTTPS, and
-      Render inbound restrictions where the selected plan permits them.
-- [ ] Complete the final human acceptance pass for keyboard grid entry and exceptional semester
-      reopening before production release.
-- [ ] Verify the production deployment migration and rollback notes before release.
+## Pending working-tree review
 
-All test and screenshot data must remain synthetic.
+- [ ] Review ADR-063 across seed, create/update, list/reorder, copy/rollover, live grid, archive,
+      student history, and reports: grades 5-8 English have no comments; primary English and
+      German/French retain them. Check translated feedback for `middle_english_no_comments`.
+- [ ] Review and test migration `82a91f4c6d30` after `7d26cb91a540`: deactivate text definitions,
+      preserve values/versions/audits, include archived years, and keep downgrade non-reactivating.
+- [ ] Verify year lists sort by descending label and student history by ascending label even when
+      insertion ids are out of order; check assumptions about nonstandard labels.
+- [ ] Verify PDF layout batches stay within 16 render units, preserve page order/duplex covers,
+      and keep the serial fallback bounded when a process pool is absent or fails.
+
+## Fresh release gates
+
+- [ ] Run focused assessment, archive, report, and migration regression tests on the disposable
+      local test database; serialize runs because fixtures wipe shared state.
+- [ ] Run lint, typecheck, tests, and production builds for the reviewed commit. Frontend packages
+      have no standalone `test` script; root Playwright supplies browser coverage.
+- [ ] Regenerate the API client and inspect any drift; run branding and i18n checks.
+- [ ] Run the assessment-grid browser checks and the two-user grade conflict E2E. Verify both
+      app origins, a freshly seeded disposable E2E database, four locales, and desktop/phone views.
+- [ ] Complete the production-provider security pass for the chosen managed or school-hosted profile.
+- [ ] Record a school-owned restore drill and final human acceptance for keyboard entry, printed
+      reports, and exceptional semester reopening.
+- [ ] Choose the next release version, write its complete migration/rollback notes, and verify
+      both images are published before changing private deployment pins.
+
+The [AI handoff](AI-HANDOFF.md) requests review before implementation. All test data is synthetic;
+production owners, credentials, deployment state, and backup success must be verified separately.

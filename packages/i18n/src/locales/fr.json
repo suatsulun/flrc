@@ -136,10 +136,10 @@
     "assessmentFocusHint": "Choisissez une catégorie ou parcourez les colonnes. Vos modifications restent dans le brouillon.",
     "assessmentCategories": "Catégories d’évaluation",
     "allAssessments": "Toutes les évaluations",
-    "assessmentRange": "Évaluations {{start}}–{{end}} sur {{total}}",
+    "assessmentRange": "Évaluations {{start}}-{{end}} sur {{total}}",
     "previousAssessments": "Précédent",
     "nextAssessments": "Suivant",
-    "gradeFourScaleOnly": "En 4e année, les évaluations d’allemand et de français utilisent l’échelle 1–2–3 et les commentaires du professeur, sans notes numériques.",
+    "gradeFourScaleOnly": "En 4e année, les évaluations d’allemand et de français utilisent l’échelle 1-2-3 et les commentaires du professeur, sans notes numériques.",
     "teacherNotes": "Avis du professeur",
     "bulkStudent": "Définir toutes les évaluations",
     "bulkClass": "Définir les évaluations de toute la classe",
@@ -248,7 +248,7 @@
     "columnName": "Titre de la colonne",
     "columnType": "Type de colonne",
     "columnOwner": "Discipline responsable",
-    "typeScore": "Note (0–100)",
+    "typeScore": "Note (0-100)",
     "typeScale": "Compétence à trois niveaux",
     "typeText": "Observation écrite",
     "moveColumnLeft": "Déplacer la colonne à gauche",
@@ -294,7 +294,7 @@
   },
   "assignmentBoard": {
     "title": "Tableau d’affectation des enseignants",
-    "description": "Faites glisser les classes vers une discipline autorisée. Les enseignants d’anglais reçoivent Main ou Skills ; ceux d’allemand et de français uniquement leur langue.",
+    "description": "Faites glisser les classes vers le champ autorisé d’un enseignant. Les enseignants d’anglais reçoivent le rôle Enseignant principal ou Enseignant de compétences ; ceux d’allemand et de français uniquement leur langue.",
     "dropHere": "Déposer une classe ici",
     "classTray": "Classes",
     "classTrayHint": "Faites glisser une classe vers un enseignant.",
@@ -331,7 +331,7 @@
     "deletedInfo": "Colonne supprimée.",
     "disabledInfo": "La colonne contient des notes : elle a été désactivée au lieu d’être supprimée.",
     "valueTypes": {
-      "score": "Note 0–100",
+      "score": "Note 0-100",
       "scale3": "Échelle à trois niveaux",
       "text": "Texte"
     }
@@ -359,7 +359,7 @@
     "advance": "Passer au semestre 2",
     "lockSecond": "Verrouiller le semestre 2",
     "reopen": "Réouverture exceptionnelle",
-    "reopenConfirm": "Saisissez {{label}} pour réouvrir le semestre 1",
+    "reopenConfirm": "Saisissez {{label}} pour rouvrir le semestre 1",
     "close": "Exporter l’audit et archiver",
     "storedAudit": "J’ai conservé l’export d’audit téléchargé.",
     "closeConfirm": "Saisissez {{label}} pour archiver cette année",
@@ -396,7 +396,7 @@
       "language_changes": "Changements de langue",
       "unchanged": "Inchangés"
     },
-    "noYear": "Créez une année en préparation dans Années scolaires avant d’importer les élèves.",
+    "noYear": "Créez une année au statut Configuration dans Cycle de l’année scolaire avant d’importer les élèves.",
     "classTray": "Parcourir les classes et déplacer les élèves",
     "classTrayHint": "Cliquez sur une classe pour la vérifier. Glissez la poignée d’un élève vers sa classe ou utilisez le sélecteur de sa ligne.",
     "destinationGrade": "Afficher le niveau",
@@ -526,8 +526,8 @@
       "year_export": "Export annuel"
     },
     "setScopes": {
-      "english_elementary": "Niveaux 1–4",
-      "english_middle": "Niveaux 5–8",
+      "english_elementary": "Niveaux 1-4",
+      "english_middle": "Niveaux 5-8",
       "german_karne": "Classes d’allemand",
       "french_karne": "Classes de français"
     },

@@ -22,6 +22,7 @@ templates keep their existing appearance when no overlay is configured.
 """
 
 import base64
+import gc
 import json
 import logging
 import mimetypes
@@ -66,6 +67,8 @@ MAX_RENDER_WORKERS = 4
 # saved layout time on the deployment-sized benchmark host (11 sheets:
 # 2.00s serial versus 3.04s parallel). Keep ordinary small classes direct.
 MIN_PARALLEL_UNITS = 12
+# Bound layout memory even when a school has hundreds of duplex report cards.
+MAX_RENDER_UNITS = 16
 # Everything the cards reference is a data URI built in this module. Anything
 # else — a local file, an internal HTTP address — is refused outright.
 ALLOWED_ASSET_SCHEMES = frozenset({"data"})
@@ -353,7 +356,7 @@ def middle_sheet(card: ReportCard) -> dict[str, object]:
         "blocks": blocks,
         "lang_blocks": lang_blocks,
         "depth": depth,
-        "comments": _comments(card),
+        "comments": [],
         "title": f"{card.year_label} ACADEMIC PROGRESS REPORT",
     }
 
@@ -621,9 +624,13 @@ def render_pdf_document(html: str) -> bytes:
     string rather than report data: a worker never needs the database, the
     settings for a card, or anything else the parent already resolved.
     """
-    return HTML(string=html, base_url=str(HERE), url_fetcher=_asset_fetcher()).write_pdf(
-        cache=_image_cache
-    )
+    try:
+        return HTML(string=html, base_url=str(HERE), url_fetcher=_asset_fetcher()).write_pdf(
+            cache=_image_cache
+        )
+    finally:
+        # WeasyPrint page trees contain cycles; release each batch before the next.
+        gc.collect()
 
 
 def _merge_pdf_parts(parts: list[bytes]) -> bytes:
@@ -747,8 +754,8 @@ def render_report_pdf(cards: list[ReportCard]) -> bytes:
     than by class means a single-class set is parallelised too, and that
     unequal class sizes do not leave workers idle.
 
-    Falls back to one serial document whenever a pool is unavailable or dies,
-    because a slow report card is recoverable and a failed one is not.
+    Both parallel rendering and its serial fallback use bounded batches so
+    a whole-school request cannot become one enormous WeasyPrint page tree.
     """
     template, context, units_key, units = _document_plan(cards)
     jinja_template = _template_environment().get_template(template)
@@ -757,15 +764,26 @@ def render_report_pdf(cards: list[ReportCard]) -> bytes:
         return jinja_template.render(**context, **{units_key: sheets})
 
     workers = render_worker_limit()
-    if workers < 2 or len(units) < MIN_PARALLEL_UNITS:
+    parallel = workers >= 2 and len(units) >= MIN_PARALLEL_UNITS
+    batch_count = (len(units) + MAX_RENDER_UNITS - 1) // MAX_RENDER_UNITS
+    chunks = _chunk(units, max(batch_count, min(workers, len(units)) if parallel else 1))
+
+    def serial() -> bytes:
+        parts = [render_pdf_document(document(chunk)) for chunk in chunks]
+        return parts[0] if len(parts) == 1 else _merge_pdf_parts(parts)
+
+    if not parallel and len(chunks) == 1:
         return _apply_back_cover(render_pdf_document(document(units)), cards)
 
-    pool = _render_pool(workers)
+    pool = _render_pool(workers) if parallel else None
     if pool is None:
-        return _apply_back_cover(render_pdf_document(document(units)), cards)
-    chunks = _chunk(units, min(workers, len(units)))
+        return _apply_back_cover(serial(), cards)
     try:
-        parts = list(pool.map(render_pdf_document, [document(chunk) for chunk in chunks]))
+        parts: list[bytes] = []
+        # Submit only one wave at a time; queued HTML also holds embedded images.
+        for start in range(0, len(chunks), workers):
+            documents = [document(chunk) for chunk in chunks[start : start + workers]]
+            parts.extend(pool.map(render_pdf_document, documents))
     except Exception:
         # Deliberately broad: a pool can fail for reasons that have nothing to
         # do with this report — a killed worker, a host that forbids child
@@ -774,5 +792,5 @@ def render_report_pdf(cards: list[ReportCard]) -> bytes:
         # because the serial retry below renders the very same HTML.
         logger.warning("parallel report render failed, falling back to serial", exc_info=True)
         _discard_pool()
-        return _apply_back_cover(render_pdf_document(document(units)), cards)
+        return _apply_back_cover(serial(), cards)
     return _apply_back_cover(_merge_pdf_parts(parts), cards)

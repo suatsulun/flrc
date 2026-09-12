@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "outputDirectory": "public",
+  "framework": null,
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --workspace-root exec turbo run build --filter=@flrc/demo-web",
+  "outputDirectory": "dist",
   "trailingSlash": false,
   "rewrites": [
     {
@@ -9,19 +12,15 @@
     },
     {
       "source": "/admin",
-      "destination": "https://flrc-admin.vercel.app/"
+      "destination": "/admin/index.html"
     },
     {
       "source": "/admin/:path*",
-      "destination": "https://flrc-admin.vercel.app/:path*"
-    },
-    {
-      "source": "/",
-      "destination": "https://flrc-teacher.vercel.app/"
+      "destination": "/admin/index.html"
     },
     {
       "source": "/:path*",
-      "destination": "https://flrc-teacher.vercel.app/:path*"
+      "destination": "/index.html"
     }
   ]
 }

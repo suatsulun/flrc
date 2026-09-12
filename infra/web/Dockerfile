@@ -30,10 +30,8 @@ RUN --mount=type=cache,id=flrc-pnpm-store,target=/pnpm/store,sharing=locked \
     && pnpm install --frozen-lockfile --ignore-scripts \
        --store-dir=/pnpm/store --prefer-offline --network-concurrency=8
 COPY . .
-# Both apps share one origin on the school box, so the cross-links are relative.
-ARG VITE_ADMIN_URL=/admin/
-ARG VITE_TEACHER_URL=/
-ENV VITE_ADMIN_URL=$VITE_ADMIN_URL VITE_TEACHER_URL=$VITE_TEACHER_URL
+# Both apps share one origin on the school box; production builds link the panels
+# to /admin/ and / by default (ADR-022, ADR-064), so no build arguments are needed.
 RUN pnpm brand && pnpm --filter @flrc/teacher build && pnpm --filter @flrc/admin build
 
 FROM caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648

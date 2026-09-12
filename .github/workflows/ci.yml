@@ -39,6 +39,9 @@ jobs:
       - name: Lint, typecheck, and build
         run: pnpm turbo run lint typecheck build --filter='!@flrc/backend'
 
+      - name: Verify the assembled demo web output
+        run: test -f infra/vercel/dist/index.html && test -f infra/vercel/dist/admin/index.html
+
   python:
     name: Python
     runs-on: ubuntu-latest

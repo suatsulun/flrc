@@ -19,6 +19,7 @@ ADR-063 migration and year-order/PDF-batching changes are not verified deploymen
 | Handbook scope            | Current implementation amendment                                                                                                                               |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0-1: tooling and skeleton | Node 26.8.1, pnpm 11.25.0, Python 3.13 are pinned locally. Existing apps are implemented; do not scaffold over them.                                           |
+| 1.11: demo hosting        | One Vercel project (`infra/vercel`) serves both SPAs and the `/api` rewrite (ADR-064); Render hosts the API and worker.                                        |
 | 1.5, 2.1, 4.1: schema     | Fourteen original tables plus `demo_visitors` and `report_identity_audits`; exact names are in ARCH §3.1.                                                      |
 | 2.1: assessment programme | Grade 4 German/French permit ratings and comments without numeric averages. Pending ADR-063 removes grades 5-8 English comments.                               |
 | 2.4-2.6: grid/save        | Four/five sentence columns at laptop widths, angled middle-English overview, pupil/class rating drafts, maximum 2,000 cells per save.                          |
@@ -2425,6 +2426,13 @@ budgeted for (ARCH §2.2).
 **If it breaks:** blueprint rejects `runtime` → older accounts want `env: docker`; flip the key. Build can't find `uv.lock` → `rootDir` missing. Healthcheck failing forever → the CMD isn't honoring `$PORT`.
 
 ### 1.11.4 Vercel: two app projects behind one public gateway
+
+**Current checkout amendment (ADR-064):** the demo now runs as one Vercel project rooted at
+`infra/vercel`. Its workspace package `@flrc/demo-web` builds both apps and assembles the teacher
+output at `/` and the admin output at `/admin/`; its `vercel.json` rewrites `/api/*` to Render and
+sets `trailingSlash: false`. Production builds link the panels to `/admin/` and `/`, so the
+`VITE_ADMIN_URL` and `VITE_TEACHER_URL` variables below are only for layouts with two origins. The
+three-project assembly that follows is the original learning sequence; do not recreate it.
 
 **What / Why:** teacher and admin stay independently deployed, but the browser sees one origin:
 

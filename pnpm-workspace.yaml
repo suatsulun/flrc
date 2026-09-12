@@ -2,6 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
   - "branding"
+  - "infra/vercel"
 allowBuilds:
   lefthook: false
 overrides:

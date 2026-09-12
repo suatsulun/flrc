@@ -243,6 +243,15 @@ importers:
         specifier: ~6.0.3
         version: 6.0.3
 
+  infra/vercel:
+    devDependencies:
+      '@flrc/admin':
+        specifier: workspace:*
+        version: link:../../apps/admin
+      '@flrc/teacher':
+        specifier: workspace:*
+        version: link:../../apps/teacher
+
   packages/api-client:
     dependencies:
       '@tanstack/react-query':

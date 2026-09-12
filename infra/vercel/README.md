@@ -23,7 +23,7 @@ The `js` CI job builds this package, so the assembled layout is verified on ever
 | Domain                               | `flrc.suatsulun.com` attached to this project only   |
 
 Production builds link the panels to `/admin/` and `/` by default. `VITE_ADMIN_URL` (a full URL or
-path to the admin panel) and `VITE_TEACHER_URL` (the teacher origin without a trailing slash) exist
+path to the admin panel) and `VITE_TEACHER_URL` (the teacher origin, resolved against the current origin) exist
 only for layouts that serve the panels from different origins, such as the two-port CI preview; do
 not set them here.
 

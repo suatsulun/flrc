@@ -29,17 +29,22 @@ import { LanguageSwitch } from "@flrc/ui/components/language-switch";
 import { LOGO_URL, SCHOOL_SHORT_NAME } from "@flrc/branding";
 
 // One public origin serves both panels (ADR-022); development runs them on two ports.
-// The value is an origin prefix without a trailing slash; empty means this origin.
-const teacherOrigin = (
-  import.meta.env.VITE_TEACHER_URL ?? (import.meta.env.DEV ? "http://localhost:5173" : "")
-).replace(/\/+$/, "");
+// The configured value may be an origin or a path; both resolve against this origin.
+const configuredTeacherUrl =
+  import.meta.env.VITE_TEACHER_URL ?? (import.meta.env.DEV ? "http://localhost:5173/" : "/");
+
+// The teacher panel is a separate SPA, so its links must be absolute URLs: TanStack
+// Router performs a full navigation only for an href that parses as a URL.
+function teacherHref(path: string): string {
+  return new URL(path, new URL(configuredTeacherUrl, window.location.origin)).href;
+}
 
 export const Route = createFileRoute("/_auth")({
   beforeLoad: async ({ context }) => {
     const user = await context.queryClient.ensureQueryData(sessionOptions()).catch(() => {
-      throw redirect({ href: `${teacherOrigin}/login` });
+      throw redirect({ href: teacherHref("/login") });
     });
-    if (!user.is_admin && !user.is_coordinator) throw redirect({ href: `${teacherOrigin}/` });
+    if (!user.is_admin && !user.is_coordinator) throw redirect({ href: teacherHref("/") });
     return { user };
   },
   component: AdminLayout,
@@ -61,7 +66,7 @@ function AdminLayout() {
       return;
     }
     queryClient.clear();
-    window.location.replace(`${teacherOrigin}/login`);
+    window.location.replace(teacherHref("/login"));
   };
 
   return (
@@ -84,7 +89,7 @@ function AdminLayout() {
             ariaLabel={t("shell.language")}
           />
           <a
-            href={`${teacherOrigin}/`}
+            href={teacherHref("/")}
             className="hidden rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"
           >
             {t("goToTeacher")}

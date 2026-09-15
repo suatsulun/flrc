@@ -4,7 +4,7 @@ _The complete assembly manual. Like an IKEA guide: every step tells you **what**
 
 _This handbook supersedes BUILD-STEPS.md. The old ARCHITECTURE.md stays alive as the deep-theory companion (domain model reasoning, decision records, KVKK) and is cited as "ARCH §x.x"._
 
-## Current checkout (2026-09-11)
+## Current checkout (2026-09-15)
 
 This is the learning/build manual, not a claim that every example still matches the finished
 application. Steps retain their original assembly snippets; current amendments below describe
@@ -13,18 +13,18 @@ before replacing a file with a historical snippet. Report any remaining mismatch
 source-of-truth protocol in [AGENTS.md](../AGENTS.md).
 
 Use [TODO.md](TODO.md) for open work and [AI-HANDOFF.md](AI-HANDOFF.md) for a review-first prompt.
-The local `v1.2.0` tag predates several commits, while manifests still read `1.2.0`. The pending
-ADR-063 migration and year-order/PDF-batching changes are not verified deployment state.
+The local `v1.2.0` tag predates several commits, while manifests still read `1.2.0`. Later migrations
+and report changes are committed source, not verified school deployment state.
 
 | Handbook scope            | Current implementation amendment                                                                                                                               |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0-1: tooling and skeleton | Node 26.8.1, pnpm 11.25.0, Python 3.13 are pinned locally. Existing apps are implemented; do not scaffold over them.                                           |
 | 1.11: demo hosting        | One Vercel project (`infra/vercel`) serves both SPAs and the `/api` rewrite (ADR-064); Render hosts the API and worker.                                        |
 | 1.5, 2.1, 4.1: schema     | Fourteen original tables plus `demo_visitors` and `report_identity_audits`; exact names are in ARCH §3.1.                                                      |
-| 2.1: assessment programme | Grade 4 German/French permit ratings and comments without numeric averages. Pending ADR-063 removes grades 5-8 English comments.                               |
+| 2.1: assessment programme | Grade 4 German/French permit ratings and comments without numeric averages. ADR-063 removes grades 5-8 English comments.                                       |
 | 2.4-2.6: grid/save        | Four/five sentence columns at laptop widths, angled middle-English overview, pupil/class rating drafts, maximum 2,000 cells per save.                          |
 | 2.11, 4.6: tests          | Frontend packages have no standalone `test` script. Use root Playwright, configured test servers, and the existing synthetic backend suite.                    |
-| 3.5, 3.9-3.10: years      | Rollover preserves student identity and assigns fresh year-scoped numbers. Pending lists sort by label, not insertion id.                                      |
+| 3.5, 3.9-3.10: years      | Rollover preserves student identity and assigns fresh year-scoped numbers. Year lists sort by label, not insertion id.                                         |
 | 4.2-4.4: reports          | Four PDF sets return directly from `/api/reports/pdf` (ADR-028); year XLSX exports remain durable Celery jobs. Private report overlays/signatures use ADR-057. |
 | 4.5, 4.9-4.10: operations | School deployment consumes paired images, runtime branding, nightly encrypted backups, and monthly restore tests from `infra/school-template/`.                |
 
@@ -32,6 +32,11 @@ Backend pytest fixtures wipe the fixed local `flrc_test` database; migration tes
 it. Runs must be serialized on disposable test data. Root Playwright does not launch servers and
 its seeded suite must not share a mutable database with another run. Historical green exit lists
 below are learning checkpoints, not fresh release evidence.
+
+Review amendments (2026-09-15): Steps 3.7-3.8 use one identity matcher for import preview and
+commit. Placement requires the exact preceding year, the correct entry grade, and a unique name
+on both sides (ADR-066). Step 2.8 rechecks the current semester, active columns, and class/subject
+roster before undoing a save; an old save cannot modify a locked term or a pupil who has moved.
 
 ## Handbook status
 

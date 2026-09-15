@@ -2700,6 +2700,8 @@ eleven backend sites and several admin screens.
   gains two fields.
 - The assessment programme needs no change: grade 0 is primary, keeps teacher comments and the
   smiley scale, and has no second language.
+- Workbook rows and reviewed class moves enforce the same grade-4 minimum for second languages
+  as the admin roster forms. A move below grade 4 must also clear the language.
 - Hazırlık pupils are absent from the rolled-over year until the roster import places them
   (ADR-066).
 - The demo grows to 55 classes and 1,210 pupils per year.
@@ -2740,6 +2742,18 @@ them and create a new person for each row, splitting one child's history across 
   to numberless enrollments.
 - Only the year immediately before the target year feeds the pool. That is the year the rollover
   came from, so graduates and pupils who left in other grades are never matched.
+
+### Review clarification (2026-09-15)
+
+Both preview and commit use the same identity matcher. A placement candidate must come from the
+exact preceding calendar year and the corresponding stage: Hazırlık to grade 1, or grade 4 to
+grade 5. A missing preceding year produces no candidates; a nonstandard year label disables
+automatic placement matching.
+
+Name matching must be unique on both sides: the existing candidates and the unmatched workbook
+rows. Two incoming namesakes are new identities, rather than giving the first row an existing
+pupil's history. This also tightens ADR-041's numberless-enrollment matching. Existing school
+numbers still take precedence. Candidate lookup remains bounded to two queries per matching pass.
 
 ## Alternatives considered
 

@@ -1,18 +1,18 @@
 # FL-ReportCard current work and release checklist
 
-Repository review date: **2026-09-11**. Relevant handbook scope: Phase 2 assessment editing,
+Repository review date: **2026-09-15**. Relevant handbook scope: Phase 2 assessment editing,
 Phase 3 lifecycle/archive behavior, and Phase 4 reports, backups, and release checks.
 
 ## Version and evidence boundary
 
-Root and backend manifests say `1.2.0`, but the local `v1.2.0` tag predates current `HEAD`
-(`07667b0`). Post-tag commits include ADR-060 to ADR-062. The working tree additionally contains
-ADR-063, an untracked migration, year sorting, and PDF batching changes. Do not describe all
-current source as shipped in 1.2.0. Publication and live deployment were not checked in this refresh.
+Root and backend manifests say `1.2.0`, but the local `v1.2.0` tag predates the current source.
+ADR-063, year sorting, and PDF batching are committed; Hazırlık and placement changes are reviewed
+in [PR #18](https://github.com/suatsulun/flrc/pull/18). Its review also consolidates import identity
+matching and closes locked-term/moved-pupil undo authorization gaps. The PR records the exact
+reviewed commit and fresh test/scan results. These changes are not proof of a release or deployment.
 
-The checked items below describe implementation present in source, not a fresh test pass.
-The earlier checklist recorded successful gates but did not identify their exact commit or run;
-those marks cannot validate the newer working tree.
+The implemented baseline below describes source. Production-provider configuration, school-owned
+backups, restore evidence, and human acceptance still require the separate release gates below.
 
 ## Implemented baseline
 
@@ -30,26 +30,26 @@ those marks cannot validate the newer working tree.
 - [x] School backup service with encryption, freshness checks, restore tests, and year archives.
 - [x] Authentication hardening, dependency audit, secret scanning, and synthetic regression suites.
 
-## Pending working-tree review
+## Completed source review
 
-- [ ] Review ADR-063 across seed, create/update, list/reorder, copy/rollover, live grid, archive,
+- [x] Review ADR-063 across seed, create/update, list/reorder, copy/rollover, live grid, archive,
       student history, and reports: grades 5-8 English have no comments; primary English and
       German/French retain them. Check translated feedback for `middle_english_no_comments`.
-- [ ] Review and test migration `82a91f4c6d30` after `7d26cb91a540`: deactivate text definitions,
+- [x] Review and test migration `82a91f4c6d30` after `7d26cb91a540`: deactivate text definitions,
       preserve values/versions/audits, include archived years, and keep downgrade non-reactivating.
-- [ ] Verify year lists sort by descending label and student history by ascending label even when
+- [x] Verify year lists sort by descending label and student history by ascending label even when
       insertion ids are out of order; check assumptions about nonstandard labels.
-- [ ] Verify PDF layout batches stay within 16 render units, preserve page order/duplex covers,
+- [x] Verify PDF layout batches stay within 16 render units, preserve page order/duplex covers,
       and keep the serial fallback bounded when a process pool is absent or fails.
 
 ## Fresh release gates
 
-- [ ] Run focused assessment, archive, report, and migration regression tests on the disposable
+- [x] Run focused assessment, archive, report, and migration regression tests on the disposable
       local test database; serialize runs because fixtures wipe shared state.
-- [ ] Run lint, typecheck, tests, and production builds for the reviewed commit. Frontend packages
+- [x] Run lint, typecheck, tests, and production builds for the reviewed source. Frontend packages
       have no standalone `test` script; root Playwright supplies browser coverage.
-- [ ] Regenerate the API client and inspect any drift; run branding and i18n checks.
-- [ ] Run the assessment-grid browser checks and the two-user grade conflict E2E. Verify both
+- [x] Regenerate the API client and inspect any drift; run branding and i18n checks.
+- [x] Run the assessment-grid browser checks and the two-user grade conflict E2E. Verify both
       app origins, a freshly seeded disposable E2E database, four locales, and desktop/phone views.
 - [ ] Complete the production-provider security pass for the chosen managed or school-hosted profile.
 - [ ] Record a school-owned restore drill and final human acceptance for keyboard entry, printed

@@ -2,6 +2,7 @@
 
 import io
 
+import pytest
 from openpyxl import Workbook
 from sqlalchemy import func, select
 
@@ -9,6 +10,7 @@ from flrc.db import models as m
 from flrc.modules.academics.class_names import PREP_GRADE
 from flrc.modules.academics.programme import carries_over
 from tests.conftest import TestSession
+from tests.test_import_review import roster_file
 
 
 def test_only_pupils_inside_a_stage_carry_over() -> None:
@@ -170,4 +172,104 @@ async def test_rollover_leaves_placement_grades_and_import_reattaches_them(api, 
                 m.Enrollment.student_id == ids["graduate"],
             )
         )
-        assert graduate_enrollments == 0
+    assert graduate_enrollments == 0
+
+
+@pytest.mark.parametrize(
+    ("source_label", "source_grade", "target_grade", "incoming_count", "expected_matches"),
+    [
+        ("2026-2027", 0, 1, 1, 1),
+        ("2026-2027", 4, 5, 1, 1),
+        ("2026-2027", 0, 5, 1, 0),
+        ("2026-2027", 4, 1, 1, 0),
+        ("2024-2025", 0, 1, 1, 0),
+        ("2026-2027", 0, 1, 2, 0),
+    ],
+)
+async def test_placement_requires_the_previous_year_correct_stage_and_unique_incoming_name(
+    api, world, source_label, source_grade, target_grade, incoming_count, expected_matches
+):
+    async with TestSession() as db:
+        source = m.AcademicYear(label=source_label, status="archived")
+        target = m.AcademicYear(label="2027-2028", status="setup")
+        student = m.Student(full_name="Synthetic Namesake", search_name="synthetic namesake")
+        db.add_all([source, target, student])
+        await db.flush()
+        school_class = m.SchoolClass(year_id=source.id, grade_level=source_grade, section="A")
+        db.add(school_class)
+        await db.flush()
+        db.add(
+            m.Enrollment(
+                student_id=student.id, year_id=source.id, class_id=school_class.id, school_number=1
+            )
+        )
+        await db.commit()
+        target_id, student_id = target.id, student.id
+
+    files = roster_file(
+        [
+            [92000 + index, "Synthetic Namesake", f"{target_grade}/A", None]
+            for index in range(incoming_count)
+        ]
+    )
+    async with api(world.admin) as client:
+        preview = await client.post(
+            "/api/admin/import/dry-run", params={"year_id": target_id}, files=files
+        )
+        assert preview.status_code == 200, preview.text
+        body = preview.json()
+        assert body["counts"]["placed_students"] == expected_matches
+        committed = await client.post(
+            "/api/admin/import/commit",
+            params={
+                "year_id": target_id,
+                "expected_sha256": body["sha256"],
+                "expected_review_sha256": body["review_sha256"],
+            },
+            files=files,
+        )
+        assert committed.status_code == 200, committed.text
+    async with TestSession() as db:
+        matched = await db.scalar(
+            select(func.count())
+            .select_from(m.Enrollment)
+            .where(m.Enrollment.year_id == target_id, m.Enrollment.student_id == student_id)
+        )
+        assert matched == expected_matches
+
+
+async def test_numberless_namesakes_are_not_claimed_by_workbook_order(api, world):
+    async with TestSession() as db:
+        enrollment = await db.scalar(
+            select(m.Enrollment).where(m.Enrollment.student_id == world.student_one)
+        )
+        enrollment.school_number = None
+        await db.commit()
+    files = roster_file(
+        [
+            [93001, "Synthetic Student One", "5/A", None],
+            [93002, "Synthetic Student One", "5/A", None],
+        ]
+    )
+    async with api(world.admin) as client:
+        preview = await client.post(
+            "/api/admin/import/dry-run", params={"year_id": world.year}, files=files
+        )
+        body = preview.json()
+        assert body["counts"]["assigned_numbers"] == 0
+        assert body["counts"]["new_students"] == 2
+        committed = await client.post(
+            "/api/admin/import/commit",
+            params={
+                "year_id": world.year,
+                "expected_sha256": body["sha256"],
+                "expected_review_sha256": body["review_sha256"],
+            },
+            files=files,
+        )
+        assert committed.status_code == 200, committed.text
+    async with TestSession() as db:
+        enrollment = await db.scalar(
+            select(m.Enrollment).where(m.Enrollment.student_id == world.student_one)
+        )
+        assert enrollment.school_number is None

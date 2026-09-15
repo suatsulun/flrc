@@ -1,6 +1,7 @@
 """Hazırlık classes: grade 0 with a name instead of a letter section (ADR-065)."""
 
 import io
+import json
 
 import pytest
 from openpyxl import Workbook
@@ -13,6 +14,7 @@ from flrc.modules.imports.parser import parse_class
 from flrc.modules.reports.builder import build_report_set
 from flrc.modules.reports.render import primary_sheet
 from tests.conftest import TEST_URL_SYNC, TestSession
+from tests.test_import_review import roster_file
 
 
 def test_class_label_names_prep_classes_and_numbers_the_rest() -> None:
@@ -88,6 +90,27 @@ async def test_admin_creates_named_prep_classes_listed_before_grade_one(api, wor
         assert renamed.json()["name"] == "Yıldız"
         listed = await client.get(f"/api/admin/years/{world.year}/classes")
         assert [item["name"] for item in listed.json()] == ["Yıldız", "5/A"]
+
+
+async def test_renaming_prep_class_to_an_existing_name_returns_conflict(api, world):
+    async with api(world.admin) as client:
+        for name in ("Bulut", "Yıldız"):
+            created = await client.post(
+                "/api/admin/classes",
+                json={
+                    "year_id": world.year,
+                    "grade_level": PREP_GRADE,
+                    "section": name,
+                },
+            )
+            assert created.status_code == 201
+        renamed = await client.patch(
+            f"/api/admin/classes/{created.json()['id']}", json={"section": "bulut"}
+        )
+        assert renamed.status_code == 409
+        assert renamed.json()["detail"]["code"] == "duplicate_class"
+        listed = await client.get(f"/api/admin/years/{world.year}/classes")
+        assert [item["name"] for item in listed.json()] == ["Bulut", "Yıldız", "5/A"]
 
 
 def prep_roster_file() -> dict[str, tuple[str, bytes]]:
@@ -190,3 +213,50 @@ async def test_prep_classes_get_the_primary_english_card(world):
     assert sheet["title_en"] == (
         "Synthetic year Preparatory Class 1st Term English Progress Report"
     )
+
+
+async def test_prep_import_cannot_assign_a_second_language(api, world):
+    async with api(world.admin) as client:
+        invalid = await client.post(
+            "/api/admin/import/dry-run",
+            params={"year_id": world.year},
+            files=roster_file([[80010, "Synthetic Prep Language", "Bulut", "Almanca"]]),
+        )
+        assert invalid.status_code == 200, invalid.text
+        assert any(issue["level"] == "error" for issue in invalid.json()["issues"])
+        created = await client.post(
+            "/api/admin/classes",
+            json={
+                "year_id": world.year,
+                "grade_level": PREP_GRADE,
+                "section": "Bulut",
+            },
+        )
+        assert created.status_code == 201
+        files = roster_file([[80010, "Synthetic Prep Language", "5/A", "Almanca"]])
+        moves = json.dumps(
+            [{"school_number": 80010, "grade_level": PREP_GRADE, "section": "Bulut"}]
+        )
+        invalid_move = await client.post(
+            "/api/admin/import/dry-run",
+            params={"year_id": world.year},
+            files=files,
+            data={"class_moves": moves},
+        )
+        assert invalid_move.status_code == 422
+        assert invalid_move.json()["detail"]["code"] == "language_grade_too_low"
+        cleared = await client.post(
+            "/api/admin/import/dry-run",
+            params={"year_id": world.year},
+            files=files,
+            data={
+                "class_moves": moves,
+                "roster_edits": json.dumps(
+                    {
+                        "language_changes": [{"school_number": 80010, "language": None}],
+                    }
+                ),
+            },
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["rows"][0]["row"]["language"] is None

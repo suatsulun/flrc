@@ -5,10 +5,11 @@ import io
 import re
 import zipfile
 from itertools import islice
+from typing import Self
 
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from flrc.modules.academics.class_names import (
     MAX_GRADE,
@@ -17,6 +18,7 @@ from flrc.modules.academics.class_names import (
     SECTION_MAX_LENGTH,
     normalize_section,
 )
+from flrc.modules.academics.programme import L2_START_GRADE
 from flrc.modules.administration.names import search_key
 
 HEADER_ALIASES = {
@@ -83,6 +85,12 @@ class RowModel(BaseModel):
     language_present: bool = False
     sheet: str
     row_number: int
+
+    @model_validator(mode="after")
+    def language_grade(self) -> Self:
+        if self.language and self.grade_level < L2_START_GRADE:
+            raise ValueError("language_grade_too_low")
+        return self
 
 
 class ImportIssue(BaseModel):

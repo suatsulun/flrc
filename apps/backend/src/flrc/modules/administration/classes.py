@@ -81,7 +81,7 @@ class MatrixSlotOut(BaseModel):
 
 
 async def _writable_year(db: AsyncSession, year_id: int) -> AcademicYear:
-    year = await db.get(AcademicYear, year_id)
+    year = await db.scalar(select(AcademicYear).where(AcademicYear.id == year_id).with_for_update())
     if year is None:
         raise HTTPException(404, {"code": "unknown_year"})
     if year.status == "archived":
@@ -180,14 +180,23 @@ async def patch_admin_class(
     if school_class is None:
         raise HTTPException(404, {"code": "unknown_class"})
     await _writable_year(db, school_class.year_id)
-    if body.grade_level is not None:
-        school_class.grade_level = body.grade_level
-    if body.section is not None:
-        school_class.section = body.section
-    # A section is spelled by its grade: a letter for 1 to 8, a name for Hazırlık.
-    school_class.section = normalize_section(school_class.grade_level, school_class.section)
-    if not school_class.section:
+    grade = body.grade_level if body.grade_level is not None else school_class.grade_level
+    section = normalize_section(
+        grade, body.section if body.section is not None else school_class.section
+    )
+    if not section:
         raise HTTPException(422, {"code": "invalid_section"})
+    duplicate = await db.scalar(
+        select(SchoolClass.id).where(
+            SchoolClass.year_id == school_class.year_id,
+            SchoolClass.grade_level == grade,
+            SchoolClass.section == section,
+            SchoolClass.id != class_id,
+        )
+    )
+    if duplicate is not None:
+        raise HTTPException(409, {"code": "duplicate_class"})
+    school_class.grade_level, school_class.section = grade, section
     await db.commit()
     return await _class_out(db, school_class)
 

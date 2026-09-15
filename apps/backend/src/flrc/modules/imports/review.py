@@ -151,9 +151,11 @@ def apply_roster_edits(
     removed = set(edits.removed_school_numbers)
     if len(removed) != len(edits.removed_school_numbers) or not removed.issubset(rows):
         raise HTTPException(422, {"code": "invalid_import_student"})
-    return plan.model_copy(
-        update={"rows": [row for number, row in rows.items() if number not in removed]}
-    )
+    remaining = [row for number, row in rows.items() if number not in removed]
+    # Class overrides use model_copy, so recheck the final placement after language edits.
+    if any(row.language and row.grade_level < L2_START_GRADE for row in remaining):
+        raise HTTPException(422, {"code": "language_grade_too_low"})
+    return plan.model_copy(update={"rows": remaining})
 
 
 def parse_class_moves(value: str) -> list[ImportClassMove]:

@@ -342,7 +342,7 @@
     "title": "Akademischer Jahreslauf",
     "description": "Jahres- und Halbjahresübergänge ausdrücklich ausführen.",
     "automaticTitle": "Das nächste Schuljahr wird automatisch vorbereitet",
-    "automaticBody": "Nach Sperrung des zweiten Halbjahres und Archivierung werden Klassenreiter, Lehrkräfte, Spaltenvorlagen, versetzte Lernende und neue fortlaufende Schulnummern vorbereitet. Bewertungen werden nie kopiert.",
+    "automaticBody": "Nach Sperrung des zweiten Halbjahres und Archivierung werden Klassenreiter, Lehrkräfte, Spaltenvorlagen, versetzte Lernende und neue fortlaufende Schulnummern vorbereitet. Vorklassen- und Viertklässler warten auf die Einteilung durch die Schule: der nächste Listenimport ordnet sie nach Namen zu. Bewertungen werden nie kopiert.",
     "setupReady": "Dieses Jahr kann aktiviert werden.",
     "missingNumbers": "Vergeben Sie vor der Aktivierung für {{count}} Lernende Schulnummern in den Klassentabellen.",
     "finishActiveYear": "Schließen und archivieren Sie {{label}}, bevor Sie dieses Jahr aktivieren.",
@@ -391,6 +391,7 @@
     "counts": {
       "new_students": "Neue Schüler/innen",
       "assigned_numbers": "Neue Schulnummern vergeben",
+      "placed_students": "Aus dem Vorjahr eingeteilt",
       "renamed_students": "Umbenannt",
       "new_classes": "Neue Klassen",
       "new_enrollments": "Neue Einschreibungen",
@@ -440,6 +441,7 @@
     "resultHint": "Prüfen Sie Schüler, Lehrerzuordnungen und Notenspalten unter Klassentabellen.",
     "rowActions": {
       "new_student": "Neuer Schüler",
+      "placed": "Aus dem Vorjahr einteilen",
       "new_class": "Neue Klasse",
       "new_enrollment": "Neue Einschreibung",
       "assign_number": "Nummer zuweisen",

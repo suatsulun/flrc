@@ -152,7 +152,9 @@ async def test_import_existing_roster_uses_bounded_reads_and_preserves_student_i
         assert student.full_name.startswith("Renamed Synthetic")
         assert language.language == "french"
     record_property("select_count", len(reads))
-    assert len(reads) <= 9, f"Import issued {len(reads)} SELECTs"
+    # Preview and commit each look up last year's pupils awaiting placement
+    # once (ADR-066); every read stays fixed, never per row.
+    assert len(reads) <= 10, f"Import issued {len(reads)} SELECTs"
 
 
 @pytest.mark.parametrize("pending_count", [1, 2])

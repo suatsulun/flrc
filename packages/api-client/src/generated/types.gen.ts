@@ -3697,7 +3697,7 @@ export type DryRunImportData = {
         /**
          * Action
          */
-        action?: 'new_student' | 'rename' | 'move' | 'class_changed' | 'language_change' | 'unchanged' | 'manual_added' | 'language_edited' | null;
+        action?: 'new_student' | 'placed' | 'rename' | 'move' | 'class_changed' | 'language_change' | 'unchanged' | 'manual_added' | 'language_edited' | null;
     };
     url: '/api/admin/import/dry-run';
 };

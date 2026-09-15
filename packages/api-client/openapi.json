@@ -2874,6 +2874,7 @@
                 {
                   "enum": [
                     "new_student",
+                    "placed",
                     "rename",
                     "move",
                     "class_changed",

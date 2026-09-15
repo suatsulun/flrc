@@ -23,6 +23,7 @@ from flrc.modules.academics.class_names import (
     SECTION_MAX_LENGTH,
     class_label,
 )
+from flrc.modules.academics.programme import PLACEMENT_GRADES
 from flrc.modules.administration.names import search_key
 from flrc.modules.auth.dependencies import require_admin
 from flrc.modules.imports.parser import ImportPlan, InvalidWorkbook, parse_workbook
@@ -73,6 +74,42 @@ async def _year(db: AsyncSession, year_id: int, *, lock: bool = False) -> Academ
     if year.status == "archived":
         raise HTTPException(409, {"code": "year_not_writable"})
     return year
+
+
+async def _awaiting_placement(
+    db: AsyncSession, year_id: int, enrolled_ids: set[int]
+) -> dict[str, list[Student]]:
+    """Last year's pupils whom the rollover left for the school to place (ADR-066).
+
+    They sat in a placement grade (Hazırlık or grade 4) in the year before this
+    one and have no enrollment here yet. The import matches them by normalised
+    name so the child keeps one identity instead of gaining a namesake.
+    """
+    # One SELECT: the import's read budget is fixed, never per row. Without a
+    # previous year the subquery is NULL and nothing matches.
+    target_label = select(AcademicYear.label).where(AcademicYear.id == year_id).scalar_subquery()
+    previous_year = (
+        select(AcademicYear.id)
+        .where(AcademicYear.label < target_label)
+        .order_by(AcademicYear.label.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    pupils = await db.scalars(
+        select(Student)
+        .join(Enrollment, Enrollment.student_id == Student.id)
+        .join(SchoolClass, SchoolClass.id == Enrollment.class_id)
+        .where(
+            Enrollment.year_id == previous_year,
+            SchoolClass.grade_level.in_(sorted(PLACEMENT_GRADES)),
+        )
+        .order_by(Student.id)
+    )
+    awaiting: dict[str, list[Student]] = {}
+    for student in pupils:
+        if student.id not in enrolled_ids:
+            awaiting.setdefault(student.search_name, []).append(student)
+    return awaiting
 
 
 async def compare_plan(
@@ -127,6 +164,7 @@ async def compare_plan(
     for enrollment, student in enrollment_rows:
         if enrollment.school_number is None:
             pending_by_name.setdefault(student.search_name, []).append((enrollment, student))
+    awaiting_by_name = await _awaiting_placement(db, year_id, set(enrollments))
     ids = list(enrollments)
     languages = (
         {
@@ -146,6 +184,7 @@ async def compare_plan(
     counts = {
         "new_students": 0,
         "assigned_numbers": 0,
+        "placed_students": 0,
         "renamed_students": 0,
         "new_classes": 0,
         "new_enrollments": 0,
@@ -169,6 +208,12 @@ async def compare_plan(
                 student = promoted[0][1]
                 counts["assigned_numbers"] += 1
                 actions.append("assign_number")
+        if student is None:
+            waiting = awaiting_by_name.get(search_key(row.full_name), [])
+            if len(waiting) == 1:
+                student = waiting.pop()
+                counts["placed_students"] += 1
+                actions.append("placed")
         if student is None:
             counts["new_students"] += 1
             counts["new_enrollments"] += 1
@@ -319,6 +364,9 @@ async def commit_import(
     for enrollment, student in enrolled:
         if enrollment.school_number is None:
             pending_by_name.setdefault(student.search_name, []).append((enrollment, student))
+    awaiting_by_name = await _awaiting_placement(
+        db, year_id, {student.id for _enrollment, student in enrolled}
+    )
     languages = {
         item.student_id: item
         for item in await db.scalars(
@@ -342,6 +390,11 @@ async def commit_import(
                 # Once numbered, this identity cannot match a later namesake.
                 enrollment, student = promoted_rows.pop()
                 enrollment.school_number = row.school_number
+        if student is None:
+            waiting = awaiting_by_name.get(search_key(row.full_name), [])
+            if len(waiting) == 1:
+                # The school placed last year's pupil; keep the identity (ADR-066).
+                student = waiting.pop()
         if student is None:
             student = Student(
                 full_name=row.full_name,

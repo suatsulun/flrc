@@ -28,6 +28,7 @@ from flrc.modules.imports.parser import ImportIssue, ImportPlan, RowModel
 
 ImportAction = Literal[
     "new_student",
+    "placed",
     "rename",
     "move",
     "class_changed",

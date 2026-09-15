@@ -19,6 +19,7 @@ those marks cannot validate the newer working tree.
 - [x] Teacher and admin class tables with year/semester/grade/subject/class navigation.
 - [x] Same-grade enrollment moves preserving student identity, grades, and notes.
 - [x] Hazırlık classes as grade 0 with named sections, importable and reported like grades 1-4.
+- [x] Rollover stops at stage boundaries; the roster import re-attaches Hazırlık and grade 4 pupils by name.
 - [x] Year-specific school numbers, fresh sequential numbers on rollover, and activation guards.
 - [x] Field/stage-checked assignments and archived-year write protection.
 - [x] Versioned grade saves, explicit conflicts, grants, audit, and undo.

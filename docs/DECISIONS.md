@@ -1324,7 +1324,8 @@ archive views resolve the number through the enrollment for the displayed year.
 **Date:** 2026-08-20
 **Phase:** 3.x
 
-**Superseded in part by:** ADR-041 (fresh sequential rollover numbers)
+**Superseded in part by:** ADR-041 (fresh sequential rollover numbers), ADR-066 (no automatic
+promotion into grade 1 or grade 5)
 
 ## Context
 
@@ -2679,8 +2680,8 @@ eleven backend sites and several admin screens.
   fields, with `original_class` kept as the display label.
 - The demo seed adds three Hazırlık classes per year (Bulut, Yıldız, Güneş) so the demo shows them.
 - The year rollover does not promote Hazırlık pupils. Which grade-1 section a child joins is a
-  placement decision the school makes, so those pupils arrive with the next year's roster import or
-  by hand, like any new pupil.
+  placement decision the school makes, so the next year's roster import places them and keeps
+  their identity by name (ADR-066).
 
 ## Alternatives considered
 
@@ -2699,7 +2700,8 @@ eleven backend sites and several admin screens.
   gains two fields.
 - The assessment programme needs no change: grade 0 is primary, keeps teacher comments and the
   smiley scale, and has no second language.
-- Hazırlık pupils are absent from the rolled-over year until the admin places them.
+- Hazırlık pupils are absent from the rolled-over year until the roster import places them
+  (ADR-066).
 - The demo grows to 55 classes and 1,210 pupils per year.
 
 ## Supersedes / Superseded by
@@ -2708,10 +2710,65 @@ Extends ADR-021 (slash display names) and ADR-023 (hyphenated worksheet titles) 
 
 ---
 
+# ADR-066: Rollover stops at stage boundaries and the roster import places pupils by name
+
+**Status:** Accepted  
+**Date:** 2026-09-15  
+**Phase:** 3.x (lifecycle) and imports
+
+## Context
+
+ADR-036 promotes every grade 1 to 7 pupil into next year's class with the same section letter. The
+school does not work that way at its two stage entries. Pupils leaving Hazırlık (ADR-065) and pupils
+leaving grade 4 are placed into grade 1 and grade 5 sections by the school, together with the new
+pupils who join at those points, so a child's section last year says nothing about next year.
+
+If the rollover simply left those pupils out, the next roster import would find no enrollment for
+them and create a new person for each row, splitting one child's history across two identities.
+
+## Decision
+
+- `carries_over(grade_level)` in `academics/programme.py` decides who moves automatically: grades
+  1 to 3 and 5 to 7 keep their section, Hazırlık (grade 0) and grade 4 wait for placement, and grade
+  8 graduates. The rollover enrolls only pupils who carry over.
+- The roster import treats last year's pupils from a placement grade who have no enrollment in the
+  target year as awaiting placement. A row that matches none of the year's school numbers or
+  numberless enrollments, but matches exactly one awaiting pupil by normalised name, reuses that
+  identity. The preview shows the row as `placed` plus `new_enrollment`, counts it under
+  `placed_students`, and the commit creates the enrollment on the existing student. Two awaiting
+  pupils with the same name match nothing and become new students, the rule ADR-041 already applies
+  to numberless enrollments.
+- Only the year immediately before the target year feeds the pool. That is the year the rollover
+  came from, so graduates and pupils who left in other grades are never matched.
+
+## Alternatives considered
+
+- Keep promoting 4 to 5 by section letter and let the admin move pupils afterwards: every grade-5
+  class would start wrong, and the new pupils would still arrive through the import.
+- Enroll placement pupils without a class: `enrollments.class_id` is not nullable and every screen
+  assumes a class, so a holding class would leak into reports and the assignment matrix.
+- Match awaiting pupils across all earlier years: a graduate's namesake could inherit an
+  identity.
+
+## Consequences
+
+- After a year closes, Hazırlık and grade 4 pupils are absent from the new year until the roster
+  import runs. The activation guard for missing numbers is unaffected, since they have no enrollment.
+- Identity and history stay whole across both stage boundaries, and the admin can filter the
+  `placed` rows in the review before committing.
+- The lifecycle page and the docs describe the two waiting cohorts.
+
+## Supersedes / Superseded by
+
+Supersedes in part ADR-036 (promotion scope) and ADR-065 (which had left Hazırlık pupils to arrive as
+new pupils).
+
+---
+
 # ADR template for future decisions
 
 ```md
-# ADR-066: Title
+# ADR-067: Title
 
 **Status:** Proposed | Accepted | Superseded  
 **Date:** YYYY-MM-DD  

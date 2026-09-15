@@ -762,9 +762,11 @@ Archived data is read-only. The UI may let admins and coordinators browse previo
 Longitudinal student history should derive from enrollments and grade/report data, not by mutating old rows into a new shape.
 
 Closing a standard `YYYY-YYYY` year after both semesters are locked creates the next setup year in
-the same transaction. Class structure, teacher assignments, column templates, promoted grade 1-7
-students, and second-language choices are copied. Grade values, old school numbers, audit entries,
-and grade 8 enrollments are not copied. The promoted enrollment keeps the same student id, which is
+the same transaction. Class structure, teacher assignments, column templates, promoted students,
+and second-language choices are copied. Grade values, old school numbers, audit entries, and
+grade 8 enrollments are not copied. Only grades 1-3 and 5-7 are promoted: Hazırlık and grade 4
+pupils wait for the school's placement, and the roster import re-attaches them by name
+(ADR-066). The promoted enrollment keeps the same student id, which is
 the longitudinal connection, and receives a fresh sequential number in the new year. A partial
 unique index permits at most one `open` semester per year; transitions lock the old semester before
 opening another.

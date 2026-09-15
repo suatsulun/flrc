@@ -5836,7 +5836,7 @@ The hardest engineering in the project is now behind you. Phases 3 and 4 are bro
 > creation, number editing, class moves, second language, column setup, and class teacher assignment
 > live in the `/classes` table workspace. The separate `/students` route redirects there. The old
 > CRUD walkthrough remains below as design history, not as code to copy. Closing a standard year
-> creates the next setup year automatically and promotes grades 1-7 with empty numbers; activation
+> creates the next setup year automatically and promotes grades 1-3 and 5-7 (ADR-066) with empty numbers; activation
 > requires those numbers to be filled. See the current models, migration
 > `a4f93b7c2d10`, and ADRs for exact assembly.
 
@@ -6363,7 +6363,7 @@ Commit: `feat(admin): roster moves and second-language switching`.
 - Advance from semester 1 → lock 1, open 2.
 - Lock semester 2 → both locked; year remains active until explicit close-year.
 - Reopen a semester → admin only, year active, lock the other semester first; the UI labels this exceptional.
-- Close year → both semesters must be locked; year becomes `archived`; no grade/admin mutations thereafter. For a standard `YYYY-YYYY` label, the same transaction idempotently creates the next setup year, copies semesters/classes/columns/assignments, promotes grades 1-7, preserves language, and assigns fresh sequential year-scoped school numbers.
+- Close year → both semesters must be locked; year becomes `archived`; no grade/admin mutations thereafter. For a standard `YYYY-YYYY` label, the same transaction idempotently creates the next setup year, copies semesters/classes/columns/assignments, promotes grades 1-3 and 5-7 (Hazırlık and grade 4 pupils await the school's placement through the roster import, ADR-066), preserves language, and assigns fresh sequential year-scoped school numbers.
 
 **Layer 3 · Exact assembly:** `src/flrc/modules/administration/lifecycle_service.py`:
 
@@ -6815,7 +6815,7 @@ Close algorithm:
 - set year archived, commit;
 - structured log `year_archived` with actor/year/digest/counts.
 
-After the archive write, invoke the rollover service before commit. Never copy grade values, audit rows, or old school numbers. Grade 8 has no next-year enrollment. Assign promoted enrollments deterministic fresh numbers from 1 upward; activation retains the `student_numbers_incomplete` guard for manually cleared or incomplete imported numbers.
+After the archive write, invoke the rollover service before commit. Never copy grade values, audit rows, or old school numbers. Grade 8 has no next-year enrollment, and Hazırlık and grade 4 pupils wait for the roster import to place them by name (ADR-066). Assign promoted enrollments deterministic fresh numbers from 1 upward; activation retains the `student_numbers_incomplete` guard for manually cleared or incomplete imported numbers.
 
 **Frontend:** lifecycle card's final button opens a three-step dialog: Download audit CSV → checkbox “I stored the export” → type year label → Archive. Read `X-Audit-SHA256` from the response and hold it in dialog state; no export, no close button. On success, surface the generated setup year and link directly to its class tables so the admin can fill new numbers.
 

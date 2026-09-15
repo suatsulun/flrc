@@ -342,7 +342,7 @@
     "title": "Academic lifecycle",
     "description": "Run year and semester transitions explicitly.",
     "automaticTitle": "The next school year is prepared automatically",
-    "automaticBody": "After semester 2 is locked and this year is archived, the next year is created with class tabs, teacher assignments, column templates, promoted students, and fresh sequential school numbers. Grades are never copied.",
+    "automaticBody": "After semester 2 is locked and this year is archived, the next year is created with class tabs, teacher assignments, column templates, promoted students, and fresh sequential school numbers. Hazırlık and grade 4 pupils wait for the school's placement: the next roster import matches them by name. Grades are never copied.",
     "setupReady": "This year is ready to activate.",
     "missingNumbers": "Assign school numbers to {{count}} students in the class tables before activation.",
     "finishActiveYear": "Finish and archive {{label}} before activating this year.",
@@ -391,6 +391,7 @@
     "counts": {
       "new_students": "New students",
       "assigned_numbers": "New year numbers assigned",
+      "placed_students": "Placed from last year",
       "renamed_students": "Renamed students",
       "new_classes": "New classes",
       "new_enrollments": "New enrollments",
@@ -440,6 +441,7 @@
     "resultHint": "You can now review students, class assignments, and grade columns in Class tables.",
     "rowActions": {
       "new_student": "New student",
+      "placed": "Place from last year",
       "new_class": "New class",
       "new_enrollment": "New enrollment",
       "assign_number": "Assign number",

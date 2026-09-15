@@ -342,7 +342,7 @@
     "title": "Akademik yaşam döngüsü",
     "description": "Yıl ve dönem geçişlerini açıkça yürütün.",
     "automaticTitle": "Sonraki eğitim yılı otomatik hazırlanır",
-    "automaticBody": "2. dönem kilitlenip bu yıl arşivlendiğinde sonraki yıl, sınıf sekmeleri, öğretmen görevleri, sütun şablonları, bir üst sınıfa geçen öğrenciler ve yeni sıralı okul numaralarıyla birlikte oluşturulur. Notlar asla kopyalanmaz.",
+    "automaticBody": "2. dönem kilitlenip bu yıl arşivlendiğinde sonraki yıl, sınıf sekmeleri, öğretmen görevleri, sütun şablonları, bir üst sınıfa geçen öğrenciler ve yeni sıralı okul numaralarıyla birlikte oluşturulur. Hazırlık ve 4. sınıf öğrencileri okulun yerleştirmesini bekler: yeni yılın listesini içe aktardığınızda adlarıyla eşleşirler. Notlar asla kopyalanmaz.",
     "setupReady": "Bu yıl etkinleştirilmeye hazır.",
     "missingNumbers": "Etkinleştirmeden önce sınıf tablolarındaki {{count}} öğrenciye okul numarası verin.",
     "finishActiveYear": "Bu yılı etkinleştirmeden önce {{label}} yılını tamamlayıp arşivleyin.",
@@ -391,6 +391,7 @@
     "counts": {
       "new_students": "Yeni öğrenci",
       "assigned_numbers": "Yeni yıl numarası atanan",
+      "placed_students": "Geçen yıldan yerleştirilen",
       "renamed_students": "Adı değişen öğrenci",
       "new_classes": "Yeni sınıf",
       "new_enrollments": "Yeni kayıt",
@@ -440,6 +441,7 @@
     "resultHint": "Artık Sınıf tabloları sayfasında öğrencileri, öğretmen atamalarını ve not sütunlarını inceleyebilirsiniz.",
     "rowActions": {
       "new_student": "Yeni öğrenci",
+      "placed": "Geçen yıldan yerleştir",
       "new_class": "Yeni sınıf",
       "new_enrollment": "Yeni kayıt",
       "assign_number": "Numara ata",

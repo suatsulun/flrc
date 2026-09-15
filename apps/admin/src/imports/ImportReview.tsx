@@ -44,6 +44,7 @@ type Filters = {
 const EMPTY_FILTERS: Filters = { q: "", grade: "", schoolClass: "", language: "", action: "" };
 const ACTIONS = [
   "new_student",
+  "placed",
   "rename",
   "move",
   "class_changed",

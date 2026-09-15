@@ -1,7 +1,7 @@
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,13 @@ from flrc.db.models import (
     User,
 )
 from flrc.db.session import get_session
+from flrc.modules.academics.class_names import (
+    MAX_GRADE,
+    MIN_GRADE,
+    SECTION_MAX_LENGTH,
+    class_label,
+    normalize_section,
+)
 from flrc.modules.auth.dependencies import require_admin
 
 router = APIRouter(prefix="/admin", tags=["admin-classes"])
@@ -39,13 +46,20 @@ class AdminClassOut(BaseModel):
 
 class ClassCreate(BaseModel):
     year_id: int
-    grade_level: int = Field(ge=1, le=8)
-    section: str = Field(min_length=1, max_length=8)
+    grade_level: int = Field(ge=MIN_GRADE, le=MAX_GRADE)
+    section: str = Field(min_length=1, max_length=SECTION_MAX_LENGTH)
+
+    @model_validator(mode="after")
+    def canonical_section(self) -> Self:
+        self.section = normalize_section(self.grade_level, self.section)
+        if not self.section:
+            raise ValueError("invalid_section")
+        return self
 
 
 class ClassPatch(BaseModel):
-    grade_level: int | None = Field(default=None, ge=1, le=8)
-    section: str | None = Field(default=None, min_length=1, max_length=8)
+    grade_level: int | None = Field(default=None, ge=MIN_GRADE, le=MAX_GRADE)
+    section: str | None = Field(default=None, min_length=1, max_length=SECTION_MAX_LENGTH)
 
 
 class AssignmentChange(BaseModel):
@@ -84,7 +98,7 @@ async def _class_out(db: AsyncSession, school_class: SchoolClass) -> AdminClassO
         year_id=school_class.year_id,
         grade_level=school_class.grade_level,
         section=school_class.section,
-        name=f"{school_class.grade_level}/{school_class.section}",
+        name=class_label(school_class.grade_level, school_class.section),
         student_count=count or 0,
     )
 
@@ -121,7 +135,7 @@ async def list_admin_classes(
             year_id=item.year_id,
             grade_level=item.grade_level,
             section=item.section,
-            name=f"{item.grade_level}/{item.section}",
+            name=class_label(item.grade_level, item.section),
             student_count=counts.get(item.id, 0),
         )
         for item in classes
@@ -136,17 +150,18 @@ async def create_admin_class(
 ) -> AdminClassOut:
     del actor
     await _writable_year(db, body.year_id)
-    section = body.section.strip().upper()
     duplicate = await db.scalar(
         select(SchoolClass.id).where(
             SchoolClass.year_id == body.year_id,
             SchoolClass.grade_level == body.grade_level,
-            SchoolClass.section == section,
+            SchoolClass.section == body.section,
         )
     )
     if duplicate is not None:
         raise HTTPException(409, {"code": "duplicate_class"})
-    school_class = SchoolClass(year_id=body.year_id, grade_level=body.grade_level, section=section)
+    school_class = SchoolClass(
+        year_id=body.year_id, grade_level=body.grade_level, section=body.section
+    )
     db.add(school_class)
     await db.commit()
     await db.refresh(school_class)
@@ -168,7 +183,11 @@ async def patch_admin_class(
     if body.grade_level is not None:
         school_class.grade_level = body.grade_level
     if body.section is not None:
-        school_class.section = body.section.strip().upper()
+        school_class.section = body.section
+    # A section is spelled by its grade: a letter for 1 to 8, a name for Hazırlık.
+    school_class.section = normalize_section(school_class.grade_level, school_class.section)
+    if not school_class.section:
+        raise HTTPException(422, {"code": "invalid_section"})
     await db.commit()
     return await _class_out(db, school_class)
 

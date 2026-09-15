@@ -72,7 +72,6 @@
     "search": "Search classes",
     "showing": "{{shown}} of {{total}}",
     "allGrades": "All",
-    "grade": "Grade {{grade}}",
     "boardMeta": "{{students}} students · {{columns}} columns",
     "openAccess": "Confirm to save",
     "noMatches": "No classes match these filters."
@@ -224,6 +223,8 @@
     "description": "Classes, rosters, and second-language choices.",
     "add": "Add class",
     "gradeLevel": "Grade",
+    "grade": "Grade {{grade}}",
+    "prep": "Prep",
     "section": "Section",
     "assignments": "Assignment matrix"
   },
@@ -273,6 +274,7 @@
     "removeStudentConfirm": "Remove {{name}} from {{className}} for this school year? This removes their enrollment and second-language selection for this year. Their student record, saved grades, and other school years are retained.",
     "studentRemoved": "Student removed from this school year’s roster.",
     "columnScope": "These columns are shared by all Grade {{grade}} classes for {{subject}} in the selected semester. Columns with saved grades are hidden when removed.",
+    "columnScopePrep": "These columns are shared by all Prep classes for {{subject}} in the selected semester. Columns with saved grades are hidden when removed.",
     "dragColumn": "Drag column {{name}}",
     "dragColumnsHint": "Drag a column’s handle onto another header to place it there. You can also use the left and right arrows."
   },
@@ -400,7 +402,6 @@
     "classTray": "Browse and move students",
     "classTrayHint": "Click a class to review it. Drag a student’s handle onto a class to move them, or use the class selector in their row.",
     "destinationGrade": "Browse grade",
-    "gradeLabel": "Grade {{grade}}",
     "allClasses": "All classes",
     "viewClass": "View {{className}} ({{count}} students)",
     "pendingMoves": "{{count}} class changes awaiting import",

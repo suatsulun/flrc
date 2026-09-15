@@ -72,7 +72,6 @@
     "search": "Klassen suchen",
     "showing": "{{shown}} von {{total}}",
     "allGrades": "Alle",
-    "grade": "Klasse {{grade}}",
     "boardMeta": "{{students}} Schüler/innen · {{columns}} Spalten",
     "openAccess": "Speichern bestätigen",
     "noMatches": "Keine Klasse passt zu diesen Filtern."
@@ -224,6 +223,8 @@
     "description": "Klassen, Klassenlisten und Zweitsprachenwahl.",
     "add": "Klasse hinzufügen",
     "gradeLevel": "Stufe",
+    "grade": "Jahrgang {{grade}}",
+    "prep": "Vorklasse",
     "section": "Zug",
     "assignments": "Zuweisungsmatrix"
   },
@@ -273,6 +274,7 @@
     "removeStudentConfirm": "{{name}} für dieses Schuljahr aus {{className}} entfernen? Einschreibung und zweite Fremdsprache dieses Jahres werden entfernt. Schülerdatensatz, gespeicherte Noten und andere Schuljahre bleiben erhalten.",
     "studentRemoved": "Schüler aus der Liste dieses Schuljahres entfernt.",
     "columnScope": "Diese Spalten gelten im gewählten Halbjahr für alle Klassen des Jahrgangs {{grade}} im Fach {{subject}}. Spalten mit gespeicherten Noten werden beim Entfernen ausgeblendet.",
+    "columnScopePrep": "Diese Spalten gelten im gewählten Halbjahr für alle Vorklassen im Fach {{subject}}. Spalten mit gespeicherten Noten werden beim Entfernen ausgeblendet.",
     "dragColumn": "Spalte {{name}} ziehen",
     "dragColumnsHint": "Ziehen Sie eine Spalte am Griff auf eine andere Überschrift. Alternativ können Sie die Pfeile nach links und rechts verwenden."
   },
@@ -400,7 +402,6 @@
     "classTray": "Klassen prüfen und Schüler verschieben",
     "classTrayHint": "Klicken Sie auf eine Klasse. Ziehen Sie einen Schüler am Griff auf die Zielklasse oder nutzen Sie die Klassenauswahl in der Zeile.",
     "destinationGrade": "Jahrgang anzeigen",
-    "gradeLabel": "Jahrgang {{grade}}",
     "allClasses": "Alle Klassen",
     "viewClass": "{{className}} anzeigen ({{count}} Schüler)",
     "pendingMoves": "{{count}} Klassenänderungen warten auf den Import",

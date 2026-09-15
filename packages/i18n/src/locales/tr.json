@@ -72,7 +72,6 @@
     "search": "Sınıf ara",
     "showing": "{{total}} içinden {{shown}}",
     "allGrades": "Tümü",
-    "grade": "{{grade}}. sınıf",
     "boardMeta": "{{students}} öğrenci · {{columns}} sütun",
     "openAccess": "Kaydetmek için onay",
     "noMatches": "Bu filtrelere uyan sınıf yok."
@@ -224,6 +223,8 @@
     "description": "Sınıflar, öğrenci listeleri ve ikinci dil seçimleri.",
     "add": "Sınıf ekle",
     "gradeLevel": "Seviye",
+    "grade": "{{grade}}. sınıf",
+    "prep": "Hazırlık",
     "section": "Şube",
     "assignments": "Görev matrisi"
   },
@@ -273,6 +274,7 @@
     "removeStudentConfirm": "{{name}} bu eğitim yılı için {{className}} sınıfından kaldırılsın mı? Bu yıla ait kaydı ve ikinci yabancı dil seçimi kaldırılır. Öğrenci kimliği, kaydedilmiş notları ve diğer eğitim yılları korunur.",
     "studentRemoved": "Öğrenci bu eğitim yılının listesinden kaldırıldı.",
     "columnScope": "Bu sütunlar, seçili dönemde {{grade}}. sınıfların tümünde {{subject}} dersi için ortaktır. Kaydedilmiş not içeren sütunlar kaldırıldığında gizlenir.",
+    "columnScopePrep": "Bu sütunlar, seçili dönemde tüm Hazırlık sınıflarında {{subject}} dersi için ortaktır. Kaydedilmiş not içeren sütunlar kaldırıldığında gizlenir.",
     "dragColumn": "{{name}} sütununu sürükle",
     "dragColumnsHint": "Sütunu yerleştirmek için tutamacını başka bir sütun başlığına sürükleyin. Sol ve sağ okları da kullanabilirsiniz."
   },
@@ -400,7 +402,6 @@
     "classTray": "Sınıfları incele ve öğrenci taşı",
     "classTrayHint": "İncelemek için bir sınıfa tıklayın. Öğrencinin tutamacını hedef sınıfa sürükleyin veya satırındaki sınıf seçiciyi kullanın.",
     "destinationGrade": "Sınıf düzeyini seç",
-    "gradeLabel": "{{grade}}. sınıf",
     "allClasses": "Tüm sınıflar",
     "viewClass": "{{className}} sınıfını incele ({{count}} öğrenci)",
     "pendingMoves": "İçe aktarılmayı bekleyen {{count}} sınıf değişikliği",

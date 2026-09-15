@@ -72,7 +72,6 @@
     "search": "Rechercher une classe",
     "showing": "{{shown}} sur {{total}}",
     "allGrades": "Tous",
-    "grade": "Niveau {{grade}}",
     "boardMeta": "{{students}} élèves · {{columns}} colonnes",
     "openAccess": "Confirmer pour enregistrer",
     "noMatches": "Aucune classe ne correspond à ces filtres."
@@ -224,6 +223,8 @@
     "description": "Classes, listes d’élèves et choix de la deuxième langue.",
     "add": "Ajouter une classe",
     "gradeLevel": "Niveau",
+    "grade": "Niveau {{grade}}",
+    "prep": "Préparatoire",
     "section": "Section",
     "assignments": "Matrice d’affectation"
   },
@@ -273,6 +274,7 @@
     "removeStudentConfirm": "Retirer {{name}} de {{className}} pour cette année scolaire ? Son inscription et son choix de deuxième langue pour cette année seront supprimés. Son dossier, ses notes enregistrées et les autres années sont conservés.",
     "studentRemoved": "Élève retiré de la liste de cette année scolaire.",
     "columnScope": "Ces colonnes sont communes à toutes les classes de niveau {{grade}} en {{subject}} pour le semestre sélectionné. Les colonnes contenant des notes sont masquées lors du retrait.",
+    "columnScopePrep": "Ces colonnes sont communes à toutes les classes préparatoires en {{subject}} pour le semestre sélectionné. Les colonnes contenant des notes sont masquées lors du retrait.",
     "dragColumn": "Déplacer la colonne {{name}}",
     "dragColumnsHint": "Glissez la poignée d’une colonne sur un autre en-tête pour la placer à cet endroit. Vous pouvez aussi utiliser les flèches gauche et droite."
   },
@@ -400,7 +402,6 @@
     "classTray": "Parcourir les classes et déplacer les élèves",
     "classTrayHint": "Cliquez sur une classe pour la vérifier. Glissez la poignée d’un élève vers sa classe ou utilisez le sélecteur de sa ligne.",
     "destinationGrade": "Afficher le niveau",
-    "gradeLabel": "Niveau {{grade}}",
     "allClasses": "Toutes les classes",
     "viewClass": "Voir {{className}} ({{count}} élèves)",
     "pendingMoves": "{{count}} changements de classe en attente d’importation",

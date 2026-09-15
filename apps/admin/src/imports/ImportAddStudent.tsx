@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { classLabel } from "@flrc/i18n";
 import type { ImportStudentAdd, PreviewClass } from "@flrc/api-client";
 import { Button } from "@flrc/ui/components/button";
 import { Input } from "@flrc/ui/components/input";
@@ -75,7 +76,7 @@ export function ImportAddStudent({
         >
           {classes.map((c) => (
             <option key={`${c.grade_level}/${c.section}`} value={`${c.grade_level}/${c.section}`}>
-              {c.grade_level}/{c.section}
+              {classLabel(c.grade_level, c.section)}
             </option>
           ))}
         </NativeSelect>

@@ -17,6 +17,12 @@ from flrc.db.models import (
     User,
 )
 from flrc.db.session import get_session
+from flrc.modules.academics.class_names import (
+    MAX_GRADE,
+    MIN_GRADE,
+    SECTION_MAX_LENGTH,
+    class_label,
+)
 from flrc.modules.administration.names import search_key
 from flrc.modules.auth.dependencies import require_admin
 from flrc.modules.imports.parser import ImportPlan, InvalidWorkbook, parse_workbook
@@ -90,12 +96,12 @@ async def compare_plan(
         for item in (await db.scalars(select(SchoolClass).where(SchoolClass.year_id == year_id)))
     }
     available_classes = set(classes) | {(row.grade_level, row.section) for row in plan.rows}
-    original_classes = {row.school_number: f"{row.grade_level}/{row.section}" for row in plan.rows}
+    original_classes = {row.school_number: (row.grade_level, row.section) for row in plan.rows}
     moves = moves or []
     edits = edits or ImportRosterEdits()
     plan = apply_roster_edits(plan, moves, edits, available_classes)
     original_classes.update(
-        {row.school_number: f"{row.grade_level}/{row.section}" for row in edits.additions}
+        {row.school_number: (row.grade_level, row.section) for row in edits.additions}
     )
     added_numbers = {row.school_number for row in edits.additions}
     language_edits = {row.school_number for row in edits.language_changes}
@@ -192,14 +198,22 @@ async def compare_plan(
         if not actions:
             counts["unchanged"] += 1
             actions.append("unchanged")
-        original_class = original_classes.get(row.school_number, f"{row.grade_level}/{row.section}")
-        if original_class != f"{row.grade_level}/{row.section}":
+        original = original_classes.get(row.school_number, (row.grade_level, row.section))
+        if original != (row.grade_level, row.section):
             actions.append("class_changed")
         if row.school_number in added_numbers:
             actions.append("manual_added")
         if row.school_number in language_edits:
             actions.append("language_edited")
-        preview_rows.append(PreviewRow(row=row, actions=actions, original_class=original_class))
+        preview_rows.append(
+            PreviewRow(
+                row=row,
+                actions=actions,
+                original_grade_level=original[0],
+                original_section=original[1],
+                original_class=class_label(*original),
+            )
+        )
     return preview_page(
         year_id=year_id,
         plan=plan,
@@ -229,8 +243,8 @@ async def dry_run_import(
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
     q: Annotated[str, Query(max_length=160)] = "",
-    grade_level: Annotated[int | None, Query(ge=1, le=8)] = None,
-    section: Annotated[str | None, Query(max_length=8)] = None,
+    grade_level: Annotated[int | None, Query(ge=MIN_GRADE, le=MAX_GRADE)] = None,
+    section: Annotated[str | None, Query(max_length=SECTION_MAX_LENGTH)] = None,
     language: ImportLanguage | None = None,
     action: ImportAction | None = None,
 ) -> ImportPreview:

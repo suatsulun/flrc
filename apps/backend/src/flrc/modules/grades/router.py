@@ -24,6 +24,7 @@ from flrc.db.models import (
     User,
 )
 from flrc.db.session import get_session
+from flrc.modules.academics.class_names import class_label
 from flrc.modules.academics.fields import VALUE_FIELD, CellValue, cell_value, pick_label
 from flrc.modules.auth.dependencies import current_user, writable_semester
 from flrc.modules.grades.permissions import require_subject_access
@@ -388,7 +389,7 @@ async def get_grid(
     return GridOut(
         meta=GridMetaOut(
             class_id=class_id,
-            class_name=f"{cls.grade_level}/{cls.section}",
+            class_name=class_label(cls.grade_level, cls.section),
             grade_level=cls.grade_level,
             subject=subject,
             year_id=year.id,

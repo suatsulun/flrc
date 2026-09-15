@@ -1,4 +1,4 @@
-import { academicContextLabels } from "@flrc/i18n";
+import { GRADES, academicContextLabels, gradeTabLabel } from "@flrc/i18n";
 import { useState, type DragEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -22,7 +22,6 @@ import { Segmented } from "@flrc/ui/components/segmented";
 import { useRefreshQueries } from "../../admin/use-refresh-queries";
 import { AdminPage } from "../../admin/AdminPage";
 
-const GRADES = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 type Role = "main" | "skills" | "german" | "french";
 type TeacherFilter = "all" | "primary" | "middle" | "german" | "french";
 
@@ -259,7 +258,7 @@ function AssignmentsPage() {
           </div>
           <Segmented
             ariaLabel={t("classes.gradeLevel")}
-            options={gradeOptions.map((item) => ({ value: item, label: String(item) }))}
+            options={gradeOptions.map((item) => ({ value: item, label: gradeTabLabel(t, item) }))}
             value={grade}
             onChange={setGrade}
             className="max-w-full"

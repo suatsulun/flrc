@@ -35,4 +35,12 @@ export const initI18n = () => {
 
 export { default as i18n } from "i18next";
 
-export { academicContextLabels, appShellLabels } from "./labels";
+export {
+  GRADES,
+  PREP_GRADE,
+  academicContextLabels,
+  appShellLabels,
+  classLabel,
+  gradeLabel,
+  gradeTabLabel,
+} from "./labels";

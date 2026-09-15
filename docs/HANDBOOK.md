@@ -6177,7 +6177,7 @@ Commit: `feat(admin): teacher allowlist and session revocation`.
 
 **Layer 1 · Nudge:** one classes endpoint, one teachers lookup, one bulk assignment PUT. Upsert each `(class, role)` pair; `null` means delete that assignment.
 
-**Layer 2 · Guide:** setup/active year can be edited; archived year is read-only. Creating a class validates grade 1-8, normalizes section to uppercase Turkish-safe text, and rejects duplicate grade+section within the year. Deleting a class is allowed only in a setup year and only if it has no enrollments, save batches, or assignments; otherwise use 409 with a reason. Assignments require active users. The bulk body is a list so Save All can commit the matrix atomically.
+**Layer 2 · Guide:** setup/active year can be edited; archived year is read-only. Creating a class validates grade 0-8 (0 is the Hazırlık year, ADR-065), spells the section by grade (an uppercase letter, or a Turkish title-case name such as Bulut for Hazırlık), and rejects duplicate grade+section within the year. Deleting a class is allowed only in a setup year and only if it has no enrollments, save batches, or assignments; otherwise use 409 with a reason. Assignments require active users. The bulk body is a list so Save All can commit the matrix atomically.
 
 **Layer 3 · Exact assembly (API contract):** `src/flrc/modules/administration/classes.py`:
 

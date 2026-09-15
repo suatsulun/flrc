@@ -1490,6 +1490,14 @@ export type PreviewRow = {
      */
     actions: Array<string>;
     /**
+     * Original Grade Level
+     */
+    original_grade_level: number;
+    /**
+     * Original Section
+     */
+    original_section: string;
+    /**
      * Original Class
      */
     original_class: string;

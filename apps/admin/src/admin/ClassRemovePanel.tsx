@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { PREP_GRADE } from "@flrc/i18n";
 import { Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -43,6 +44,11 @@ export function ClassRemovePanel({
   onColumnsChanged: () => Promise<unknown>;
 }) {
   const { t } = useTranslation();
+  const subjectLabel = t(`subjects.${subject}`);
+  const columnScope =
+    grade === PREP_GRADE
+      ? t("classWorkspace.columnScopePrep", { subject: subjectLabel })
+      : t("classWorkspace.columnScope", { grade, subject: subjectLabel });
   const [target, setTarget] = useState<Target>();
   const [search, setSearch] = useState("");
   const removeStudent = useMutation({
@@ -75,9 +81,7 @@ export function ClassRemovePanel({
           <Badge tone="neutral">{columns.filter((c) => c.is_active).length}</Badge>
         </CardHeader>
         <CardBody className="p-3">
-          <p className="mb-3 text-sm text-muted-foreground">
-            {t("classWorkspace.columnScope", { grade, subject: t(`subjects.${subject}`) })}
-          </p>
+          <p className="mb-3 text-sm text-muted-foreground">{columnScope}</p>
           <ul className="divide-y divide-border">
             {columns.map((c) => (
               <li
@@ -178,7 +182,7 @@ export function ClassRemovePanel({
         description={
           target?.kind === "student"
             ? t("classWorkspace.removeStudentConfirm", { name: target.label, className })
-            : `${t("columns.deleteConfirm", { label: target?.label })} ${t("classWorkspace.columnScope", { grade, subject: t(`subjects.${subject}`) })}`
+            : `${t("columns.deleteConfirm", { label: target?.label })} ${columnScope}`
         }
         cancelLabel={t("forms.cancel")}
         confirmLabel={t("classWorkspace.remove")}

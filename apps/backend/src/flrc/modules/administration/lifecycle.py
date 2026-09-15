@@ -27,6 +27,7 @@ from flrc.db.models import (
     User,
 )
 from flrc.db.session import get_session
+from flrc.modules.academics.class_names import class_label
 from flrc.modules.academics.programme import allows_column_type, uses_scale_only
 from flrc.modules.auth.dependencies import require_admin
 
@@ -304,7 +305,7 @@ async def _audit_payload(db: AsyncSession, year_id: int) -> bytes:
                     row.actor_name,
                     row.school_number,
                     row.student_name,
-                    f"{row.grade_level}/{row.section}",
+                    class_label(row.grade_level, row.section),
                     column.subject,
                     column.labels.get("tr", ""),
                     _value(entry.old_score, entry.old_scale, entry.old_text),

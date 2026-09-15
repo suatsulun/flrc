@@ -261,6 +261,13 @@ Columns are data. A subject, skill, term, score, observation, or scale choice is
 A grade is keyed by stable `student_id` and `column_definition_id`; its column supplies the
 semester, grade level, and subject, while enrollment supplies the class in that year. Classes are historical groupings that can change. Storing class directly on grade rows would create contradictions after roster moves.
 
+### Why is Hazırlık grade 0?
+
+The primary school's preparatory year comes before grade 1 and its classes carry names (Bulut,
+Yıldız) instead of letters. Storing it as `grade_level = 0` keeps every grade-keyed rule intact:
+column scopes, report sets, stage checks and list ordering all work on the number, and a
+`class_label` helper renders the name alone where a numbered grade shows `5/A` (ADR-065).
+
 ### Why no gender column?
 
 Gender is not required for report-card generation or grade entry. Import files may contain it; the importer should discard it. Do not store sensitive fields merely because a school spreadsheet includes them.

@@ -44,6 +44,7 @@ from weasyprint import HTML
 from weasyprint.urls import URLFetcher, URLFetcherResponse
 
 from flrc.config import settings
+from flrc.modules.academics.class_names import is_prep
 from flrc.modules.reports.branding import ReportKind, contained_file, report_branding
 from flrc.modules.reports.models import ReportCard, ReportField
 
@@ -389,6 +390,12 @@ def cut_stack_pages(cards: list[ReportCard]) -> list[dict[str, object]]:
 
 
 def primary_sheet(card: ReportCard) -> dict[str, object]:
+    # Hazırlık is the year before grade 1: the cover names it, never "0th Grade".
+    if is_prep(card.grade_level):
+        class_year_tr, class_year_en = "Hazırlık Sınıfı", "Preparatory Class"
+    else:
+        class_year_tr = f"{card.grade_level}. Sınıf"
+        class_year_en = f"{ordinal_en(card.grade_level)} Grade"
     scored = [field for field in card.fields if field.value_type != "text"]
     left, right = _split_for_columns(consecutive_blocks(scored))
     return {
@@ -396,8 +403,9 @@ def primary_sheet(card: ReportCard) -> dict[str, object]:
         "left": left,
         "right": right,
         "comments": _comments(card),
+        "title_tr": f"{card.year_label} {class_year_tr}",
         "title_en": (
-            f"{card.year_label} {ordinal_en(card.grade_level)} Grade "
+            f"{card.year_label} {class_year_en} "
             f"{ordinal_en(card.semester_number)} Term English Progress Report"
         ),
     }

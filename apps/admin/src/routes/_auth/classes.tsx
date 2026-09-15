@@ -1,5 +1,5 @@
 import { usePrefetchSiblings } from "@flrc/ui/hooks/use-prefetch-siblings";
-import { academicContextLabels } from "@flrc/i18n";
+import { GRADES, academicContextLabels, gradeTabLabel } from "@flrc/i18n";
 import type { ColumnCreate } from "@flrc/api-client";
 import {
   createAdminClassMutation,
@@ -30,7 +30,6 @@ import { ClassRosterTable } from "../../admin/ClassRosterTable";
 import { ClassTeachers } from "../../admin/ClassTeachers";
 import { useRefreshQueries } from "../../admin/use-refresh-queries";
 
-const GRADES = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 const SUBJECTS = ["english", "german", "french"] as const;
 type Subject = (typeof SUBJECTS)[number];
 type Role = ColumnCreate["owner_role"];
@@ -192,7 +191,7 @@ function ClassesPage() {
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-card xl:flex-row xl:items-center">
         <Segmented
           ariaLabel={t("classes.gradeLevel")}
-          options={GRADES.map((item) => ({ value: item, label: String(item) }))}
+          options={GRADES.map((item) => ({ value: item, label: gradeTabLabel(t, item) }))}
           value={grade}
           onChange={(next) => {
             setGrade(next);

@@ -72,7 +72,6 @@
     "search": "Sınıf ara",
     "showing": "{{total}} içinden {{shown}}",
     "allGrades": "Tümü",
-    "grade": "{{grade}}. sınıf",
     "boardMeta": "{{students}} öğrenci · {{columns}} sütun",
     "openAccess": "Kaydetmek için onay",
     "noMatches": "Bu filtrelere uyan sınıf yok."
@@ -224,6 +223,8 @@
     "description": "Sınıflar, öğrenci listeleri ve ikinci dil seçimleri.",
     "add": "Sınıf ekle",
     "gradeLevel": "Seviye",
+    "grade": "{{grade}}. sınıf",
+    "prep": "Hazırlık",
     "section": "Şube",
     "assignments": "Görev matrisi"
   },
@@ -273,6 +274,7 @@
     "removeStudentConfirm": "{{name}} bu eğitim yılı için {{className}} sınıfından kaldırılsın mı? Bu yıla ait kaydı ve ikinci yabancı dil seçimi kaldırılır. Öğrenci kimliği, kaydedilmiş notları ve diğer eğitim yılları korunur.",
     "studentRemoved": "Öğrenci bu eğitim yılının listesinden kaldırıldı.",
     "columnScope": "Bu sütunlar, seçili dönemde {{grade}}. sınıfların tümünde {{subject}} dersi için ortaktır. Kaydedilmiş not içeren sütunlar kaldırıldığında gizlenir.",
+    "columnScopePrep": "Bu sütunlar, seçili dönemde tüm Hazırlık sınıflarında {{subject}} dersi için ortaktır. Kaydedilmiş not içeren sütunlar kaldırıldığında gizlenir.",
     "dragColumn": "{{name}} sütununu sürükle",
     "dragColumnsHint": "Sütunu yerleştirmek için tutamacını başka bir sütun başlığına sürükleyin. Sol ve sağ okları da kullanabilirsiniz."
   },
@@ -340,7 +342,7 @@
     "title": "Akademik yaşam döngüsü",
     "description": "Yıl ve dönem geçişlerini açıkça yürütün.",
     "automaticTitle": "Sonraki eğitim yılı otomatik hazırlanır",
-    "automaticBody": "2. dönem kilitlenip bu yıl arşivlendiğinde sonraki yıl, sınıf sekmeleri, öğretmen görevleri, sütun şablonları, bir üst sınıfa geçen öğrenciler ve yeni sıralı okul numaralarıyla birlikte oluşturulur. Notlar asla kopyalanmaz.",
+    "automaticBody": "2. dönem kilitlenip bu yıl arşivlendiğinde sonraki yıl, sınıf sekmeleri, öğretmen görevleri, sütun şablonları, bir üst sınıfa geçen öğrenciler ve yeni sıralı okul numaralarıyla birlikte oluşturulur. Hazırlık ve 4. sınıf öğrencileri okulun yerleştirmesini bekler: yeni yılın listesini içe aktardığınızda adlarıyla eşleşirler. Notlar asla kopyalanmaz.",
     "setupReady": "Bu yıl etkinleştirilmeye hazır.",
     "missingNumbers": "Etkinleştirmeden önce sınıf tablolarındaki {{count}} öğrenciye okul numarası verin.",
     "finishActiveYear": "Bu yılı etkinleştirmeden önce {{label}} yılını tamamlayıp arşivleyin.",
@@ -389,6 +391,7 @@
     "counts": {
       "new_students": "Yeni öğrenci",
       "assigned_numbers": "Yeni yıl numarası atanan",
+      "placed_students": "Geçen yıldan yerleştirilen",
       "renamed_students": "Adı değişen öğrenci",
       "new_classes": "Yeni sınıf",
       "new_enrollments": "Yeni kayıt",
@@ -400,7 +403,6 @@
     "classTray": "Sınıfları incele ve öğrenci taşı",
     "classTrayHint": "İncelemek için bir sınıfa tıklayın. Öğrencinin tutamacını hedef sınıfa sürükleyin veya satırındaki sınıf seçiciyi kullanın.",
     "destinationGrade": "Sınıf düzeyini seç",
-    "gradeLabel": "{{grade}}. sınıf",
     "allClasses": "Tüm sınıflar",
     "viewClass": "{{className}} sınıfını incele ({{count}} öğrenci)",
     "pendingMoves": "İçe aktarılmayı bekleyen {{count}} sınıf değişikliği",
@@ -439,6 +441,7 @@
     "resultHint": "Artık Sınıf tabloları sayfasında öğrencileri, öğretmen atamalarını ve not sütunlarını inceleyebilirsiniz.",
     "rowActions": {
       "new_student": "Yeni öğrenci",
+      "placed": "Geçen yıldan yerleştir",
       "new_class": "Yeni sınıf",
       "new_enrollment": "Yeni kayıt",
       "assign_number": "Numara ata",

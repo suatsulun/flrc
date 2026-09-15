@@ -2818,7 +2818,7 @@
                 {
                   "type": "integer",
                   "maximum": 8,
-                  "minimum": 1
+                  "minimum": 0
                 },
                 {
                   "type": "null"
@@ -2835,7 +2835,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "maxLength": 8
+                  "maxLength": 32
                 },
                 {
                   "type": "null"
@@ -2874,6 +2874,7 @@
                 {
                   "enum": [
                     "new_student",
+                    "placed",
                     "rename",
                     "move",
                     "class_changed",
@@ -4220,12 +4221,12 @@
           "grade_level": {
             "type": "integer",
             "maximum": 8.0,
-            "minimum": 1.0,
+            "minimum": 0.0,
             "title": "Grade Level"
           },
           "section": {
             "type": "string",
-            "maxLength": 8,
+            "maxLength": 32,
             "minLength": 1,
             "title": "Section"
           }
@@ -4273,7 +4274,7 @@
               {
                 "type": "integer",
                 "maximum": 8.0,
-                "minimum": 1.0
+                "minimum": 0.0
               },
               {
                 "type": "null"
@@ -4285,7 +4286,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 8,
+                "maxLength": 32,
                 "minLength": 1
               },
               {
@@ -4371,7 +4372,7 @@
           "grade_level": {
             "type": "integer",
             "maximum": 8.0,
-            "minimum": 1.0,
+            "minimum": 0.0,
             "title": "Grade Level"
           },
           "subject": {
@@ -4705,7 +4706,7 @@
           "source_grade_level": {
             "type": "integer",
             "maximum": 8.0,
-            "minimum": 1.0,
+            "minimum": 0.0,
             "title": "Source Grade Level"
           },
           "source_subject": {
@@ -4720,7 +4721,7 @@
           "target_grade_level": {
             "type": "integer",
             "maximum": 8.0,
-            "minimum": 1.0,
+            "minimum": 0.0,
             "title": "Target Grade Level"
           },
           "target_subject": {
@@ -5262,12 +5263,12 @@
           "grade_level": {
             "type": "integer",
             "maximum": 8.0,
-            "minimum": 1.0,
+            "minimum": 0.0,
             "title": "Grade Level"
           },
           "section": {
             "type": "string",
-            "maxLength": 8,
+            "maxLength": 32,
             "minLength": 1,
             "title": "Section"
           }
@@ -5475,12 +5476,12 @@
           "grade_level": {
             "type": "integer",
             "maximum": 8.0,
-            "minimum": 1.0,
+            "minimum": 0.0,
             "title": "Grade Level"
           },
           "section": {
             "type": "string",
-            "maxLength": 8,
+            "maxLength": 32,
             "minLength": 1,
             "title": "Section"
           },
@@ -6020,6 +6021,14 @@
             "type": "array",
             "title": "Actions"
           },
+          "original_grade_level": {
+            "type": "integer",
+            "title": "Original Grade Level"
+          },
+          "original_section": {
+            "type": "string",
+            "title": "Original Section"
+          },
           "original_class": {
             "type": "string",
             "title": "Original Class"
@@ -6029,6 +6038,8 @@
         "required": [
           "row",
           "actions",
+          "original_grade_level",
+          "original_section",
           "original_class"
         ],
         "title": "PreviewRow"
@@ -6251,12 +6262,12 @@
           "grade_level": {
             "type": "integer",
             "maximum": 8.0,
-            "minimum": 1.0,
+            "minimum": 0.0,
             "title": "Grade Level"
           },
           "section": {
             "type": "string",
-            "maxLength": 8,
+            "maxLength": 32,
             "minLength": 1,
             "title": "Section"
           },

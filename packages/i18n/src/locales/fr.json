@@ -72,7 +72,6 @@
     "search": "Rechercher une classe",
     "showing": "{{shown}} sur {{total}}",
     "allGrades": "Tous",
-    "grade": "Niveau {{grade}}",
     "boardMeta": "{{students}} élèves · {{columns}} colonnes",
     "openAccess": "Confirmer pour enregistrer",
     "noMatches": "Aucune classe ne correspond à ces filtres."
@@ -224,6 +223,8 @@
     "description": "Classes, listes d’élèves et choix de la deuxième langue.",
     "add": "Ajouter une classe",
     "gradeLevel": "Niveau",
+    "grade": "Niveau {{grade}}",
+    "prep": "Préparatoire",
     "section": "Section",
     "assignments": "Matrice d’affectation"
   },
@@ -273,6 +274,7 @@
     "removeStudentConfirm": "Retirer {{name}} de {{className}} pour cette année scolaire ? Son inscription et son choix de deuxième langue pour cette année seront supprimés. Son dossier, ses notes enregistrées et les autres années sont conservés.",
     "studentRemoved": "Élève retiré de la liste de cette année scolaire.",
     "columnScope": "Ces colonnes sont communes à toutes les classes de niveau {{grade}} en {{subject}} pour le semestre sélectionné. Les colonnes contenant des notes sont masquées lors du retrait.",
+    "columnScopePrep": "Ces colonnes sont communes à toutes les classes préparatoires en {{subject}} pour le semestre sélectionné. Les colonnes contenant des notes sont masquées lors du retrait.",
     "dragColumn": "Déplacer la colonne {{name}}",
     "dragColumnsHint": "Glissez la poignée d’une colonne sur un autre en-tête pour la placer à cet endroit. Vous pouvez aussi utiliser les flèches gauche et droite."
   },
@@ -340,7 +342,7 @@
     "title": "Cycle de l’année scolaire",
     "description": "Exécuter explicitement les transitions d’année et de semestre.",
     "automaticTitle": "L’année scolaire suivante est préparée automatiquement",
-    "automaticBody": "Après le verrouillage du semestre 2 et l’archivage, les onglets de classe, affectations, modèles de colonnes, élèves promus et nouveaux numéros scolaires séquentiels sont préparés. Les notes ne sont jamais copiées.",
+    "automaticBody": "Après le verrouillage du semestre 2 et l’archivage, les onglets de classe, affectations, modèles de colonnes, élèves promus et nouveaux numéros scolaires séquentiels sont préparés. Les élèves de préparatoire et de 4e année attendent le placement par l’école : le prochain import de liste les rattache par leur nom. Les notes ne sont jamais copiées.",
     "setupReady": "Cette année est prête à être activée.",
     "missingNumbers": "Attribuez des numéros scolaires à {{count}} élèves dans les tableaux de classe avant l’activation.",
     "finishActiveYear": "Terminez et archivez {{label}} avant d’activer cette année.",
@@ -389,6 +391,7 @@
     "counts": {
       "new_students": "Nouveaux élèves",
       "assigned_numbers": "Nouveaux numéros attribués",
+      "placed_students": "Placés depuis l’an dernier",
       "renamed_students": "Élèves renommés",
       "new_classes": "Nouvelles classes",
       "new_enrollments": "Nouvelles inscriptions",
@@ -400,7 +403,6 @@
     "classTray": "Parcourir les classes et déplacer les élèves",
     "classTrayHint": "Cliquez sur une classe pour la vérifier. Glissez la poignée d’un élève vers sa classe ou utilisez le sélecteur de sa ligne.",
     "destinationGrade": "Afficher le niveau",
-    "gradeLabel": "Niveau {{grade}}",
     "allClasses": "Toutes les classes",
     "viewClass": "Voir {{className}} ({{count}} élèves)",
     "pendingMoves": "{{count}} changements de classe en attente d’importation",
@@ -439,6 +441,7 @@
     "resultHint": "Vous pouvez vérifier les élèves, les affectations et les colonnes de notes dans Tableaux de classe.",
     "rowActions": {
       "new_student": "Nouvel élève",
+      "placed": "Placer depuis l’an dernier",
       "new_class": "Nouvelle classe",
       "new_enrollment": "Nouvelle inscription",
       "assign_number": "Attribuer un numéro",

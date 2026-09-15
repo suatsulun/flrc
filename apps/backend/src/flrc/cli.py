@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from flrc.config import settings
 from flrc.db import models as m
 from flrc.db.sync import sync_engine
+from flrc.modules.academics.class_names import MAX_GRADE, PREP_GRADE
 from flrc.modules.academics.programme import L2_START_GRADE, allows_column_type
 from flrc.modules.administration.names import normalize_email
 from flrc.modules.auth.policy import allowed_google_domain, email_is_in_school_domain
@@ -20,6 +21,8 @@ app = typer.Typer(help="FL-ReportCard maintenance commands.")
 app.add_typer(backup_cli.app, name="backup")
 
 CORE_SECTIONS = ("A", "B", "C", "D", "E", "F")
+# Hazırlık classes are named, not lettered (ADR-065).
+PREP_SECTIONS = ("Bulut", "Yıldız", "Güneş")
 G_SECTION_GRADES = frozenset({1, 3, 5, 7})
 STUDENTS_PER_CLASS = 22
 ACADEMIC_YEARS = ("2023-2024", "2024-2025", "2025-2026", "2026-2027")
@@ -44,6 +47,8 @@ class SeedClassPlan:
 
 
 def sections_for_grade(grade_level: int) -> tuple[str, ...]:
+    if grade_level == PREP_GRADE:
+        return PREP_SECTIONS
     if grade_level in G_SECTION_GRADES:
         return (*CORE_SECTIONS, "G")
     return CORE_SECTIONS
@@ -55,7 +60,7 @@ def seed_class_plans() -> list[SeedClassPlan]:
     primary_slot = 0
     secondary_slot = 0
     language_slot = 0
-    for grade_level in range(1, 9):
+    for grade_level in range(PREP_GRADE, MAX_GRADE + 1):
         for section in sections_for_grade(grade_level):
             if grade_level <= 4:
                 english_pool = PRIMARY_ENGLISH_KEYS
@@ -530,7 +535,7 @@ def seed_columns(db: Session, semester_id: int) -> None:
                 labels=_labels("teacher_comments"),
                 position=position + 1,
             )
-    for grade in range(1, 5):
+    for grade in range(PREP_GRADE, 5):
         position = 0
         for group_key, turkish, english in PRIMARY_ROWS:
             position += 1

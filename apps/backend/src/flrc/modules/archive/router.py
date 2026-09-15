@@ -17,6 +17,7 @@ from flrc.db.models import (
     User,
 )
 from flrc.db.session import get_session
+from flrc.modules.academics.class_names import class_label
 from flrc.modules.academics.fields import cell_value, pick_label
 from flrc.modules.academics.programme import has_teacher_comments
 from flrc.modules.auth.dependencies import require_coordinator_or_admin
@@ -122,7 +123,7 @@ async def list_archive_classes(
     return [
         ArchiveClassOut(
             id=item.id,
-            name=f"{item.grade_level}/{item.section}",
+            name=class_label(item.grade_level, item.section),
             grade_level=item.grade_level,
         )
         for item in classes
@@ -200,7 +201,7 @@ async def get_archive_grid(
     )
     value_map = {(value.student_id, value.column_definition_id): value for value in values}
     return ArchiveGridOut(
-        class_name=f"{school_class.grade_level}/{school_class.section}",
+        class_name=class_label(school_class.grade_level, school_class.section),
         semester=semester,
         subject=subject,
         columns=[
@@ -300,7 +301,7 @@ async def get_student_history(
                 label=year.label,
                 year_status=year.status,
                 school_number=enrollment.school_number,
-                class_name=f"{school_class.grade_level}/{school_class.section}",
+                class_name=class_label(school_class.grade_level, school_class.section),
                 language=languages.get(year.id),
                 semesters=[
                     HistorySemester(

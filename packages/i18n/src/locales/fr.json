@@ -45,8 +45,10 @@
     "signingIn": "Ouverture de la connexion sécurisée…",
     "signInBody": "Utilisez votre compte Google scolaire autorisé pour continuer.",
     "coldStartNotice": "En dehors des heures de cours, le serveur peut mettre jusqu’à une minute à démarrer.",
-    "demoSignInBody": "Connectez-vous avec n’importe quel compte Google. Vous obtenez un compte administrateur temporaire valable au plus 24 heures ; rien de votre compte Google n’est conservé.",
-    "demoResetInfo": "L’école de démonstration est réinitialisée chaque jour à {{time}} (votre heure locale). Les modifications non enregistrées sont alors perdues.",
+    "demoAbout": "À propos de la démo",
+    "demoPrivacy": "Politique de confidentialité",
+    "demoSignInBody": "Connectez-vous avec un compte Google. Vous obtenez un compte administrateur temporaire pour 24 heures au maximum. Nous conservons une empreinte temporaire du compte, pas votre adresse e-mail Google ni votre nom.",
+    "demoResetInfo": "L’école de démonstration est réinitialisée chaque jour à {{time}} (votre heure locale). Toutes les modifications, enregistrées ou non, sont supprimées.",
     "demoResetting": "La démo est en cours de réinitialisation. La connexion sera de nouveau possible dans un instant.",
     "errors": {
       "wrong_domain": "Veuillez vous connecter avec votre compte scolaire.",

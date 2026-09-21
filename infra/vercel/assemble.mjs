@@ -35,6 +35,7 @@ mkdirSync(output, { recursive: true });
 for (const build of builds) {
   cpSync(build.source, build.target, { recursive: true });
 }
+cpSync(join(here, "static"), output, { recursive: true });
 
 // The admin app must keep /admin/ as its asset base or its scripts 404 behind the rewrites.
 const adminIndex = readFileSync(join(output, "admin", "index.html"), "utf8");

@@ -4,6 +4,30 @@ FL-ReportCard is a school report-card and grade-entry system built for teachers 
 
 This project is also a hands-on full-stack learning journey. The repository follows a step-by-step handbook and favors clear, deliberate engineering over hidden magic.
 
+## Repositories
+
+The active application repository is [suatsulun/flrc](https://github.com/suatsulun/flrc).
+
+- **Application:** `flrc` contains the shared code, generic branding, tests, migrations, and releases.
+- **School branding and deployment:** the private [suatsulun/3Mart-flrc](https://github.com/suatsulun/3Mart-flrc)
+  repository contains 3Mart's branding, private report assets, and deployment configuration.
+  Production pins the `flrc-backend` and `flrc-web` images published by `flrc`.
+- **Historical archive:** [suatsulun/fl-reportcard](https://github.com/suatsulun/fl-reportcard)
+  is archived and preserves the earlier private development history.
+
+The existing local directories are `FL-ReportCard/` for `flrc` and `flrc-school-deploy/` for
+`3Mart-flrc`. The school playground builds the sibling `../FL-ReportCard` checkout and mounts
+its own branding; its launcher accepts `--source` if the application checkout is elsewhere.
+See handbook [Step 4.9](docs/HANDBOOK.md#step-49-school-production-deployment-with-one-frontend-origin-internal-oauth-api--worker)
+and [ADR-053](docs/DECISIONS.md#adr-053-one-public-application-repository-private-deployment-overlays-released-images).
+
+## Public demo
+
+[Explore the public demo](https://flrc.suatsulun.com/demo) with a Google account. It contains
+four academic years of synthetic classes, students, grades, and comments, with class report-card
+printing and whole-year exports. The shared database returns to its golden baseline every day
+at **00:00 Europe/Istanbul**; visitor changes and sessions are cleared. Use fictional data only.
+
 ## Product shape
 
 - The teacher workspace opens directly on the grade table, with keyboard entry and visible year,

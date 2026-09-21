@@ -45,8 +45,10 @@
     "signingIn": "Sichere Anmeldung wird geöffnet…",
     "signInBody": "Verwenden Sie Ihr freigegebenes schulisches Google-Konto.",
     "coldStartNotice": "Außerhalb der Schulzeiten kann der Start des Servers bis zu einer Minute dauern.",
-    "demoSignInBody": "Melden Sie sich mit einem beliebigen Google-Konto an. Sie erhalten für höchstens 24 Stunden ein vorübergehendes Verwaltungskonto; von Ihrem Google-Konto wird nichts gespeichert.",
-    "demoResetInfo": "Die Demo-Schule wird täglich um {{time}} (Ihre Ortszeit) zurückgesetzt. Ungespeicherte Änderungen gehen dann verloren.",
+    "demoAbout": "Über die Demo",
+    "demoPrivacy": "Datenschutzerklärung",
+    "demoSignInBody": "Melden Sie sich mit einem beliebigen Google-Konto an. Sie erhalten für höchstens 24 Stunden ein vorübergehendes Verwaltungskonto. Wir speichern einen vorübergehenden Konto-Hash, nicht Ihre Google-E-Mail-Adresse oder Ihren Namen.",
+    "demoResetInfo": "Die Demo-Schule wird täglich um {{time}} (Ihre Ortszeit) zurückgesetzt. Alle gespeicherten und ungespeicherten Änderungen werden verworfen.",
     "demoResetting": "Die Demo wird gerade zurückgesetzt. Die Anmeldung ist in Kürze wieder möglich.",
     "errors": {
       "wrong_domain": "Bitte melden Sie sich mit Ihrem Schulkonto an.",
@@ -501,7 +503,7 @@
   },
   "reports": {
     "title": "Zeugniszentrale",
-    "description": "Die vier schulweiten Zeugnis-PDF-Sätze erstellen.",
+    "description": "Zeugnisse nach Schuljahr, Halbjahr und Klasse drucken.",
     "languageLabel": "Zeugnissprache",
     "openPdf": "PDF-Satz öffnen",
     "yearExport": "Export des ganzen Jahres",
@@ -535,17 +537,20 @@
       "french_karne": "Französischklassen"
     },
     "setDescriptions": {
-      "english_elementary": "Ein PDF mit einer Seite je Schüler/in aller eingerichteten Englischklassen der Grundschule.",
-      "english_middle": "Ein PDF mit einer Seite je Schüler/in aller eingerichteten Englischklassen der Mittelstufe.",
-      "german_karne": "Ein PDF für alle Schüler/innen mit Deutsch in Klassen mit eingerichteten Deutschspalten.",
-      "french_karne": "Ein PDF für alle Schüler/innen mit Französisch in Klassen mit eingerichteten Französischspalten."
+      "english_elementary": "Englische Lernberichte mit Deckblatt und Bewertungsraster für jeden Schüler.",
+      "english_middle": "Englische Lernberichte mit Bewertungspunkten und Ergebnissen der zweiten Fremdsprache.",
+      "german_karne": "Deutschzeugnisse für Schüler mit Deutschunterricht.",
+      "french_karne": "Französischzeugnisse für Schüler mit Französischunterricht."
     },
     "status": {
       "queued": "Warten auf einen Worker…",
       "running": "Wird erstellt {{progress}} / {{total}}",
       "succeeded": "Fertig",
       "failed": "Konnte nicht erstellt werden"
-    }
+    },
+    "classLabel": "Klasse",
+    "allClasses": "Alle geeigneten Klassen",
+    "classPrintingHint": "Wählen Sie eine Klasse für eine kleinere PDF-Datei. Archivierte Jahre und beide Halbjahre sind verfügbar."
   },
   "archive": {
     "tableLabel": "Archivierte Notentabelle",

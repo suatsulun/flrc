@@ -3510,6 +3510,23 @@
               "default": "tr",
               "title": "Locale"
             }
+          },
+          {
+            "name": "class_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Class Id"
+            }
           }
         ],
         "responses": {

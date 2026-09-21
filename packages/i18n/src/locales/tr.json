@@ -45,8 +45,10 @@
     "signingIn": "Güvenli giriş açılıyor…",
     "signInBody": "Devam etmek için yetkili okul Google hesabınızı kullanın.",
     "coldStartNotice": "Okul saatleri dışında sunucunun açılması bir dakika kadar sürebilir.",
-    "demoSignInBody": "Herhangi bir Google hesabıyla giriş yapın. En fazla 24 saat geçerli geçici bir yönetici hesabı alırsınız; Google hesabınıza ait hiçbir bilgi saklanmaz.",
-    "demoResetInfo": "Demo okulu her gün saat {{time}} (yerel saatiniz) geldiğinde sıfırlanır. Kaydedilmemiş değişiklikler o anda silinir.",
+    "demoAbout": "Demo hakkında",
+    "demoPrivacy": "Gizlilik politikası",
+    "demoSignInBody": "Herhangi bir Google hesabıyla giriş yapın. En fazla 24 saat geçerli geçici bir yönetici hesabı alırsınız. Google e-posta adresiniz veya adınız yerine geçici bir hesap özeti tutulur.",
+    "demoResetInfo": "Demo okulu her gün saat {{time}} (yerel saatiniz) geldiğinde sıfırlanır. Kaydedilmiş ve kaydedilmemiş tüm değişiklikler silinir.",
     "demoResetting": "Demo sıfırlanıyor. Giriş kısa süre içinde yeniden açılacak.",
     "errors": {
       "wrong_domain": "Lütfen okul hesabınızla giriş yapın.",
@@ -501,7 +503,7 @@
   },
   "reports": {
     "title": "Karne merkezi",
-    "description": "Okul genelindeki dört karne PDF setini oluşturun.",
+    "description": "Eğitim yılı, dönem ve sınıfa göre karne yazdırın.",
     "languageLabel": "Karne dili",
     "openPdf": "PDF setini aç",
     "yearExport": "Tüm yıl aktarımı",
@@ -535,17 +537,20 @@
       "french_karne": "Fransızca sınıfları"
     },
     "setDescriptions": {
-      "english_elementary": "Tanımlı her ilkokul İngilizce sınıfındaki her öğrenci için bir sayfa içeren tek PDF.",
-      "english_middle": "Tanımlı her ortaokul İngilizce sınıfındaki her öğrenci için bir sayfa içeren tek PDF.",
-      "german_karne": "Almanca sütunları tanımlı sınıflarda Almanca alan her öğrenci için tek PDF.",
-      "french_karne": "Fransızca sütunları tanımlı sınıflarda Fransızca alan her öğrenci için tek PDF."
+      "english_elementary": "Her öğrenci için kapak ve değerlendirme çizelgesi içeren İngilizce gelişim karneleri.",
+      "english_middle": "Değerlendirme puanları ve ikinci yabancı dil sonuçlarını içeren İngilizce gelişim karneleri.",
+      "german_karne": "Almanca öğrenen öğrenciler için Almanca karneleri.",
+      "french_karne": "Fransızca öğrenen öğrenciler için Fransızca karneleri."
     },
     "status": {
       "queued": "Arka plan işçisi bekleniyor…",
       "running": "Oluşturuluyor {{progress}} / {{total}}",
       "succeeded": "Hazır",
       "failed": "Oluşturulamadı"
-    }
+    },
+    "classLabel": "Sınıf",
+    "allClasses": "Uygun tüm sınıflar",
+    "classPrintingHint": "Daha küçük bir PDF için sınıf seçin. Arşiv yılları ve her iki dönem kullanılabilir."
   },
   "archive": {
     "tableLabel": "Arşivlenmiş not tablosu",

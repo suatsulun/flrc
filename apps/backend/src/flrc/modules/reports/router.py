@@ -1,7 +1,7 @@
 from typing import Annotated, Literal
 
 import httpx2
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
@@ -35,7 +35,10 @@ async def download_report_set(
     semester_id: int,
     kind: Literal["english_elementary", "english_middle", "german_karne", "french_karne"],
     locale: Literal["tr", "en", "de", "fr"] = "tr",
+    class_id: Annotated[int | None, Query(ge=1)] = None,
 ) -> Response:
+    if settings.env == "demo" and class_id is None:
+        raise HTTPException(422, {"code": "demo_report_class_required"})
     semester = await db.get(Semester, semester_id)
     if semester is None:
         raise HTTPException(404, {"code": "unknown_semester"})
@@ -45,6 +48,7 @@ async def download_report_set(
             semester_id=semester_id,
             kind=kind,
             locale=locale,
+            class_id=class_id,
         )
     )
     if not cards:

@@ -4078,6 +4078,10 @@ export type DownloadReportSetData = {
          * Locale
          */
         locale?: 'tr' | 'en' | 'de' | 'fr';
+        /**
+         * Class Id
+         */
+        class_id?: number | null;
     };
     url: '/api/reports/pdf';
 };

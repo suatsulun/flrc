@@ -31,25 +31,59 @@ test("slow PDF actions stay disabled, show progress, and restore when ready", as
   await context.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
   const page = await context.newPage();
 
-  await page.route("**/api/coordinator/overview", async (route) => {
+  await page.route("**/api/academic-years", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({
-        year_label: "Synthetic Active Year",
-        semester_id: 1,
-        semester_number: 1,
-        students: 22,
-        classes: 1,
-        active_teachers: 1,
-        active_grants: 0,
-        recent_saves: 0,
-        missing_assignments: 0,
-      }),
+      body: JSON.stringify([
+        {
+          id: 41,
+          label: "2026-2027",
+          status: "active",
+          semesters: [
+            { id: 71, number: 1, status: "open" },
+            { id: 72, number: 2, status: "locked" },
+          ],
+        },
+        {
+          id: 42,
+          label: "2023-2024",
+          status: "archived",
+          semesters: [
+            { id: 81, number: 1, status: "locked" },
+            { id: 82, number: 2, status: "locked" },
+          ],
+        },
+      ]),
+    });
+  });
+  await page.route("**/api/class-catalog**", async (route) => {
+    const archived = new URL(route.request().url()).searchParams.get("year_id") === "42";
+    await route.fulfill({
+      json: [
+        {
+          id: archived ? 32 : 31,
+          name: archived ? "3/B" : "3/A",
+          grade_level: 3,
+          section: archived ? "B" : "A",
+          subjects: [
+            {
+              subject: "english",
+              student_count: 22,
+              column_count: 14,
+              owner_roles: ["main"],
+              my_roles: [],
+              can_write: !archived,
+            },
+          ],
+        },
+      ],
     });
   });
   let pdfCompleted = false;
+  const pdfQueries: URLSearchParams[] = [];
   await page.route("**/api/reports/pdf**", async (route) => {
+    pdfQueries.push(new URL(route.request().url()).searchParams);
     await new Promise((resolve) => setTimeout(resolve, 1500));
     await route.fulfill({
       status: 200,
@@ -75,6 +109,18 @@ test("slow PDF actions stay disabled, show progress, and restore when ready", as
   await expect(page.getByText("PDF is ready in the new tab.")).toBeVisible();
   expect(pdfCompleted).toBe(true);
   expect(popup.isClosed()).toBe(false);
+  expect(pdfQueries[0].get("semester_id")).toBe("71");
+  expect(pdfQueries[0].get("class_id")).toBe("31");
+
+  await page.getByLabel("Academic year", { exact: true }).first().selectOption("42");
+  await page.getByRole("radio", { name: "S2", exact: true }).click();
+  await expect(page.getByLabel("Class", { exact: true }).first()).toHaveValue("32");
+  await expect(generate).toBeEnabled();
+  await generate.click();
+  await expect.poll(() => pdfQueries.length).toBe(2);
+  expect(pdfQueries[1].get("semester_id")).toBe("82");
+  expect(pdfQueries[1].get("class_id")).toBe("32");
+  await expect(generate).toBeEnabled();
 
   await context.close();
 });

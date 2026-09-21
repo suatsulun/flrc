@@ -72,6 +72,12 @@ do not attach the Vercel demo to that blueprint's environment settings.
 
 ## Demo visitor accounts
 
+PDF downloads in the free demo require a class selection. The Reports page supports all academic
+years and semesters, including archives, and defaults to one eligible class for each report type.
+This keeps the seeded school's large report sets below the proxy's request-time budget; a full
+primary-school set contains 1,144 pages. The optional `class_id` filter also works in school mode,
+where whole-school downloads remain available. Whole-year XLSX exports still run on the worker.
+
 `DEMO_PUBLIC_LOGIN=true` (accepted only with `ENV=demo`) lets any verified Google account sign in
 as a temporary administrator of the shared synthetic school (ADR-051). Keep
 `ALLOWED_GOOGLE_DOMAIN` on the synthetic seed domain, `example-school.k12.tr`: visitor accounts

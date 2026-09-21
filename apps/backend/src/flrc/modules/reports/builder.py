@@ -81,8 +81,10 @@ def score_average(columns: list[ColumnDefinition], values: dict[int, GradeValue]
     return round(sum(scores) / len(scores), 2) if scores else None
 
 
-def build_report_set(db: Session, *, semester_id: int, kind: str, locale: str) -> list[ReportCard]:
-    """Build an entire school report set with a fixed number of queries."""
+def build_report_set(
+    db: Session, *, semester_id: int, kind: str, locale: str, class_id: int | None = None
+) -> list[ReportCard]:
+    """Build a school or class report set with a fixed number of queries."""
     spec = REPORT_SETS.get(kind)
     if spec is None:
         raise ValueError("unknown_report_kind")
@@ -94,14 +96,15 @@ def build_report_set(db: Session, *, semester_id: int, kind: str, locale: str) -
     if year is None:
         raise ValueError("unknown_year")
 
+    class_query = select(SchoolClass).where(
+        SchoolClass.year_id == year.id,
+        SchoolClass.grade_level.between(spec.first_grade, spec.last_grade),
+    )
+    if class_id is not None:
+        class_query = class_query.where(SchoolClass.id == class_id)
     classes = list(
         db.scalars(
-            select(SchoolClass)
-            .where(
-                SchoolClass.year_id == year.id,
-                SchoolClass.grade_level.between(spec.first_grade, spec.last_grade),
-            )
-            .order_by(SchoolClass.grade_level, SchoolClass.section, SchoolClass.id)
+            class_query.order_by(SchoolClass.grade_level, SchoolClass.section, SchoolClass.id)
         )
     )
     if not classes:
@@ -118,7 +121,7 @@ def build_report_set(db: Session, *, semester_id: int, kind: str, locale: str) -
             .where(
                 ColumnDefinition.semester_id == semester.id,
                 ColumnDefinition.subject.in_(sorted(subjects)),
-                ColumnDefinition.grade_level.between(spec.first_grade, spec.last_grade),
+                ColumnDefinition.grade_level.in_({item.grade_level for item in classes}),
                 ColumnDefinition.is_active.is_(True),
             )
             .order_by(

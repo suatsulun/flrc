@@ -45,8 +45,10 @@
     "signingIn": "Sichere Anmeldung wird geöffnet…",
     "signInBody": "Verwenden Sie Ihr freigegebenes schulisches Google-Konto.",
     "coldStartNotice": "Außerhalb der Schulzeiten kann der Start des Servers bis zu einer Minute dauern.",
-    "demoSignInBody": "Melden Sie sich mit einem beliebigen Google-Konto an. Sie erhalten für höchstens 24 Stunden ein vorübergehendes Verwaltungskonto; von Ihrem Google-Konto wird nichts gespeichert.",
-    "demoResetInfo": "Die Demo-Schule wird täglich um {{time}} (Ihre Ortszeit) zurückgesetzt. Ungespeicherte Änderungen gehen dann verloren.",
+    "demoAbout": "Über die Demo",
+    "demoPrivacy": "Datenschutzerklärung",
+    "demoSignInBody": "Melden Sie sich mit einem beliebigen Google-Konto an. Sie erhalten für höchstens 24 Stunden ein vorübergehendes Verwaltungskonto. Wir speichern einen vorübergehenden Konto-Hash, nicht Ihre Google-E-Mail-Adresse oder Ihren Namen.",
+    "demoResetInfo": "Die Demo-Schule wird täglich um {{time}} (Ihre Ortszeit) zurückgesetzt. Alle gespeicherten und ungespeicherten Änderungen werden verworfen.",
     "demoResetting": "Die Demo wird gerade zurückgesetzt. Die Anmeldung ist in Kürze wieder möglich.",
     "errors": {
       "wrong_domain": "Bitte melden Sie sich mit Ihrem Schulkonto an.",

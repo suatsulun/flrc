@@ -45,8 +45,10 @@
     "signingIn": "Opening secure sign-in…",
     "signInBody": "Use your authorized school Google account to continue.",
     "coldStartNotice": "Outside school hours, the server may take up to a minute to wake.",
-    "demoSignInBody": "Sign in with any Google account. You get a temporary administrator account for up to 24 hours; nothing about your Google account is stored.",
-    "demoResetInfo": "The demo school resets every day at {{time}} (your local time). Unsaved edits are lost then.",
+    "demoAbout": "About the demo",
+    "demoPrivacy": "Privacy policy",
+    "demoSignInBody": "Sign in with any Google account. You get a temporary administrator account for up to 24 hours. We keep a temporary account hash, not your Google email or name.",
+    "demoResetInfo": "The demo school resets every day at {{time}} (your local time). All saved and unsaved edits are discarded.",
     "demoResetting": "The demo is being reset. Sign-in will be available again in a moment.",
     "errors": {
       "wrong_domain": "Please sign in with your school account.",

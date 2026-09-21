@@ -6,6 +6,9 @@
   "outputDirectory": "dist",
   "trailingSlash": false,
   "rewrites": [
+    { "source": "/demo", "destination": "/demo.html" },
+    { "source": "/privacy", "destination": "/privacy.html" },
+    { "source": "/terms", "destination": "/terms.html" },
     {
       "source": "/api/:path*",
       "destination": "https://flrc-api.onrender.com/api/:path*"

@@ -45,8 +45,10 @@
     "signingIn": "Güvenli giriş açılıyor…",
     "signInBody": "Devam etmek için yetkili okul Google hesabınızı kullanın.",
     "coldStartNotice": "Okul saatleri dışında sunucunun açılması bir dakika kadar sürebilir.",
-    "demoSignInBody": "Herhangi bir Google hesabıyla giriş yapın. En fazla 24 saat geçerli geçici bir yönetici hesabı alırsınız; Google hesabınıza ait hiçbir bilgi saklanmaz.",
-    "demoResetInfo": "Demo okulu her gün saat {{time}} (yerel saatiniz) geldiğinde sıfırlanır. Kaydedilmemiş değişiklikler o anda silinir.",
+    "demoAbout": "Demo hakkında",
+    "demoPrivacy": "Gizlilik politikası",
+    "demoSignInBody": "Herhangi bir Google hesabıyla giriş yapın. En fazla 24 saat geçerli geçici bir yönetici hesabı alırsınız. Google e-posta adresiniz veya adınız yerine geçici bir hesap özeti tutulur.",
+    "demoResetInfo": "Demo okulu her gün saat {{time}} (yerel saatiniz) geldiğinde sıfırlanır. Kaydedilmiş ve kaydedilmemiş tüm değişiklikler silinir.",
     "demoResetting": "Demo sıfırlanıyor. Giriş kısa süre içinde yeniden açılacak.",
     "errors": {
       "wrong_domain": "Lütfen okul hesabınızla giriş yapın.",

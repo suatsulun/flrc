@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy policy | FL-ReportCard public demo</title>
+    <link rel="stylesheet" href="/demo-site.css" />
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow"><a href="/demo">FL-ReportCard public demo</a></p>
+      <h1>Privacy policy</h1>
+      <p>
+        Updated 21 September 2026. This notice covers the public demo at flrc.suatsulun.com,
+        operated by Suat Sülün. It does not describe private school installations.
+      </p>
+      <h2>Google sign-in</h2>
+      <p>
+        We request Google OpenID Connect sign-in scopes (openid, email, and profile) to verify that
+        you control a verified Google account. Google sends identity claims to the server during
+        sign-in. Public visitor mode does not save your Google email address, name, picture, raw
+        Google account identifier, or Google access and refresh tokens in the application database.
+      </p>
+      <p>
+        To recognize a returning visitor during their temporary session, we store a keyed, one-way
+        hash of the Google account identifier, linked to a randomly named demo user and an expiry
+        time. This is pseudonymous identity data, not anonymous data. Google sign-in is not used to
+        access Gmail, Drive files, contacts, or calendars.
+      </p>
+      <h2>Sessions and demo activity</h2>
+      <p>
+        An essential HttpOnly cookie carries a signed session identifier; the session is held on the
+        server in Redis. Visitor accounts last at most 24 hours. The application stores your changes
+        to the fictional school, grade audit records, and export job metadata under your demo user.
+        Generated workbook downloads expire after 24 hours. Directly generated PDF reports are
+        returned to your browser; files you download remain on your device until you delete them.
+      </p>
+      <p>
+        The demo is shared: other visitors can inspect or change its school data. Do not enter real
+        student or teacher information, personal signatures, confidential comments, or other
+        sensitive information.
+      </p>
+      <h2>Retention and deletion</h2>
+      <p>
+        When the last session ends, or an expired account is encountered, the application removes
+        its identity hash and deactivates the visitor record. The scheduled daily reset restores a
+        synthetic baseline and removes visitor records, edits, and generated jobs from the active
+        demo database. It also revokes sessions. The target reset time is midnight in
+        Europe/Istanbul; free-hosting delays may cause a later catch-up reset. Infrastructure logs
+        and provider recovery history may persist beyond the active database reset under each
+        provider's retention practices.
+      </p>
+      <h2>Service providers and sharing</h2>
+      <p>
+        Google handles authentication. Vercel serves the website, Render runs the API and export
+        worker, Neon stores application data, Upstash stores sessions and queued jobs, Cloudflare
+        supplies domain DNS, and GitHub Actions schedules operations. Hosting providers may process
+        technical request information such as IP addresses and timestamps to deliver and secure
+        their services. Google identity data is used for authentication and temporary account
+        continuity, not advertising, sale, or model training. Demo edits are visible to other
+        visitors as described above.
+      </p>
+      <h2>Your choices and contact</h2>
+      <p>
+        You can explore the public information pages without signing in. Sign out to end a device's
+        session and revoke the app's connection from your
+        <a href="https://myaccount.google.com/connections">Google account settings</a>. For private
+        sign-in or deletion questions, contact the support email shown on the Google consent screen.
+        The maintainer is <a href="https://github.com/suatsulun">Suat Sülün</a>; general project
+        questions can be raised in the
+        <a href="https://github.com/suatsulun/flrc/issues">public issue tracker</a>. Never post
+        account credentials or personal school data in an issue.
+      </p>
+      <section id="turkce" lang="tr">
+        <h2>Türkçe özet</h2>
+        <p>
+          Bu politika Suat Sülün tarafından işletilen herkese açık FL-ReportCard demosunu kapsar.
+          Google, giriş sırasında hesabınızı doğrular. Ziyaretçi modunda Google e-posta adresiniz,
+          adınız, fotoğrafınız ve ham hesap kimliğiniz uygulama veritabanına kaydedilmez. Geçici
+          hesabı tanımak için anahtarlı bir hesap kimliği özeti ve son kullanma zamanı tutulur; bu
+          veri anonim değil, takma kimlikle ilişkilendirilmiş veridir.
+        </p>
+        <p>
+          Zorunlu oturum çerezi ve sunucudaki oturum en fazla 24 saatlik ziyaretçi erişimi sağlar.
+          Demo içindeki değişiklikler diğer ziyaretçilere açıktır. Gerçek öğrenci bilgisi, imza veya
+          özel not girmeyin. Günlük sıfırlama aktif veritabanını kurgusal başlangıç verilerine
+          döndürür, ziyaretçileri ve değişiklikleri siler, oturumları sonlandırır. Hedef saat
+          İstanbul saatiyle 00.00'dır; ücretsiz hizmetlerde gecikme yaşanabilir. Sağlayıcı kayıtları
+          ve kurtarma geçmişi daha uzun süre tutulabilir.
+        </p>
+        <p>
+          Google giriş için; Vercel, Render, Neon, Upstash, Cloudflare ve GitHub Actions barındırma
+          ve işletim için kullanılır. Google verileri reklam, satış veya model eğitimi için
+          kullanılmaz. Özel hesap soruları için Google onay ekranında gösterilen destek e-postasına
+          başvurun. <a href="/demo">Demo tanıtımına dönün</a>.
+        </p>
+      </section>
+      <footer>
+        <a href="/demo">About the demo</a><a href="/terms">Demo terms</a
+        ><a href="/login">Open the demo</a>
+      </footer>
+    </main>
+  </body>
+</html>

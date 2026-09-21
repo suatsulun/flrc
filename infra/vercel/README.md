@@ -41,3 +41,16 @@ curl -sI https://flrc.suatsulun.com/admin/ | grep -iE '^(HTTP|location)'   # 308
 curl -sI https://flrc.suatsulun.com/admin | grep -i '^HTTP'                  # 200
 curl -sI https://flrc.suatsulun.com/api/healthz | grep -i '^HTTP'            # 204
 ```
+
+## Google OAuth public pages
+
+The demo includes static, unauthenticated information at `/demo`, `/privacy`, and `/terms`.
+Google Auth Platform Branding can use these URLs on the demo's verified custom domain as its
+homepage, privacy policy, and terms links. The homepage describes the application and links to
+its policy; the demo login screen links to both. `assemble.mjs` copies `static/` into the web
+output, and the explicit rewrites keep these pages outside the SPA's authentication routes.
+
+Keep the policy and translated sign-in disclosure aligned with the public visitor implementation:
+a temporary keyed account hash is stored, and the nightly reset discards saved edits too.
+Google's audience publishing status must still be verified in the console before enabling public
+visitor login.

@@ -117,6 +117,17 @@ function LoginPage() {
           </CardContent>
         </Card>
 
+        {demo ? (
+          <nav className="mt-4 flex justify-center gap-4 text-xs text-muted-foreground">
+            <a href="/demo" className="underline underline-offset-4">
+              {t("auth.demoAbout")}
+            </a>
+            <a href="/privacy" className="underline underline-offset-4">
+              {t("auth.demoPrivacy")}
+            </a>
+          </nav>
+        ) : null}
+
         <div className="mt-6 flex justify-center">
           <LanguageSwitch
             language={i18n.language}

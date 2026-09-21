@@ -5,14 +5,15 @@ import { useTranslation } from "react-i18next";
 import { DownloadIcon, FileTextIcon, ExternalLinkIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import {
-  coordinatorOverviewOptions,
   createYearExportJobMutation,
   getJobOptions,
   listJobsOptions,
   listJobsQueryKey,
-  listYearsOptions,
+  listAcademicYearsOptions,
+  listClassCatalogOptions,
 } from "@flrc/api-client";
 import { Badge } from "@flrc/ui/components/badge";
+import { AcademicContextBar } from "@flrc/ui/components/academic-context-bar";
 import { Button } from "@flrc/ui/components/button";
 import { Card, CardBody, CardContent, CardHeader, CardTitle } from "@flrc/ui/components/card";
 import { Field } from "@flrc/ui/components/field";
@@ -20,6 +21,7 @@ import { NativeSelect } from "@flrc/ui/components/native-select";
 import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { Segmented } from "@flrc/ui/components/segmented";
 import { AdminPage } from "../../admin/AdminPage";
+import { academicContextLabels } from "@flrc/i18n";
 
 const JOB_KEY = "flrc-active-export-job";
 type ReportKind = "english_elementary" | "english_middle" | "german_karne" | "french_karne";
@@ -50,28 +52,52 @@ function ReportsPage() {
   const { user } = Route.useRouteContext();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { data: overview, isPending: overviewPending } = useQuery(coordinatorOverviewOptions());
-  const { data: years = [], isPending: yearsPending } = useQuery({
-    ...listYearsOptions(),
-    enabled: user.is_admin,
-  });
+  const { data: years = [], isPending: yearsPending } = useQuery(listAcademicYearsOptions());
   const { data: jobs = [], isPending: jobsPending } = useQuery(listJobsOptions());
   const [yearId, setYearId] = useState<number>();
+  const [semesterNumber, setSemesterNumber] = useState<number>();
+  const [reportClasses, setReportClasses] = useState<Partial<Record<ReportKind, number>>>({});
   const [locale, setLocale] = useState<Locale>("tr");
   const [generatingKind, setGeneratingKind] = useState<ReportKind>();
   const [jobId, setJobId] = useState<number | null>(
     () => Number(sessionStorage.getItem(JOB_KEY)) || null,
   );
-  const activeYearId = yearId ?? years[0]?.id;
-
-  const reportUrl = (kind: ReportKind) =>
-    overview?.semester_id
-      ? `/api/reports/pdf?${new URLSearchParams({
-          semester_id: String(overview.semester_id),
-          kind,
-          locale,
-        })}`
-      : null;
+  const activeYearId = yearId ?? years.find((year) => year.status === "active")?.id ?? years[0]?.id;
+  const selectedYear = years.find((year) => year.id === activeYearId);
+  const selectedSemester =
+    selectedYear?.semesters.find((term) => term.number === semesterNumber) ??
+    selectedYear?.semesters.find((term) => term.status === "open") ??
+    selectedYear?.semesters[0];
+  const { data: classes = [], isFetching: classesFetching } = useQuery({
+    ...listClassCatalogOptions({
+      query: { year_id: activeYearId, semester: selectedSemester?.number },
+    }),
+    enabled: Boolean(selectedSemester),
+  });
+  const eligibleClasses = (kind: ReportKind) => {
+    const subject =
+      kind === "german_karne" ? "german" : kind === "french_karne" ? "french" : "english";
+    return classes.filter(
+      (item) =>
+        (kind !== "english_elementary" || item.grade_level <= 4) &&
+        (kind !== "english_middle" || item.grade_level >= 5) &&
+        item.subjects.some(
+          (entry) => entry.subject === subject && entry.student_count > 0 && entry.column_count > 0,
+        ),
+    );
+  };
+  const selectedClassId = (kind: ReportKind) => {
+    if (!user.demo && reportClasses[kind] === 0) return 0;
+    const eligible = eligibleClasses(kind);
+    return eligible.find((item) => item.id === reportClasses[kind])?.id ?? eligible[0]?.id;
+  };
+  const reportUrl = (kind: ReportKind) => {
+    const classId = selectedClassId(kind);
+    if (!selectedSemester || classId === undefined || classesFetching) return null;
+    const query = new URLSearchParams({ semester_id: String(selectedSemester.id), kind, locale });
+    if (classId) query.set("class_id", String(classId));
+    return `/api/reports/pdf?${query}`;
+  };
 
   const refreshHistory = () => queryClient.invalidateQueries({ queryKey: listJobsQueryKey() });
   const remember = (id: number) => {
@@ -160,7 +186,7 @@ function ReportsPage() {
     }
   }
 
-  if (overviewPending || jobsPending || (user.is_admin && yearsPending)) {
+  if (jobsPending || yearsPending) {
     return <PageSkeleton />;
   }
 
@@ -182,6 +208,21 @@ function ReportsPage() {
         </Field>
       }
     >
+      {selectedYear ? (
+        <AcademicContextBar
+          years={years}
+          yearId={selectedYear.id}
+          semesterNumber={selectedSemester?.number ?? 1}
+          onYearChange={(next) => {
+            setYearId(next);
+            setSemesterNumber(undefined);
+            setReportClasses({});
+          }}
+          onSemesterChange={setSemesterNumber}
+          labels={academicContextLabels(t, t("classWorkspace.readOnly"))}
+        />
+      ) : null}
+      <p className="text-sm text-muted-foreground">{t("reports.classPrintingHint")}</p>
       <div className="grid gap-3 md:grid-cols-2">
         {REPORT_KINDS.map((kind) => {
           const url = reportUrl(kind);
@@ -200,6 +241,30 @@ function ReportsPage() {
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
                   {t(`reports.setDescriptions.${kind}`)}
                 </p>
+                <div className="mt-4">
+                  <Field label={t("reports.classLabel")}>
+                    {(id) => (
+                      <NativeSelect
+                        id={id}
+                        value={selectedClassId(kind) ?? ""}
+                        disabled={classesFetching || Boolean(generatingKind)}
+                        onChange={(event) =>
+                          setReportClasses((previous) => ({
+                            ...previous,
+                            [kind]: Number(event.target.value),
+                          }))
+                        }
+                      >
+                        {!user.demo ? <option value={0}>{t("reports.allClasses")}</option> : null}
+                        {eligibleClasses(kind).map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </NativeSelect>
+                    )}
+                  </Field>
+                </div>
                 <Button
                   className="mt-4 self-start"
                   size="sm"

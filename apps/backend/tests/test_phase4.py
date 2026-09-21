@@ -614,6 +614,85 @@ async def test_report_endpoint_returns_one_real_pdf_for_the_school_set(api, worl
     assert len(reader.pages) == 1
 
 
+async def test_class_report_does_not_include_another_class_or_year(world) -> None:
+    async with TestSession() as db:
+        other_class = m.SchoolClass(year_id=world.year, grade_level=5, section="B")
+        other_student = m.Student(full_name="Synthetic Outside Class", search_name="outside")
+        past_year = m.AcademicYear(label="2020-2021", status="archived")
+        db.add_all([other_class, other_student, past_year])
+        await db.flush()
+        past_class = m.SchoolClass(year_id=past_year.id, grade_level=5, section="A")
+        past_term = m.Semester(year_id=past_year.id, number=1, status="locked")
+        db.add_all([past_class, past_term])
+        await db.flush()
+        db.add_all(
+            [
+                m.Enrollment(
+                    student_id=other_student.id,
+                    year_id=world.year,
+                    class_id=other_class.id,
+                    school_number=900,
+                ),
+                m.Enrollment(
+                    student_id=world.student_one,
+                    year_id=past_year.id,
+                    class_id=past_class.id,
+                    school_number=100,
+                ),
+            ]
+        )
+        await db.commit()
+        past_class_id, past_term_id = past_class.id, past_term.id
+    with Session(create_engine(TEST_URL_SYNC)) as db:
+        cards = build_report_set(
+            db, semester_id=world.semester, kind="english_middle", locale="tr", class_id=world.cls
+        )
+        assert {card.student_name for card in cards} == {
+            "Synthetic Student One",
+            "Synthetic Student Two",
+        }
+        assert (
+            build_report_set(
+                db,
+                semester_id=world.semester,
+                kind="english_middle",
+                locale="tr",
+                class_id=past_class_id,
+            )
+            == []
+        )
+        archived = build_report_set(
+            db, semester_id=past_term_id, kind="english_middle", locale="tr", class_id=past_class_id
+        )
+        assert len(archived) == 1
+        assert archived[0].year_label == "2020-2021"
+        assert archived[0].school_number == 100
+
+
+async def test_demo_report_requires_class_and_keeps_role_guards(api, world, monkeypatch) -> None:
+    from flrc.config import settings
+
+    monkeypatch.setattr(settings, "env", "demo")
+    query = {"semester_id": world.semester, "kind": "english_middle"}
+    async with api(world.admin) as client:
+        missing = await client.get("/api/reports/pdf", params=query)
+        assert missing.status_code == 422
+        assert missing.json()["detail"]["code"] == "demo_report_class_required"
+        selected = await client.get("/api/reports/pdf", params=query | {"class_id": world.cls})
+        assert selected.status_code == 200
+        assert len(PdfReader(BytesIO(selected.content)).pages) == 1
+        assert (
+            await client.get("/api/reports/pdf", params=query | {"class_id": 0})
+        ).status_code == 422
+        assert (
+            await client.get("/api/reports/pdf", params=query | {"class_id": 999999})
+        ).status_code == 409
+    async with api(world.main) as client:
+        assert (
+            await client.get("/api/reports/pdf", params=query | {"class_id": world.cls})
+        ).status_code == 403
+
+
 async def test_year_workbook_has_seven_portable_sheets(world) -> None:
     with Session(create_engine(TEST_URL_SYNC)) as db:
         data = build_year_workbook(db, world.year)

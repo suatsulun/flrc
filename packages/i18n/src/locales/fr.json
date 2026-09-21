@@ -500,7 +500,7 @@
   },
   "reports": {
     "title": "Centre des bulletins",
-    "description": "Générer les quatre jeux de bulletins PDF pour toute l’école.",
+    "description": "Imprimez les bulletins par année scolaire, semestre et classe.",
     "languageLabel": "Langue du bulletin",
     "openPdf": "Ouvrir le jeu PDF",
     "yearExport": "Export de l’année complète",
@@ -534,17 +534,20 @@
       "french_karne": "Classes de français"
     },
     "setDescriptions": {
-      "english_elementary": "Un PDF avec une page par élève de chaque classe d’anglais du primaire configurée.",
-      "english_middle": "Un PDF avec une page par élève de chaque classe d’anglais du collège configurée.",
-      "german_karne": "Un PDF pour chaque élève suivant l’allemand dans une classe dont les colonnes d’allemand sont configurées.",
-      "french_karne": "Un PDF pour chaque élève suivant le français dans une classe dont les colonnes de français sont configurées."
+      "english_elementary": "Bulletins d’anglais avec couverture et grille d’évaluation pour chaque élève.",
+      "english_middle": "Bulletins d’anglais avec notes et résultats de la deuxième langue étrangère.",
+      "german_karne": "Bulletins d’allemand pour les élèves étudiant l’allemand.",
+      "french_karne": "Bulletins de français pour les élèves étudiant le français."
     },
     "status": {
       "queued": "En attente d’un worker…",
       "running": "Génération {{progress}} / {{total}}",
       "succeeded": "Prêt",
       "failed": "Génération impossible"
-    }
+    },
+    "classLabel": "Classe",
+    "allClasses": "Toutes les classes concernées",
+    "classPrintingHint": "Choisissez une classe pour un PDF plus petit. Les années archivées et les deux semestres sont disponibles."
   },
   "archive": {
     "tableLabel": "Tableau des notes archivées",

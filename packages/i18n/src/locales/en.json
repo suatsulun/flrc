@@ -500,7 +500,7 @@
   },
   "reports": {
     "title": "Report centre",
-    "description": "Generate the four school-wide report-card PDF sets.",
+    "description": "Print report cards by academic year, semester, and class.",
     "languageLabel": "Report language",
     "openPdf": "Open PDF set",
     "yearExport": "Whole-year export",
@@ -534,17 +534,20 @@
       "french_karne": "French classes"
     },
     "setDescriptions": {
-      "english_elementary": "One PDF with a page for every student in every configured elementary English class.",
-      "english_middle": "One PDF with a page for every student in every configured middle school English class.",
-      "german_karne": "One PDF for every student taking German in a class with German columns configured.",
-      "french_karne": "One PDF for every student taking French in a class with French columns configured."
+      "english_elementary": "English progress reports with a cover and checklist for each student.",
+      "english_middle": "English progress reports with assessment scores and second-language results.",
+      "german_karne": "German report cards for students taking German.",
+      "french_karne": "French report cards for students taking French."
     },
     "status": {
       "queued": "Waiting for a worker…",
       "running": "Generating {{progress}} / {{total}}",
       "succeeded": "Ready",
       "failed": "Could not generate"
-    }
+    },
+    "classLabel": "Class",
+    "allClasses": "All eligible classes",
+    "classPrintingHint": "Choose a class for a smaller printable PDF. Archived years and both semesters are available."
   },
   "archive": {
     "tableLabel": "Archived grade table",

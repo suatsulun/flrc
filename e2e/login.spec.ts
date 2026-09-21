@@ -27,10 +27,11 @@ test("a stalled session check releases the admin route to its login destination"
   page,
 }) => {
   await page.route("**/api/me", () => {});
-  // The admin build owns the teacher origin; intercept its destination so this
-  // guard test also works with CI's default build-time development origin.
-  await page.route("**/login", (route) =>
-    route.fulfill({ contentType: "text/html", body: "<h1>Sign-in destination</h1>" }),
+  // The teacher panel is a separate document, even on the admin panel's origin.
+  // Matching the exact path also rejects an accidental /admin/login redirect.
+  await page.route(
+    (url) => url.pathname === "/login",
+    (route) => route.fulfill({ contentType: "text/html", body: "<h1>Sign-in destination</h1>" }),
   );
   await page.goto(`${adminOrigin}/admin/`);
   await expect(page.getByRole("heading", { name: "Sign-in destination" })).toBeVisible({
@@ -39,6 +40,20 @@ test("a stalled session check releases the admin route to its login destination"
 });
 
 for (const status of [401, 503]) {
+  test(`the admin guard loads the teacher login after a ${status} session response`, async ({
+    page,
+  }) => {
+    await page.route("**/api/me", (route) =>
+      route.fulfill({ status, json: { detail: "unavailable" } }),
+    );
+    await page.route(
+      (url) => url.pathname === "/login",
+      (route) => route.fulfill({ contentType: "text/html", body: "<h1>Sign-in destination</h1>" }),
+    );
+    await page.goto(`${adminOrigin}/admin/`);
+    await expect(page.getByRole("heading", { name: "Sign-in destination" })).toBeVisible();
+  });
+
   test(`login remains usable after a ${status} session response`, async ({ page }) => {
     let checks = 0;
     await page.route("**/api/me", (route) => {
@@ -56,6 +71,24 @@ for (const status of [401, 503]) {
     expect(checks).toBe(1);
   });
 }
+
+test("the admin guard loads the teacher panel for a teacher-only session", async ({ page }) => {
+  const user: MeOut = {
+    id: 1,
+    full_name: "Synthetic Teacher",
+    email: "teacher@example-school.k12.tr",
+    is_admin: false,
+    is_coordinator: false,
+    assignments: [],
+  };
+  await page.route("**/api/me", (route) => route.fulfill({ json: user }));
+  await page.route(
+    (url) => url.pathname === "/",
+    (route) => route.fulfill({ contentType: "text/html", body: "<h1>Teacher destination</h1>" }),
+  );
+  await page.goto(`${adminOrigin}/admin/`);
+  await expect(page.getByRole("heading", { name: "Teacher destination" })).toBeVisible();
+});
 
 test("an existing session still redirects from login when its check succeeds", async ({ page }) => {
   const user: MeOut = {

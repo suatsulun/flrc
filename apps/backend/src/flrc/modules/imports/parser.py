@@ -5,11 +5,20 @@ import io
 import re
 import zipfile
 from itertools import islice
+from typing import Self
 
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
+from flrc.modules.academics.class_names import (
+    MAX_GRADE,
+    MIN_GRADE,
+    PREP_GRADE,
+    SECTION_MAX_LENGTH,
+    normalize_section,
+)
+from flrc.modules.academics.programme import L2_START_GRADE
 from flrc.modules.administration.names import search_key
 
 HEADER_ALIASES = {
@@ -22,6 +31,10 @@ HEADER_ALIASES = {
 }
 FOOTER_WORDS = ("toplam", "sınıf mevcudu", "sinif mevcudu", "öğrenci sayısı")
 CLASS_RE = re.compile(r"^\s*([1-8])\s*[-/]?\s*([A-Za-zÇĞİÖŞÜçğıöşü])\s*$")
+# Hazırlık classes have a name, not a number: "Hazırlık Bulut", "Hazırlık/Bulut"
+# or just "Bulut" (ADR-065). The prefix tolerates any Turkish or ASCII i.
+PREP_PREFIX_RE = re.compile(r"^haz[ıiİI]rl[ıiİI]k(?=$|[\s/-])", re.IGNORECASE)
+PREP_NAME_RE = re.compile(r"^[^\W\d_]+(?: [^\W\d_]+)*$")
 MAX_ARCHIVE_ENTRIES = 1_000
 MAX_ARCHIVE_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
 MAX_ARCHIVE_ENTRY_BYTES = 20 * 1024 * 1024
@@ -66,12 +79,18 @@ def validate_xlsx_container(data: bytes) -> None:
 class RowModel(BaseModel):
     school_number: int = Field(gt=0)
     full_name: str = Field(min_length=2, max_length=160)
-    grade_level: int = Field(ge=1, le=8)
-    section: str = Field(min_length=1, max_length=8)
+    grade_level: int = Field(ge=MIN_GRADE, le=MAX_GRADE)
+    section: str = Field(min_length=1, max_length=SECTION_MAX_LENGTH)
     language: str | None = None
     language_present: bool = False
     sheet: str
     row_number: int
+
+    @model_validator(mode="after")
+    def language_grade(self) -> Self:
+        if self.language and self.grade_level < L2_START_GRADE:
+            raise ValueError("language_grade_too_low")
+        return self
 
 
 class ImportIssue(BaseModel):
@@ -106,11 +125,26 @@ def header_map(values: list[object]) -> dict[str, int]:
     return found
 
 
-def parse_class(value: object) -> tuple[int, str] | None:
-    match = CLASS_RE.match(str(value or ""))
-    if not match:
+def parse_class(value: object, *, bare_prep_name: bool = True) -> tuple[int, str] | None:
+    """Read a class from a cell or worksheet title.
+
+    A bare name such as "Bulut" is a Hazırlık class only where the school
+    wrote a class, in the class column; a worksheet title is free text and
+    must carry the "Hazırlık" prefix so "Students" never becomes a class.
+    """
+    text = " ".join(str(value or "").split())
+    match = CLASS_RE.match(text)
+    if match:
+        return int(match.group(1)), normalize_section(int(match.group(1)), match.group(2))
+    prefix = PREP_PREFIX_RE.match(text)
+    if prefix:
+        text = text[prefix.end() :]
+    elif not bare_prep_name:
         return None
-    return int(match.group(1)), match.group(2).upper()
+    text = text.strip(" /-")
+    if len(text) < 2 or len(text) > SECTION_MAX_LENGTH or not PREP_NAME_RE.match(text):
+        return None
+    return PREP_GRADE, normalize_section(PREP_GRADE, text)
 
 
 def parse_language(value: object) -> str | None:
@@ -140,7 +174,7 @@ def _parse_workbook(data: bytes) -> ImportPlan:
         # caps below are counted off the data as it streams past, so they
         # cannot be talked out of by the file.
         sheet.reset_dimensions()
-        default_class = parse_class(sheet.title)
+        default_class = parse_class(sheet.title, bare_prep_name=False)
         header_row: int | None = None
         mapping: dict[str, int] = {}
         for row_number, row in enumerate(

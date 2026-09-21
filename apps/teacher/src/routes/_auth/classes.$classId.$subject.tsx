@@ -1,5 +1,5 @@
 import { usePrefetchSiblings } from "@flrc/ui/hooks/use-prefetch-siblings";
-import { academicContextLabels } from "@flrc/i18n";
+import { GRADES, academicContextLabels, gradeTabLabel } from "@flrc/i18n";
 import {
   getGridOptions,
   getGridQueryKey,
@@ -242,10 +242,7 @@ function GridPage() {
       >
         <Segmented
           ariaLabel={t("classes.gradeLevel")}
-          options={[1, 2, 3, 4, 5, 6, 7, 8].map((item) => ({
-            value: item,
-            label: String(item),
-          }))}
+          options={GRADES.map((item) => ({ value: item, label: gradeTabLabel(t, item) }))}
           value={data.meta.grade_level}
           onChange={(next) => goToBoard(next, subject)}
           size="sm"

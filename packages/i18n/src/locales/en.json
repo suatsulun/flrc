@@ -45,8 +45,10 @@
     "signingIn": "Opening secure sign-in…",
     "signInBody": "Use your authorized school Google account to continue.",
     "coldStartNotice": "Outside school hours, the server may take up to a minute to wake.",
-    "demoSignInBody": "Sign in with any Google account. You get a temporary administrator account for up to 24 hours; nothing about your Google account is stored.",
-    "demoResetInfo": "The demo school resets every day at {{time}} (your local time). Unsaved edits are lost then.",
+    "demoAbout": "About the demo",
+    "demoPrivacy": "Privacy policy",
+    "demoSignInBody": "Sign in with any Google account. You get a temporary administrator account for up to 24 hours. We keep a temporary account hash, not your Google email or name.",
+    "demoResetInfo": "The demo school resets every day at {{time}} (your local time). All saved and unsaved edits are discarded.",
     "demoResetting": "The demo is being reset. Sign-in will be available again in a moment.",
     "errors": {
       "wrong_domain": "Please sign in with your school account.",
@@ -72,7 +74,6 @@
     "search": "Search classes",
     "showing": "{{shown}} of {{total}}",
     "allGrades": "All",
-    "grade": "Grade {{grade}}",
     "boardMeta": "{{students}} students · {{columns}} columns",
     "openAccess": "Confirm to save",
     "noMatches": "No classes match these filters."
@@ -224,6 +225,8 @@
     "description": "Classes, rosters, and second-language choices.",
     "add": "Add class",
     "gradeLevel": "Grade",
+    "grade": "Grade {{grade}}",
+    "prep": "Prep",
     "section": "Section",
     "assignments": "Assignment matrix"
   },
@@ -273,6 +276,7 @@
     "removeStudentConfirm": "Remove {{name}} from {{className}} for this school year? This removes their enrollment and second-language selection for this year. Their student record, saved grades, and other school years are retained.",
     "studentRemoved": "Student removed from this school year’s roster.",
     "columnScope": "These columns are shared by all Grade {{grade}} classes for {{subject}} in the selected semester. Columns with saved grades are hidden when removed.",
+    "columnScopePrep": "These columns are shared by all Prep classes for {{subject}} in the selected semester. Columns with saved grades are hidden when removed.",
     "dragColumn": "Drag column {{name}}",
     "dragColumnsHint": "Drag a column’s handle onto another header to place it there. You can also use the left and right arrows."
   },
@@ -340,7 +344,7 @@
     "title": "Academic lifecycle",
     "description": "Run year and semester transitions explicitly.",
     "automaticTitle": "The next school year is prepared automatically",
-    "automaticBody": "After semester 2 is locked and this year is archived, the next year is created with class tabs, teacher assignments, column templates, promoted students, and fresh sequential school numbers. Grades are never copied.",
+    "automaticBody": "After semester 2 is locked and this year is archived, the next year is created with class tabs, teacher assignments, column templates, promoted students, and fresh sequential school numbers. Hazırlık and grade 4 pupils wait for the school's placement: the next roster import matches them by name. Grades are never copied.",
     "setupReady": "This year is ready to activate.",
     "missingNumbers": "Assign school numbers to {{count}} students in the class tables before activation.",
     "finishActiveYear": "Finish and archive {{label}} before activating this year.",
@@ -389,6 +393,7 @@
     "counts": {
       "new_students": "New students",
       "assigned_numbers": "New year numbers assigned",
+      "placed_students": "Placed from last year",
       "renamed_students": "Renamed students",
       "new_classes": "New classes",
       "new_enrollments": "New enrollments",
@@ -400,7 +405,6 @@
     "classTray": "Browse and move students",
     "classTrayHint": "Click a class to review it. Drag a student’s handle onto a class to move them, or use the class selector in their row.",
     "destinationGrade": "Browse grade",
-    "gradeLabel": "Grade {{grade}}",
     "allClasses": "All classes",
     "viewClass": "View {{className}} ({{count}} students)",
     "pendingMoves": "{{count}} class changes awaiting import",
@@ -439,6 +443,7 @@
     "resultHint": "You can now review students, class assignments, and grade columns in Class tables.",
     "rowActions": {
       "new_student": "New student",
+      "placed": "Place from last year",
       "new_class": "New class",
       "new_enrollment": "New enrollment",
       "assign_number": "Assign number",
@@ -498,7 +503,7 @@
   },
   "reports": {
     "title": "Report centre",
-    "description": "Generate the four school-wide report-card PDF sets.",
+    "description": "Print report cards by academic year, semester, and class.",
     "languageLabel": "Report language",
     "openPdf": "Open PDF set",
     "yearExport": "Whole-year export",
@@ -532,17 +537,20 @@
       "french_karne": "French classes"
     },
     "setDescriptions": {
-      "english_elementary": "One PDF with a page for every student in every configured elementary English class.",
-      "english_middle": "One PDF with a page for every student in every configured middle school English class.",
-      "german_karne": "One PDF for every student taking German in a class with German columns configured.",
-      "french_karne": "One PDF for every student taking French in a class with French columns configured."
+      "english_elementary": "English progress reports with a cover and checklist for each student.",
+      "english_middle": "English progress reports with assessment scores and second-language results.",
+      "german_karne": "German report cards for students taking German.",
+      "french_karne": "French report cards for students taking French."
     },
     "status": {
       "queued": "Waiting for a worker…",
       "running": "Generating {{progress}} / {{total}}",
       "succeeded": "Ready",
       "failed": "Could not generate"
-    }
+    },
+    "classLabel": "Class",
+    "allClasses": "All eligible classes",
+    "classPrintingHint": "Choose a class for a smaller printable PDF. Archived years and both semesters are available."
   },
   "archive": {
     "tableLabel": "Archived grade table",

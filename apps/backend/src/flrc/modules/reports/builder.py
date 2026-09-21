@@ -16,6 +16,7 @@ from flrc.db.models import (
     TeachingAssignment,
     User,
 )
+from flrc.modules.academics.class_names import PREP_GRADE, class_label
 from flrc.modules.academics.fields import cell_value
 from flrc.modules.academics.fields import pick_label as field_label
 from flrc.modules.reports.models import ReportCard, ReportField, ReportSigner
@@ -29,7 +30,7 @@ class ReportSetSpec:
 
 
 REPORT_SETS = {
-    "english_elementary": ReportSetSpec(subject="english", first_grade=1, last_grade=4),
+    "english_elementary": ReportSetSpec(subject="english", first_grade=PREP_GRADE, last_grade=4),
     "english_middle": ReportSetSpec(subject="english", first_grade=5, last_grade=8),
     "german_karne": ReportSetSpec(subject="german", first_grade=1, last_grade=8),
     "french_karne": ReportSetSpec(subject="french", first_grade=1, last_grade=8),
@@ -81,8 +82,10 @@ def score_average(columns: list[ColumnDefinition], values: dict[int, GradeValue]
     return round(sum(scores) / len(scores), 2) if scores else None
 
 
-def build_report_set(db: Session, *, semester_id: int, kind: str, locale: str) -> list[ReportCard]:
-    """Build an entire school report set with a fixed number of queries."""
+def build_report_set(
+    db: Session, *, semester_id: int, kind: str, locale: str, class_id: int | None = None
+) -> list[ReportCard]:
+    """Build a school or class report set with a fixed number of queries."""
     spec = REPORT_SETS.get(kind)
     if spec is None:
         raise ValueError("unknown_report_kind")
@@ -94,14 +97,15 @@ def build_report_set(db: Session, *, semester_id: int, kind: str, locale: str) -
     if year is None:
         raise ValueError("unknown_year")
 
+    class_query = select(SchoolClass).where(
+        SchoolClass.year_id == year.id,
+        SchoolClass.grade_level.between(spec.first_grade, spec.last_grade),
+    )
+    if class_id is not None:
+        class_query = class_query.where(SchoolClass.id == class_id)
     classes = list(
         db.scalars(
-            select(SchoolClass)
-            .where(
-                SchoolClass.year_id == year.id,
-                SchoolClass.grade_level.between(spec.first_grade, spec.last_grade),
-            )
-            .order_by(SchoolClass.grade_level, SchoolClass.section, SchoolClass.id)
+            class_query.order_by(SchoolClass.grade_level, SchoolClass.section, SchoolClass.id)
         )
     )
     if not classes:
@@ -118,7 +122,7 @@ def build_report_set(db: Session, *, semester_id: int, kind: str, locale: str) -
             .where(
                 ColumnDefinition.semester_id == semester.id,
                 ColumnDefinition.subject.in_(sorted(subjects)),
-                ColumnDefinition.grade_level.between(spec.first_grade, spec.last_grade),
+                ColumnDefinition.grade_level.in_({item.grade_level for item in classes}),
                 ColumnDefinition.is_active.is_(True),
             )
             .order_by(
@@ -267,7 +271,7 @@ def build_report_set(db: Session, *, semester_id: int, kind: str, locale: str) -
                     year_label=year.label,
                     semester_number=semester.number,
                     grade_level=school_class.grade_level,
-                    class_name=f"{school_class.grade_level}/{school_class.section}",
+                    class_name=class_label(school_class.grade_level, school_class.section),
                     school_number=school_numbers[student.id] or 0,
                     student_name=student.full_name,
                     subject=spec.subject,

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flrc.db.models import DemoVisitor, SchoolClass, TeachingAssignment, User
 from flrc.db.session import get_session
+from flrc.modules.academics.class_names import class_label
 from flrc.modules.auth import demo
 from flrc.modules.auth.dependencies import current_user
 from flrc.modules.demo import schedule
@@ -73,7 +74,7 @@ async def me(
         assignments=[
             AssignmentOut(
                 class_id=r.class_id,
-                class_name=f"{r.grade_level}/{r.section}",
+                class_name=class_label(r.grade_level, r.section),
                 role=r.role,
             )
             for r in rows

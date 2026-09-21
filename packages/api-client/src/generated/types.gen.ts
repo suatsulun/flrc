@@ -1490,6 +1490,14 @@ export type PreviewRow = {
      */
     actions: Array<string>;
     /**
+     * Original Grade Level
+     */
+    original_grade_level: number;
+    /**
+     * Original Section
+     */
+    original_section: string;
+    /**
      * Original Class
      */
     original_class: string;
@@ -3689,7 +3697,7 @@ export type DryRunImportData = {
         /**
          * Action
          */
-        action?: 'new_student' | 'rename' | 'move' | 'class_changed' | 'language_change' | 'unchanged' | 'manual_added' | 'language_edited' | null;
+        action?: 'new_student' | 'placed' | 'rename' | 'move' | 'class_changed' | 'language_change' | 'unchanged' | 'manual_added' | 'language_edited' | null;
     };
     url: '/api/admin/import/dry-run';
 };
@@ -4070,6 +4078,10 @@ export type DownloadReportSetData = {
          * Locale
          */
         locale?: 'tr' | 'en' | 'de' | 'fr';
+        /**
+         * Class Id
+         */
+        class_id?: number | null;
     };
     url: '/api/reports/pdf';
 };

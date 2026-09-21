@@ -3,17 +3,32 @@
 import hashlib
 import json
 from collections import Counter
-from typing import Literal
+from typing import Literal, Self
 
 from fastapi import HTTPException
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
+from flrc.modules.academics.class_names import (
+    MAX_GRADE,
+    MIN_GRADE,
+    SECTION_MAX_LENGTH,
+    normalize_section,
+)
 from flrc.modules.academics.programme import L2_START_GRADE
 from flrc.modules.administration.names import search_key
 from flrc.modules.imports.parser import ImportIssue, ImportPlan, RowModel
 
 ImportAction = Literal[
     "new_student",
+    "placed",
     "rename",
     "move",
     "class_changed",
@@ -29,13 +44,15 @@ class ImportClassMove(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     school_number: int = Field(gt=0)
-    grade_level: int = Field(ge=1, le=8)
-    section: str = Field(min_length=1, max_length=8)
+    grade_level: int = Field(ge=MIN_GRADE, le=MAX_GRADE)
+    section: str = Field(min_length=1, max_length=SECTION_MAX_LENGTH)
 
-    @field_validator("section")
-    @classmethod
-    def uppercase_section(cls, value: str) -> str:
-        return value.upper()
+    @model_validator(mode="after")
+    def canonical_section(self) -> Self:
+        self.section = normalize_section(self.grade_level, self.section)
+        if not self.section:
+            raise ValueError("invalid_section")
+        return self
 
 
 class ImportStudentAdd(ImportClassMove):
@@ -69,6 +86,9 @@ class ImportRosterEdits(BaseModel):
 class PreviewRow(BaseModel):
     row: RowModel
     actions: list[str]
+    original_grade_level: int
+    original_section: str
+    # The display label of the original class, for messages.
     original_class: str
 
 
@@ -131,9 +151,11 @@ def apply_roster_edits(
     removed = set(edits.removed_school_numbers)
     if len(removed) != len(edits.removed_school_numbers) or not removed.issubset(rows):
         raise HTTPException(422, {"code": "invalid_import_student"})
-    return plan.model_copy(
-        update={"rows": [row for number, row in rows.items() if number not in removed]}
-    )
+    remaining = [row for number, row in rows.items() if number not in removed]
+    # Class overrides use model_copy, so recheck the final placement after language edits.
+    if any(row.language and row.grade_level < L2_START_GRADE for row in remaining):
+        raise HTTPException(422, {"code": "language_grade_too_low"})
+    return plan.model_copy(update={"rows": remaining})
 
 
 def parse_class_moves(value: str) -> list[ImportClassMove]:
@@ -217,7 +239,7 @@ def preview_page(
             or needle in str(item.row.school_number)
         )
         and (grade_level is None or item.row.grade_level == grade_level)
-        and (section is None or item.row.section == section.upper())
+        and (section is None or search_key(item.row.section) == search_key(section))
         and (language is None or (item.row.language or "none") == language)
         and (action is None or action in item.actions)
     ]

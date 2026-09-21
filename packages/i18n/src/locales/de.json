@@ -45,8 +45,10 @@
     "signingIn": "Sichere Anmeldung wird geöffnet…",
     "signInBody": "Verwenden Sie Ihr freigegebenes schulisches Google-Konto.",
     "coldStartNotice": "Außerhalb der Schulzeiten kann der Start des Servers bis zu einer Minute dauern.",
-    "demoSignInBody": "Melden Sie sich mit einem beliebigen Google-Konto an. Sie erhalten für höchstens 24 Stunden ein vorübergehendes Verwaltungskonto; von Ihrem Google-Konto wird nichts gespeichert.",
-    "demoResetInfo": "Die Demo-Schule wird täglich um {{time}} (Ihre Ortszeit) zurückgesetzt. Ungespeicherte Änderungen gehen dann verloren.",
+    "demoAbout": "Über die Demo",
+    "demoPrivacy": "Datenschutzerklärung",
+    "demoSignInBody": "Melden Sie sich mit einem beliebigen Google-Konto an. Sie erhalten für höchstens 24 Stunden ein vorübergehendes Verwaltungskonto. Wir speichern einen vorübergehenden Konto-Hash, nicht Ihre Google-E-Mail-Adresse oder Ihren Namen.",
+    "demoResetInfo": "Die Demo-Schule wird täglich um {{time}} (Ihre Ortszeit) zurückgesetzt. Alle gespeicherten und ungespeicherten Änderungen werden verworfen.",
     "demoResetting": "Die Demo wird gerade zurückgesetzt. Die Anmeldung ist in Kürze wieder möglich.",
     "errors": {
       "wrong_domain": "Bitte melden Sie sich mit Ihrem Schulkonto an.",
@@ -72,7 +74,6 @@
     "search": "Klassen suchen",
     "showing": "{{shown}} von {{total}}",
     "allGrades": "Alle",
-    "grade": "Klasse {{grade}}",
     "boardMeta": "{{students}} Schüler/innen · {{columns}} Spalten",
     "openAccess": "Speichern bestätigen",
     "noMatches": "Keine Klasse passt zu diesen Filtern."
@@ -224,6 +225,8 @@
     "description": "Klassen, Klassenlisten und Zweitsprachenwahl.",
     "add": "Klasse hinzufügen",
     "gradeLevel": "Stufe",
+    "grade": "Jahrgang {{grade}}",
+    "prep": "Vorklasse",
     "section": "Zug",
     "assignments": "Zuweisungsmatrix"
   },
@@ -273,6 +276,7 @@
     "removeStudentConfirm": "{{name}} für dieses Schuljahr aus {{className}} entfernen? Einschreibung und zweite Fremdsprache dieses Jahres werden entfernt. Schülerdatensatz, gespeicherte Noten und andere Schuljahre bleiben erhalten.",
     "studentRemoved": "Schüler aus der Liste dieses Schuljahres entfernt.",
     "columnScope": "Diese Spalten gelten im gewählten Halbjahr für alle Klassen des Jahrgangs {{grade}} im Fach {{subject}}. Spalten mit gespeicherten Noten werden beim Entfernen ausgeblendet.",
+    "columnScopePrep": "Diese Spalten gelten im gewählten Halbjahr für alle Vorklassen im Fach {{subject}}. Spalten mit gespeicherten Noten werden beim Entfernen ausgeblendet.",
     "dragColumn": "Spalte {{name}} ziehen",
     "dragColumnsHint": "Ziehen Sie eine Spalte am Griff auf eine andere Überschrift. Alternativ können Sie die Pfeile nach links und rechts verwenden."
   },
@@ -340,7 +344,7 @@
     "title": "Akademischer Jahreslauf",
     "description": "Jahres- und Halbjahresübergänge ausdrücklich ausführen.",
     "automaticTitle": "Das nächste Schuljahr wird automatisch vorbereitet",
-    "automaticBody": "Nach Sperrung des zweiten Halbjahres und Archivierung werden Klassenreiter, Lehrkräfte, Spaltenvorlagen, versetzte Lernende und neue fortlaufende Schulnummern vorbereitet. Bewertungen werden nie kopiert.",
+    "automaticBody": "Nach Sperrung des zweiten Halbjahres und Archivierung werden Klassenreiter, Lehrkräfte, Spaltenvorlagen, versetzte Lernende und neue fortlaufende Schulnummern vorbereitet. Vorklassen- und Viertklässler warten auf die Einteilung durch die Schule: der nächste Listenimport ordnet sie nach Namen zu. Bewertungen werden nie kopiert.",
     "setupReady": "Dieses Jahr kann aktiviert werden.",
     "missingNumbers": "Vergeben Sie vor der Aktivierung für {{count}} Lernende Schulnummern in den Klassentabellen.",
     "finishActiveYear": "Schließen und archivieren Sie {{label}}, bevor Sie dieses Jahr aktivieren.",
@@ -389,6 +393,7 @@
     "counts": {
       "new_students": "Neue Schüler/innen",
       "assigned_numbers": "Neue Schulnummern vergeben",
+      "placed_students": "Aus dem Vorjahr eingeteilt",
       "renamed_students": "Umbenannt",
       "new_classes": "Neue Klassen",
       "new_enrollments": "Neue Einschreibungen",
@@ -400,7 +405,6 @@
     "classTray": "Klassen prüfen und Schüler verschieben",
     "classTrayHint": "Klicken Sie auf eine Klasse. Ziehen Sie einen Schüler am Griff auf die Zielklasse oder nutzen Sie die Klassenauswahl in der Zeile.",
     "destinationGrade": "Jahrgang anzeigen",
-    "gradeLabel": "Jahrgang {{grade}}",
     "allClasses": "Alle Klassen",
     "viewClass": "{{className}} anzeigen ({{count}} Schüler)",
     "pendingMoves": "{{count}} Klassenänderungen warten auf den Import",
@@ -439,6 +443,7 @@
     "resultHint": "Prüfen Sie Schüler, Lehrerzuordnungen und Notenspalten unter Klassentabellen.",
     "rowActions": {
       "new_student": "Neuer Schüler",
+      "placed": "Aus dem Vorjahr einteilen",
       "new_class": "Neue Klasse",
       "new_enrollment": "Neue Einschreibung",
       "assign_number": "Nummer zuweisen",
@@ -498,7 +503,7 @@
   },
   "reports": {
     "title": "Zeugniszentrale",
-    "description": "Die vier schulweiten Zeugnis-PDF-Sätze erstellen.",
+    "description": "Zeugnisse nach Schuljahr, Halbjahr und Klasse drucken.",
     "languageLabel": "Zeugnissprache",
     "openPdf": "PDF-Satz öffnen",
     "yearExport": "Export des ganzen Jahres",
@@ -532,17 +537,20 @@
       "french_karne": "Französischklassen"
     },
     "setDescriptions": {
-      "english_elementary": "Ein PDF mit einer Seite je Schüler/in aller eingerichteten Englischklassen der Grundschule.",
-      "english_middle": "Ein PDF mit einer Seite je Schüler/in aller eingerichteten Englischklassen der Mittelstufe.",
-      "german_karne": "Ein PDF für alle Schüler/innen mit Deutsch in Klassen mit eingerichteten Deutschspalten.",
-      "french_karne": "Ein PDF für alle Schüler/innen mit Französisch in Klassen mit eingerichteten Französischspalten."
+      "english_elementary": "Englische Lernberichte mit Deckblatt und Bewertungsraster für jeden Schüler.",
+      "english_middle": "Englische Lernberichte mit Bewertungspunkten und Ergebnissen der zweiten Fremdsprache.",
+      "german_karne": "Deutschzeugnisse für Schüler mit Deutschunterricht.",
+      "french_karne": "Französischzeugnisse für Schüler mit Französischunterricht."
     },
     "status": {
       "queued": "Warten auf einen Worker…",
       "running": "Wird erstellt {{progress}} / {{total}}",
       "succeeded": "Fertig",
       "failed": "Konnte nicht erstellt werden"
-    }
+    },
+    "classLabel": "Klasse",
+    "allClasses": "Alle geeigneten Klassen",
+    "classPrintingHint": "Wählen Sie eine Klasse für eine kleinere PDF-Datei. Archivierte Jahre und beide Halbjahre sind verfügbar."
   },
   "archive": {
     "tableLabel": "Archivierte Notentabelle",

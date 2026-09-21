@@ -62,6 +62,17 @@ checked historical checklist are not proof that the working tree is tested, rele
 
 Project name: **FL-ReportCard**.
 
+The active application repository is [suatsulun/flrc](https://github.com/suatsulun/flrc), tracked
+by this checkout's `origin`. [suatsulun/fl-reportcard](https://github.com/suatsulun/fl-reportcard)
+is the archived private history, retained as the `archive` remote. New application work belongs
+in `flrc`.
+
+The private [suatsulun/3Mart-flrc](https://github.com/suatsulun/3Mart-flrc) repository owns the
+school's branding, private report assets, and deployment configuration (ADR-053 and ADR-058).
+Its existing local checkout is the sibling `../flrc-school-deploy`; its local launcher builds
+`../FL-ReportCard`, while production pins the images released from `flrc`. Preserve that local
+source-path connection when moving or renaming either checkout.
+
 Purpose: a school report-card and grade-entry system with teacher and admin interfaces, Google Workspace login, report generation, auditability, and school-owned backups.
 
 Repository shape:

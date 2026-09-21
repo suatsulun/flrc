@@ -33,8 +33,8 @@ import { LOGO_URL, SCHOOL_SHORT_NAME } from "@flrc/branding";
 const configuredTeacherUrl =
   import.meta.env.VITE_TEACHER_URL ?? (import.meta.env.DEV ? "http://localhost:5173/" : "/");
 
-// The teacher panel is a separate SPA, so its links must be absolute URLs: TanStack
-// Router performs a full navigation only for an href that parses as a URL.
+// The teacher panel is a separate SPA, even when both panels share an origin.
+// Its route-guard redirects must explicitly reload the document.
 function teacherHref(path: string): string {
   return new URL(path, new URL(configuredTeacherUrl, window.location.origin)).href;
 }
@@ -42,9 +42,10 @@ function teacherHref(path: string): string {
 export const Route = createFileRoute("/_auth")({
   beforeLoad: async ({ context }) => {
     const user = await context.queryClient.ensureQueryData(sessionOptions()).catch(() => {
-      throw redirect({ href: teacherHref("/login") });
+      throw redirect({ href: teacherHref("/login"), reloadDocument: true });
     });
-    if (!user.is_admin && !user.is_coordinator) throw redirect({ href: teacherHref("/") });
+    if (!user.is_admin && !user.is_coordinator)
+      throw redirect({ href: teacherHref("/"), reloadDocument: true });
     return { user };
   },
   component: AdminLayout,

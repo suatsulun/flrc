@@ -12,14 +12,18 @@ workbook = Workbook()
 sheet = workbook.active
 sheet.title = "Students"
 sheet.append(["Okul No", "Ad Soyad", "Sınıf/Şube", "2. Yabancı Dil"])
-grade = 4 if "--grade-four" in sys.argv else 5
-for index in range(1, 206):
-    sheet.append([
-        78000 + index,
-        "İpek Işık" if index == 205 else f"{fake.first_name()} {fake.last_name()}",
-        f"{grade}/A" if index <= 120 else f"{grade}/B" if index <= 180 else "6/A",
-        "Almanca" if index % 2 == 0 else "Fransızca",
-    ])
+if "--prep" in sys.argv:
+    for index, name in enumerate(("Bulut", "Bulut", "Hazırlık Yıldız"), start=1):
+        sheet.append([79000 + index, f"Synthetic Prep {index}", name, None])
+else:
+    grade = 4 if "--grade-four" in sys.argv else 5
+    for index in range(1, 206):
+        sheet.append([
+            78000 + index,
+            "İpek Işık" if index == 205 else f"{fake.first_name()} {fake.last_name()}",
+            f"{grade}/A" if index <= 120 else f"{grade}/B" if index <= 180 else "6/A",
+            "Almanca" if index % 2 == 0 else "Fransızca",
+        ])
 output = io.BytesIO()
 workbook.save(output)
 sys.stdout.buffer.write(output.getvalue())

@@ -31,6 +31,51 @@ def roster_file(rows=None):
     return {"file": ("synthetic-review.xlsx", buffer.getvalue())}
 
 
+async def test_removed_manual_addition_is_omitted_from_identity_matching(api, world):
+    files = roster_file([[70001, "Synthetic Kept Pupil", "5/A", None]])
+    edits = {
+        "additions": [
+            {
+                "school_number": 70002,
+                "full_name": "Synthetic Removed Pupil",
+                "grade_level": 5,
+                "section": "A",
+            }
+        ],
+        "removed_school_numbers": [70002],
+    }
+    async with api(world.admin) as client:
+        preview = await client.post(
+            "/api/admin/import/dry-run",
+            params={"year_id": world.year},
+            files=files,
+            data={"roster_edits": json.dumps(edits)},
+        )
+        assert preview.status_code == 200, preview.text
+        body = preview.json()
+        assert [item["row"]["school_number"] for item in body["rows"]] == [70001]
+        committed = await client.post(
+            "/api/admin/import/commit",
+            params={
+                "year_id": world.year,
+                "expected_sha256": body["sha256"],
+                "expected_review_sha256": body["review_sha256"],
+            },
+            files=files,
+            data={"roster_edits": json.dumps(edits)},
+        )
+        assert committed.status_code == 200, committed.text
+    async with TestSession() as db:
+        assert (
+            await db.scalar(
+                select(m.Enrollment.id).where(
+                    m.Enrollment.year_id == world.year, m.Enrollment.school_number == 70002
+                )
+            )
+            is None
+        )
+
+
 async def test_review_pages_cover_every_student_and_filters_search_beyond_first_page(api, world):
     files = roster_file()
     async with api(world.admin) as client:

@@ -16,6 +16,7 @@ from flrc.db.models import (
     TeachingAssignment,
     User,
 )
+from flrc.modules.academics.class_names import PREP_GRADE, class_label
 from flrc.modules.academics.fields import cell_value
 from flrc.modules.academics.fields import pick_label as field_label
 from flrc.modules.reports.models import ReportCard, ReportField, ReportSigner
@@ -29,7 +30,7 @@ class ReportSetSpec:
 
 
 REPORT_SETS = {
-    "english_elementary": ReportSetSpec(subject="english", first_grade=1, last_grade=4),
+    "english_elementary": ReportSetSpec(subject="english", first_grade=PREP_GRADE, last_grade=4),
     "english_middle": ReportSetSpec(subject="english", first_grade=5, last_grade=8),
     "german_karne": ReportSetSpec(subject="german", first_grade=1, last_grade=8),
     "french_karne": ReportSetSpec(subject="french", first_grade=1, last_grade=8),
@@ -270,7 +271,7 @@ def build_report_set(
                     year_label=year.label,
                     semester_number=semester.number,
                     grade_level=school_class.grade_level,
-                    class_name=f"{school_class.grade_level}/{school_class.section}",
+                    class_name=class_label(school_class.grade_level, school_class.section),
                     school_number=school_numbers[student.id] or 0,
                     student_name=student.full_name,
                     subject=spec.subject,

@@ -1,5 +1,23 @@
 # Security audit (2026-09-07)
 
+## Repository review follow-up (2026-09-15)
+
+The Hazırlık branch review found two additional authorization failures in grade undo: opening a
+new semester allowed a previous semester's save to be undone, and a pupil's move to another class
+did not remove the original teacher's ability to undo their grade. Undo now checks the batch's
+columns against the current open semester and grade, rejects inactive columns, and checks every
+pupil against the current class/subject roster. Batch locking serializes simultaneous undo
+requests. Grade-save insert-conflict recovery also reacquires the row lock before updating.
+
+Regression evidence is in `tests/test_grades.py`: the locked-term and moved-pupil tests both
+failed against the prior implementation and pass with the authorization checks.
+
+The import review also prevented histories being attached to an unrelated namesake across
+school stages, missing years, or duplicate incoming names. Preview and commit now share one
+matcher, described in ADR-066. No new dependency, data processor, or schema change was introduced
+by these follow-up fixes. Test and scan results for this review are recorded in the pull request;
+the historical audit below does not describe production deployment state.
+
 ## Source follow-up (2026-09-11)
 
 The findings below preserve the 2026-09-07 audit context; their line references and branch-specific

@@ -290,6 +290,40 @@ async def test_undo_does_not_clobber_later_writer(api, world):
     assert response.json()["conflicts"][0]["current_value"] == 90
 
 
+async def test_undo_cannot_change_a_locked_term_when_the_next_term_is_open(api, world):
+    await save_grid(api, world.main, world.cls, [cell(world.student_one, world.main_column, 85)])
+    async with TestSession() as db:
+        await db.execute(
+            update(m.Semester).where(m.Semester.id == world.semester).values(status="locked")
+        )
+        db.add(m.Semester(year_id=world.year, number=2, status="open"))
+        await db.commit()
+    response = await _undo(api, world.main, world.cls)
+    assert response.status_code == 409
+    async with TestSession() as db:
+        grade = (await db.scalars(select(m.GradeValue))).one()
+        assert grade.score == 85 and grade.version == 1
+        assert not (await db.scalars(select(m.SaveBatch))).one().undone
+
+
+async def test_undo_cannot_change_a_student_who_left_the_assigned_class(api, world):
+    await save_grid(api, world.main, world.cls, [cell(world.student_one, world.main_column, 85)])
+    async with TestSession() as db:
+        other_class = m.SchoolClass(year_id=world.year, grade_level=5, section="B")
+        db.add(other_class)
+        await db.flush()
+        await db.execute(
+            update(m.Enrollment)
+            .where(m.Enrollment.student_id == world.student_one)
+            .values(class_id=other_class.id)
+        )
+        await db.commit()
+    response = await _undo(api, world.main, world.cls)
+    assert response.status_code == 409
+    async with TestSession() as db:
+        assert (await db.scalars(select(m.GradeValue))).one().score == 85
+
+
 async def test_audit_requires_admin_and_exports_csv(api, world):
     await save_grid(
         api,

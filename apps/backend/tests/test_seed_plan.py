@@ -6,22 +6,26 @@ from flrc.cli import (
     FRENCH_KEYS,
     G_SECTION_GRADES,
     GERMAN_KEYS,
+    PREP_SECTIONS,
     PRIMARY_ENGLISH_KEYS,
     SECONDARY_ENGLISH_KEYS,
     STUDENTS_PER_CLASS,
     seed_class_plans,
 )
+from flrc.modules.academics.class_names import PREP_GRADE
 
 
 def test_seed_plan_matches_school_size_and_staff_boundaries() -> None:
     plans = seed_class_plans()
 
     assert len(ACADEMIC_YEARS) == 4
-    assert len(plans) == 52
-    assert len(plans) * STUDENTS_PER_CLASS == 1_144
+    assert len(plans) == 55
+    assert len(plans) * STUDENTS_PER_CLASS == 1_210
     assert Counter(plan.grade_level for plan in plans) == {
-        grade: 7 if grade in G_SECTION_GRADES else 6 for grade in range(1, 9)
+        PREP_GRADE: len(PREP_SECTIONS),
+        **{grade: 7 if grade in G_SECTION_GRADES else 6 for grade in range(1, 9)},
     }
+    assert {plan.section for plan in plans if plan.grade_level == PREP_GRADE} == set(PREP_SECTIONS)
     assert all(
         {plan.section for plan in plans if plan.grade_level == grade}.issuperset(CORE_SECTIONS)
         for grade in range(1, 9)

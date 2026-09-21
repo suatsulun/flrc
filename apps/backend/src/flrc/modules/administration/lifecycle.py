@@ -27,7 +27,8 @@ from flrc.db.models import (
     User,
 )
 from flrc.db.session import get_session
-from flrc.modules.academics.programme import allows_column_type, uses_scale_only
+from flrc.modules.academics.class_names import class_label
+from flrc.modules.academics.programme import allows_column_type, carries_over, uses_scale_only
 from flrc.modules.auth.dependencies import require_admin
 
 router = APIRouter(prefix="/admin/years", tags=["admin-lifecycle"])
@@ -304,7 +305,7 @@ async def _audit_payload(db: AsyncSession, year_id: int) -> bytes:
                     row.actor_name,
                     row.school_number,
                     row.student_name,
-                    f"{row.grade_level}/{row.section}",
+                    class_label(row.grade_level, row.section),
                     column.subject,
                     column.labels.get("tr", ""),
                     _value(entry.old_score, entry.old_scale, entry.old_text),
@@ -336,7 +337,9 @@ async def _create_rollover_year(
 
     Class structure, teacher assignments, column templates, and second-language
     choices are copied. Grades and school numbers are deliberately not copied.
-    Grade-eight students are left unenrolled because they have graduated.
+    Grade-eight students are left unenrolled because they have graduated, and
+    Hazırlık and grade-four students wait for the school's placement into
+    grade 1 and grade 5, which the roster import applies (ADR-066).
     """
 
     label = _next_year_label(source.label)
@@ -441,7 +444,7 @@ async def _create_rollover_year(
     next_school_number = 1
     for enrollment in enrollments:
         old_class = class_by_id[enrollment.class_id]
-        if old_class.grade_level >= 8:
+        if not carries_over(old_class.grade_level):
             continue
         next_class = target_classes.get((old_class.grade_level + 1, old_class.section))
         if next_class is None:

@@ -5,6 +5,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
+import { GRADES, gradeLabel } from "@flrc/i18n";
 import { toast } from "sonner";
 import { ChevronDownIcon, ChevronUpIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import {
@@ -33,7 +34,6 @@ import { NativeSelect } from "@flrc/ui/components/native-select";
 import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { AdminPage } from "../../admin/AdminPage";
 
-const GRADES = [1, 2, 3, 4, 5, 6, 7, 8];
 const SUBJECTS = ["english", "german", "french"] as const;
 const LOCALES = ["tr", "en", "de", "fr"] as const;
 type Subject = (typeof SUBJECTS)[number];
@@ -117,7 +117,7 @@ function ColumnsPage() {
           >
             {GRADES.map((item) => (
               <option key={item} value={item}>
-                {t("dashboard.grade", { grade: item })}
+                {gradeLabel(t, item)}
               </option>
             ))}
           </NativeSelect>

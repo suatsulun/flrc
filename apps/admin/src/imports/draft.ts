@@ -9,7 +9,7 @@ type Snapshot = {
 };
 type ImportDraft = Snapshot & {
   history: Snapshot[];
-  move: (change: ImportClassMove, originalClass: string) => void;
+  move: (change: ImportClassMove, original: { grade_level: number; section: string }) => void;
   add: (student: ImportStudentAdd) => void;
   remove: (schoolNumber: number) => void;
   setLanguage: (change: ImportLanguageChange) => void;
@@ -29,10 +29,10 @@ export function createImportDraft() {
   return createStore<ImportDraft>((set) => ({
     ...empty(),
     history: [],
-    move: (change, originalClass) =>
+    move: (change, original) =>
       set((state) => {
         const moves = { ...state.moves };
-        if (`${change.grade_level}/${change.section}` === originalClass) {
+        if (change.grade_level === original.grade_level && change.section === original.section) {
           delete moves[change.school_number];
         } else {
           moves[change.school_number] = change;

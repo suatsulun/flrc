@@ -46,13 +46,13 @@ def test_demo_populates_full_school_and_keeps_login_and_edits(demo_db) -> None:
 
     result = runner.invoke(cli.app, ["seed", "--demo"])
     assert result.exit_code == 0, result.output
-    assert "seeded: 4 years, 208 classes" in result.output
+    assert "seeded: 4 years, 220 classes" in result.output
     with Session(demo_db) as db:
         years = list(db.scalars(select(m.AcademicYear).order_by(m.AcademicYear.label)))
         assert [year.label for year in years] == list(cli.ACADEMIC_YEARS)
         assert [year.status for year in years] == ["archived"] * 3 + ["active"]
         assert db.scalar(select(func.count()).select_from(m.User)) == 28
-        assert db.scalar(select(func.count()).select_from(m.Student)) == 1804
+        assert db.scalar(select(func.count()).select_from(m.Student)) == 2068
         for year in years:
             assert (
                 db.scalar(
@@ -60,14 +60,14 @@ def test_demo_populates_full_school_and_keeps_login_and_edits(demo_db) -> None:
                     .select_from(m.SchoolClass)
                     .where(m.SchoolClass.year_id == year.id)
                 )
-                == 52
+                == 55
             )
             numbers = list(
                 db.scalars(
                     select(m.Enrollment.school_number).where(m.Enrollment.year_id == year.id)
                 )
             )
-            assert sorted(numbers) == list(range(1, 1145))
+            assert sorted(numbers) == list(range(1, 1211))
         open_term = db.scalars(select(m.Semester).where(m.Semester.status == "open")).one()
         assert (open_term.year_id, open_term.number) == (years[-1].id, 1)
         assignments = db.execute(

@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { classLabel } from "@flrc/i18n";
 import { GripVerticalIcon, Trash2Icon } from "lucide-react";
 import type { PreviewClass, PreviewRow } from "@flrc/api-client";
 import { Badge } from "@flrc/ui/components/badge";
@@ -155,11 +156,12 @@ export function ImportRoster({
                           key={`${c.grade_level}/${c.section}`}
                           value={`${c.grade_level}/${c.section}`}
                         >
-                          {c.grade_level}/{c.section}
+                          {classLabel(c.grade_level, c.section)}
                         </option>
                       ))}
                     </NativeSelect>
-                    {item.original_class !== currentClass ? (
+                    {item.original_grade_level !== row.grade_level ||
+                    item.original_section !== row.section ? (
                       <span className="mt-1 block text-xs text-muted-foreground">
                         {t("import.originalClass", { className: item.original_class })}
                       </span>

@@ -32,3 +32,22 @@ export function appShellLabels(t: TFunction) {
     },
   };
 }
+
+/** Hazırlık, the primary school's preparatory year, is stored as grade 0 (ADR-065). */
+export const PREP_GRADE = 0;
+export const GRADES: readonly number[] = [PREP_GRADE, 1, 2, 3, 4, 5, 6, 7, 8];
+
+/** `Bulut` for a Hazırlık class, `5/A` for every other grade. */
+export function classLabel(gradeLevel: number, section: string) {
+  return gradeLevel === PREP_GRADE ? section : `${gradeLevel}/${section}`;
+}
+
+/** A grade option in a select: `Hazırlık` or `5. sınıf`. */
+export function gradeLabel(t: TFunction, grade: number) {
+  return grade === PREP_GRADE ? t("classes.prep") : t("classes.grade", { grade });
+}
+
+/** The compact form for segmented controls: `Hazırlık` or `5`. */
+export function gradeTabLabel(t: TFunction, grade: number) {
+  return grade === PREP_GRADE ? t("classes.prep") : String(grade);
+}

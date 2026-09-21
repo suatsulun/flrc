@@ -2,14 +2,14 @@
 
 _Deep-theory companion to `HANDBOOK.md`. The handbook is the assembly manual. This file explains the decisions underneath the assembly: domain model reasoning, deployment boundaries, security/KVKK posture, save semantics, report generation, and operational tradeoffs._
 
-## Current implementation (2026-09-11)
+## Current implementation (2026-09-15)
 
 This companion describes the current repository; `docs/TODO.md` distinguishes committed code,
 pending edits, and unverified release gates. The original fourteen-table build now has sixteen
 mapped tables. Current report and deployment behavior includes ADR-028 and ADR-053 through
-ADR-063.
-ADR-063 and the accompanying year-order/PDF-batching edits are pending in the working tree;
-they are not proof of a deployed migration. See [the AI review handoff](AI-HANDOFF.md).
+ADR-066. ADR-063 and the accompanying year-order/PDF-batching changes are committed, while the
+Hazırlık and placement work is reviewed in PR #18. This is not proof of a deployed migration.
+See [the AI review handoff](AI-HANDOFF.md).
 
 ## How to use this file
 
@@ -260,6 +260,13 @@ Columns are data. A subject, skill, term, score, observation, or scale choice is
 
 A grade is keyed by stable `student_id` and `column_definition_id`; its column supplies the
 semester, grade level, and subject, while enrollment supplies the class in that year. Classes are historical groupings that can change. Storing class directly on grade rows would create contradictions after roster moves.
+
+### Why is Hazırlık grade 0?
+
+The primary school's preparatory year comes before grade 1 and its classes carry names (Bulut,
+Yıldız) instead of letters. Storing it as `grade_level = 0` keeps every grade-keyed rule intact:
+column scopes, report sets, stage checks and list ordering all work on the number, and a
+`class_label` helper renders the name alone where a numbered grade shows `5/A` (ADR-065).
 
 ### Why no gender column?
 
@@ -755,9 +762,12 @@ Archived data is read-only. The UI may let admins and coordinators browse previo
 Longitudinal student history should derive from enrollments and grade/report data, not by mutating old rows into a new shape.
 
 Closing a standard `YYYY-YYYY` year after both semesters are locked creates the next setup year in
-the same transaction. Class structure, teacher assignments, column templates, promoted grade 1-7
-students, and second-language choices are copied. Grade values, old school numbers, audit entries,
-and grade 8 enrollments are not copied. The promoted enrollment keeps the same student id, which is
+the same transaction. Class structure, teacher assignments, column templates, promoted students,
+and second-language choices are copied. Grade values, old school numbers, audit entries, and
+grade 8 enrollments are not copied. Only grades 1-3 and 5-7 are promoted: Hazırlık and grade 4
+pupils wait for the school's placement. The roster import re-attaches them only from the exact
+preceding year, into grade 1 or 5 respectively, with a unique name on both sides (ADR-066).
+The promoted enrollment keeps the same student id, which is
 the longitudinal connection, and receives a fresh sequential number in the new year. A partial
 unique index permits at most one `open` semester per year; transitions lock the old semester before
 opening another.

@@ -19,6 +19,7 @@ from flrc.db.models import (
     User,
 )
 from flrc.db.session import get_session
+from flrc.modules.academics.class_names import class_label
 from flrc.modules.auth.dependencies import require_coordinator_or_admin
 
 router = APIRouter(prefix="/coordinator", tags=["coordinator"])
@@ -194,7 +195,7 @@ async def coordinator_completeness(
             result.append(
                 CompletenessRow(
                     class_id=school_class.id,
-                    class_name=f"{school_class.grade_level}/{school_class.section}",
+                    class_name=class_label(school_class.grade_level, school_class.section),
                     subject=subject,
                     roster_count=len(roster),
                     active_columns=len(subject_columns),

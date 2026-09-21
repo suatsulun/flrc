@@ -17,6 +17,7 @@ from flrc.db.models import (
     User,
 )
 from flrc.db.session import get_session
+from flrc.modules.academics.class_names import class_label
 from flrc.modules.auth.dependencies import (
     current_user,
     require_admin,
@@ -314,7 +315,7 @@ async def list_class_catalog(
         catalog.append(
             ClassCatalogOut(
                 id=school_class.id,
-                name=f"{school_class.grade_level}/{school_class.section}",
+                name=class_label(school_class.grade_level, school_class.section),
                 grade_level=school_class.grade_level,
                 section=school_class.section,
                 subjects=subjects,
@@ -341,7 +342,7 @@ async def list_my_assignments(
     return [
         MyAssignmentOut(
             class_id=school_class.id,
-            class_name=f"{school_class.grade_level}/{school_class.section}",
+            class_name=class_label(school_class.grade_level, school_class.section),
             role=role,
             subject=role if role in ("german", "french") else "english",
         )
@@ -365,7 +366,7 @@ async def list_classes(
             id=c.id,
             grade_level=c.grade_level,
             section=c.section,
-            name=f"{c.grade_level}/{c.section}",
+            name=class_label(c.grade_level, c.section),
         )
         for c in result.scalars()
     ]

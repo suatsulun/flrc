@@ -1,4 +1,6 @@
 import hmac
+import re
+from collections import Counter
 from typing import Annotated
 
 import structlog
@@ -17,9 +19,16 @@ from flrc.db.models import (
     User,
 )
 from flrc.db.session import get_session
+from flrc.modules.academics.class_names import (
+    MAX_GRADE,
+    MIN_GRADE,
+    SECTION_MAX_LENGTH,
+    class_label,
+)
+from flrc.modules.academics.programme import PLACEMENT_GRADES
 from flrc.modules.administration.names import search_key
 from flrc.modules.auth.dependencies import require_admin
-from flrc.modules.imports.parser import ImportPlan, InvalidWorkbook, parse_workbook
+from flrc.modules.imports.parser import ImportPlan, InvalidWorkbook, RowModel, parse_workbook
 from flrc.modules.imports.review import (
     ImportAction,
     ImportClassMove,
@@ -69,6 +78,72 @@ async def _year(db: AsyncSession, year_id: int, *, lock: bool = False) -> Academ
     return year
 
 
+async def _match_students(
+    db: AsyncSession, year: AcademicYear, rows: list[RowModel]
+) -> dict[int, tuple[Enrollment | None, Student | None]]:
+    """Resolve identities once, with identical rules for preview and commit.
+
+    Current school numbers take precedence. Name matches must be unique on both
+    sides; workbook order must never decide which namesake inherits a history.
+    Placement also requires the immediately preceding year and the next grade.
+    """
+    enrolled = (
+        await db.execute(
+            select(Enrollment, Student)
+            .join(Student, Student.id == Enrollment.student_id)
+            .where(Enrollment.year_id == year.id)
+        )
+    ).all()
+    by_number = {
+        enrollment.school_number: (enrollment, student)
+        for enrollment, student in enrolled
+        if enrollment.school_number is not None
+    }
+    pending: dict[str, list[tuple[Enrollment, Student]]] = {}
+    for enrollment, student in enrolled:
+        if enrollment.school_number is None:
+            pending.setdefault(student.search_name, []).append((enrollment, student))
+
+    awaiting: dict[tuple[int, str], list[Student]] = {}
+    label = re.fullmatch(r"(\d{4})-(\d{4})", year.label)
+    if label and int(label[2]) == int(label[1]) + 1:
+        start = int(label[1])
+        previous_label = f"{start - 1:04d}-{start:04d}"
+        pupils = await db.execute(
+            select(Student, SchoolClass.grade_level)
+            .join(Enrollment, Enrollment.student_id == Student.id)
+            .join(SchoolClass, SchoolClass.id == Enrollment.class_id)
+            .join(AcademicYear, AcademicYear.id == Enrollment.year_id)
+            .where(
+                AcademicYear.label == previous_label,
+                SchoolClass.grade_level.in_(PLACEMENT_GRADES),
+            )
+        )
+        enrolled_ids = {student.id for _enrollment, student in enrolled}
+        for student, grade in pupils:
+            if student.id not in enrolled_ids:
+                awaiting.setdefault((grade + 1, student.search_name), []).append(student)
+
+    unnumbered = [row for row in rows if row.school_number not in by_number]
+    names = Counter(search_key(row.full_name) for row in unnumbered)
+    placements = Counter((row.grade_level, search_key(row.full_name)) for row in unnumbered)
+    matches: dict[int, tuple[Enrollment | None, Student | None]] = {}
+    for row in rows:
+        match = by_number.get(row.school_number)
+        if match is None:
+            name = search_key(row.full_name)
+            candidates = pending.get(name, [])
+            if len(candidates) == 1 and names[name] == 1:
+                match = candidates[0]
+            else:
+                key = (row.grade_level, name)
+                waiting = awaiting.get(key, [])
+                if not candidates and len(waiting) == 1 and placements[key] == 1:
+                    match = (None, waiting[0])
+        matches[row.school_number] = match or (None, None)
+    return matches
+
+
 async def compare_plan(
     db: AsyncSession,
     year_id: int,
@@ -84,62 +159,36 @@ async def compare_plan(
     language: ImportLanguage | None = None,
     action: ImportAction | None = None,
 ) -> ImportPreview:
-    await _year(db, year_id)
+    year = await _year(db, year_id)
     classes = {
         (item.grade_level, item.section): item
         for item in (await db.scalars(select(SchoolClass).where(SchoolClass.year_id == year_id)))
     }
     available_classes = set(classes) | {(row.grade_level, row.section) for row in plan.rows}
-    original_classes = {row.school_number: f"{row.grade_level}/{row.section}" for row in plan.rows}
+    original_classes = {row.school_number: (row.grade_level, row.section) for row in plan.rows}
     moves = moves or []
     edits = edits or ImportRosterEdits()
     plan = apply_roster_edits(plan, moves, edits, available_classes)
     original_classes.update(
-        {row.school_number: f"{row.grade_level}/{row.section}" for row in edits.additions}
+        {row.school_number: (row.grade_level, row.section) for row in edits.additions}
     )
     added_numbers = {row.school_number for row in edits.additions}
     language_edits = {row.school_number for row in edits.language_changes}
-    numbers = {row.school_number for row in plan.rows}
-    enrollment_rows = (
-        await db.execute(
-            select(Enrollment, Student)
-            .join(Student, Student.id == Enrollment.student_id)
-            .where(Enrollment.year_id == year_id)
-        )
-    ).all()
-    students = {
-        enrollment.school_number: student
-        for enrollment, student in enrollment_rows
-        if enrollment.school_number in numbers
-    }
+    matches = await _match_students(db, year, plan.rows)
     for addition in edits.additions:
-        existing = students.get(addition.school_number)
+        _enrollment, existing = matches.get(addition.school_number, (None, None))
         if existing and search_key(existing.full_name) != search_key(addition.full_name):
             raise HTTPException(409, {"code": "duplicate_school_number"})
-    enrollments = {enrollment.student_id: enrollment for enrollment, _student in enrollment_rows}
-    pending_by_name: dict[str, list[tuple[Enrollment, Student]]] = {}
-    for enrollment, student in enrollment_rows:
-        if enrollment.school_number is None:
-            pending_by_name.setdefault(student.search_name, []).append((enrollment, student))
-    ids = list(enrollments)
-    languages = (
-        {
-            item.student_id: item
-            for item in (
-                await db.scalars(
-                    select(StudentLanguage).where(
-                        StudentLanguage.year_id == year_id,
-                        StudentLanguage.student_id.in_(ids),
-                    )
-                )
-            )
-        }
-        if ids
-        else {}
-    )
+    languages = {
+        item.student_id: item
+        for item in await db.scalars(
+            select(StudentLanguage).where(StudentLanguage.year_id == year_id)
+        )
+    }
     counts = {
         "new_students": 0,
         "assigned_numbers": 0,
+        "placed_students": 0,
         "renamed_students": 0,
         "new_classes": 0,
         "new_enrollments": 0,
@@ -156,11 +205,12 @@ async def compare_plan(
             counts["new_classes"] += 1
             seen_new_classes.add(class_key)
             actions.append("new_class")
-        student = students.get(row.school_number)
-        if student is None:
-            promoted = pending_by_name.get(search_key(row.full_name), [])
-            if len(promoted) == 1:
-                student = promoted[0][1]
+        enrollment, student = matches[row.school_number]
+        if student is not None:
+            if enrollment is None:
+                counts["placed_students"] += 1
+                actions.append("placed")
+            elif enrollment.school_number is None:
                 counts["assigned_numbers"] += 1
                 actions.append("assign_number")
         if student is None:
@@ -174,7 +224,6 @@ async def compare_plan(
             if search_key(student.full_name) != search_key(row.full_name):
                 counts["renamed_students"] += 1
                 actions.append("rename")
-            enrollment = enrollments.get(student.id)
             target = classes.get(class_key)
             if enrollment is None:
                 counts["new_enrollments"] += 1
@@ -192,14 +241,22 @@ async def compare_plan(
         if not actions:
             counts["unchanged"] += 1
             actions.append("unchanged")
-        original_class = original_classes.get(row.school_number, f"{row.grade_level}/{row.section}")
-        if original_class != f"{row.grade_level}/{row.section}":
+        original = original_classes.get(row.school_number, (row.grade_level, row.section))
+        if original != (row.grade_level, row.section):
             actions.append("class_changed")
         if row.school_number in added_numbers:
             actions.append("manual_added")
         if row.school_number in language_edits:
             actions.append("language_edited")
-        preview_rows.append(PreviewRow(row=row, actions=actions, original_class=original_class))
+        preview_rows.append(
+            PreviewRow(
+                row=row,
+                actions=actions,
+                original_grade_level=original[0],
+                original_section=original[1],
+                original_class=class_label(*original),
+            )
+        )
     return preview_page(
         year_id=year_id,
         plan=plan,
@@ -229,8 +286,8 @@ async def dry_run_import(
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
     q: Annotated[str, Query(max_length=160)] = "",
-    grade_level: Annotated[int | None, Query(ge=1, le=8)] = None,
-    section: Annotated[str | None, Query(max_length=8)] = None,
+    grade_level: Annotated[int | None, Query(ge=MIN_GRADE, le=MAX_GRADE)] = None,
+    section: Annotated[str | None, Query(max_length=SECTION_MAX_LENGTH)] = None,
     language: ImportLanguage | None = None,
     action: ImportAction | None = None,
 ) -> ImportPreview:
@@ -278,7 +335,7 @@ async def commit_import(
         review_sha256(year_id, plan, moves, edits), expected_review_sha256 or ""
     ):
         raise HTTPException(409, {"code": "import_review_mismatch"})
-    await _year(db, year_id, lock=True)
+    year = await _year(db, year_id, lock=True)
     preview = await compare_plan(db, year_id, plan, moves=moves, edits=edits)
     plan = apply_roster_edits(
         plan, moves, edits, {(item.grade_level, item.section) for item in preview.classes}
@@ -287,24 +344,8 @@ async def commit_import(
         (item.grade_level, item.section): item
         for item in (await db.scalars(select(SchoolClass).where(SchoolClass.year_id == year_id)))
     }
-    # The year lock serializes imports. Load its identities once rather than
-    # querying the same tables for every workbook row.
-    enrolled = (
-        await db.execute(
-            select(Enrollment, Student)
-            .join(Student, Student.id == Enrollment.student_id)
-            .where(Enrollment.year_id == year_id)
-        )
-    ).all()
-    by_number = {
-        enrollment.school_number: (enrollment, student)
-        for enrollment, student in enrolled
-        if enrollment.school_number is not None
-    }
-    pending_by_name: dict[str, list[tuple[Enrollment, Student]]] = {}
-    for enrollment, student in enrolled:
-        if enrollment.school_number is None:
-            pending_by_name.setdefault(student.search_name, []).append((enrollment, student))
+    # The year lock serializes imports; matching stays bounded, never per row.
+    matches = await _match_students(db, year, plan.rows)
     languages = {
         item.student_id: item
         for item in await db.scalars(
@@ -321,13 +362,7 @@ async def commit_import(
             db.add(school_class)
             await db.flush()
             classes[class_key] = school_class
-        enrollment, student = by_number.get(row.school_number, (None, None))
-        if student is None:
-            promoted_rows = pending_by_name.get(search_key(row.full_name), [])
-            if len(promoted_rows) == 1:
-                # Once numbered, this identity cannot match a later namesake.
-                enrollment, student = promoted_rows.pop()
-                enrollment.school_number = row.school_number
+        enrollment, student = matches[row.school_number]
         if student is None:
             student = Student(
                 full_name=row.full_name,

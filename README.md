@@ -35,7 +35,11 @@ at **00:00 Europe/Istanbul**; visitor changes and sessions are cleared. Use fict
 - The admin workspace is also table-first: rosters, yearly school numbers, second languages,
   assessment columns, and assigned teachers live around the same class table.
 - Students can move between same-grade class tabs without losing grades or notes.
+- Hazırlık classes sit before grade 1, carry names such as Bulut instead of a letter, and
+  receive the same progress report as grades 1 to 4.
 - Archived years stay browsable, and school numbers are unique per year rather than globally.
+- Pupils entering grade 1 or grade 5 are placed by the school; the roster import matches them to
+  last year's identities by name instead of creating duplicates.
 - Closing a fully completed year prepares the next year automatically, leaves grades behind, and
   gives promoted students fresh sequential year-scoped school numbers.
 - Teachers can filter assessment categories and stage 1-2-3 ratings for a pupil or a whole class

@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { GRADES, classLabel, gradeLabel } from "@flrc/i18n";
 import { useStore } from "zustand";
 import {
   ArrowDownIcon,
@@ -41,9 +42,9 @@ type Filters = {
   action: NonNullable<DryRunImportData["query"]["action"]> | "";
 };
 const EMPTY_FILTERS: Filters = { q: "", grade: "", schoolClass: "", language: "", action: "" };
-const GRADES = [1, 2, 3, 4, 5, 6, 7, 8];
 const ACTIONS = [
   "new_student",
+  "placed",
   "rename",
   "move",
   "class_changed",
@@ -148,9 +149,10 @@ export function ImportReview({
   });
   const preview = review.data?.pages[0];
   const destinationGrades = [...new Set(preview?.classes.map((item) => item.grade_level) ?? [])];
-  const selectedTrayGrade = destinationGrades.includes(trayGrade ?? 0)
-    ? trayGrade
-    : destinationGrades[0];
+  const selectedTrayGrade =
+    trayGrade !== undefined && destinationGrades.includes(trayGrade)
+      ? trayGrade
+      : destinationGrades[0];
   const rows = review.data?.pages.flatMap((page) => page.rows) ?? [];
   const refreshing = review.isFetching && !review.isFetchingNextPage;
   const busy = commit.isPending || refreshing || review.isPlaceholderData;
@@ -197,9 +199,14 @@ export function ImportReview({
         grade_level: target.grade_level,
         section: target.section,
       },
-      item.original_class,
+      { grade_level: item.original_grade_level, section: item.original_section },
     );
-    setAnnouncement(t("import.moveStaged", { name: item.row.full_name, className: destination }));
+    setAnnouncement(
+      t("import.moveStaged", {
+        name: item.row.full_name,
+        className: classLabel(target.grade_level, target.section),
+      }),
+    );
     setDragged(undefined);
     setDropTarget(undefined);
   }
@@ -288,7 +295,7 @@ export function ImportReview({
           >
             {destinationGrades.map((grade) => (
               <option key={grade} value={grade}>
-                {t("import.gradeLabel", { grade })}
+                {gradeLabel(t, grade)}
               </option>
             ))}
           </NativeSelect>
@@ -305,6 +312,7 @@ export function ImportReview({
               .filter((item) => item.grade_level === selectedTrayGrade)
               .map((item) => {
                 const label = `${item.grade_level}/${item.section}`;
+                const name = classLabel(item.grade_level, item.section);
                 const selected = filters.schoolClass === label;
                 return (
                   <button
@@ -312,7 +320,7 @@ export function ImportReview({
                     type="button"
                     data-testid="import-class-target"
                     data-class={label}
-                    aria-label={t("import.viewClass", { className: label, count: item.count })}
+                    aria-label={t("import.viewClass", { className: name, count: item.count })}
                     aria-pressed={selected}
                     disabled={commit.isPending}
                     className={`rounded-lg border px-2 py-2 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${dropTarget === label ? "border-primary bg-accent ring-2 ring-primary" : selected ? "border-primary bg-accent text-accent-foreground" : "border-border bg-muted/30 hover:border-primary"}`}
@@ -336,7 +344,7 @@ export function ImportReview({
                       if (dragged) moveStudent(dragged, label);
                     }}
                   >
-                    <span className="block text-sm font-semibold">{label}</span>
+                    <span className="block text-sm font-semibold">{name}</span>
                     <span className="tabular text-xs text-muted-foreground">{item.count}</span>
                   </button>
                 );
@@ -453,7 +461,7 @@ export function ImportReview({
                   <option value="">{t("import.allGrades")}</option>
                   {GRADES.map((grade) => (
                     <option key={grade} value={grade}>
-                      {t("import.gradeLabel", { grade })}
+                      {gradeLabel(t, grade)}
                     </option>
                   ))}
                 </NativeSelect>
@@ -471,7 +479,7 @@ export function ImportReview({
                         key={`${c.grade_level}/${c.section}`}
                         value={`${c.grade_level}/${c.section}`}
                       >
-                        {c.grade_level}/{c.section} ({c.count})
+                        {classLabel(c.grade_level, c.section)} ({c.count})
                       </option>
                     ))}
                 </NativeSelect>

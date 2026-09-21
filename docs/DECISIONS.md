@@ -1324,7 +1324,8 @@ archive views resolve the number through the enrollment for the displayed year.
 **Date:** 2026-08-20
 **Phase:** 3.x
 
-**Superseded in part by:** ADR-041 (fresh sequential rollover numbers)
+**Superseded in part by:** ADR-041 (fresh sequential rollover numbers), ADR-066 (no automatic
+promotion into grade 1 or grade 5)
 
 ## Context
 
@@ -2642,10 +2643,146 @@ the three-project assembly in handbook Step 1.11.4.
 
 ---
 
+# ADR-065: Hazırlık classes are grade 0 with named sections
+
+**Status:** Accepted  
+**Date:** 2026-09-15  
+**Phase:** 2-4 (classes, imports, reports and the demo seed)
+
+## Context
+
+The primary school runs Hazırlık (preparatory) classes in the year before grade 1. They are not
+lettered like `1/A`: each carries a name such as Bulut, Yıldız or Güneş, and the names have
+different lengths. These pupils receive the same English progress report as grades 1 to 4, and the
+school lists the classes before grade 1.
+
+Nothing in the system could hold them. Two check constraints bounded `grade_level` to 1 through 8,
+the importer accepted only a digit followed by one letter, admin and import validation uppercased a
+section of at most eight characters, and every class label was assembled as `grade/section` in
+eleven backend sites and several admin screens.
+
+## Decision
+
+- Store Hazırlık as `grade_level = 0`. Both check constraints and the Pydantic bounds allow 0 to 8,
+  and ordering by grade level puts Hazırlık first with no special case.
+- A Hazırlık section is a name, spelled in Turkish title case (`Yıldız`), up to 32 characters. A
+  numbered grade keeps its uppercase letter. `normalize_section` owns that rule and `class_label`
+  renders `Bulut` for grade 0 and `5/A` otherwise; both live in
+  `flrc.modules.academics.class_names`, and `@flrc/i18n` carries the same pair for the SPAs.
+- The importer reads `Bulut`, `Hazırlık Bulut` or `Hazırlık/Bulut` from a class cell, and split
+  "Sınıf" and "Şube" columns compose to the same form. A worksheet title must carry the `Hazırlık`
+  prefix (`Hazırlık-Bulut`, hyphenated per ADR-023) so that a sheet called "Students" never turns
+  into a class.
+- The elementary English report set spans grades 0 to 4. A Hazırlık cover reads "Hazırlık Sınıfı"
+  and "Preparatory Class" where a numbered grade would appear.
+- Machine keys stay structural. The admin import screens key classes as `0/Bulut` and show
+  `classLabel()`; an import preview row carries `original_grade_level` and `original_section` as
+  fields, with `original_class` kept as the display label.
+- The demo seed adds three Hazırlık classes per year (Bulut, Yıldız, Güneş) so the demo shows them.
+- The year rollover does not promote Hazırlık pupils. Which grade-1 section a child joins is a
+  placement decision the school makes, so the next year's roster import places them and keeps
+  their identity by name (ADR-066).
+
+## Alternatives considered
+
+- A nullable grade level or a separate stage column: every grade-keyed query, ordering rule and
+  column scope would need a special case, while 0 is bounded and ordered for free.
+- Displaying `Hazırlık/Bulut`: the school calls the class "Bulut"; the prefix would exist only in
+  software.
+- Accepting bare names in worksheet titles: too easy to turn a sheet called "Liste" into a class.
+- Storing a formatted class name: rejected in ADR-021 and still unnecessary.
+
+## Consequences
+
+- Migration `3c7f1a9d2b64` relaxes both constraints. Its downgrade restores the old range and fails
+  while Hazırlık rows exist, which is the intended guard against silent data loss.
+- The section limit grows from 8 to 32 characters for every grade, and the import preview contract
+  gains two fields.
+- The assessment programme needs no change: grade 0 is primary, keeps teacher comments and the
+  smiley scale, and has no second language.
+- Workbook rows and reviewed class moves enforce the same grade-4 minimum for second languages
+  as the admin roster forms. A move below grade 4 must also clear the language.
+- Hazırlık pupils are absent from the rolled-over year until the roster import places them
+  (ADR-066).
+- The demo grows to 55 classes and 1,210 pupils per year.
+
+## Supersedes / Superseded by
+
+Extends ADR-021 (slash display names) and ADR-023 (hyphenated worksheet titles) to named classes.
+
+---
+
+# ADR-066: Rollover stops at stage boundaries and the roster import places pupils by name
+
+**Status:** Accepted  
+**Date:** 2026-09-15  
+**Phase:** 3.x (lifecycle) and imports
+
+## Context
+
+ADR-036 promotes every grade 1 to 7 pupil into next year's class with the same section letter. The
+school does not work that way at its two stage entries. Pupils leaving Hazırlık (ADR-065) and pupils
+leaving grade 4 are placed into grade 1 and grade 5 sections by the school, together with the new
+pupils who join at those points, so a child's section last year says nothing about next year.
+
+If the rollover simply left those pupils out, the next roster import would find no enrollment for
+them and create a new person for each row, splitting one child's history across two identities.
+
+## Decision
+
+- `carries_over(grade_level)` in `academics/programme.py` decides who moves automatically: grades
+  1 to 3 and 5 to 7 keep their section, Hazırlık (grade 0) and grade 4 wait for placement, and grade
+  8 graduates. The rollover enrolls only pupils who carry over.
+- The roster import treats last year's pupils from a placement grade who have no enrollment in the
+  target year as awaiting placement. A row that matches none of the year's school numbers or
+  numberless enrollments, but matches exactly one awaiting pupil by normalised name, reuses that
+  identity. The preview shows the row as `placed` plus `new_enrollment`, counts it under
+  `placed_students`, and the commit creates the enrollment on the existing student. Two awaiting
+  pupils with the same name match nothing and become new students, the rule ADR-041 already applies
+  to numberless enrollments.
+- Only the year immediately before the target year feeds the pool. That is the year the rollover
+  came from, so graduates and pupils who left in other grades are never matched.
+
+### Review clarification (2026-09-15)
+
+Both preview and commit use the same identity matcher. A placement candidate must come from the
+exact preceding calendar year and the corresponding stage: Hazırlık to grade 1, or grade 4 to
+grade 5. A missing preceding year produces no candidates; a nonstandard year label disables
+automatic placement matching.
+
+Name matching must be unique on both sides: the existing candidates and the unmatched workbook
+rows. Two incoming namesakes are new identities, rather than giving the first row an existing
+pupil's history. This also tightens ADR-041's numberless-enrollment matching. Existing school
+numbers still take precedence. Candidate lookup remains bounded to two queries per matching pass.
+
+## Alternatives considered
+
+- Keep promoting 4 to 5 by section letter and let the admin move pupils afterwards: every grade-5
+  class would start wrong, and the new pupils would still arrive through the import.
+- Enroll placement pupils without a class: `enrollments.class_id` is not nullable and every screen
+  assumes a class, so a holding class would leak into reports and the assignment matrix.
+- Match awaiting pupils across all earlier years: a graduate's namesake could inherit an
+  identity.
+
+## Consequences
+
+- After a year closes, Hazırlık and grade 4 pupils are absent from the new year until the roster
+  import runs. The activation guard for missing numbers is unaffected, since they have no enrollment.
+- Identity and history stay whole across both stage boundaries, and the admin can filter the
+  `placed` rows in the review before committing.
+- The lifecycle page and the docs describe the two waiting cohorts.
+
+## Supersedes / Superseded by
+
+Supersedes in part ADR-036 (promotion scope) and ADR-065 (which had left Hazırlık pupils to arrive as
+new pupils).
+
+---
+
 # ADR template for future decisions
 
 ```md
-# ADR-065: Title
+# ADR-067: Title
 
 **Status:** Proposed | Accepted | Superseded  
 **Date:** YYYY-MM-DD  

@@ -102,7 +102,7 @@ class SchoolClass(TimestampMixin, Base):
     __tablename__ = "school_classes"
     __table_args__ = (
         UniqueConstraint("year_id", "grade_level", "section"),
-        CheckConstraint("grade_level BETWEEN 1 AND 8", name="grade_level_valid"),
+        CheckConstraint("grade_level BETWEEN 0 AND 8", name="grade_level_valid"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
@@ -170,7 +170,7 @@ class TeachingAssignment(TimestampMixin, Base):
 class ColumnDefinition(TimestampMixin, Base):
     __tablename__ = "column_definitions"
     __table_args__ = (
-        CheckConstraint("grade_level BETWEEN 1 AND 8", name="grade_level_valid"),
+        CheckConstraint("grade_level BETWEEN 0 AND 8", name="grade_level_valid"),
         CheckConstraint("subject IN ('english', 'german', 'french')", name="subject_valid"),
         CheckConstraint("value_type IN ('score','scale3','text')", name="value_type_valid"),
         CheckConstraint(

@@ -24,6 +24,7 @@ from flrc.db.models import (
     User,
 )
 from flrc.db.session import get_session
+from flrc.modules.academics.class_names import class_label
 from flrc.modules.academics.fields import VALUE_FIELD, CellValue, cell_value, pick_label
 from flrc.modules.auth.dependencies import current_user, writable_semester
 from flrc.modules.grades.permissions import require_subject_access
@@ -388,7 +389,7 @@ async def get_grid(
     return GridOut(
         meta=GridMetaOut(
             class_id=class_id,
-            class_name=f"{cls.grade_level}/{cls.section}",
+            class_name=class_label(cls.grade_level, cls.section),
             grade_level=cls.grade_level,
             subject=subject,
             year_id=year.id,
@@ -577,10 +578,12 @@ async def save_grid(
                     continue
                 current = (
                     await db.execute(
-                        select(GradeValue).where(
+                        select(GradeValue)
+                        .where(
                             GradeValue.student_id == cell.student_id,
                             GradeValue.column_definition_id == cell.column_id,
                         )
+                        .with_for_update()
                     )
                 ).scalar_one()
             else:
@@ -718,31 +721,21 @@ async def undo_grid(
     semester: Annotated[Semester, Depends(writable_semester)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> SaveResponse:
-    await _writable_class(db, class_id, semester)
+    cls = await _writable_class(db, class_id, semester)
     batch = (
         await db.execute(
             select(SaveBatch)
             .where(SaveBatch.user_id == user.id, SaveBatch.class_id == class_id)
             .order_by(SaveBatch.id.desc())
             .limit(1)
+            .with_for_update()
         )
     ).scalar_one_or_none()
     if batch is None or batch.undone:
         raise HTTPException(409, {"code": "nothing_to_undo"})
     entries = list(await db.scalars(select(AuditEntry).where(AuditEntry.batch_id == batch.id)))
-    column_subjects = set(
-        await db.scalars(
-            select(ColumnDefinition.subject).where(
-                ColumnDefinition.id.in_({entry.column_definition_id for entry in entries})
-            )
-        )
-    )
-    for subject in column_subjects:
-        await require_subject_access(
-            db, user, class_id, cast(Subject, subject), allow_coordinator=False
-        )
-    labels = {
-        column.id: column.labels
+    columns = {
+        column.id: column
         for column in (
             await db.scalars(
                 select(ColumnDefinition).where(
@@ -751,6 +744,24 @@ async def undo_grid(
             )
         )
     }
+    if any(
+        column.semester_id != semester.id
+        or column.grade_level != cls.grade_level
+        or not column.is_active
+        for column in columns.values()
+    ):
+        raise HTTPException(409, {"code": "nothing_to_undo"})
+    rosters: dict[str, set[int]] = {}
+    for subject in {column.subject for column in columns.values()}:
+        await require_subject_access(
+            db, user, class_id, cast(Subject, subject), allow_coordinator=False
+        )
+        rosters[subject] = await _roster_ids(db, class_id, subject, cls.year_id)
+    if any(
+        entry.student_id not in rosters[columns[entry.column_definition_id].subject]
+        for entry in entries
+    ):
+        raise HTTPException(409, {"code": "nothing_to_undo"})
     applied: list[AppliedOut] = []
     raw_conflicts: list[dict[str, Any]] = []
     new_audit: list[AuditEntry] = []
@@ -772,7 +783,7 @@ async def undo_grid(
                 _raw_conflict(
                     student_id=entry.student_id,
                     column_id=entry.column_definition_id,
-                    labels=labels.get(entry.column_definition_id, {}),
+                    labels=columns[entry.column_definition_id].labels,
                     your_value=_first_value(_entry_old(entry)),
                     current_value=_first_value(_grade_tuple(current)) if current else None,
                     updated_by_id=current.updated_by if current else None,

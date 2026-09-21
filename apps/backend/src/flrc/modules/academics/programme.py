@@ -1,6 +1,18 @@
 """School programme rules shared by roster editing and synthetic data."""
 
+from flrc.modules.academics.class_names import MAX_GRADE, PREP_GRADE
+
 L2_START_GRADE = 4
+MIDDLE_START_GRADE = 5
+# Leaving these grades means entering a new school stage. The school places
+# those pupils into sections itself, and new pupils join them, so the rollover
+# leaves them for the roster import to place by name (ADR-066).
+PLACEMENT_GRADES = frozenset({PREP_GRADE, MIDDLE_START_GRADE - 1})
+
+
+def carries_over(grade_level: int) -> bool:
+    """Whether a pupil keeps their section into next year's class at rollover."""
+    return grade_level not in PLACEMENT_GRADES and grade_level < MAX_GRADE
 
 
 def has_teacher_comments(grade_level: int, subject: str) -> bool:

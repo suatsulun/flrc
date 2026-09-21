@@ -152,11 +152,16 @@ async def test_import_existing_roster_uses_bounded_reads_and_preserves_student_i
         assert student.full_name.startswith("Renamed Synthetic")
         assert language.language == "french"
     record_property("select_count", len(reads))
-    assert len(reads) <= 9, f"Import issued {len(reads)} SELECTs"
+    # Preview and commit each look up last year's pupils awaiting placement
+    # once (ADR-066); every read stays fixed, never per row.
+    assert len(reads) <= 10, f"Import issued {len(reads)} SELECTs"
 
 
 @pytest.mark.parametrize("pending_count", [1, 2])
-async def test_import_claims_numberless_students_only_when_unambiguous(api, world, pending_count):
+@pytest.mark.parametrize("incoming_count", [1, 2])
+async def test_import_claims_numberless_students_only_when_unambiguous(
+    api, world, pending_count, incoming_count
+):
     async with TestSession() as db:
         students = [
             m.Student(
@@ -175,7 +180,7 @@ async def test_import_claims_numberless_students_only_when_unambiguous(api, worl
         await db.commit()
         original_ids = {student.id for student in students}
     files, digest = import_file(
-        [[70001, "Synthetic Same Name", "Almanca"], [70002, "Synthetic Same Name", "Fransızca"]]
+        [[70001 + i, "Synthetic Same Name", "Almanca"] for i in range(incoming_count)]
     )
     async with api(world.admin) as client:
         response = await client.post(
@@ -195,9 +200,9 @@ async def test_import_claims_numberless_students_only_when_unambiguous(api, worl
                 .order_by(m.Enrollment.school_number)
             )
         )
-    assert len(rows) == 2
-    assert (rows[0].student_id in original_ids) == (pending_count == 1)
-    assert rows[1].student_id not in original_ids
+    assert len(rows) == incoming_count
+    assert (rows[0].student_id in original_ids) == (pending_count == incoming_count == 1)
+    assert all(row.student_id not in original_ids for row in rows[1:])
 
 
 async def test_year_export_streams_rows_and_finishes_progress(api, world):

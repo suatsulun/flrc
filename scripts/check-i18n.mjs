@@ -100,6 +100,7 @@ const requiredDynamicKeys = [
   ...[
     "new_students",
     "assigned_numbers",
+    "placed_students",
     "renamed_students",
     "new_classes",
     "new_enrollments",

@@ -4,7 +4,7 @@ _The complete assembly manual. Like an IKEA guide: every step tells you **what**
 
 _This handbook supersedes BUILD-STEPS.md. The old ARCHITECTURE.md stays alive as the deep-theory companion (domain model reasoning, decision records, KVKK) and is cited as "ARCH §x.x"._
 
-## Current checkout (2026-09-11)
+## Current checkout (2026-09-15)
 
 This is the learning/build manual, not a claim that every example still matches the finished
 application. Steps retain their original assembly snippets; current amendments below describe
@@ -13,18 +13,18 @@ before replacing a file with a historical snippet. Report any remaining mismatch
 source-of-truth protocol in [AGENTS.md](../AGENTS.md).
 
 Use [TODO.md](TODO.md) for open work and [AI-HANDOFF.md](AI-HANDOFF.md) for a review-first prompt.
-The local `v1.2.0` tag predates several commits, while manifests still read `1.2.0`. The pending
-ADR-063 migration and year-order/PDF-batching changes are not verified deployment state.
+The local `v1.2.0` tag predates several commits, while manifests still read `1.2.0`. Later migrations
+and report changes are committed source, not verified school deployment state.
 
 | Handbook scope            | Current implementation amendment                                                                                                                               |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0-1: tooling and skeleton | Node 26.8.1, pnpm 11.25.0, Python 3.13 are pinned locally. Existing apps are implemented; do not scaffold over them.                                           |
 | 1.11: demo hosting        | One Vercel project (`infra/vercel`) serves both SPAs and the `/api` rewrite (ADR-064); Render hosts the API and worker.                                        |
 | 1.5, 2.1, 4.1: schema     | Fourteen original tables plus `demo_visitors` and `report_identity_audits`; exact names are in ARCH §3.1.                                                      |
-| 2.1: assessment programme | Grade 4 German/French permit ratings and comments without numeric averages. Pending ADR-063 removes grades 5-8 English comments.                               |
+| 2.1: assessment programme | Grade 4 German/French permit ratings and comments without numeric averages. ADR-063 removes grades 5-8 English comments.                                       |
 | 2.4-2.6: grid/save        | Four/five sentence columns at laptop widths, angled middle-English overview, pupil/class rating drafts, maximum 2,000 cells per save.                          |
 | 2.11, 4.6: tests          | Frontend packages have no standalone `test` script. Use root Playwright, configured test servers, and the existing synthetic backend suite.                    |
-| 3.5, 3.9-3.10: years      | Rollover preserves student identity and assigns fresh year-scoped numbers. Pending lists sort by label, not insertion id.                                      |
+| 3.5, 3.9-3.10: years      | Rollover preserves student identity and assigns fresh year-scoped numbers. Year lists sort by label, not insertion id.                                         |
 | 4.2-4.4: reports          | Four PDF sets return directly from `/api/reports/pdf` (ADR-028); year XLSX exports remain durable Celery jobs. Private report overlays/signatures use ADR-057. |
 | 4.5, 4.9-4.10: operations | School deployment consumes paired images, runtime branding, nightly encrypted backups, and monthly restore tests from `infra/school-template/`.                |
 
@@ -32,6 +32,11 @@ Backend pytest fixtures wipe the fixed local `flrc_test` database; migration tes
 it. Runs must be serialized on disposable test data. Root Playwright does not launch servers and
 its seeded suite must not share a mutable database with another run. Historical green exit lists
 below are learning checkpoints, not fresh release evidence.
+
+Review amendments (2026-09-15): Steps 3.7-3.8 use one identity matcher for import preview and
+commit. Placement requires the exact preceding year, the correct entry grade, and a unique name
+on both sides (ADR-066). Step 2.8 rechecks the current semester, active columns, and class/subject
+roster before undoing a save; an old save cannot modify a locked term or a pupil who has moved.
 
 ## Handbook status
 
@@ -5836,7 +5841,7 @@ The hardest engineering in the project is now behind you. Phases 3 and 4 are bro
 > creation, number editing, class moves, second language, column setup, and class teacher assignment
 > live in the `/classes` table workspace. The separate `/students` route redirects there. The old
 > CRUD walkthrough remains below as design history, not as code to copy. Closing a standard year
-> creates the next setup year automatically and promotes grades 1-7 with empty numbers; activation
+> creates the next setup year automatically and promotes grades 1-3 and 5-7 (ADR-066) with empty numbers; activation
 > requires those numbers to be filled. See the current models, migration
 > `a4f93b7c2d10`, and ADRs for exact assembly.
 
@@ -6177,7 +6182,7 @@ Commit: `feat(admin): teacher allowlist and session revocation`.
 
 **Layer 1 · Nudge:** one classes endpoint, one teachers lookup, one bulk assignment PUT. Upsert each `(class, role)` pair; `null` means delete that assignment.
 
-**Layer 2 · Guide:** setup/active year can be edited; archived year is read-only. Creating a class validates grade 1-8, normalizes section to uppercase Turkish-safe text, and rejects duplicate grade+section within the year. Deleting a class is allowed only in a setup year and only if it has no enrollments, save batches, or assignments; otherwise use 409 with a reason. Assignments require active users. The bulk body is a list so Save All can commit the matrix atomically.
+**Layer 2 · Guide:** setup/active year can be edited; archived year is read-only. Creating a class validates grade 0-8 (0 is the Hazırlık year, ADR-065), spells the section by grade (an uppercase letter, or a Turkish title-case name such as Bulut for Hazırlık), and rejects duplicate grade+section within the year. Deleting a class is allowed only in a setup year and only if it has no enrollments, save batches, or assignments; otherwise use 409 with a reason. Assignments require active users. The bulk body is a list so Save All can commit the matrix atomically.
 
 **Layer 3 · Exact assembly (API contract):** `src/flrc/modules/administration/classes.py`:
 
@@ -6363,7 +6368,7 @@ Commit: `feat(admin): roster moves and second-language switching`.
 - Advance from semester 1 → lock 1, open 2.
 - Lock semester 2 → both locked; year remains active until explicit close-year.
 - Reopen a semester → admin only, year active, lock the other semester first; the UI labels this exceptional.
-- Close year → both semesters must be locked; year becomes `archived`; no grade/admin mutations thereafter. For a standard `YYYY-YYYY` label, the same transaction idempotently creates the next setup year, copies semesters/classes/columns/assignments, promotes grades 1-7, preserves language, and assigns fresh sequential year-scoped school numbers.
+- Close year → both semesters must be locked; year becomes `archived`; no grade/admin mutations thereafter. For a standard `YYYY-YYYY` label, the same transaction idempotently creates the next setup year, copies semesters/classes/columns/assignments, promotes grades 1-3 and 5-7 (Hazırlık and grade 4 pupils await the school's placement through the roster import, ADR-066), preserves language, and assigns fresh sequential year-scoped school numbers.
 
 **Layer 3 · Exact assembly:** `src/flrc/modules/administration/lifecycle_service.py`:
 
@@ -6815,7 +6820,7 @@ Close algorithm:
 - set year archived, commit;
 - structured log `year_archived` with actor/year/digest/counts.
 
-After the archive write, invoke the rollover service before commit. Never copy grade values, audit rows, or old school numbers. Grade 8 has no next-year enrollment. Assign promoted enrollments deterministic fresh numbers from 1 upward; activation retains the `student_numbers_incomplete` guard for manually cleared or incomplete imported numbers.
+After the archive write, invoke the rollover service before commit. Never copy grade values, audit rows, or old school numbers. Grade 8 has no next-year enrollment, and Hazırlık and grade 4 pupils wait for the roster import to place them by name (ADR-066). Assign promoted enrollments deterministic fresh numbers from 1 upward; activation retains the `student_numbers_incomplete` guard for manually cleared or incomplete imported numbers.
 
 **Frontend:** lifecycle card's final button opens a three-step dialog: Download audit CSV → checkbox “I stored the export” → type year label → Archive. Read `X-Audit-SHA256` from the response and hold it in dialog state; no export, no close button. On success, surface the generated setup year and link directly to its class tables so the admin can fill new numbers.
 

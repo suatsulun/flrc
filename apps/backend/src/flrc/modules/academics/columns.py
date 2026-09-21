@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flrc.db.models import AcademicYear, ColumnDefinition, GradeValue, Semester, User
 from flrc.db.session import get_session
+from flrc.modules.academics.class_names import MAX_GRADE, MIN_GRADE
 from flrc.modules.academics.programme import (
     allows_column_type,
     has_teacher_comments,
@@ -29,7 +30,7 @@ class LabelSet(BaseModel):
 
 
 class ColumnCreate(BaseModel):
-    grade_level: int = Field(ge=1, le=8)
+    grade_level: int = Field(ge=MIN_GRADE, le=MAX_GRADE)
     subject: Subject
     value_type: ValueType
     owner_role: Role
@@ -71,9 +72,9 @@ class ReorderBody(BaseModel):
 
 
 class CopyBody(BaseModel):
-    source_grade_level: int = Field(ge=1, le=8)
+    source_grade_level: int = Field(ge=MIN_GRADE, le=MAX_GRADE)
     source_subject: Subject
-    target_grade_level: int = Field(ge=1, le=8)
+    target_grade_level: int = Field(ge=MIN_GRADE, le=MAX_GRADE)
     target_subject: Subject
 
 

@@ -30,8 +30,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
-    "lefthook": "^2.1.12",
-    "prettier": "^3.9.6",
-    "turbo": "^2.10.12"
+    "lefthook": "^2.1.16",
+    "prettier": "^3.9.9",
+    "turbo": "^2.11.7"
   }
 }

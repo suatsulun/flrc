@@ -80,9 +80,22 @@ All `/api` responses are `Cache-Control: no-store, private`, vary on cookies, an
 restrictive browser headers. Unsafe methods require the exact public `Origin`. Request bodies are
 counted even when streamed and rejected above the configured limit.
 
-Each OAuth entry/callback endpoint is limited to 120 attempts per five minutes per pseudonymized
-client address. Report/export routes are limited to 10 requests per minute per user. The counters live in
-Redis, contain an HMAC rather than the raw address/user identifier, and fail closed in school mode.
+Each OAuth entry/callback endpoint has separate limits of 30 attempts per minute and 60 per five
+minutes per pseudonymized client address. Both windows must allow a request. These shared-address
+budgets account for teachers signing in behind one school router; login and callback never spend
+each other's allowance. Per-account operation limits are:
+
+| Operation                     | Requests per minute |
+| ----------------------------- | ------------------- |
+| Reports                       | 5                   |
+| Audit CSV exports             | 3                   |
+| Workbook import commits       | 3                   |
+| Interactive workbook previews | 30                  |
+
+These operation counters are independent. Redis updates each counter atomically, keys contain an
+HMAC rather than the raw address/user identifier, and unavailable Redis fails closed in school mode.
+Exceeded limits return 429 with `Retry-After`. Fixed windows bound selected operations; they do not
+provide API-wide throttling or replace upstream DDoS protection. See ADR-068.
 
 XLSX imports are bounded by compressed size, ZIP member count, total and per-member expanded size,
 compression ratio, worksheet count, and worksheet dimensions before `openpyxl` parses cell data.

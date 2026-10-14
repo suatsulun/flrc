@@ -195,8 +195,9 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
 - Location: `docs/SECURITY.md:77-79`
 - Exploit scenario: operators tune gateway limits around an incorrect 20-request claim and
   unexpectedly lock out a NAT-shared school during morning login.
-- Resolution: documentation now records the implemented endpoint-separated 120 requests per five
-  minutes.
+- Resolution at the time of this audit: documentation recorded the implemented endpoint-separated
+  120 requests per five minutes. ADR-068 subsequently tightened this policy; `docs/SECURITY.md`
+  records the current short-window and sustained limits.
 
 ## Negative results and residual risk
 

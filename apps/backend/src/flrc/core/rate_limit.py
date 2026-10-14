@@ -21,25 +21,28 @@ end
 return {count, redis.call('TTL', KEYS[1])}
 """
 
-# Every login costs one /auth/login and one /auth/callback request, and a whole
-# school shares one public address behind NAT. The window is therefore wide
-# enough for a morning rush (roughly one login per second, sustained) while
-# still stopping the automated abuse this protects against. Each endpoint gets
-# its own counter so a flood of one cannot lock users out of the other.
-AUTH_LIMIT = 120
+# A school may share one public address behind NAT. Keep separate login and
+# callback budgets so successful sign-ins do not consume the same allowance
+# twice. The short window caps bursts; the longer window caps sustained abuse.
+AUTH_BURST_LIMIT = 30
+AUTH_BURST_WINDOW_SECONDS = 60
+AUTH_LIMIT = 60
 AUTH_WINDOW_SECONDS = 5 * 60
 
-# Report rendering and workbook parsing are the two CPU-bound paths that a
-# single authenticated account can use to exhaust the small school dyno.
-EXPENSIVE_LIMIT = 10
+# Limit expensive work per account, not per shared school address. Interactive
+# workbook previews need more room than commits, exports, and PDF generation.
+REPORT_LIMIT = 5
+EXPORT_LIMIT = 3
+IMPORT_LIMIT = 3
+IMPORT_PREVIEW_LIMIT = 30
 EXPENSIVE_WINDOW_SECONDS = 60
 
 
 def _client_identity(request: Request) -> str:
     if settings.env == "school":
-        # Only reachable behind the Cloudflare Worker: gateway_check_middleware
-        # rejects any /api request that does not carry the gateway secret, so
-        # this header cannot be attacker-supplied in school mode.
+        # The Cloudflare gateway supplies this header. The Caddy deployment
+        # removes it and sets X-Forwarded-For for Uvicorn's request.client.
+        # Neither deployment accepts a client-supplied address assertion.
         forwarded = request.headers.get("cf-connecting-ip", "").strip()
         if forwarded:
             return forwarded
@@ -82,6 +85,12 @@ def auth_rate_limit(scope: str) -> Callable[[Request], Awaitable[None]]:
     async def dependency(request: Request) -> None:
         await enforce_rate_limit(
             request,
+            scope=f"auth:{scope}:burst",
+            limit=AUTH_BURST_LIMIT,
+            window_seconds=AUTH_BURST_WINDOW_SECONDS,
+        )
+        await enforce_rate_limit(
+            request,
             scope=f"auth:{scope}",
             limit=AUTH_LIMIT,
             window_seconds=AUTH_WINDOW_SECONDS,
@@ -90,9 +99,7 @@ def auth_rate_limit(scope: str) -> Callable[[Request], Awaitable[None]]:
     return dependency
 
 
-def user_rate_limit(
-    scope: str, *, limit: int = EXPENSIVE_LIMIT
-) -> Callable[[Request, User], Awaitable[None]]:
+def user_rate_limit(scope: str, *, limit: int) -> Callable[[Request, User], Awaitable[None]]:
     """Per-account limit for an expensive authenticated endpoint."""
 
     async def dependency(
@@ -110,9 +117,9 @@ def user_rate_limit(
     return dependency
 
 
-report_rate_limit = user_rate_limit("report_pdf")
-export_rate_limit = user_rate_limit("bulk_export")
-import_rate_limit = user_rate_limit("workbook_import")
+report_rate_limit = user_rate_limit("report_pdf", limit=REPORT_LIMIT)
+export_rate_limit = user_rate_limit("bulk_export", limit=EXPORT_LIMIT)
+import_rate_limit = user_rate_limit("workbook_import", limit=IMPORT_LIMIT)
 # Paging and edits each revalidate the workbook. Allow an interactive review
 # without consuming the separate, stricter commit budget.
-import_preview_rate_limit = user_rate_limit("workbook_preview", limit=60)
+import_preview_rate_limit = user_rate_limit("workbook_preview", limit=IMPORT_PREVIEW_LIMIT)

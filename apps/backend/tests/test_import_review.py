@@ -328,7 +328,10 @@ async def test_reviewed_move_preserves_student_identity_grades_and_audit(api, wo
         )
 
 
-async def test_review_add_exclude_and_clear_language_are_hashed_and_idempotent(api, world):
+@pytest.mark.parametrize("verify_stale_review", [True, False], ids=["stale-review", "idempotency"])
+async def test_review_add_exclude_and_clear_language_are_hashed_and_idempotent(
+    api, world, verify_stale_review
+):
     async with TestSession() as db:
         db.add(
             m.StudentLanguage(student_id=world.student_one, year_id=world.year, language="german")
@@ -376,10 +379,17 @@ async def test_review_add_exclude_and_clear_language_are_hashed_and_idempotent(a
         async with TestSession() as db:
             assert await db.scalar(select(func.count()).select_from(m.Student)) == 2
             assert await db.scalar(select(m.StudentLanguage.language)) == "german"
-        for stale_hash, payload in [
-            (original["review_sha256"], edits),
-            (preview["review_sha256"], {}),
-        ]:
+        # Exercise stale hashes and replay separately: four rapid commits now
+        # exceed the intentional three-request allowance for one account.
+        stale_reviews = (
+            [
+                (original["review_sha256"], edits),
+                (preview["review_sha256"], {}),
+            ]
+            if verify_stale_review
+            else []
+        )
+        for stale_hash, payload in stale_reviews:
             stale = await client.post(
                 "/api/admin/import/commit",
                 params={
@@ -391,7 +401,7 @@ async def test_review_add_exclude_and_clear_language_are_hashed_and_idempotent(a
                 files=files,
             )
             assert stale.status_code == 409
-        for _ in range(2):
+        for _ in range(1 if verify_stale_review else 2):
             committed = await client.post(
                 "/api/admin/import/commit",
                 params={
@@ -403,7 +413,8 @@ async def test_review_add_exclude_and_clear_language_are_hashed_and_idempotent(a
                 files=files,
             )
             assert committed.status_code == 200
-        assert committed.json()["counts"]["unchanged"] == 2
+        if not verify_stale_review:
+            assert committed.json()["counts"]["unchanged"] == 2
     async with TestSession() as db:
         assert await db.scalar(select(func.count()).select_from(m.Student)) == 3
         numbers = set(
@@ -558,7 +569,7 @@ async def test_preview_rate_limit_allows_paging_without_spending_commit_budget(
 
     from flrc.core import rate_limit
 
-    evaluate = AsyncMock(side_effect=[(10, 50), (11, 49), (60, 48), (61, 47), (10, 46), (11, 45)])
+    evaluate = AsyncMock(side_effect=[(10, 50), (11, 49), (30, 48), (31, 47), (3, 46), (4, 45)])
     monkeypatch.setattr(rate_limit, "client", lambda: SimpleNamespace(eval=evaluate))
     files = roster_file([[70123, "Synthetic Review", "5/A", "Almanca"]])
     async with api(world.admin) as client:

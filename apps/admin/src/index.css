@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import "../../../packages/ui/src/styles/shadcn.css";
 @import "@fontsource-variable/geist";
 /* Design tokens live in packages/ui so both apps cannot drift apart. */
 @import "../../../packages/ui/src/styles/theme.css";

@@ -9,6 +9,32 @@ permissions:
   contents: read
 
 jobs:
+  images:
+    name: Production image (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: backend
+            context: apps/backend
+            dockerfile: apps/backend/Dockerfile
+          - image: web
+            context: .
+            dockerfile: infra/web/Dockerfile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build production image without publishing
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: false
+          cache-from: type=gha,scope=ci-${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=ci-${{ matrix.image }}
+
   js:
     name: JavaScript
     runs-on: ubuntu-latest
@@ -35,6 +61,9 @@ jobs:
 
       - name: Test branding file replacement
         run: pnpm brand:test
+
+      - name: Test browser telemetry privacy
+        run: pnpm telemetry:test
 
       - name: Lint, typecheck, and build
         run: pnpm turbo run lint typecheck build --filter='!@flrc/backend'
@@ -86,7 +115,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install uv and Python
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.13"
 
@@ -126,7 +155,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install uv and Python
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.13"
 
@@ -164,6 +193,9 @@ jobs:
           docker run --rm -e SITE_ADDRESS=:80 -e GATEWAY_SECRET=validate
           -v "$PWD/infra/web/Caddyfile:/etc/caddy/Caddyfile:ro"
           caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+
+      - name: Test gateway header forwarding through Caddy
+        run: python3 scripts/check_web_proxy.py
 
       - name: Validate the cloud-init file
         run: python3 -c "import yaml, sys; yaml.safe_load(open('infra/hetzner/cloud-init.yaml'))"
@@ -210,7 +242,7 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.13"
       - run: pnpm install --frozen-lockfile

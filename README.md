@@ -9,15 +9,13 @@ This project is also a hands-on full-stack learning journey. The repository foll
 The active application repository is [suatsulun/flrc](https://github.com/suatsulun/flrc).
 
 - **Application:** `flrc` contains the shared code, generic branding, tests, migrations, and releases.
-- **School branding and deployment:** the private private deployment repository
-  repository contains Example School's branding, private report assets, and deployment configuration.
-  Production pins the `flrc-backend` and `flrc-web` images published by `flrc`.
-- **Historical archive:** [suatsulun/fl-reportcard](https://github.com/suatsulun/fl-reportcard)
-  is archived and preserves the earlier private development history.
+- **Deployment overlays:** each installation keeps its branding, private report assets, and
+  deployment configuration in a separate private repository. Production can pin the
+  `flrc-backend` and `flrc-web` images published by `flrc`.
 
-The existing local directories are `FL-ReportCard/` for `flrc` and `private-deployment/` for
-`private-deployment`. The school playground builds the sibling `../FL-ReportCard` checkout and mounts
-its own branding; its launcher accepts `--source` if the application checkout is elsewhere.
+This public repository contains only generic branding and synthetic examples. Real institution
+names, domains, personnel, signatures, private repository links, and operator notes belong in
+the private deployment repository.
 See handbook [Step 4.9](docs/HANDBOOK.md#step-49-school-production-deployment-with-one-frontend-origin-internal-oauth-api--worker)
 and [ADR-053](docs/DECISIONS.md#adr-053-one-public-application-repository-private-deployment-overlays-released-images).
 
@@ -63,16 +61,10 @@ The demo runs on free hosting. During weekday school hours, an automated health 
 
 ## Branding it for a school
 
-Everything a school sees (the logo on every screen, the name on every report card,
-and the colour of the whole interface) comes from one folder at the root:
-
-```bash
-cp ~/their-logo.svg branding/logo.svg   # their logo
-$EDITOR branding/brand.json             # their name and accent colour
-pnpm brand                              # apply it everywhere
-```
-
-There is no second place to remember. See [branding/README.md](branding/README.md).
+Use a private runtime branding overlay for each installation, starting from
+`infra/school-template/`. The public application and its released images retain the generic
+FL-ReportCard identity. See [branding/README.md](branding/README.md) for the overlay format;
+keep real logos, names, and report assets in the private deployment repository.
 
 ## Documentation
 

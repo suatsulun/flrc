@@ -2,6 +2,10 @@
 
 **This folder is the only place you change to put a school's identity on the product.**
 
+The public repository keeps the generic FL-ReportCard identity. Use the private runtime overlay
+below for real installations. All names in the examples are fictional; never commit real
+institution names, domains, logos, personnel, or signatures to this repository.
+
 Two required files, an optional favicon, and one command:
 
 | Change this   | To set                                                               |

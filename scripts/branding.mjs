@@ -127,7 +127,7 @@ try {
 }
 
 if (typeof brand.name !== "string" || !brand.name.trim())
-  fail('brand.json needs a non-empty "name"', 'e.g. "name": "Deutsche Schule Istanbul"');
+  fail('brand.json needs a non-empty "name"', 'e.g. "name": "Example School"');
 if (brand.shortName !== undefined && typeof brand.shortName !== "string")
   fail('brand.json "shortName" must be a string if present');
 if (!/^#[0-9a-fA-F]{6}$/.test(brand.accentColor ?? ""))

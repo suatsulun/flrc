@@ -2,6 +2,10 @@
 
 **This folder is the only place you change to put a school's identity on the product.**
 
+The public repository keeps the generic FL-ReportCard identity. Use the private runtime overlay
+below for real installations. All names in the examples are fictional; never commit real
+institution names, domains, logos, personnel, or signatures to this repository.
+
 Two required files, an optional favicon, and one command:
 
 | Change this   | To set                                                               |
@@ -25,8 +29,8 @@ work you never have to remember it.
 
 ```json
 {
-  "name": "Deutsche Schule Istanbul",
-  "shortName": "DS Istanbul",
+  "name": "Example School",
+  "shortName": "Example",
   "accentColor": "#1c62b6"
 }
 ```
@@ -52,7 +56,7 @@ still clears the 4.5:1 contrast minimum for text.
 the app:
 
 ```
-Deutsche Schule Istanbul  (DS Istanbul)
+Example School  (Example)
 accent #1c62b6 → hue 255.8° → primary #1b62b6 (6.05:1 on white)
 ```
 
@@ -102,8 +106,8 @@ separate mount described below.
 (function () {
   var here = document.currentScript && document.currentScript.src;
   window.__FLRC_BRAND__ = {
-    name: "Deutsche Schule Istanbul",
-    shortName: "DS Istanbul",
+    name: "Example School",
+    shortName: "Example",
     accentColor: "#1c62b6",
     logoUrl: here ? new URL("logo.svg", here).href : null,
   };

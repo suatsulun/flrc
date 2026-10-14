@@ -20,6 +20,7 @@ COPY packages/ui/package.json packages/ui/
 COPY packages/api-client/package.json packages/api-client/
 COPY packages/i18n/package.json packages/i18n/
 COPY branding/package.json branding/
+COPY infra/vercel/package.json infra/vercel/
 # The whole workspace, so pnpm's pre-run dependency check finds nothing missing
 # and never re-installs. --ignore-scripts skips the root `prepare` hook (lefthook
 # needs a git checkout); dependency build scripts stay governed by allowBuilds.

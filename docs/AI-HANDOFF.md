@@ -39,6 +39,7 @@ the public demo, not a deployment of real school data.
   a valid seven-sheet year workbook. Production PDF download after Google sign-in has not
   been directly observed. Local class rendering took 3.9 seconds for 22 students; this is
   not a performance measurement of the hosted free service.
-  Provider resource IDs, operator state, local credential paths, and private deployment workflows
-  must not be recorded in this public handoff. Credentials remain outside Git.
-  PR #18 remains open; the public demo runs main without those Hazırlık changes.
+
+Provider resource IDs, operator state, local credential paths, and private deployment workflows
+must not be recorded in this public handoff. Credentials remain outside Git.
+PR #18 remains open; the public demo runs main without those Hazırlık changes.

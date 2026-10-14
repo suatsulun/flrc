@@ -18,8 +18,8 @@ treat a green repository test run as a school deployment or restore drill.
 Relevant scope: handbook Step 1.11, Phase 4 reports, and ADR-051/052/064. These checks cover
 the public demo, not a deployment of real school data.
 
-- The active application repository is `suatsulun/flrc`; `suatsulun/fl-reportcard` is archived.
-  Private Example School branding, report assets, and local launchers belong in a private deployment repository.
+- The active public application repository is `suatsulun/flrc`. It contains generic branding
+  and synthetic data only. Installation-specific assets and operator notes stay private.
 - [The public demo](https://flrc.suatsulun.com/demo) serves both panels through one Vercel
   project and uses Render, Neon, and Upstash. Google publication and a real visitor sign-in
   were confirmed after public visitor mode was enabled.
@@ -39,11 +39,7 @@ the public demo, not a deployment of real school data.
   a valid seven-sheet year workbook. Production PDF download after Google sign-in has not
   been directly observed. Local class rendering took 3.9 seconds for 22 students; this is
   not a performance measurement of the hosted free service.
-- The school playground builds the sibling application checkout and keeps its own persistent
-  data and private branding. Start it from `private-deployment` with `./scripts/local.sh` and
-  open `http://localhost:8080/api/local/login`. Its separate Google-login profile still needs
-  the downloaded local OAuth client JSON. The private repository README contains both workflows.
 
-Provider resource IDs, operator state, and local credential paths are recorded only in the
-private deployment repository's `docs/SETUP-CHECKPOINT.md`. Credentials remain outside Git.
+Provider resource IDs, operator state, local credential paths, and private deployment workflows
+must not be recorded in this public handoff. Credentials remain outside Git.
 PR #18 remains open; the public demo runs main without those Hazırlık changes.

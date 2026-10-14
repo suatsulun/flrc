@@ -28,7 +28,6 @@
 		reverse_proxy {$API_UPSTREAM:api:8000} {
 			# The API in school mode answers only requests that carry this
 			# secret (ADR-038); a client-supplied value is never forwarded.
-			header_up -X-Flrc-Gateway
 			header_up X-Flrc-Gateway {$GATEWAY_SECRET}
 			# Only Cloudflare may assert a client address this way; here the
 			# API derives it from X-Forwarded-For, which Caddy sets itself.

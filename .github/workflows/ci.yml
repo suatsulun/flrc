@@ -194,6 +194,9 @@ jobs:
           -v "$PWD/infra/web/Caddyfile:/etc/caddy/Caddyfile:ro"
           caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
 
+      - name: Test gateway header forwarding through Caddy
+        run: python3 scripts/check_web_proxy.py
+
       - name: Validate the cloud-init file
         run: python3 -c "import yaml, sys; yaml.safe_load(open('infra/hetzner/cloud-init.yaml'))"
 

@@ -36,6 +36,9 @@ jobs:
       - name: Test branding file replacement
         run: pnpm brand:test
 
+      - name: Test browser telemetry privacy
+        run: pnpm telemetry:test
+
       - name: Lint, typecheck, and build
         run: pnpm turbo run lint typecheck build --filter='!@flrc/backend'
 

@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import * as Sentry from "@sentry/react";
+import { sentryPrivacyOptions } from "@flrc/ui/lib/telemetry";
 import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { client } from "@flrc/api-client";
@@ -16,8 +17,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
-    sendDefaultPii: false,
-    tracesSampleRate: 0,
+    ...sentryPrivacyOptions(),
   });
 }
 

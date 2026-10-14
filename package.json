@@ -26,7 +26,8 @@
     "brand": "node scripts/branding.mjs",
     "brand:check": "node scripts/branding.mjs --check",
     "brand:test": "node --test scripts/branding.test.mjs",
-    "i18n:check": "node scripts/check-i18n.mjs"
+    "i18n:check": "node scripts/check-i18n.mjs",
+    "telemetry:test": "node --test scripts/telemetry.test.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

@@ -61,6 +61,13 @@ jobs:
           -r "$RUNNER_TEMP/flrc-requirements.txt"
           --no-deps --disable-pip --progress-spinner off
 
+      # OSV also covers GitHub advisories that may not yet appear in PyPI's feed.
+      - name: Audit production Python dependencies against OSV
+        run: >-
+          uvx --from pip-audit==2.10.1 pip-audit
+          -r "$RUNNER_TEMP/flrc-requirements.txt"
+          --no-deps --disable-pip --progress-spinner off --vulnerability-service osv
+
   codeql:
     name: CodeQL (${{ matrix.language }})
     if: ${{ github.event.repository.visibility == 'public' || vars.GHAS_ENABLED == 'true' }}

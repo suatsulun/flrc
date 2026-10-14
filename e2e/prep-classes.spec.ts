@@ -1,12 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { expect, test } from "@playwright/test";
-import { authenticatedContext } from "./helpers/auth";
+import { expect } from "@playwright/test";
+import { test } from "./helpers/import-admin";
 import { adminOrigin } from "./helpers/origins";
 
 test("Prep imports retain named classes through filtering, moves, undo and commit", async ({
-  browser,
+  importContext: context,
 }) => {
-  const context = await authenticatedContext(browser, "admin@example-school.k12.tr");
   await context.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
   const page = await context.newPage();
   await page.goto(`${adminOrigin}/admin/import`);
@@ -39,5 +38,4 @@ test("Prep imports retain named classes through filtering, moves, undo and commi
   await page.getByRole("button", { name: /^Yıldız/ }).click();
   await expect(page.getByText("Synthetic Prep 1", { exact: true })).toBeVisible();
   await expect(page.getByText("Synthetic Prep 3", { exact: true })).toBeVisible();
-  await context.close();
 });

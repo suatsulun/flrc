@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
 import type { AdminClassOut, RosterStudentOut } from "../packages/api-client/src/index";
-import { authenticatedContext } from "./helpers/auth";
+import { test } from "./helpers/import-admin";
 
 import { adminOrigin as adminUrl } from "./helpers/origins";
 const fixture = () => ({
@@ -11,10 +11,9 @@ const fixture = () => ({
 });
 
 test("import scrolls through the full roster, filters all rows, and commits reviewed class moves", async ({
-  browser,
+  importContext: context,
 }) => {
   test.setTimeout(60_000);
-  const context = await authenticatedContext(browser, "admin@example-school.k12.tr");
   await context.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
   const page = await context.newPage();
   await page.goto(`${adminUrl}/admin/import`);
@@ -65,13 +64,11 @@ test("import scrolls through the full roster, filters all rows, and commits revi
   await expect(rows.first()).toContainText("Move class");
   // The original file says 5/B; the saved enrollment is now 5/A, so reimport would move it back.
   await expect(rows.first().getByRole("combobox", { name: /^Class for / })).toHaveValue("5/B");
-  await context.close();
 });
 
 test("changing file or year clears the review and mobile keeps a usable class selector", async ({
-  browser,
+  importContext: context,
 }) => {
-  const context = await authenticatedContext(browser, "admin@example-school.k12.tr");
   await context.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
   const page = await context.newPage();
   await page.goto(`${adminUrl}/admin/import`);
@@ -110,14 +107,12 @@ test("changing file or year clears the review and mobile keeps a usable class se
     .getByRole("textbox", { name: "Search name or school number" })
     .scrollIntoViewIfNeeded();
   await page.screenshot({ path: "test-results/import-desktop.png" });
-  await context.close();
 });
 
 test("grade browsing filters the roster and additions, exclusions and language clearing survive commit", async ({
-  browser,
+  importContext: context,
 }) => {
   test.setTimeout(90_000);
-  const context = await authenticatedContext(browser, "admin@example-school.k12.tr");
   await context.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
   const page = await context.newPage();
   await page.goto(`${adminUrl}/admin/import`);
@@ -180,5 +175,4 @@ test("grade browsing filters the roster and additions, exclusions and language c
   expect(aRoster.find((s) => s.school_number === 78001)?.language).toBeNull();
   expect(bRoster.find((s) => s.school_number === 78999)?.language).toBe("german");
   expect(bRoster.some((s) => s.school_number === 78121)).toBe(false);
-  await context.close();
 });

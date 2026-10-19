@@ -68,11 +68,16 @@
 	}
 
 	redir /admin /admin/ permanent
+	# Hashed bundles never change; the HTML shell must be revalidated on every load,
+	# or browsers heuristically cache it and keep running the previous release.
+	# `header` runs before `uri`, so the admin matchers see the unstripped path.
 	handle /admin/* {
+		@adminAssets path /admin/assets/*
+		header @adminAssets Cache-Control "public, max-age=31536000, immutable"
+		@adminShell not path /admin/assets/*
+		header @adminShell Cache-Control "no-cache"
 		uri strip_prefix /admin
 		root * /srv/admin
-		@assets path /assets/*
-		header @assets Cache-Control "public, max-age=31536000, immutable"
 		try_files {path} /index.html
 		file_server
 	}
@@ -81,6 +86,8 @@
 		root * /srv/teacher
 		@assets path /assets/*
 		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@shell not path /assets/*
+		header @shell Cache-Control "no-cache"
 		try_files {path} /index.html
 		file_server
 	}

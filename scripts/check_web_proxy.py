@@ -1,7 +1,9 @@
 """Exercise the real Caddyfile against a local, synthetic upstream (Linux/Docker)."""
 
 import json
+import shutil
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.error
@@ -13,6 +15,16 @@ from socket import socket
 
 ROOT = Path(__file__).resolve().parents[1]
 GATEWAY = "ci-only-synthetic-gateway"
+IMMUTABLE = "public, max-age=31536000, immutable"
+# SPA shells must be revalidated on every load; hashed bundles are cached forever.
+CACHE_CONTROL = {
+    "/": "no-cache",
+    "/classes/1": "no-cache",
+    "/assets/app.js": IMMUTABLE,
+    "/admin/": "no-cache",
+    "/admin/lifecycle": "no-cache",
+    "/admin/assets/app.js": IMMUTABLE,
+}
 
 
 class Upstream(BaseHTTPRequestHandler):
@@ -42,6 +54,12 @@ def main():
         reservation.bind(("127.0.0.1", 0))
         proxy_port = reservation.getsockname()[1]
     name = "flrc-proxy-test-" + uuid.uuid4().hex[:12]
+    static = Path(tempfile.mkdtemp(prefix="flrc-proxy-static-"))
+    for app in ("teacher", "admin"):
+        (static / app / "assets").mkdir(parents=True)
+        (static / app / "index.html").write_text(f"<!doctype html><title>{app}</title>")
+        (static / app / "assets/app.js").write_text("export {};")
+    static.chmod(0o755)
     try:
         subprocess.run(
             [
@@ -61,6 +79,10 @@ def main():
                 f"GATEWAY_SECRET={GATEWAY}",
                 "--volume",
                 f"{ROOT / 'infra/web/Caddyfile'}:/etc/caddy/Caddyfile:ro",
+                "--volume",
+                f"{static / 'teacher'}:/srv/teacher:ro",
+                "--volume",
+                f"{static / 'admin'}:/srv/admin:ro",
                 "caddy:2-alpine",
             ],
             check=True,
@@ -91,8 +113,15 @@ def main():
             assert actual["cloudflare_ip"] is None, (
                 "Caddy must strip untrusted client IP headers"
             )
+        for path, expected in CACHE_CONTROL.items():
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{proxy_port}{path}", timeout=3
+            ) as response:
+                actual = response.headers.get("Cache-Control")
+            assert actual == expected, f"{path}: Cache-Control {actual!r}, expected {expected!r}"
         print(
-            "Caddy forwards the gateway secret, replaces forged values, and strips untrusted IP headers."
+            "Caddy forwards the gateway secret, replaces forged values, strips untrusted IP"
+            " headers, revalidates SPA shells, and caches hashed bundles."
         )
     finally:
         subprocess.run(
@@ -104,6 +133,7 @@ def main():
         upstream.shutdown()
         upstream.server_close()
         thread.join()
+        shutil.rmtree(static, ignore_errors=True)
 
 
 if __name__ == "__main__":

@@ -27,7 +27,7 @@ HEADER_ALIASES = {
     "class_combined": {"sınıf/şube", "sinif/sube", "sınıf şube", "class"},
     "grade_level": {"sınıf", "sinif"},
     "section": {"şube", "sube"},
-    "language": {"yabancı dil", "2. yabancı dil", "ikinci yabancı dil", "l2"},
+    "language": {"yabancı dil", "2. yabancı dil", "ikinci yabancı dil", "2. y.d.", "l2"},
 }
 FOOTER_WORDS = ("toplam", "sınıf mevcudu", "sinif mevcudu", "öğrenci sayısı")
 CLASS_RE = re.compile(r"^\s*([1-8])\s*[-/]?\s*([A-Za-zÇĞİÖŞÜçğıöşü])\s*$")
@@ -39,7 +39,8 @@ MAX_ARCHIVE_ENTRIES = 1_000
 MAX_ARCHIVE_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
 MAX_ARCHIVE_ENTRY_BYTES = 20 * 1024 * 1024
 MAX_COMPRESSION_RATIO = 200
-MAX_WORKSHEETS = 32
+# One worksheet per class: a K-8 school with Hazırlık classes exceeds fifty.
+MAX_WORKSHEETS = 100
 MAX_WORKSHEET_ROWS = 10_000
 MAX_WORKSHEET_COLUMNS = 100
 HEADER_SCAN_ROWS = 25
@@ -112,15 +113,26 @@ class ImportPlan(BaseModel):
 
 
 def norm(value: object) -> str:
-    return search_key(str(value or "")).replace("\n", " ")
+    return " ".join(search_key(str(value or "")).split())
+
+
+def _header_key(value: str) -> str:
+    # "OKUL\nNO", "Okul No." and "2.Y.D." match "okul no" and "2. y.d.".
+    return re.sub(r"[\s.]", "", value)
+
+
+HEADER_KEYS = {
+    canonical: {_header_key(alias) for alias in aliases}
+    for canonical, aliases in HEADER_ALIASES.items()
+}
 
 
 def header_map(values: list[object]) -> dict[str, int]:
     found: dict[str, int] = {}
     for index, raw in enumerate(values):
-        value = norm(raw)
-        for canonical, aliases in HEADER_ALIASES.items():
-            if value in aliases:
+        value = _header_key(norm(raw))
+        for canonical, keys in HEADER_KEYS.items():
+            if value in keys:
                 found[canonical] = index
     return found
 
@@ -148,14 +160,24 @@ def parse_class(value: object, *, bare_prep_name: bool = True) -> tuple[int, str
 
 
 def parse_language(value: object) -> str | None:
-    key = norm(value)
+    key = norm(value).strip(" .")
     if not key:
         return None
-    if key in {"almanca", "de", "german", "deutsch"}:
+    if key in {"almanca", "alm", "de", "german", "deutsch"}:
         return "german"
-    if key in {"fransızca", "fransizca", "fr", "french", "français"}:
+    if key in {"fransızca", "fransizca", "fra", "fr", "french", "français"}:
         return "french"
     raise ValueError("unknown_language")
+
+
+def _school_number(value: object) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        numeric = float(str(value).replace(",", "."))
+    except ValueError:
+        return None
+    return int(numeric) if numeric.is_integer() else None
 
 
 def _parse_workbook(data: bytes) -> ImportPlan:
@@ -166,6 +188,12 @@ def _parse_workbook(data: bytes) -> ImportPlan:
 
     if len(workbook.worksheets) > MAX_WORKSHEETS:
         raise InvalidWorkbook("xlsx_too_many_worksheets")
+    # In a class-per-sheet workbook the titles name classes, so a bare title such as
+    # "Güneş" is a Hazırlık class there. A workbook without any class-titled sheet
+    # keeps requiring the prefix, so a lone "Liste" never becomes a class (ADR-069).
+    class_per_sheet = any(
+        parse_class(sheet.title, bare_prep_name=False) for sheet in workbook.worksheets
+    )
     for sheet in workbook.worksheets:
         # A read-only worksheet otherwise trusts the <dimension> the file
         # declares, which is both attacker-controlled and wrong in some real
@@ -174,7 +202,7 @@ def _parse_workbook(data: bytes) -> ImportPlan:
         # caps below are counted off the data as it streams past, so they
         # cannot be talked out of by the file.
         sheet.reset_dimensions()
-        default_class = parse_class(sheet.title, bare_prep_name=False)
+        default_class = parse_class(sheet.title, bare_prep_name=class_per_sheet)
         header_row: int | None = None
         mapping: dict[str, int] = {}
         for row_number, row in enumerate(
@@ -219,14 +247,11 @@ def _parse_workbook(data: bytes) -> ImportPlan:
 
             number_raw = at("school_number")
             name_raw = at("full_name")
-            if number_raw in (None, "") and name_raw in (None, ""):
+            number = _school_number(number_raw)
+            if number is None and not (isinstance(name_raw, str) and name_raw.strip()):
+                # Blank, separator and summary rows ("Kız | 14") carry no student.
                 continue
-            try:
-                numeric = float(str(number_raw).replace(",", "."))
-                number = int(numeric)
-                if numeric != number:
-                    raise ValueError
-            except (TypeError, ValueError):
+            if number is None:
                 index = mapping["school_number"] + 1
                 issues.append(
                     ImportIssue(

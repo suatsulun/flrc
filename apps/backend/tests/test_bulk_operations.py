@@ -84,13 +84,14 @@ async def test_repeated_assignment_slots_keep_last_change_and_validate_every_cha
     assert final.json() == response.json()
 
 
-def import_file(rows):
+def import_file(sheets):
     workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "5-A"
-    sheet.append(["Okul No", "Ad Soyad", "Yabancı Dil"])
-    for row in rows:
-        sheet.append(row)
+    workbook.remove(workbook.active)
+    for title, rows in sheets.items():
+        sheet = workbook.create_sheet(title)
+        sheet.append(["Okul No", "Ad Soyad", "Yabancı Dil"])
+        for row in rows:
+            sheet.append(row)
     buffer = BytesIO()
     workbook.save(buffer)
     data = buffer.getvalue()
@@ -101,33 +102,47 @@ async def test_import_existing_roster_uses_bounded_reads_and_preserves_student_i
     api, world, record_property
 ):
     async with TestSession() as db:
-        students = [
-            m.Student(full_name=f"Synthetic Import {i}", search_name=f"synthetic import {i}")
+        primary_class = m.SchoolClass(year_id=world.year, grade_level=4, section="A")
+        db.add(primary_class)
+        await db.flush()
+        # Both stages reuse the same numbers (ADR-070); identities must never cross.
+        classes = {4: primary_class.id, 5: world.cls}
+        students = {
+            (grade, 70000 + i): m.Student(
+                full_name=f"Synthetic Import {grade}-{i}",
+                search_name=f"synthetic import {grade}-{i}",
+            )
+            for grade in classes
             for i in range(40)
-        ]
-        db.add_all(students)
+        }
+        db.add_all(students.values())
         await db.flush()
         db.add_all(
             [
                 m.Enrollment(
                     student_id=student.id,
                     year_id=world.year,
-                    class_id=world.cls,
-                    school_number=70000 + i,
+                    class_id=classes[grade],
+                    school_number=number,
                 )
-                for i, student in enumerate(students)
+                for (grade, number), student in students.items()
             ]
         )
         db.add_all(
             [
                 m.StudentLanguage(student_id=student.id, year_id=world.year, language="german")
-                for student in students
+                for student in students.values()
             ]
         )
         await db.commit()
-        expected_ids = {70000 + i: student.id for i, student in enumerate(students)}
+        expected_ids = {key: student.id for key, student in students.items()}
     files, digest = import_file(
-        [[70000 + i, f"Renamed Synthetic {i}", "Fransızca"] for i in range(40)]
+        {
+            f"{grade}-A": [
+                [70000 + i, f"Renamed Synthetic {grade}-{i}", "Fransızca"] for i in range(40)
+            ]
+            for grade in classes
+        }
     )
     with count_reads() as reads:
         async with api(world.admin) as client:
@@ -140,16 +155,18 @@ async def test_import_existing_roster_uses_bounded_reads_and_preserves_student_i
     async with TestSession() as db:
         rows = (
             await db.execute(
-                select(m.Enrollment, m.Student, m.StudentLanguage)
+                select(m.Enrollment, m.SchoolClass.grade_level, m.Student, m.StudentLanguage)
+                .join(m.SchoolClass, m.SchoolClass.id == m.Enrollment.class_id)
                 .join(m.Student, m.Student.id == m.Enrollment.student_id)
                 .join(m.StudentLanguage, m.StudentLanguage.student_id == m.Student.id)
                 .where(m.Enrollment.year_id == world.year, m.StudentLanguage.year_id == world.year)
             )
         ).all()
-    assert len(rows) == 40
-    for enrollment, student, language in rows:
-        assert student.id == expected_ids[enrollment.school_number]
-        assert student.full_name.startswith("Renamed Synthetic")
+    assert len(rows) == 80
+    for enrollment, grade, student, language in rows:
+        number = enrollment.school_number
+        assert student.id == expected_ids[(grade, number)]
+        assert student.full_name == f"Renamed Synthetic {grade}-{number - 70000}"
         assert language.language == "french"
     record_property("select_count", len(reads))
     # Preview and commit each look up last year's pupils awaiting placement
@@ -180,7 +197,7 @@ async def test_import_claims_numberless_students_only_when_unambiguous(
         await db.commit()
         original_ids = {student.id for student in students}
     files, digest = import_file(
-        [[70001 + i, "Synthetic Same Name", "Almanca"] for i in range(incoming_count)]
+        {"5-A": [[70001 + i, "Synthetic Same Name", "Almanca"] for i in range(incoming_count)]}
     )
     async with api(world.admin) as client:
         response = await client.post(
@@ -256,8 +273,10 @@ async def test_year_export_streams_rows_and_finishes_progress(api, world):
             (world.student_two, 51002, "Synthetic Student Two"),
         ]
         assert exported_students[-1][1:] == (71199, "Synthetic Export 1199")
-        assert list(workbook["Grades"].values)[1][0:9] == (
+        assert list(workbook["Grades"].values)[0][0:3] == ("school_number", "stage", "column_id")
+        assert list(workbook["Grades"].values)[1][0:10] == (
             51001,
+            "middle",
             world.main_column,
             "Main score",
             world.semester,
@@ -267,8 +286,10 @@ async def test_year_export_streams_rows_and_finishes_progress(api, world):
             None,
             1,
         )
-        assert list(workbook["Audit"].values)[1][3:12] == (
+        assert list(workbook["Audit"].values)[0][3:6] == ("school_number", "stage", "column_id")
+        assert list(workbook["Audit"].values)[1][3:13] == (
             51001,
+            "middle",
             world.main_column,
             None,
             None,

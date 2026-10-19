@@ -16,9 +16,14 @@ from flrc.db.models import (
     User,
 )
 from flrc.db.session import get_session
-from flrc.modules.academics.programme import L2_START_GRADE
+from flrc.modules.academics.programme import L2_START_GRADE, stage_for_grade
 from flrc.modules.administration.names import search_key
-from flrc.modules.administration.roster_service import move_students, remove_student
+from flrc.modules.administration.roster_service import (
+    is_duplicate_school_number,
+    move_students,
+    remove_student,
+    school_number_taken,
+)
 from flrc.modules.auth.dependencies import require_admin
 
 router = APIRouter(prefix="/admin", tags=["admin-roster"])
@@ -126,13 +131,12 @@ async def add_admin_roster_student(
     await _ensure_year_writable(db, school_class.year_id)
     if body.language and school_class.grade_level < L2_START_GRADE:
         raise HTTPException(422, {"code": "language_grade_too_low"})
-    duplicate = await db.scalar(
-        select(Enrollment.id).where(
-            Enrollment.year_id == school_class.year_id,
-            Enrollment.school_number == body.school_number,
-        )
-    )
-    if duplicate is not None:
+    if await school_number_taken(
+        db,
+        year_id=school_class.year_id,
+        stage=stage_for_grade(school_class.grade_level),
+        school_number=body.school_number,
+    ):
         raise HTTPException(409, {"code": "duplicate_school_number"})
     full_name = body.full_name.strip()
     student = Student(full_name=full_name, search_name=search_key(full_name))
@@ -158,7 +162,9 @@ async def add_admin_roster_student(
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
-        raise HTTPException(409, {"code": "duplicate_school_number"}) from exc
+        if is_duplicate_school_number(exc):
+            raise HTTPException(409, {"code": "duplicate_school_number"}) from exc
+        raise
     return RosterStudentOut(
         student_id=student.id,
         school_number=body.school_number,
@@ -192,6 +198,14 @@ async def patch_admin_roster_student(
     if "school_number" in body.model_fields_set:
         if body.school_number is None and year and year.status != "setup":
             raise HTTPException(409, {"code": "student_number_required"})
+        if body.school_number is not None and await school_number_taken(
+            db,
+            year_id=enrollment.year_id,
+            stage=stage_for_grade(school_class.grade_level),
+            school_number=body.school_number,
+            except_enrollment_id=enrollment.id,
+        ):
+            raise HTTPException(409, {"code": "duplicate_school_number"})
         enrollment.school_number = body.school_number
     if body.full_name is not None:
         student.full_name = body.full_name.strip()
@@ -224,7 +238,9 @@ async def patch_admin_roster_student(
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
-        raise HTTPException(409, {"code": "duplicate_school_number"}) from exc
+        if is_duplicate_school_number(exc):
+            raise HTTPException(409, {"code": "duplicate_school_number"}) from exc
+        raise
     language = await db.scalar(
         select(StudentLanguage.language).where(
             StudentLanguage.student_id == student_id,
@@ -259,7 +275,13 @@ async def move_admin_roster(
         )
     except ValueError as exc:
         raise HTTPException(409, {"code": str(exc)}) from exc
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        if is_duplicate_school_number(exc):
+            raise HTTPException(409, {"code": "duplicate_school_number"}) from exc
+        raise
     return {"changed": changed, "unchanged": unchanged}
 
 

@@ -334,11 +334,15 @@ The schema intentionally avoids unnecessary sensitive fields. Do not add fields 
 - Grade save conflicts must be reported, not silently overwritten.
 - Audit entries are part of the product, not optional debug information.
 - Treat `Student.id` as the stable person identity. School numbers belong to `Enrollment` and are
-  unique only within an academic year; never reintroduce a global student-number constraint.
+  unique only within an academic year and school stage (ADR-070): primary is Hazırlık to grade 4,
+  middle is grades 5-8, from `stage_for_grade` in `academics/programme.py`. The database derives
+  `Enrollment.stage` from the class; never set it in application code, and never reintroduce a
+  year-wide or global student-number constraint.
 - A rolled-over setup enrollment may have no school number, but an academic year must not activate
   until every enrollment has one.
 - Automatic rollover copies structure and identity links, never grades, audit rows, or school
-  numbers; it assigns fresh sequential year-scoped numbers. Grade 8 students are not promoted.
+  numbers; it assigns fresh sequential numbers counted separately in each stage. Grade 8 students
+  are not promoted.
 - Assessment programme rules live in `academics/programme.py`: grade 4 German/French permit
   `scale3` and `text`, without numeric scores or averages. ADR-063 removes grades 5-8 English
   text fields while retaining historical values and audit records. Do not restore them through

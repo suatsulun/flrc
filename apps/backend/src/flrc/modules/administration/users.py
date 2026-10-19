@@ -8,6 +8,7 @@ from starlette.concurrency import run_in_threadpool
 
 from flrc.db.models import SchoolClass, TeachingAssignment, User
 from flrc.db.session import get_session
+from flrc.modules.academics.programme import Stage, stage_for_grade
 from flrc.modules.administration.names import normalize_email, search_key
 from flrc.modules.administration.report_identity import (
     MAX_SIGNATURE_BYTES,
@@ -23,7 +24,6 @@ from flrc.modules.auth.sessions import revoke_user_sessions
 
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 TeachingField = Literal["english", "german", "french"]
-TeachingStage = Literal["primary", "middle"]
 
 
 class ManagedUserOut(BaseModel):
@@ -64,7 +64,7 @@ class UserCreate(BaseModel):
     is_admin: bool = False
     is_coordinator: bool = False
     teaching_field: TeachingField = "english"
-    teaching_stage: TeachingStage | None = None
+    teaching_stage: Stage | None = None
 
 
 class UserPatch(BaseModel):
@@ -73,7 +73,7 @@ class UserPatch(BaseModel):
     is_coordinator: bool | None = None
     is_active: bool | None = None
     teaching_field: TeachingField | None = None
-    teaching_stage: TeachingStage | None = None
+    teaching_stage: Stage | None = None
     report_name: str | None = Field(default=None, max_length=160)
     reset_google_identity: bool = False
 
@@ -174,7 +174,7 @@ async def patch_managed_user(
         ).all()
         for role, grade_level in assignments:
             expected_field = "english" if role in ("main", "skills") else role
-            expected_stage = "primary" if grade_level <= 4 else "middle"
+            expected_stage = stage_for_grade(grade_level)
             if next_field != expected_field or (
                 next_field == "english" and updates["teaching_stage"] != expected_stage
             ):

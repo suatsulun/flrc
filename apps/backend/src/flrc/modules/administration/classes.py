@@ -3,7 +3,9 @@ from typing import Annotated, Literal, Self
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from flrc.db.models import (
     AcademicYear,
@@ -21,6 +23,8 @@ from flrc.modules.academics.class_names import (
     class_label,
     normalize_section,
 )
+from flrc.modules.academics.programme import stage_for_grade
+from flrc.modules.administration.roster_service import is_duplicate_school_number
 from flrc.modules.auth.dependencies import require_admin
 
 router = APIRouter(prefix="/admin", tags=["admin-classes"])
@@ -29,10 +33,6 @@ Role = Literal["main", "skills", "german", "french"]
 
 def _field_for_role(role: str) -> str:
     return "english" if role in ("main", "skills") else role
-
-
-def _stage_for_class(school_class: SchoolClass) -> str:
-    return "primary" if school_class.grade_level <= 4 else "middle"
 
 
 class AdminClassOut(BaseModel):
@@ -196,8 +196,31 @@ async def patch_admin_class(
     )
     if duplicate is not None:
         raise HTTPException(409, {"code": "duplicate_class"})
+    # Its pupils follow the class into the other school stage with their
+    # numbers, so the edit is refused if one is already taken there.
+    if stage_for_grade(grade) != stage_for_grade(school_class.grade_level):
+        other = aliased(Enrollment)
+        clash = await db.scalar(
+            select(Enrollment.id)
+            .join(
+                other,
+                (other.year_id == Enrollment.year_id)
+                & (other.school_number == Enrollment.school_number)
+                & (other.class_id != class_id),
+            )
+            .where(Enrollment.class_id == class_id, other.stage == stage_for_grade(grade))
+            .limit(1)
+        )
+        if clash is not None:
+            raise HTTPException(409, {"code": "duplicate_school_number"})
     school_class.grade_level, school_class.section = grade, section
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        if is_duplicate_school_number(exc):
+            raise HTTPException(409, {"code": "duplicate_school_number"}) from exc
+        raise
     return await _class_out(db, school_class)
 
 
@@ -302,7 +325,8 @@ async def replace_assignment_matrix(
         if (
             change.user_id is not None
             and _field_for_role(change.role) == "english"
-            and users[change.user_id].teaching_stage != _stage_for_class(classes[change.class_id])
+            and users[change.user_id].teaching_stage
+            != stage_for_grade(classes[change.class_id].grade_level)
         ):
             raise HTTPException(
                 422,

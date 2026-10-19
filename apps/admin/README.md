@@ -1,6 +1,6 @@
 # FL-ReportCard admin
 
-The React admin SPA manages class rosters, year-scoped school numbers, second languages,
+The React admin SPA manages class rosters, year-and-stage-scoped school numbers, second languages,
 assessment columns, teacher assignments, imports, lifecycle transitions, and report identities.
 It shares UI, generated API types, branding, and four locale bundles with the teacher app.
 Relevant handbook steps: 2.1-2.2, Phase 3, and 4.4.

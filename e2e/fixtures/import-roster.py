@@ -15,6 +15,16 @@ sheet.append(["Okul No", "Ad Soyad", "Sınıf/Şube", "2. Yabancı Dil"])
 if "--prep" in sys.argv:
     for index, name in enumerate(("Bulut", "Bulut", "Hazırlık Yıldız"), start=1):
         sheet.append([79000 + index, f"Synthetic Prep {index}", name, None])
+elif "--cross-stage" in sys.argv:
+    # Primary and middle school keep separate number sequences, so equal numbers coexist.
+    for number, name, school_class, language in (
+        (77001, "Synthetic Primary One", "4/A", "Almanca"),
+        (77002, "Synthetic Primary Two", "4/B", "Fransızca"),
+        (77001, "Synthetic Middle One", "5/A", "Almanca"),
+        (77002, "Synthetic Middle Two", "5/B", "Fransızca"),
+        (77003, "Synthetic Middle Three", "5/A", "Almanca"),
+    ):
+        sheet.append([number, name, school_class, language])
 else:
     grade = 4 if "--grade-four" in sys.argv else 5
     for index in range(1, 206):

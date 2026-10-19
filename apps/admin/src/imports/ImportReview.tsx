@@ -30,7 +30,7 @@ import { Input } from "@flrc/ui/components/input";
 import { NativeSelect } from "@flrc/ui/components/native-select";
 import { Stat } from "@flrc/ui/components/stat";
 import { useDragPageAutoScroll } from "@flrc/ui/hooks/use-drag-page-auto-scroll";
-import { createImportDraft } from "./draft";
+import { additionRowKey, compareRowKeys, createImportDraft } from "./draft";
 import { ImportRoster } from "./ImportRoster";
 import { ImportAddStudent } from "./ImportAddStudent";
 
@@ -81,7 +81,9 @@ export function ImportReview({
   const sentinel = useRef<HTMLDivElement>(null);
   const movesJson = useMemo(
     () =>
-      JSON.stringify(Object.values(draft.moves).sort((a, b) => a.school_number - b.school_number)),
+      JSON.stringify(
+        Object.values(draft.moves).sort((a, b) => compareRowKeys(a.row_key, b.row_key)),
+      ),
     [draft.moves],
   );
   const moveCount = Object.keys(draft.moves).length;
@@ -93,10 +95,12 @@ export function ImportReview({
   const editsJson = useMemo(
     () =>
       JSON.stringify({
-        additions: Object.values(draft.additions).sort((a, b) => a.school_number - b.school_number),
-        removed_school_numbers: [...draft.removed].sort((a, b) => a - b),
-        language_changes: Object.values(draft.languages).sort(
-          (a, b) => a.school_number - b.school_number,
+        additions: Object.values(draft.additions).sort((a, b) =>
+          compareRowKeys(additionRowKey(a), additionRowKey(b)),
+        ),
+        removed_row_keys: [...draft.removed].sort(compareRowKeys),
+        language_changes: Object.values(draft.languages).sort((a, b) =>
+          compareRowKeys(a.row_key, b.row_key),
         ),
       }),
     [draft.additions, draft.removed, draft.languages],
@@ -195,7 +199,7 @@ export function ImportReview({
     if (!target) return;
     draft.move(
       {
-        school_number: item.row.school_number,
+        row_key: item.row.row_key,
         grade_level: target.grade_level,
         section: target.section,
       },
@@ -556,11 +560,11 @@ export function ImportReview({
               refreshing={refreshing}
               onMove={moveStudent}
               onRemove={(item) => {
-                draft.remove(item.row.school_number);
+                draft.remove(item.row.row_key);
                 setAnnouncement(t("import.studentExcluded", { name: item.row.full_name }));
               }}
               onLanguage={(item, language) =>
-                draft.setLanguage({ school_number: item.row.school_number, language })
+                draft.setLanguage({ row_key: item.row.row_key, language })
               }
               onDrag={setDragged}
               onDragEnd={() => {

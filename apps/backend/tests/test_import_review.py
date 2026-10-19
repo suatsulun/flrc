@@ -6,6 +6,8 @@ from openpyxl import Workbook
 from sqlalchemy import func, select
 
 from flrc.db import models as m
+from flrc.modules.imports.parser import parse_workbook
+from flrc.modules.imports.review import ImportClassMove, ImportRosterEdits, review_sha256
 from tests.conftest import TestSession, cell, save_grid
 
 
@@ -42,7 +44,7 @@ async def test_removed_manual_addition_is_omitted_from_identity_matching(api, wo
                 "section": "A",
             }
         ],
-        "removed_school_numbers": [70002],
+        "removed_row_keys": ["middle:70002"],
     }
     async with api(world.admin) as client:
         preview = await client.post(
@@ -53,7 +55,7 @@ async def test_removed_manual_addition_is_omitted_from_identity_matching(api, wo
         )
         assert preview.status_code == 200, preview.text
         body = preview.json()
-        assert [item["row"]["school_number"] for item in body["rows"]] == [70001]
+        assert [item["row"]["row_key"] for item in body["rows"]] == ["middle:70001"]
         committed = await client.post(
             "/api/admin/import/commit",
             params={
@@ -110,6 +112,11 @@ async def test_review_pages_cover_every_student_and_filters_search_beyond_first_
     assert [len(page["rows"]) for page in pages] == [100, 100, 5]
     numbers = [item["row"]["school_number"] for page in pages for item in page["rows"]]
     assert numbers == list(range(70001, 70206))
+    assert all(
+        item["row"]["row_key"] == f"middle:{item['row']['school_number']}"
+        for page in pages
+        for item in page["rows"]
+    )
     assert all(page["total_rows"] == 205 for page in pages)
     assert all(page["counts"]["new_students"] == 205 for page in pages)
     assert filtered.json()["filtered_rows"] == 30
@@ -123,7 +130,7 @@ async def test_review_pages_cover_every_student_and_filters_search_beyond_first_
 
 async def test_class_move_is_preview_only_until_matching_review_is_committed(api, world):
     files = roster_file()
-    move = [{"school_number": 70205, "grade_level": 5, "section": "B"}]
+    move = [{"row_key": "middle:70205", "grade_level": 5, "section": "B"}]
     async with api(world.admin) as client:
         original = (
             await client.post(
@@ -209,11 +216,16 @@ async def test_class_move_is_preview_only_until_matching_review_is_committed(api
     "moves",
     [
         "not-json",
-        '[{"school_number":99999,"grade_level":5,"section":"B"}]',
-        '[{"school_number":70001,"grade_level":5,"section":"Z"}]',
-        '[{"school_number":70001,"grade_level":9,"section":"B"}]',
-        '[{"school_number":70001,"grade_level":5,"section":"B","full_name":"Injected"}]',
-        '[{"school_number":70001,"grade_level":5,"section":"B"},{"school_number":70001,"grade_level":6,"section":"A"}]',
+        '[{"row_key":"middle:99999","grade_level":5,"section":"B"}]',
+        # The source stage is part of the row identity: 70001 is a grade 5 row.
+        '[{"row_key":"primary:70001","grade_level":5,"section":"B"}]',
+        '[{"row_key":"70001","grade_level":5,"section":"B"}]',
+        # The number-only identity was retired with stage-scoped numbers.
+        '[{"school_number":70001,"grade_level":5,"section":"B"}]',
+        '[{"row_key":"middle:70001","grade_level":5,"section":"Z"}]',
+        '[{"row_key":"middle:70001","grade_level":9,"section":"B"}]',
+        '[{"row_key":"middle:70001","grade_level":5,"section":"B","full_name":"Injected"}]',
+        '[{"row_key":"middle:70001","grade_level":5,"section":"B"},{"row_key":"middle:70001","grade_level":6,"section":"A"}]',
     ],
 )
 async def test_invalid_review_edits_are_rejected_without_writes(api, world, moves):
@@ -260,7 +272,7 @@ async def test_review_accepts_existing_classes_with_multi_character_sections(api
             params={"year_id": world.year, "section": "A1"},
             data={
                 "class_moves": json.dumps(
-                    [{"school_number": 70001, "grade_level": 5, "section": "A1"}]
+                    [{"row_key": "middle:70001", "grade_level": 5, "section": "A1"}]
                 )
             },
             files=roster_file(),
@@ -281,7 +293,7 @@ async def test_reviewed_move_preserves_student_identity_grades_and_audit(api, wo
             [79001, "Synthetic New Classmate", "5/B", None],
         ]
     )
-    moves = json.dumps([{"school_number": 51001, "grade_level": 5, "section": "B"}])
+    moves = json.dumps([{"row_key": "middle:51001", "grade_level": 5, "section": "B"}])
     async with api(world.admin) as client:
         preview = (
             await client.post(
@@ -354,8 +366,8 @@ async def test_review_add_exclude_and_clear_language_are_hashed_and_idempotent(
                 "language": "french",
             }
         ],
-        "removed_school_numbers": [51002, 79001],
-        "language_changes": [{"school_number": 51001, "language": None}],
+        "removed_row_keys": ["middle:51002", "middle:79001"],
+        "language_changes": [{"row_key": "middle:51001", "language": None}],
     }
     async with api(world.admin) as client:
         original = (
@@ -451,21 +463,29 @@ async def test_review_add_exclude_and_clear_language_are_hashed_and_idempotent(
 @pytest.mark.parametrize(
     "edits",
     [
-        {"removed_school_numbers": [99999]},
-        {"removed_school_numbers": [70001, 70001]},
-        {"language_changes": [{"school_number": 99999, "language": None}]},
-        {"language_changes": [{"school_number": 70001, "language": "spanish"}]},
+        {"removed_row_keys": ["middle:99999"]},
+        # The source stage is part of the row identity: 70001 is a grade 5 row.
+        {"removed_row_keys": ["primary:70001"]},
+        {"removed_row_keys": ["middle:70001", "middle:70001"]},
+        {"removed_row_keys": ["70001"]},
+        # The number-only identities were retired with stage-scoped numbers.
+        {"removed_school_numbers": [70001]},
+        {"language_changes": [{"school_number": 70001, "language": None}]},
+        {"language_changes": [{"row_key": "middle:99999", "language": None}]},
+        {"language_changes": [{"row_key": "middle:70001", "language": "spanish"}]},
         {
             "language_changes": [
-                {"school_number": 70001, "language": None},
-                {"school_number": 70001, "language": "french"},
+                {"row_key": "middle:70001", "language": None},
+                {"row_key": "middle:70001", "language": "french"},
             ]
         },
         {
             "additions": [
                 {
-                    "school_number": 70001,
-                    "full_name": "Synthetic Duplicate",
+                    # An addition's row key is derived from its class, never supplied.
+                    "row_key": "middle:79999",
+                    "school_number": 79999,
+                    "full_name": "Synthetic Supplied Key",
                     "grade_level": 5,
                     "section": "A",
                 }
@@ -545,7 +565,7 @@ async def test_added_student_keeps_original_class_when_moved_in_review(api, worl
             }
         ]
     }
-    moves = [{"school_number": 79999, "grade_level": 5, "section": "B"}]
+    moves = [{"row_key": "middle:79999", "grade_level": 5, "section": "B"}]
     async with api(world.admin) as client:
         response = await client.post(
             "/api/admin/import/dry-run",
@@ -559,6 +579,310 @@ async def test_added_student_keeps_original_class_when_moved_in_review(api, worl
     assert item["row"]["section"] == "B"
     assert "manual_added" in item["actions"]
     assert "class_changed" in item["actions"]
+
+
+def reviewed_commit_params(year_id, files, moves=(), edits=None):
+    """Commit parameters for a review the server rejects before it can return a digest."""
+    plan = parse_workbook(files["file"][1])
+    digest = review_sha256(
+        year_id,
+        plan,
+        [ImportClassMove.model_validate(move) for move in moves],
+        ImportRosterEdits.model_validate(edits or {}),
+    )
+    return {"year_id": year_id, "expected_sha256": plan.sha256, "expected_review_sha256": digest}
+
+
+async def test_grade_four_and_five_pupils_share_a_number_through_preview_and_commit(api, world):
+    files = roster_file(
+        [
+            [70001, "Synthetic Primary Pupil", "4/A", None],
+            [70001, "Synthetic Middle Pupil", "5/A", None],
+        ]
+    )
+    async with api(world.admin) as client:
+        response = await client.post(
+            "/api/admin/import/dry-run", params={"year_id": world.year}, files=files
+        )
+        assert response.status_code == 200, response.text
+        preview = response.json()
+        assert preview["issues"] == []
+        assert preview["counts"]["new_students"] == 2
+        # Equal numbers order by stage, so paging stays deterministic.
+        assert [(item["row"]["row_key"], item["row"]["full_name"]) for item in preview["rows"]] == [
+            ("middle:70001", "Synthetic Middle Pupil"),
+            ("primary:70001", "Synthetic Primary Pupil"),
+        ]
+        searched = await client.post(
+            "/api/admin/import/dry-run",
+            params={"year_id": world.year, "q": "70001"},
+            files=files,
+        )
+        assert searched.json()["filtered_rows"] == 2
+        committed = await client.post(
+            "/api/admin/import/commit",
+            params={
+                "year_id": world.year,
+                "expected_sha256": preview["sha256"],
+                "expected_review_sha256": preview["review_sha256"],
+            },
+            files=files,
+        )
+        assert committed.status_code == 200, committed.text
+        replayed = await client.post(
+            "/api/admin/import/dry-run", params={"year_id": world.year}, files=files
+        )
+        assert replayed.json()["counts"]["unchanged"] == 2
+    async with TestSession() as db:
+        enrolled = (
+            await db.execute(
+                select(m.SchoolClass.grade_level, m.Student.full_name)
+                .join(m.Enrollment, m.Enrollment.class_id == m.SchoolClass.id)
+                .join(m.Student, m.Student.id == m.Enrollment.student_id)
+                .where(m.Enrollment.year_id == world.year, m.Enrollment.school_number == 70001)
+                .order_by(m.SchoolClass.grade_level)
+            )
+        ).all()
+    assert [tuple(row) for row in enrolled] == [
+        (4, "Synthetic Primary Pupil"),
+        (5, "Synthetic Middle Pupil"),
+    ]
+
+
+async def test_same_stage_number_conflict_blocks_the_import(api, world):
+    files = roster_file(
+        [
+            [70001, "Synthetic Third Grader", "3/A", None],
+            [70001, "Synthetic Fourth Grader", "4/A", None],
+        ]
+    )
+    async with api(world.admin) as client:
+        preview = await client.post(
+            "/api/admin/import/dry-run", params={"year_id": world.year}, files=files
+        )
+        committed = await client.post(
+            "/api/admin/import/commit",
+            params={"year_id": world.year, "expected_sha256": preview.json()["sha256"]},
+            files=files,
+        )
+    assert preview.status_code == 200, preview.text
+    assert [issue["code"] for issue in preview.json()["issues"]] == ["duplicate_conflict"]
+    assert committed.status_code == 422
+    assert committed.json()["detail"]["code"] == "import_has_errors"
+    async with TestSession() as db:
+        assert await db.scalar(select(func.count()).select_from(m.Student)) == 2
+
+
+async def test_manual_addition_number_is_unique_within_its_stage_only(api, world):
+    async with TestSession() as db:
+        db.add(m.SchoolClass(year_id=world.year, grade_level=4, section="A"))
+        await db.commit()
+    files = roster_file([[70001, "Synthetic File Pupil", "5/A", None]])
+
+    def addition(grade_level: int) -> dict[str, object]:
+        return {
+            "additions": [
+                {
+                    "school_number": 70001,
+                    "full_name": "Synthetic Manual Pupil",
+                    "grade_level": grade_level,
+                    "section": "A",
+                }
+            ]
+        }
+
+    cross_stage = json.dumps(addition(4))
+    async with api(world.admin) as client:
+        duplicate = await client.post(
+            "/api/admin/import/dry-run",
+            params={"year_id": world.year},
+            data={"roster_edits": json.dumps(addition(5))},
+            files=files,
+        )
+        response = await client.post(
+            "/api/admin/import/dry-run",
+            params={"year_id": world.year},
+            data={"roster_edits": cross_stage},
+            files=files,
+        )
+        assert response.status_code == 200, response.text
+        preview = response.json()
+        rows = {item["row"]["row_key"]: item for item in preview["rows"]}
+        assert set(rows) == {"middle:70001", "primary:70001"}
+        assert "manual_added" in rows["primary:70001"]["actions"]
+        assert "manual_added" not in rows["middle:70001"]["actions"]
+        committed = await client.post(
+            "/api/admin/import/commit",
+            params={
+                "year_id": world.year,
+                "expected_sha256": preview["sha256"],
+                "expected_review_sha256": preview["review_sha256"],
+            },
+            data={"roster_edits": cross_stage},
+            files=files,
+        )
+        assert committed.status_code == 200, committed.text
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"]["code"] == "duplicate_school_number"
+    async with TestSession() as db:
+        enrolled = (
+            await db.execute(
+                select(m.SchoolClass.grade_level, m.Student.full_name)
+                .join(m.Enrollment, m.Enrollment.class_id == m.SchoolClass.id)
+                .join(m.Student, m.Student.id == m.Enrollment.student_id)
+                .where(m.Enrollment.year_id == world.year, m.Enrollment.school_number == 70001)
+                .order_by(m.SchoolClass.grade_level)
+            )
+        ).all()
+    assert [tuple(row) for row in enrolled] == [
+        (4, "Synthetic Manual Pupil"),
+        (5, "Synthetic File Pupil"),
+    ]
+
+
+SHARED_NUMBER_ROWS = [
+    [70001, "Synthetic Primary Pupil", "4/A", None],
+    [70001, "Synthetic Middle Pupil", "5/A", None],
+]
+
+
+@pytest.mark.parametrize(
+    ("rows", "move"),
+    [
+        (SHARED_NUMBER_ROWS, {"row_key": "primary:70001", "grade_level": 5, "section": "A"}),
+        (SHARED_NUMBER_ROWS, {"row_key": "middle:70001", "grade_level": 4, "section": "A"}),
+        (
+            [[51001, "Synthetic Primary Namesake", "4/A", None]],
+            {"row_key": "primary:51001", "grade_level": 5, "section": "A"},
+        ),
+    ],
+    ids=["primary-onto-file-row", "middle-onto-file-row", "primary-onto-enrolled-pupil"],
+)
+async def test_cross_stage_move_onto_a_taken_number_is_rejected_without_writes(
+    api, world, rows, move
+):
+    files = roster_file(rows)
+    moves = [move]
+    async with api(world.admin) as client:
+        unmoved = await client.post(
+            "/api/admin/import/dry-run", params={"year_id": world.year}, files=files
+        )
+        previewed = await client.post(
+            "/api/admin/import/dry-run",
+            params={"year_id": world.year},
+            data={"class_moves": json.dumps(moves)},
+            files=files,
+        )
+        # A correct review digest reaches the commit's own collision check.
+        committed = await client.post(
+            "/api/admin/import/commit",
+            params=reviewed_commit_params(world.year, files, moves),
+            data={"class_moves": json.dumps(moves)},
+            files=files,
+        )
+    assert unmoved.status_code == 200, unmoved.text
+    for response in (previewed, committed):
+        assert response.status_code == 409, response.text
+        assert response.json()["detail"]["code"] == "duplicate_school_number"
+    async with TestSession() as db:
+        assert await db.scalar(select(func.count()).select_from(m.Student)) == 2
+        assert await db.scalar(select(func.count()).select_from(m.SchoolClass)) == 1
+        enrolled = (
+            await db.execute(
+                select(m.Enrollment.student_id, m.Enrollment.class_id, m.Enrollment.school_number)
+                .where(m.Enrollment.year_id == world.year)
+                .order_by(m.Enrollment.school_number)
+            )
+        ).all()
+    assert [tuple(row) for row in enrolled] == [
+        (world.student_one, world.cls, 51001),
+        (world.student_two, world.cls, 51002),
+    ]
+
+
+async def test_row_key_keeps_its_source_identity_across_a_stage_move(api, world):
+    files = roster_file(
+        [
+            [51001, "Synthetic Student One", "5/A", None],
+            [51002, "Synthetic Student Two", "5/A", None],
+            [70001, "Synthetic Primary Pupil", "4/A", None],
+        ]
+    )
+    moves = [{"row_key": "middle:51001", "grade_level": 4, "section": "A"}]
+    edits = {
+        "removed_row_keys": ["middle:51002"],
+        "language_changes": [{"row_key": "middle:51001", "language": "german"}],
+    }
+    data = {"class_moves": json.dumps(moves), "roster_edits": json.dumps(edits)}
+    # The destination stage never becomes a second identity for the moved row.
+    destination_key = {"language_changes": [{"row_key": "primary:51001", "language": "german"}]}
+    async with api(world.admin) as client:
+        rejected = await client.post(
+            "/api/admin/import/dry-run",
+            params={"year_id": world.year},
+            data={"class_moves": json.dumps(moves), "roster_edits": json.dumps(destination_key)},
+            files=files,
+        )
+        assert rejected.status_code == 422
+        assert rejected.json()["detail"]["code"] == "invalid_import_student"
+        response = await client.post(
+            "/api/admin/import/dry-run", params={"year_id": world.year}, data=data, files=files
+        )
+        assert response.status_code == 200, response.text
+        preview = response.json()
+        assert preview["total_rows"] == 2
+        rows = {item["row"]["row_key"]: item for item in preview["rows"]}
+        assert set(rows) == {"middle:51001", "primary:70001"}
+        moved = rows["middle:51001"]
+        assert (
+            moved["row"]["school_number"],
+            moved["row"]["grade_level"],
+            moved["row"]["section"],
+            moved["row"]["language"],
+        ) == (51001, 4, "A", "german")
+        assert moved["original_class"] == "5/A"
+        assert {"move", "class_changed", "language_change", "language_edited"} <= set(
+            moved["actions"]
+        )
+        assert preview["class_moves"] == moves
+        assert preview["roster_edits"]["removed_row_keys"] == ["middle:51002"]
+        committed = await client.post(
+            "/api/admin/import/commit",
+            params={
+                "year_id": world.year,
+                "expected_sha256": preview["sha256"],
+                "expected_review_sha256": preview["review_sha256"],
+            },
+            data=data,
+            files=files,
+        )
+        assert committed.status_code == 200, committed.text
+    async with TestSession() as db:
+        assert await db.scalar(select(func.count()).select_from(m.Student)) == 3
+        moved_enrollment = await db.scalar(
+            select(m.Enrollment).where(m.Enrollment.student_id == world.student_one)
+        )
+        destination = await db.get(m.SchoolClass, moved_enrollment.class_id)
+        assert (
+            moved_enrollment.school_number,
+            destination.grade_level,
+            destination.section,
+        ) == (51001, 4, "A")
+        assert (
+            await db.scalar(
+                select(m.StudentLanguage.language).where(
+                    m.StudentLanguage.student_id == world.student_one
+                )
+            )
+            == "german"
+        )
+        # Excluding a file row skips it; the saved enrollment stays where it was.
+        assert (
+            await db.scalar(
+                select(m.Enrollment.class_id).where(m.Enrollment.student_id == world.student_two)
+            )
+            == world.cls
+        )
 
 
 async def test_preview_rate_limit_allows_paging_without_spending_commit_budget(

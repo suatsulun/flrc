@@ -20,7 +20,7 @@ backups, restore evidence, and human acceptance still require the separate relea
 - [x] Same-grade enrollment moves preserving student identity, grades, and notes.
 - [x] Hazırlık classes as grade 0 with named sections, importable and reported like grades 1-4.
 - [x] Rollover stops at stage boundaries; the roster import re-attaches Hazırlık and grade 4 pupils by name.
-- [x] Year-specific school numbers, fresh sequential numbers on rollover, and activation guards.
+- [x] Year- and stage-scoped school numbers (ADR-070), fresh sequential numbers on rollover, and activation guards.
 - [x] Field/stage-checked assignments and archived-year write protection.
 - [x] Versioned grade saves, explicit conflicts, grants, audit, and undo.
 - [x] Category filters, notes, whole-pupil/class rating drafts, and a 2,000-cell save bound.

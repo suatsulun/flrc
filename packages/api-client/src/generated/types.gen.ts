@@ -1027,10 +1027,6 @@ export type HistoryYear = {
  */
 export type ImportClassMove = {
     /**
-     * School Number
-     */
-    school_number: number;
-    /**
      * Grade Level
      */
     grade_level: number;
@@ -1038,6 +1034,10 @@ export type ImportClassMove = {
      * Section
      */
     section: string;
+    /**
+     * Row Key
+     */
+    row_key: string;
 };
 
 /**
@@ -1071,9 +1071,9 @@ export type ImportIssue = {
  */
 export type ImportLanguageChange = {
     /**
-     * School Number
+     * Row Key
      */
-    school_number: number;
+    row_key: string;
     /**
      * Language
      */
@@ -1138,9 +1138,9 @@ export type ImportRosterEdits = {
      */
     additions?: Array<ImportStudentAdd>;
     /**
-     * Removed School Numbers
+     * Removed Row Keys
      */
-    removed_school_numbers?: Array<number>;
+    removed_row_keys?: Array<string>;
     /**
      * Language Changes
      */
@@ -1152,10 +1152,6 @@ export type ImportRosterEdits = {
  */
 export type ImportStudentAdd = {
     /**
-     * School Number
-     */
-    school_number: number;
-    /**
      * Grade Level
      */
     grade_level: number;
@@ -1163,6 +1159,10 @@ export type ImportStudentAdd = {
      * Section
      */
     section: string;
+    /**
+     * School Number
+     */
+    school_number: number;
     /**
      * Full Name
      */
@@ -1621,6 +1621,10 @@ export type RosterStudentRemoveResult = {
  * RowModel
  */
 export type RowModel = {
+    /**
+     * Row Key
+     */
+    row_key: string;
     /**
      * School Number
      */

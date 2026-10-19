@@ -37,7 +37,9 @@ a person can do it somewhere else with nothing but the Drive folder and the key 
    image before applying any newer migrations. Query only aggregate counts, point a temporary API
    at `flrc_restore`, and verify one archived
    read. Confirm the restored archive reads its number from `enrollments`, active years have no
-   null enrollment numbers, and reuse of the same number across different years is preserved.
+   null enrollment numbers, every enrollment's `stage` matches its class grade, and reuse of the
+   same number across different years, and across the primary and middle stages of one year, is
+   preserved.
 5. Verify report names/signature presence through authorized views without copying images or names
    into this log. Restore the matching private branding/templates/principal assets separately;
    they are not part of the database dump. For ADR-063-era backups, distinguish retained text

@@ -24,7 +24,7 @@ and report changes are committed source, not verified school deployment state.
 | 2.1: assessment programme | Grade 4 German/French permit ratings and comments without numeric averages. ADR-063 removes grades 5-8 English comments.                                       |
 | 2.4-2.6: grid/save        | Four/five sentence columns at laptop widths, angled middle-English overview, pupil/class rating drafts, maximum 2,000 cells per save.                          |
 | 2.11, 4.6: tests          | Frontend packages have no standalone `test` script. Use root Playwright, configured test servers, and the existing synthetic backend suite.                    |
-| 3.5, 3.9-3.10: years      | Rollover preserves student identity and assigns fresh year-scoped numbers. Year lists sort by label, not insertion id.                                         |
+| 3.5, 3.9-3.10: years      | Rollover preserves student identity and assigns fresh numbers per year and school stage (ADR-070). Year lists sort by label, not insertion id.                 |
 | 4.2-4.4: reports          | Four PDF sets return directly from `/api/reports/pdf` (ADR-028); year XLSX exports remain durable Celery jobs. Private report overlays/signatures use ADR-057. |
 | 4.5, 4.9-4.10: operations | School deployment consumes paired images, runtime branding, nightly encrypted backups, and monthly restore tests from `infra/school-template/`.                |
 
@@ -1250,6 +1250,11 @@ class TeachingAssignment(TimestampMixin, Base):
     role: Mapped[str]
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
 ```
+
+> **Later amendment (ADR-070):** school numbers are now unique per year _and school stage_.
+> `Enrollment` gains a database-derived `stage` (`primary` for Hazırlık to grade 4, `middle` for
+> grades 5-8), and `UniqueConstraint("year_id", "stage", "school_number")` replaces the year-only
+> constraint above. See the current models and migration `9b3e5d7f1c20`.
 
 Read it back against ARCH §3.1 once (every table there, nothing extra), and say out loud why `enrollments` has a `class_id` but nothing else ever will.
 
@@ -5837,7 +5842,7 @@ The hardest engineering in the project is now behind you. Phases 3 and 4 are bro
 
 > **Current table-first amendment (2026-08-20):** ADR-035 through ADR-037 supersede the
 > original Step 3.1 and 3.3 screen assembly below. A school number now belongs to
-> `Enrollment` and is unique within an academic year; `Student.id` is the stable identity. Student
+> `Enrollment` and is unique within an academic year and school stage (ADR-070); `Student.id` is the stable identity. Student
 > creation, number editing, class moves, second language, column setup, and class teacher assignment
 > live in the `/classes` table workspace. The separate `/students` route redirects there. The old
 > CRUD walkthrough remains below as design history, not as code to copy. Closing a standard year
@@ -5853,7 +5858,7 @@ The hardest engineering in the project is now behind you. Phases 3 and 4 are bro
 
 **Layer 1 · Nudge:** backend first: `GET /api/admin/students?year_id=&q=&cursor=&limit=` plus year/class-aware POST/PATCH. Normalize names with the same `casefold()` rule the seed used. Search by `search_name` and `Enrollment.school_number`. Frontend: the class table is the primary workspace; the standalone route may remain only as a compatibility redirect.
 
-**Layer 2 · Guide:** keyset pagination is by `(search_name, id)`, not offset. `q` becomes `q.casefold().strip()`; if it is all digits, search the selected year's enrollment number exactly _or_ names containing the text. The API returns `next_cursor` as an opaque base64 JSON token. POST rejects a number already used in the same year with `409 duplicate_school_number`; the same number in another year is valid. PATCH updates `search_name` whenever `full_name` changes, while number edits update only the selected enrollment. The class-table row exposes Edit and History; no Delete action exists.
+**Layer 2 · Guide:** keyset pagination is by `(search_name, id)`, not offset. `q` becomes `q.casefold().strip()`; if it is all digits, search the selected year's enrollment number exactly _or_ names containing the text. The API returns `next_cursor` as an opaque base64 JSON token. POST rejects a number already used in the same year and school stage with `409 duplicate_school_number`; the same number in another year, or in the other stage of the same year, is valid (ADR-070), so a number search may return a primary and a middle-school pupil. PATCH updates `search_name` whenever `full_name` changes, while number edits update only the selected enrollment. The class-table row exposes Edit and History; no Delete action exists.
 
 **Layer 3 · Exact assembly:** create `apps/backend/src/flrc/modules/administration/names.py`:
 
@@ -6368,7 +6373,7 @@ Commit: `feat(admin): roster moves and second-language switching`.
 - Advance from semester 1 → lock 1, open 2.
 - Lock semester 2 → both locked; year remains active until explicit close-year.
 - Reopen a semester → admin only, year active, lock the other semester first; the UI labels this exceptional.
-- Close year → both semesters must be locked; year becomes `archived`; no grade/admin mutations thereafter. For a standard `YYYY-YYYY` label, the same transaction idempotently creates the next setup year, copies semesters/classes/columns/assignments, promotes grades 1-3 and 5-7 (Hazırlık and grade 4 pupils await the school's placement through the roster import, ADR-066), preserves language, and assigns fresh sequential year-scoped school numbers.
+- Close year → both semesters must be locked; year becomes `archived`; no grade/admin mutations thereafter. For a standard `YYYY-YYYY` label, the same transaction idempotently creates the next setup year, copies semesters/classes/columns/assignments, promotes grades 1-3 and 5-7 (Hazırlık and grade 4 pupils await the school's placement through the roster import, ADR-066), preserves language, and assigns fresh sequential school numbers counted separately in each school stage (ADR-070).
 
 **Layer 3 · Exact assembly:** `src/flrc/modules/administration/lifecycle_service.py`:
 
@@ -6452,7 +6457,8 @@ Commit: `feat(admin): explicit academic lifecycle state machine`.
 - separate `Sınıf` + `Şube` and combined `Sınıf/Şube`;
 - `Almanca`, `Fransızca`, blank language;
 - a duplicate school number with identical data (warning, de-duplicate);
-- a duplicate school number with conflicting class (error);
+- a duplicate school number with conflicting class in the same stage (error); the same number in
+  grade 4 and grade 5 is two different pupils, not a duplicate (ADR-070);
 - footer text `Toplam 28 öğrenci`;
 - gender column `Cinsiyet` present and ignored.
 
@@ -6752,7 +6758,7 @@ POST /api/admin/import/commit?year_id=123&expected_sha256=<file digest>&expected
 
 Create an `ImportPreview` model with counts, `sha256`, issues, row actions. Implement one comparison function `compare_plan(db, year_id, plan) -> ImportPreview`; commit calls it again inside the transaction and then applies exactly those actions.
 
-Class moves are narrowly scoped overrides: each contains a school number already present in the parsed file and a destination grade/section present in the file or selected year's classes. Reject unknown students, duplicate overrides, unknown classes, invalid grades, and extra fields. `roster_edits` adds typed `additions`, `removed_school_numbers`, and `language_changes`. Additions require a positive year-specific number, nonblank name, known class, and a valid optional language; they cannot rename a differently named enrolled student. Exclusions and language edits must reference known draft rows. Extra fields and duplicate operations are rejected. Excluding a file row skips it; it does not delete an existing enrollment. Both endpoints apply the same validation. `review_sha256` binds the file digest, target year, sorted moves, additions, exclusions, and language edits; commit rejects a stale review. Legacy file-only commits remain supported. See ADR-047 and ADR-048.
+Every parsed row carries a `row_key`, `<stage>:<number>` from the class it came from (`primary` for Hazırlık to grade 4, `middle` for grades 5-8); duplicates are detected per row key, so the same number in grade 4 and grade 5 is two pupils (ADR-070). Class moves are narrowly scoped overrides: each names a `row_key` already present in the parsed file and a destination grade/section present in the file or selected year's classes. A move never changes the row key, even across stages. Reject unknown rows, duplicate overrides, unknown classes, invalid grades, and extra fields, including the retired number-only identity. `roster_edits` adds typed `additions`, `removed_row_keys`, and `language_changes` (by `row_key`). Additions require a positive number, nonblank name, known class, and a valid optional language; their row key derives from that class, and they cannot rename a differently named enrolled student. Exclusions and language edits must reference known draft rows by source row key. Extra fields and duplicate operations are rejected. After all edits, two rows with one number in the same stage, or a row landing on a number held by a different enrolled pupil of that stage, fail with `409 duplicate_school_number`. Excluding a file row skips it; it does not delete an existing enrollment. Both endpoints apply the same validation. `review_sha256` binds the file digest, target year, sorted moves, additions, exclusions, and language edits; commit rejects a stale review. Legacy file-only commits remain supported. See ADR-047, ADR-048, and ADR-070.
 
 Core commit order:
 

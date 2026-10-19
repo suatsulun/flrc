@@ -1,9 +1,22 @@
 """School programme rules shared by roster editing and synthetic data."""
 
+from typing import Literal
+
 from flrc.modules.academics.class_names import MAX_GRADE, PREP_GRADE
 
 L2_START_GRADE = 4
 MIDDLE_START_GRADE = 5
+
+# Primary school is Hazırlık through grade 4; middle school is grades 5-8.
+# School numbers are unique per (year, stage); the database derives the
+# enrollment stage with the same boundary (migration 9b3e5d7f1c20).
+Stage = Literal["primary", "middle"]
+
+
+def stage_for_grade(grade_level: int) -> Stage:
+    return "primary" if grade_level < MIDDLE_START_GRADE else "middle"
+
+
 # Leaving these grades means entering a new school stage. The school places
 # those pupils into sections itself, and new pupils join them, so the rollover
 # leaves them for the roster import to place by name (ADR-066).

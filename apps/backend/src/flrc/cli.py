@@ -11,7 +11,7 @@ from flrc.config import settings
 from flrc.db import models as m
 from flrc.db.sync import sync_engine
 from flrc.modules.academics.class_names import MAX_GRADE, PREP_GRADE
-from flrc.modules.academics.programme import L2_START_GRADE, allows_column_type
+from flrc.modules.academics.programme import L2_START_GRADE, allows_column_type, stage_for_grade
 from flrc.modules.administration.names import normalize_email
 from flrc.modules.auth.policy import allowed_google_domain, email_is_in_school_domain
 from flrc.modules.backup import cli as backup_cli
@@ -62,7 +62,7 @@ def seed_class_plans() -> list[SeedClassPlan]:
     language_slot = 0
     for grade_level in range(PREP_GRADE, MAX_GRADE + 1):
         for section in sections_for_grade(grade_level):
-            if grade_level <= 4:
+            if stage_for_grade(grade_level) == "primary":
                 english_pool = PRIMARY_ENGLISH_KEYS
                 english_slot = primary_slot
                 primary_slot += 1

@@ -25,6 +25,7 @@ const preview: ImportPreview = {
   class_moves: [],
   rows: names.map((full_name, i) => ({
     row: {
+      row_key: `primary:${i + 1}`,
       school_number: i + 1,
       full_name,
       grade_level: 4,

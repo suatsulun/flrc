@@ -28,7 +28,13 @@ from flrc.db.models import (
 )
 from flrc.db.session import get_session
 from flrc.modules.academics.class_names import class_label
-from flrc.modules.academics.programme import allows_column_type, carries_over, uses_scale_only
+from flrc.modules.academics.programme import (
+    Stage,
+    allows_column_type,
+    carries_over,
+    stage_for_grade,
+    uses_scale_only,
+)
 from flrc.modules.auth.dependencies import require_admin
 
 router = APIRouter(prefix="/admin/years", tags=["admin-lifecycle"])
@@ -333,13 +339,16 @@ async def _create_rollover_year(
     db: AsyncSession,
     source: AcademicYear,
 ) -> AcademicYear | None:
-    """Create next year's empty-number roster while preserving student identity.
+    """Create next year's freshly numbered roster while preserving student identity.
 
     Class structure, teacher assignments, column templates, and second-language
-    choices are copied. Grades and school numbers are deliberately not copied.
-    Grade-eight students are left unenrolled because they have graduated, and
-    Hazırlık and grade-four students wait for the school's placement into
-    grade 1 and grade 5, which the roster import applies (ADR-066).
+    choices are copied. Grades and old school numbers are deliberately not
+    copied: promoted pupils receive fresh sequential numbers starting at 1,
+    counted independently in each school stage because numbers are unique per
+    year and stage. Grade-eight students are left unenrolled because they have
+    graduated, and Hazırlık and grade-four students wait for the school's
+    placement into grade 1 and grade 5, which the roster import applies
+    (ADR-066).
     """
 
     label = _next_year_label(source.label)
@@ -441,7 +450,7 @@ async def _create_rollover_year(
         )
     )
     promoted_ids: set[int] = set()
-    next_school_number = 1
+    next_school_numbers: dict[Stage, int] = {"primary": 1, "middle": 1}
     for enrollment in enrollments:
         old_class = class_by_id[enrollment.class_id]
         if not carries_over(old_class.grade_level):
@@ -449,15 +458,16 @@ async def _create_rollover_year(
         next_class = target_classes.get((old_class.grade_level + 1, old_class.section))
         if next_class is None:
             continue
+        stage = stage_for_grade(next_class.grade_level)
         db.add(
             Enrollment(
                 student_id=enrollment.student_id,
                 year_id=target.id,
                 class_id=next_class.id,
-                school_number=next_school_number,
+                school_number=next_school_numbers[stage],
             )
         )
-        next_school_number += 1
+        next_school_numbers[stage] += 1
         promoted_ids.add(enrollment.student_id)
 
     if promoted_ids:

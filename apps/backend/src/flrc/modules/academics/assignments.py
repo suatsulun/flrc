@@ -18,6 +18,7 @@ from flrc.db.models import (
 )
 from flrc.db.session import get_session
 from flrc.modules.academics.class_names import class_label
+from flrc.modules.academics.programme import stage_for_grade
 from flrc.modules.auth.dependencies import (
     current_user,
     require_admin,
@@ -423,10 +424,10 @@ async def upsert_assignment(
     expected_field = "english" if role in ("main", "skills") else role
     if teacher.teaching_field != expected_field:
         raise HTTPException(422, {"code": "teacher_field_mismatch"})
-    if expected_field == "english":
-        expected_stage = "primary" if school_class.grade_level <= 4 else "middle"
-        if teacher.teaching_stage != expected_stage:
-            raise HTTPException(422, {"code": "teacher_stage_mismatch"})
+    if expected_field == "english" and teacher.teaching_stage != stage_for_grade(
+        school_class.grade_level
+    ):
+        raise HTTPException(422, {"code": "teacher_stage_mismatch"})
     stmt = (
         pg_insert(TeachingAssignment)
         .values(class_id=class_id, role=role, user_id=body.user_id)

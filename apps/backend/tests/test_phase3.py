@@ -177,6 +177,33 @@ def test_import_parser_reports_conflicting_duplicate() -> None:
     assert any(issue.code == "duplicate_conflict" for issue in plan.issues)
 
 
+def test_import_parser_scopes_duplicate_numbers_to_the_school_stage() -> None:
+    data = workbook_bytes(
+        [
+            ["Okul No", "Ad Soyad", "Sınıf/Şube"],
+            [70001, "Synthetic Primary", "4/A"],
+            [70001, "Synthetic Middle", "5/A"],
+            [70002, "Synthetic Repeated", "1/A"],
+            [70002, "Synthetic Repeated", "1/A"],
+            [70003, "Synthetic Third", "3/A"],
+            [70003, "Synthetic Fourth", "4/B"],
+        ],
+        title="Mixed",
+    )
+    plan = parse_workbook(data)
+    # Grades 0-4 and 5-8 number independently; duplicates count only inside a stage.
+    assert [row.row_key for row in plan.rows] == [
+        "primary:70001",
+        "middle:70001",
+        "primary:70002",
+        "primary:70003",
+    ]
+    assert [(issue.code, issue.cell) for issue in plan.issues] == [
+        ("duplicate_identical", "A5"),
+        ("duplicate_conflict", "A7"),
+    ]
+
+
 async def test_import_dry_run_is_write_free_hash_checked_and_idempotent(api, world):
     data = workbook_bytes(
         [

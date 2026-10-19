@@ -18,7 +18,7 @@ from flrc.modules.academics.class_names import (
     SECTION_MAX_LENGTH,
     normalize_section,
 )
-from flrc.modules.academics.programme import L2_START_GRADE
+from flrc.modules.academics.programme import L2_START_GRADE, stage_for_grade
 from flrc.modules.administration.names import search_key
 
 HEADER_ALIASES = {
@@ -78,6 +78,7 @@ def validate_xlsx_container(data: bytes) -> None:
 
 
 class RowModel(BaseModel):
+    row_key: str = Field(pattern=r"^(primary|middle):[1-9][0-9]*$")
     school_number: int = Field(gt=0)
     full_name: str = Field(min_length=2, max_length=160)
     grade_level: int = Field(ge=MIN_GRADE, le=MAX_GRADE)
@@ -284,6 +285,7 @@ def _parse_workbook(data: bytes) -> ImportPlan:
             try:
                 rows.append(
                     RowModel(
+                        row_key=f"{stage_for_grade(parsed_class[0])}:{number}",
                         school_number=number,
                         full_name=str(name_raw or "").strip(),
                         grade_level=parsed_class[0],
@@ -307,11 +309,11 @@ def _parse_workbook(data: bytes) -> ImportPlan:
                     )
                 )
 
-    deduped: dict[int, RowModel] = {}
+    deduped: dict[str, RowModel] = {}
     for row in rows:
-        previous = deduped.get(row.school_number)
+        previous = deduped.get(row.row_key)
         if previous is None:
-            deduped[row.school_number] = row
+            deduped[row.row_key] = row
             continue
         identical = (
             search_key(previous.full_name) == search_key(row.full_name)

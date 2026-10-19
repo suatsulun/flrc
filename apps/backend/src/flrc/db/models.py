@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
+    FetchedValue,
     ForeignKey,
     Identity,
     Index,
@@ -119,26 +120,41 @@ class Student(TimestampMixin, Base):
     search_name: Mapped[str] = mapped_column(index=True)
 
 
+# Database name of the per-stage number constraint; integrity errors that name
+# it are reported to clients as `duplicate_school_number`.
+SCHOOL_NUMBER_CONSTRAINT = "uq_enrollments_year_id_stage_school_number"
+
+
 class Enrollment(TimestampMixin, Base):
     __tablename__ = "enrollments"
     __table_args__ = (
         UniqueConstraint("student_id", "year_id"),
-        UniqueConstraint("year_id", "school_number"),
+        UniqueConstraint("year_id", "stage", "school_number", name=SCHOOL_NUMBER_CONSTRAINT),
         CheckConstraint(
             "school_number IS NULL OR school_number > 0",
             name="school_number_positive",
         ),
+        CheckConstraint("stage IN ('primary','middle')", name="stage_valid"),
         Index("ix_enrollments_class_number", "class_id", "school_number"),
     )
+    # Fetch the trigger-derived stage with RETURNING instead of lazy-loading it.
+    __mapper_args__ = {"eager_defaults": True}
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     student_id: Mapped[int] = mapped_column(ForeignKey("students.id"))
     year_id: Mapped[int] = mapped_column(ForeignKey("academic_years.id"))
     class_id: Mapped[int] = mapped_column(ForeignKey("school_classes.id"))
-    # A school number identifies an enrollment, not a person. It remains empty
-    # while a rolled-over setup year is being prepared and is required before
-    # that year can be activated.
+    # A school number identifies an enrollment, not a person, and is unique
+    # within one year and school stage: a primary and a middle-school pupil may
+    # share a number. It remains empty while a rolled-over setup year is being
+    # prepared and is required before that year can be activated.
     school_number: Mapped[int | None] = mapped_column(BigInteger)
+    # Database triggers derive the stage from the class grade on every insert,
+    # class change and class grade edit (migration 9b3e5d7f1c20); application
+    # writes are overwritten, so never set it.
+    stage: Mapped[str] = mapped_column(
+        Text, server_default=FetchedValue(), server_onupdate=FetchedValue()
+    )
 
 
 class StudentLanguage(TimestampMixin, Base):

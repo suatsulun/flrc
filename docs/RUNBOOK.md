@@ -62,8 +62,9 @@ Also run the anonymous boundary checks from [SECURITY.md](./SECURITY.md). `/api/
 7. Save one approved pilot grade, exercise one deliberate conflict, lock/reject a write,
    generate/download one report, and trigger one backup.
 8. In a synthetic or disposable year, verify that a reused school number is accepted in a different
-   year, archived tables show the original number, and a setup year cannot activate with missing
-   promoted-student numbers.
+   year and in the other school stage of the same year but rejected within one stage, archived
+   tables show the original number, and a setup year cannot activate with missing promoted-student
+   numbers.
 9. Verify the admin class table, same-grade drag move, teacher-field assignment guard, and
    light/dark themes with an occasional computer user.
 10. For a release containing ADR-063, verify grades 5-8 English omit comments in grids, archives,

@@ -83,9 +83,9 @@ export function ImportRoster({
               const currentClass = `${row.grade_level}/${row.section}`;
               return (
                 <TableRow
-                  key={row.school_number}
+                  key={row.row_key}
                   data-testid="import-student-row"
-                  data-school-number={row.school_number}
+                  data-row-key={row.row_key}
                   className={actions.includes("class_changed") ? "bg-accent/35" : undefined}
                 >
                   <TableCell>
@@ -103,7 +103,7 @@ export function ImportRoster({
                       }
                       onDragStart={(event) => {
                         event.dataTransfer.effectAllowed = "move";
-                        event.dataTransfer.setData("text/plain", String(row.school_number));
+                        event.dataTransfer.setData("text/plain", row.row_key);
                         onDrag(item);
                       }}
                       onDragEnd={onDragEnd}

@@ -235,7 +235,7 @@ async def test_prep_import_cannot_assign_a_second_language(api, world):
         assert created.status_code == 201
         files = roster_file([[80010, "Synthetic Prep Language", "5/A", "Almanca"]])
         moves = json.dumps(
-            [{"school_number": 80010, "grade_level": PREP_GRADE, "section": "Bulut"}]
+            [{"row_key": "middle:80010", "grade_level": PREP_GRADE, "section": "Bulut"}]
         )
         invalid_move = await client.post(
             "/api/admin/import/dry-run",
@@ -253,10 +253,13 @@ async def test_prep_import_cannot_assign_a_second_language(api, world):
                 "class_moves": moves,
                 "roster_edits": json.dumps(
                     {
-                        "language_changes": [{"school_number": 80010, "language": None}],
+                        # The moved row keeps its grade 5 source identity.
+                        "language_changes": [{"row_key": "middle:80010", "language": None}],
                     }
                 ),
             },
         )
         assert cleared.status_code == 200, cleared.text
         assert cleared.json()["rows"][0]["row"]["language"] is None
+        assert cleared.json()["rows"][0]["row"]["row_key"] == "middle:80010"
+        assert cleared.json()["rows"][0]["row"]["grade_level"] == PREP_GRADE

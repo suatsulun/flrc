@@ -37,7 +37,9 @@ def build_year_workbook(db: Session, year_id: int, progress: m.JobRun | None = N
         select(m.Student.id, m.Enrollment.school_number, m.Student.full_name)
         .join(m.Enrollment, m.Enrollment.student_id == m.Student.id)
         .where(m.Enrollment.year_id == year_id)
-        .order_by(m.Enrollment.school_number.asc().nulls_last())
+        # Primary and middle-school pupils may share a number; the id keeps
+        # the row order deterministic.
+        .order_by(m.Enrollment.school_number.asc().nulls_last(), m.Student.id)
     )
     write_sheet("Students", ["id", "school_number", "full_name"], students)
 
@@ -100,6 +102,7 @@ def build_year_workbook(db: Session, year_id: int, progress: m.JobRun | None = N
     grades = (
         select(
             m.Enrollment.school_number,
+            m.Enrollment.stage,
             m.GradeValue.column_definition_id,
             m.ColumnDefinition.labels["tr"].astext,
             m.ColumnDefinition.semester_id,
@@ -126,6 +129,7 @@ def build_year_workbook(db: Session, year_id: int, progress: m.JobRun | None = N
         "Grades",
         [
             "school_number",
+            "stage",
             "column_id",
             "column_label",
             "semester_id",
@@ -147,6 +151,7 @@ def build_year_workbook(db: Session, year_id: int, progress: m.JobRun | None = N
             m.AuditEntry.batch_id,
             m.AuditEntry.actor_id,
             m.Enrollment.school_number,
+            m.Enrollment.stage,
             m.AuditEntry.column_definition_id,
             m.AuditEntry.old_score,
             m.AuditEntry.old_scale,
@@ -172,6 +177,7 @@ def build_year_workbook(db: Session, year_id: int, progress: m.JobRun | None = N
             "batch_id",
             "actor_id",
             "school_number",
+            "stage",
             "column_id",
             "old_score",
             "old_scale",

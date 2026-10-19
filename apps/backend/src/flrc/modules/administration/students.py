@@ -5,11 +5,17 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flrc.db.models import AcademicYear, Enrollment, SchoolClass, Student, User
 from flrc.db.session import get_session
+from flrc.modules.academics.programme import stage_for_grade
 from flrc.modules.administration.names import search_key
+from flrc.modules.administration.roster_service import (
+    is_duplicate_school_number,
+    school_number_taken,
+)
 from flrc.modules.auth.dependencies import require_admin
 
 router = APIRouter(prefix="/admin/students", tags=["admin-students"])
@@ -120,6 +126,17 @@ async def list_students(
     )
 
 
+async def _commit_numbered(db: AsyncSession) -> None:
+    """Commit, reporting a concurrent per-stage number clash as a conflict."""
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        if is_duplicate_school_number(exc):
+            raise HTTPException(409, {"code": "duplicate_school_number"}) from exc
+        raise
+
+
 @router.post("", status_code=201)
 async def create_student(
     body: StudentCreate,
@@ -133,13 +150,12 @@ async def create_student(
     year = await db.get(AcademicYear, body.year_id)
     if year is None or year.status == "archived":
         raise HTTPException(409, {"code": "year_not_writable"})
-    duplicate = await db.scalar(
-        select(Enrollment.id).where(
-            Enrollment.year_id == body.year_id,
-            Enrollment.school_number == body.school_number,
-        )
-    )
-    if duplicate is not None:
+    if await school_number_taken(
+        db,
+        year_id=body.year_id,
+        stage=stage_for_grade(school_class.grade_level),
+        school_number=body.school_number,
+    ):
         raise HTTPException(409, {"code": "duplicate_school_number"})
     full_name = body.full_name.strip()
     student = Student(
@@ -156,7 +172,7 @@ async def create_student(
             school_number=body.school_number,
         )
     )
-    await db.commit()
+    await _commit_numbered(db)
     return StudentOut(
         id=student.id,
         school_number=body.school_number,
@@ -190,19 +206,19 @@ async def patch_student(
     if year is None or year.status == "archived":
         raise HTTPException(409, {"code": "year_not_writable"})
     if body.school_number is not None and body.school_number != enrollment.school_number:
-        duplicate = await db.scalar(
-            select(Enrollment.id).where(
-                Enrollment.year_id == year_id,
-                Enrollment.school_number == body.school_number,
-            )
-        )
-        if duplicate is not None:
+        if await school_number_taken(
+            db,
+            year_id=year_id,
+            stage=enrollment.stage,
+            school_number=body.school_number,
+            except_enrollment_id=enrollment.id,
+        ):
             raise HTTPException(409, {"code": "duplicate_school_number"})
         enrollment.school_number = body.school_number
     if body.full_name is not None:
         student.full_name = body.full_name.strip()
         student.search_name = search_key(student.full_name)
-    await db.commit()
+    await _commit_numbered(db)
     return StudentOut(
         id=student.id,
         school_number=enrollment.school_number,

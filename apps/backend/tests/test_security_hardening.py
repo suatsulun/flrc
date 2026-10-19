@@ -81,7 +81,7 @@ def test_xlsx_without_a_declared_dimension_still_imports() -> None:
         _repack(_workbook_bytes(), lambda sheet: re.sub(r"<dimension[^>]*/>", "", sheet))
     )
 
-    assert [row.school_number for row in plan.rows] == [51001]
+    assert [(row.row_key, row.school_number) for row in plan.rows] == [("middle:51001", 51001)]
 
 
 async def test_teacher_cannot_cross_class_or_subject_boundaries(api, world) -> None:

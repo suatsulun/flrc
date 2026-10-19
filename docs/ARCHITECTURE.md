@@ -320,11 +320,15 @@ Do not let the frontend invent validation rules. The backend returns column defi
 `enrollments` answer: _Which student belongs to which class in which academic year?_
 
 They also own the student's **school number for that year**. `students.id` is the stable identity;
-`enrollments.school_number` is unique only inside one academic year. This is what lets a continuing
-student receive a new number without rewriting history, and lets a different student reuse an old
-number years later. Automatic rollover assigns promoted students fresh sequential numbers rather
-than copying the archived values. A setup-year enrollment may still have no number during manual
-preparation or import, and activation rejects the year until all numbers are present.
+`enrollments.school_number` is unique only inside one academic year and school stage. Primary
+(Hazırlık to grade 4) and middle school (grades 5-8) number their pupils independently, so a grade 4
+and a grade 5 pupil may share a number. The database derives `enrollments.stage` from the class,
+including after a class move or a class grade edit, and refuses a move onto a number already held
+in the target stage (ADR-070). This is what lets a continuing student receive a new number without
+rewriting history, and lets a different student reuse an old number years later. Automatic
+rollover assigns promoted students fresh sequential numbers, counted separately in each stage,
+rather than copying the archived values. A setup-year enrollment may still have no number during
+manual preparation or import, and activation rejects the year until all numbers are present.
 
 `teaching_assignments` answer: _Which teacher owns which subject/role for which class in which academic year?_
 
@@ -738,7 +742,9 @@ Dry-run returns:
 
 Commit reparses the same bytes and validates the same typed draft operations. A reviewed commit
 includes matching file and review digests; legacy file-only commits remain supported. There is
-no required server-side staging row or import-token table (ADR-047 and ADR-048).
+no required server-side staging row or import-token table (ADR-047 and ADR-048). Draft operations
+address a workbook row by its `row_key`, the stage and number of the class it came from, which a
+move never changes; manual additions derive theirs from their class (ADR-070).
 
 ## §6.4 Lifecycle controls
 
@@ -1179,6 +1185,7 @@ The living decision log is `DECISIONS.md`. This architecture companion assumes a
 - ADR-062: Bounded bulk reads, streaming exports, and shared field behavior.
 - ADR-063: No middle-school English opinion field (working-tree implementation pending review).
 - ADR-064: One Vercel project serves the public demo.
+- ADR-070: School numbers are unique per year and school stage; import review rows use row keys.
 
 ---
 

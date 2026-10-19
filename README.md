@@ -35,11 +35,13 @@ at **00:00 Europe/Istanbul**; visitor changes and sessions are cleared. Use fict
 - Students can move between same-grade class tabs without losing grades or notes.
 - Hazırlık classes sit before grade 1, carry names such as Bulut instead of a letter, and
   receive the same progress report as grades 1 to 4.
-- Archived years stay browsable, and school numbers are unique per year rather than globally.
+- Archived years stay browsable. School numbers are unique per year and school stage rather than
+  globally: primary (Hazırlık to grade 4) and middle school (grades 5 to 8) number pupils
+  independently, so a grade 4 and a grade 5 pupil may share a number.
 - Pupils entering grade 1 or grade 5 are placed by the school; the roster import matches them to
   last year's identities by name instead of creating duplicates.
 - Closing a fully completed year prepares the next year automatically, leaves grades behind, and
-  gives promoted students fresh sequential year-scoped school numbers.
+  gives promoted students fresh sequential school numbers, counted separately in each stage.
 - Teachers can filter assessment categories and stage 1-2-3 ratings for a pupil or a whole class
   before saving. Grade 4 German/French use ratings and comments without numeric averages.
 - Slow actions keep their button disabled with an in-place spinner, page loads have visible

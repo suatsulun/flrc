@@ -5272,11 +5272,6 @@
       },
       "ImportClassMove": {
         "properties": {
-          "school_number": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "School Number"
-          },
           "grade_level": {
             "type": "integer",
             "maximum": 8.0,
@@ -5288,14 +5283,19 @@
             "maxLength": 32,
             "minLength": 1,
             "title": "Section"
+          },
+          "row_key": {
+            "type": "string",
+            "pattern": "^(primary|middle):[1-9][0-9]*$",
+            "title": "Row Key"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "school_number",
           "grade_level",
-          "section"
+          "section",
+          "row_key"
         ],
         "title": "ImportClassMove"
       },
@@ -5340,10 +5340,10 @@
       },
       "ImportLanguageChange": {
         "properties": {
-          "school_number": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "School Number"
+          "row_key": {
+            "type": "string",
+            "pattern": "^(primary|middle):[1-9][0-9]*$",
+            "title": "Row Key"
           },
           "language": {
             "anyOf": [
@@ -5364,7 +5364,7 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "school_number",
+          "row_key",
           "language"
         ],
         "title": "ImportLanguageChange"
@@ -5462,13 +5462,14 @@
             "maxItems": 5000,
             "title": "Additions"
           },
-          "removed_school_numbers": {
+          "removed_row_keys": {
             "items": {
-              "type": "integer"
+              "type": "string",
+              "pattern": "^(primary|middle):[1-9][0-9]*$"
             },
             "type": "array",
             "maxItems": 10000,
-            "title": "Removed School Numbers"
+            "title": "Removed Row Keys"
           },
           "language_changes": {
             "items": {
@@ -5485,11 +5486,6 @@
       },
       "ImportStudentAdd": {
         "properties": {
-          "school_number": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "School Number"
-          },
           "grade_level": {
             "type": "integer",
             "maximum": 8.0,
@@ -5501,6 +5497,11 @@
             "maxLength": 32,
             "minLength": 1,
             "title": "Section"
+          },
+          "school_number": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "School Number"
           },
           "full_name": {
             "type": "string",
@@ -5527,9 +5528,9 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "school_number",
           "grade_level",
           "section",
+          "school_number",
           "full_name"
         ],
         "title": "ImportStudentAdd"
@@ -6265,6 +6266,11 @@
       },
       "RowModel": {
         "properties": {
+          "row_key": {
+            "type": "string",
+            "pattern": "^(primary|middle):[1-9][0-9]*$",
+            "title": "Row Key"
+          },
           "school_number": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
@@ -6315,6 +6321,7 @@
         },
         "type": "object",
         "required": [
+          "row_key",
           "school_number",
           "full_name",
           "grade_level",

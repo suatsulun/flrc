@@ -185,8 +185,9 @@ must return to `/login?error=not_registered`, never create a new local user. `/a
 2. Open `/admin/import`, select that year, and upload the real roster `.xlsx`. Use recognized
    headers such as `Okul No`, `Ad Soyad`, `Sınıf/Şube`, and optionally `2. Yabancı Dil`.
    Alternatively, each worksheet can be named for its class (for example `5-A`) with the
-   first two headers. School numbers must be positive, unique integers within the year;
-   second languages are German/French and only apply from grade 4.
+   first two headers. School numbers must be positive integers, unique within the year and school
+   stage: primary (Hazırlık to grade 4) and middle school (grades 5-8) may reuse each other's
+   numbers (ADR-070). Second languages are German/French and only apply from grade 4.
 3. Preview, resolve errors, review class/student changes, then commit the same file and
    review. API equivalents are multipart `POST /api/admin/import/dry-run?year_id=<id>` and
    `POST /api/admin/import/commit?year_id=<id>&expected_sha256=<sha256>&expected_review_sha256=<review_sha256>`,

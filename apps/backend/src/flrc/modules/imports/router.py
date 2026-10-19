@@ -7,10 +7,12 @@ import structlog
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flrc.core.rate_limit import import_preview_rate_limit, import_rate_limit
 from flrc.db.models import (
+    SCHOOL_NUMBER_CONSTRAINT,
     AcademicYear,
     Enrollment,
     SchoolClass,
@@ -25,7 +27,7 @@ from flrc.modules.academics.class_names import (
     SECTION_MAX_LENGTH,
     class_label,
 )
-from flrc.modules.academics.programme import PLACEMENT_GRADES
+from flrc.modules.academics.programme import PLACEMENT_GRADES, stage_for_grade
 from flrc.modules.administration.names import search_key
 from flrc.modules.auth.dependencies import require_admin
 from flrc.modules.imports.parser import ImportPlan, InvalidWorkbook, RowModel, parse_workbook
@@ -80,7 +82,7 @@ async def _year(db: AsyncSession, year_id: int, *, lock: bool = False) -> Academ
 
 async def _match_students(
     db: AsyncSession, year: AcademicYear, rows: list[RowModel]
-) -> dict[int, tuple[Enrollment | None, Student | None]]:
+) -> dict[str, tuple[Enrollment | None, Student | None]]:
     """Resolve identities once, with identical rules for preview and commit.
 
     Current school numbers take precedence. Name matches must be unique on both
@@ -95,7 +97,7 @@ async def _match_students(
         )
     ).all()
     by_number = {
-        enrollment.school_number: (enrollment, student)
+        f"{enrollment.stage}:{enrollment.school_number}": (enrollment, student)
         for enrollment, student in enrolled
         if enrollment.school_number is not None
     }
@@ -124,12 +126,12 @@ async def _match_students(
             if student.id not in enrolled_ids:
                 awaiting.setdefault((grade + 1, student.search_name), []).append(student)
 
-    unnumbered = [row for row in rows if row.school_number not in by_number]
+    unnumbered = [row for row in rows if row.row_key not in by_number]
     names = Counter(search_key(row.full_name) for row in unnumbered)
     placements = Counter((row.grade_level, search_key(row.full_name)) for row in unnumbered)
-    matches: dict[int, tuple[Enrollment | None, Student | None]] = {}
+    matches: dict[str, tuple[Enrollment | None, Student | None]] = {}
     for row in rows:
-        match = by_number.get(row.school_number)
+        match = by_number.get(row.row_key)
         if match is None:
             name = search_key(row.full_name)
             candidates = pending.get(name, [])
@@ -140,7 +142,11 @@ async def _match_students(
                 waiting = awaiting.get(key, [])
                 if not candidates and len(waiting) == 1 and placements[key] == 1:
                     match = (None, waiting[0])
-        matches[row.school_number] = match or (None, None)
+        destination_key = f"{stage_for_grade(row.grade_level)}:{row.school_number}"
+        destination = by_number.get(destination_key)
+        if destination is not None and (match is None or destination[1].id != match[1].id):
+            raise HTTPException(409, {"code": "duplicate_school_number"})
+        matches[row.row_key] = match or (None, None)
     return matches
 
 
@@ -165,18 +171,18 @@ async def compare_plan(
         for item in (await db.scalars(select(SchoolClass).where(SchoolClass.year_id == year_id)))
     }
     available_classes = set(classes) | {(row.grade_level, row.section) for row in plan.rows}
-    original_classes = {row.school_number: (row.grade_level, row.section) for row in plan.rows}
+    original_classes = {row.row_key: (row.grade_level, row.section) for row in plan.rows}
     moves = moves or []
     edits = edits or ImportRosterEdits()
     plan = apply_roster_edits(plan, moves, edits, available_classes)
     original_classes.update(
-        {row.school_number: (row.grade_level, row.section) for row in edits.additions}
+        {row.row_key: (row.grade_level, row.section) for row in edits.additions}
     )
-    added_numbers = {row.school_number for row in edits.additions}
-    language_edits = {row.school_number for row in edits.language_changes}
+    added_keys = {row.row_key for row in edits.additions}
+    language_edits = {row.row_key for row in edits.language_changes}
     matches = await _match_students(db, year, plan.rows)
     for addition in edits.additions:
-        _enrollment, existing = matches.get(addition.school_number, (None, None))
+        _enrollment, existing = matches.get(addition.row_key, (None, None))
         if existing and search_key(existing.full_name) != search_key(addition.full_name):
             raise HTTPException(409, {"code": "duplicate_school_number"})
     languages = {
@@ -205,7 +211,7 @@ async def compare_plan(
             counts["new_classes"] += 1
             seen_new_classes.add(class_key)
             actions.append("new_class")
-        enrollment, student = matches[row.school_number]
+        enrollment, student = matches[row.row_key]
         if student is not None:
             if enrollment is None:
                 counts["placed_students"] += 1
@@ -241,12 +247,12 @@ async def compare_plan(
         if not actions:
             counts["unchanged"] += 1
             actions.append("unchanged")
-        original = original_classes.get(row.school_number, (row.grade_level, row.section))
+        original = original_classes.get(row.row_key, (row.grade_level, row.section))
         if original != (row.grade_level, row.section):
             actions.append("class_changed")
-        if row.school_number in added_numbers:
+        if row.row_key in added_keys:
             actions.append("manual_added")
-        if row.school_number in language_edits:
+        if row.row_key in language_edits:
             actions.append("language_edited")
         preview_rows.append(
             PreviewRow(
@@ -352,52 +358,58 @@ async def commit_import(
             select(StudentLanguage).where(StudentLanguage.year_id == year_id)
         )
     }
-    for row in plan.rows:
-        class_key = (row.grade_level, row.section)
-        school_class = classes.get(class_key)
-        if school_class is None:
-            school_class = SchoolClass(
-                year_id=year_id, grade_level=row.grade_level, section=row.section
-            )
-            db.add(school_class)
-            await db.flush()
-            classes[class_key] = school_class
-        enrollment, student = matches[row.school_number]
-        if student is None:
-            student = Student(
-                full_name=row.full_name,
-                search_name=search_key(row.full_name),
-            )
-            db.add(student)
-            await db.flush()
-        elif search_key(student.full_name) != search_key(row.full_name):
-            student.full_name = row.full_name
-            student.search_name = search_key(row.full_name)
-        if enrollment is None:
-            db.add(
-                Enrollment(
-                    student_id=student.id,
-                    year_id=year_id,
-                    class_id=school_class.id,
-                    school_number=row.school_number,
+    try:
+        for row in plan.rows:
+            class_key = (row.grade_level, row.section)
+            school_class = classes.get(class_key)
+            if school_class is None:
+                school_class = SchoolClass(
+                    year_id=year_id, grade_level=row.grade_level, section=row.section
                 )
-            )
-        else:
-            enrollment.class_id = school_class.id
-            enrollment.school_number = row.school_number
-        if row.language_present:
-            language = languages.get(student.id)
-            if row.language is None and language is not None:
-                await db.delete(language)
-            elif row.language is not None:
-                await db.execute(
-                    pg_insert(StudentLanguage)
-                    .values(student_id=student.id, year_id=year_id, language=row.language)
-                    .on_conflict_do_update(
-                        index_elements=["student_id", "year_id"],
-                        set_={"language": row.language},
+                db.add(school_class)
+                await db.flush()
+                classes[class_key] = school_class
+            enrollment, student = matches[row.row_key]
+            if student is None:
+                student = Student(
+                    full_name=row.full_name,
+                    search_name=search_key(row.full_name),
+                )
+                db.add(student)
+                await db.flush()
+            elif search_key(student.full_name) != search_key(row.full_name):
+                student.full_name = row.full_name
+                student.search_name = search_key(row.full_name)
+            if enrollment is None:
+                db.add(
+                    Enrollment(
+                        student_id=student.id,
+                        year_id=year_id,
+                        class_id=school_class.id,
+                        school_number=row.school_number,
                     )
                 )
-    await db.commit()
+            else:
+                enrollment.class_id = school_class.id
+                enrollment.school_number = row.school_number
+            if row.language_present:
+                language = languages.get(student.id)
+                if row.language is None and language is not None:
+                    await db.delete(language)
+                elif row.language is not None:
+                    await db.execute(
+                        pg_insert(StudentLanguage)
+                        .values(student_id=student.id, year_id=year_id, language=row.language)
+                        .on_conflict_do_update(
+                            index_elements=["student_id", "year_id"],
+                            set_={"language": row.language},
+                        )
+                    )
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        if SCHOOL_NUMBER_CONSTRAINT in str(exc.orig):
+            raise HTTPException(409, {"code": "duplicate_school_number"}) from exc
+        raise
     log.info("import_committed", actor_id=actor.id, year_id=year_id, counts=preview.counts)
     return preview

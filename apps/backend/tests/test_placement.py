@@ -273,3 +273,102 @@ async def test_numberless_namesakes_are_not_claimed_by_workbook_order(api, world
             select(m.Enrollment).where(m.Enrollment.student_id == world.student_one)
         )
         assert enrollment.school_number is None
+
+
+async def test_placement_is_not_suppressed_by_the_same_number_in_the_other_stage(api, world):
+    async with TestSession() as db:
+        source = m.AcademicYear(label="2026-2027", status="archived")
+        target = m.AcademicYear(label="2027-2028", status="setup")
+        db.add_all([source, target])
+        await db.flush()
+        classes = {
+            key: m.SchoolClass(year_id=year_id, grade_level=grade, section=section)
+            for key, year_id, grade, section in (
+                ("prep", source.id, PREP_GRADE, "Bulut"),
+                ("fourth", source.id, 4, "A"),
+                ("primary_holder", target.id, 2, "A"),
+                ("middle_holder", target.id, 6, "A"),
+            )
+        }
+        pupils = {
+            key: m.Student(full_name=name, search_name=name.casefold())
+            for key, name in (
+                ("prep", "Synthetic Prep Leaver"),
+                ("fourth", "Synthetic Fourth Leaver"),
+                ("primary_holder", "Synthetic Primary Holder"),
+                ("middle_holder", "Synthetic Middle Holder"),
+            )
+        }
+        db.add_all([*classes.values(), *pupils.values()])
+        await db.flush()
+        numbers = {"prep": 1, "fourth": 2, "primary_holder": 92000, "middle_holder": 92001}
+        db.add_all(
+            [
+                m.Enrollment(
+                    student_id=pupils[key].id,
+                    year_id=classes[key].year_id,
+                    class_id=classes[key].id,
+                    school_number=number,
+                )
+                for key, number in numbers.items()
+            ]
+        )
+        await db.commit()
+        target_id = target.id
+        ids = {key: pupil.id for key, pupil in pupils.items()}
+
+    # Each incoming number is already held in the target year, but by a pupil of
+    # the other stage, so it must neither claim nor rename that pupil (ADR-070).
+    files = roster_file(
+        [
+            [92000, "Synthetic Fourth Leaver", "5/A", None],
+            [92001, "Synthetic Prep Leaver", "1/A", None],
+        ]
+    )
+    async with api(world.admin) as client:
+        preview = await client.post(
+            "/api/admin/import/dry-run", params={"year_id": target_id}, files=files
+        )
+        assert preview.status_code == 200, preview.text
+        body = preview.json()
+        actions = {row["row"]["row_key"]: row["actions"] for row in body["rows"]}
+        assert actions == {
+            "middle:92000": ["new_class", "placed", "new_enrollment"],
+            "primary:92001": ["new_class", "placed", "new_enrollment"],
+        }
+        assert body["counts"]["placed_students"] == 2
+        assert body["counts"]["renamed_students"] == 0
+        assert body["counts"]["new_students"] == 0
+        committed = await client.post(
+            "/api/admin/import/commit",
+            params={
+                "year_id": target_id,
+                "expected_sha256": body["sha256"],
+                "expected_review_sha256": body["review_sha256"],
+            },
+            files=files,
+        )
+        assert committed.status_code == 200, committed.text
+
+    async with TestSession() as db:
+        assert await db.scalar(select(func.count()).select_from(m.Student)) == len(ids) + 2
+        enrolled = (
+            await db.execute(
+                select(
+                    m.Enrollment.student_id,
+                    m.SchoolClass.grade_level,
+                    m.Enrollment.school_number,
+                    m.Student.full_name,
+                )
+                .join(m.SchoolClass, m.SchoolClass.id == m.Enrollment.class_id)
+                .join(m.Student, m.Student.id == m.Enrollment.student_id)
+                .where(m.Enrollment.year_id == target_id)
+                .order_by(m.SchoolClass.grade_level)
+            )
+        ).all()
+    assert [tuple(row) for row in enrolled] == [
+        (ids["prep"], 1, 92001, "Synthetic Prep Leaver"),
+        (ids["primary_holder"], 2, 92000, "Synthetic Primary Holder"),
+        (ids["fourth"], 5, 92000, "Synthetic Fourth Leaver"),
+        (ids["middle_holder"], 6, 92001, "Synthetic Middle Holder"),
+    ]

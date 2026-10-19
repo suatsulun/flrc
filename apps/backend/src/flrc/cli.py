@@ -602,6 +602,7 @@ def bootstrap_admin(
                 full_name=cleaned_name,
                 is_admin=True,
                 is_active=True,
+                teaching_field="english",
                 teaching_stage="middle",
             )
             db.add(existing)
@@ -714,7 +715,7 @@ def seed(
         else:
             me = m.User(
                 email=my_email,
-                full_name="Suat Sülün",
+                full_name="Synthetic Administrator",
                 is_admin=True,
                 teaching_field="english",
                 teaching_stage="middle",

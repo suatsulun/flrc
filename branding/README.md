@@ -1,12 +1,14 @@
 # Branding
 
-**This folder is the only place you change to put a school's identity on the product.**
+**The public source branding stays generic. Real school identities belong in a private deployment
+repository's [runtime overlay](#rebranding-a-deployment-without-a-rebuild), not in this checkout.**
 
 The public repository keeps the generic FL-ReportCard identity. Use the private runtime overlay
 below for real installations. All names in the examples are fictional; never commit real
 institution names, domains, logos, personnel, or signatures to this repository.
 
-Two required files, an optional favicon, and one command:
+For generic application branding development, the source consists of two required files,
+an optional favicon, and one command:
 
 | Change this   | To set                                                               |
 | ------------- | -------------------------------------------------------------------- |
@@ -20,8 +22,8 @@ Then run:
 pnpm brand
 ```
 
-That is the whole rebrand. `pnpm dev` and `pnpm build` run it for you, so in normal
-work you never have to remember it.
+`pnpm dev` and `pnpm build` run this generation step for you. It updates the generic defaults;
+it is not the workflow for installing a real school's identity.
 
 ---
 
@@ -126,17 +128,14 @@ Do not edit the written files by hand; the next `pnpm brand` overwrites them.
 
 ## Selling this to a school
 
-A full rebrand, start to finish:
+Keep the public application checkout unchanged:
 
-```bash
-cp ~/their-logo.svg branding/logo.svg      # 1. their logo
-$EDITOR branding/brand.json                 # 2. their name and colour
-pnpm brand                                  # 3. apply
-pnpm dev                                    # 4. look at it
-```
-
-Nothing else in the repository mentions a school name or a brand colour, so there
-is no second place to remember and nothing to miss in a demo.
+1. Copy `infra/school-template/` into a separate private deployment repository.
+2. Set that repository's `branding/brand.json` and `branding/brand.js` to the school's name
+   and accent colour, and replace its `logo.svg` and `favicon.svg`.
+3. Mount the runtime overlay as described above; the published application images stay generic.
+4. Keep private report templates, principal identities, signatures, and covers in the backend-only
+   overlay described below, never in the web mount or public application repository.
 
 ### Per-deployment overrides
 

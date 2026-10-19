@@ -87,8 +87,8 @@ fl-reportcard/
 │       ├── migrations/ Alembic migrations
 │       ├── tests/      pytest suite
 │       └── Dockerfile  backend and worker image
-├── branding/           the school's logo, name, and accent colour: the ONLY
-│                       place to rebrand; `pnpm brand` applies it everywhere
+├── branding/           generic application logo, name, and accent colour;
+│                       private school identities use runtime deployment overlays
 ├── packages/
 │   ├── ui/             shared design system: tokens, AppShell, primitives, cells
 │   ├── api-client/     generated OpenAPI TypeScript client

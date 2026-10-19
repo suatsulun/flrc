@@ -63,8 +63,10 @@ The demo runs on free hosting. During weekday school hours, an automated health 
 
 Use a private runtime branding overlay for each installation, starting from
 `infra/school-template/`. The public application and its released images retain the generic
-FL-ReportCard identity. See [branding/README.md](branding/README.md) for the overlay format;
-keep real logos, names, and report assets in the private deployment repository.
+FL-ReportCard identity. See the [runtime branding guide](branding/README.md#rebranding-a-deployment-without-a-rebuild)
+for the overlay format. Mount only public branding files into the web service; keep private
+report templates, principal identities, signatures, and covers in the backend-only overlay
+in the private deployment repository.
 
 ## Documentation
 

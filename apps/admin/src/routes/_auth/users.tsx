@@ -172,6 +172,7 @@ function UsersPage() {
               )}
             </Field>
             <Button
+              type="submit"
               className="self-end"
               pending={create.isPending}
               pendingLabel={t("feedback.saving")}

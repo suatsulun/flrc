@@ -156,14 +156,13 @@ function LifecyclePage() {
               {(id) => (
                 <Input
                   id={id}
-                  required
                   placeholder={suggestedLabel}
                   value={label}
                   onChange={(event) => setLabel(event.target.value)}
                 />
               )}
             </Field>
-            <Button pending={create.isPending} pendingLabel={t("lifecycle.creating")}>
+            <Button type="submit" pending={create.isPending} pendingLabel={t("lifecycle.creating")}>
               <PlusIcon />
               {t("lifecycle.create")}
             </Button>

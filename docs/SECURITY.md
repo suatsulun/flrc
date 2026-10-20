@@ -27,13 +27,13 @@ A request reaches school data only after all of these checks:
    (eight hours by default, at most eight hours in school mode).
 5. The referenced user still exists, is active, and still has an email in the configured school
    domain.
-6. The role and class/subject permissions required by the endpoint pass.
+6. The role permissions required by the endpoint pass.
 
-For teacher-facing academic routes, an assignment is also a read boundary. A teacher can enumerate
-only academic years, classes, and subjects for which that teacher has a `teaching_assignments` row.
-An override grant permits cross-role work only inside that already-assigned class and subject; it
-cannot be used to discover or enter a different class or language subject. Admins retain full
-access, and coordinators retain the documented read-only oversight access.
+Teacher-facing academic routes are school-wide (ADR-071): any authenticated teacher can list every
+academic year, open every class and subject grid, and save into it. Teaching assignments decide
+ownership, not access: a save that touches a column outside the teacher's assignment is rejected
+until the teacher confirms the warning, and the confirmed save is linked to an audited override
+grant. Administrative, archive, coordinator, export and audit routes keep their role checks.
 
 Google login itself also requires all of the following:
 
@@ -208,7 +208,8 @@ must return to `/login?error=not_registered`, never create a new local user. `/a
    import supplies sample assessment definitions.
 6. Activate the year at `/admin/lifecycle` (`POST /api/admin/years/<id>/activate`).
    Semester 1 opens and semester 2 remains locked. Sign in as an assigned teacher through
-   Google and confirm only assigned classes are writable. Smoke-test a permitted grade
+   Google and confirm every class is listed, assigned boards appear under "my assignments", and
+   a save in an unassigned column asks for confirmation. Smoke-test a permitted grade
    save and read-back only when real assessment definitions are ready; do not seed fake
    grades to make the grid appear populated.
 

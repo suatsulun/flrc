@@ -2,7 +2,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,7 +25,6 @@ from flrc.modules.auth.dependencies import (
     require_coordinator_or_admin,
     writable_year,
 )
-from flrc.modules.grades.permissions import SUBJECT_ROLES
 
 router = APIRouter(tags=["assignments"])
 
@@ -98,27 +97,10 @@ class AcademicYearOut(BaseModel):
 
 @router.get("/academic-years")
 async def list_academic_years(
-    user: Annotated[User, Depends(current_user)],
+    _: Annotated[User, Depends(current_user)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[AcademicYearOut]:
-    statement = select(AcademicYear).order_by(AcademicYear.label.desc())
-    if not (user.is_admin or user.is_coordinator):
-        # A teacher sees the years they actually teach in, plus the active one.
-        # Keeping the active year visible costs nothing — its label is on every
-        # screen already — and without it a teacher who has not been assigned
-        # yet lands on a page with no year to render at all.
-        assigned_years = (
-            select(SchoolClass.year_id)
-            .join(TeachingAssignment, TeachingAssignment.class_id == SchoolClass.id)
-            .where(TeachingAssignment.user_id == user.id)
-        )
-        statement = statement.where(
-            or_(
-                AcademicYear.status == "active",
-                AcademicYear.id.in_(assigned_years),
-            )
-        )
-    years = list(await db.scalars(statement))
+    years = list(await db.scalars(select(AcademicYear).order_by(AcademicYear.label.desc())))
     if not years:
         return []
     terms = list(
@@ -169,21 +151,6 @@ async def list_class_catalog(
     if year is None:
         return []
     elevated = user.is_admin or user.is_coordinator
-    if not elevated:
-        assigned = await db.scalar(
-            select(TeachingAssignment.id)
-            .join(SchoolClass, SchoolClass.id == TeachingAssignment.class_id)
-            .where(
-                TeachingAssignment.user_id == user.id,
-                SchoolClass.year_id == year.id,
-            )
-            .limit(1)
-        )
-        if assigned is None:
-            # An empty catalog rather than a 403: the rows below are already
-            # filtered to this teacher's own classes, so a distinct error would
-            # only turn the endpoint into an oracle for which year ids exist.
-            return []
 
     semesters = list(
         await db.scalars(
@@ -291,8 +258,6 @@ async def list_class_catalog(
                 continue
             relevant_roles = sorted(owner_roles[key])
             my_roles = sorted(class_roles.intersection(relevant_roles))
-            if not elevated and not class_roles.intersection(SUBJECT_ROLES[subject]):
-                continue
             subjects.append(
                 ClassSubjectOut(
                     subject=subject,

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
@@ -27,7 +27,6 @@ from flrc.db.session import get_session
 from flrc.modules.academics.class_names import class_label
 from flrc.modules.academics.fields import VALUE_FIELD, CellValue, cell_value, pick_label
 from flrc.modules.auth.dependencies import current_user, writable_semester
-from flrc.modules.grades.permissions import require_subject_access
 
 router = APIRouter(tags=["grid"])
 log = structlog.get_logger()
@@ -277,7 +276,6 @@ async def get_grid(
     year = await db.get(AcademicYear, cls.year_id)
     if year is None:
         raise HTTPException(404, {"code": "unknown_year"})
-    await require_subject_access(db, user, class_id, subject, allow_coordinator=True)
 
     semesters = list(await db.scalars(select(Semester).where(Semester.year_id == year.id)))
     if not semesters:
@@ -448,7 +446,6 @@ async def save_grid(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> SaveResponse:
     cls = await _writable_class(db, class_id, semester)
-    await require_subject_access(db, user, class_id, body.subject, allow_coordinator=False)
 
     columns = {
         column.id: column
@@ -680,8 +677,6 @@ async def request_grant(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> GrantOut:
     await _writable_class(db, class_id, semester)
-    subject = cast(Subject, "english" if body.role in ("main", "skills") else body.role)
-    await require_subject_access(db, user, class_id, subject, allow_coordinator=False)
     assignment = (
         await db.execute(
             select(TeachingAssignment).where(
@@ -753,9 +748,6 @@ async def undo_grid(
         raise HTTPException(409, {"code": "nothing_to_undo"})
     rosters: dict[str, set[int]] = {}
     for subject in {column.subject for column in columns.values()}:
-        await require_subject_access(
-            db, user, class_id, cast(Subject, subject), allow_coordinator=False
-        )
         rosters[subject] = await _roster_ids(db, class_id, subject, cls.year_id)
     if any(
         entry.student_id not in rosters[columns[entry.column_definition_id].subject]

@@ -338,8 +338,9 @@ French permit only their matching roles. English users also have a required `tea
 stage; the assignment board can filter the same five operational groups: all, primary, middle,
 German, and French.
 
-`override_grants` record a user, class, role, and expiry for temporary cross-role editing.
-They do not expand the teacher's class/subject read boundary or store a free-form reason.
+`override_grants` record a user, class, role, and expiry for confirmed out-of-assignment editing.
+They link audit entries to the confirmation and do not store a free-form reason. Assignments are
+not a read boundary: every teacher can open every class and subject grid (ADR-071).
 
 A teacher can save a cell only if:
 
@@ -347,7 +348,8 @@ A teacher can save a cell only if:
 2. the user is allowed and active;
 3. the academic year/semester is writable;
 4. the report column is active and applicable;
-5. assignment scope and the existing ownership/grant/explicit-confirmation rules pass;
+5. the column's role is assigned to the teacher, or an active grant exists, or the request carries
+   the explicit out-of-assignment confirmation;
 6. the submitted value matches the column type;
 7. the optimistic version check passes.
 

@@ -84,54 +84,6 @@ def test_xlsx_without_a_declared_dimension_still_imports() -> None:
     assert [(row.row_key, row.school_number) for row in plan.rows] == [("middle:51001", 51001)]
 
 
-async def test_teacher_cannot_cross_class_or_subject_boundaries(api, world) -> None:
-    async with TestSession() as db:
-        other_class = m.SchoolClass(year_id=world.year, grade_level=5, section="B")
-        db.add(other_class)
-        await db.commit()
-        other_class_id = other_class.id
-
-    async with api(world.main) as client:
-        other_read = await client.get(
-            f"/api/classes/{other_class_id}/grid", params={"subject": "english"}
-        )
-        other_save = await client.post(
-            f"/api/classes/{other_class_id}/grid/save",
-            json={
-                "subject": "english",
-                "cells": [cell(world.student_one, world.main_column, 90)],
-            },
-        )
-        other_grant = await client.post(
-            f"/api/classes/{other_class_id}/grants", json={"role": "main"}
-        )
-        foreign_subject = await client.get(
-            f"/api/classes/{world.cls}/grid", params={"subject": "german"}
-        )
-
-    for response in (other_read, other_save, other_grant, foreign_subject):
-        assert response.status_code == 403
-        assert response.json()["detail"]["code"] == "class_subject_forbidden"
-
-
-async def test_teacher_cannot_enumerate_unassigned_academic_year(api, world) -> None:
-    async with TestSession() as db:
-        other_year = m.AcademicYear(label="2040-2041", status="archived")
-        db.add(other_year)
-        await db.flush()
-        db.add(m.Semester(year_id=other_year.id, number=1, status="locked"))
-        await db.commit()
-        other_year_id = other_year.id
-
-    async with api(world.main) as client:
-        years = await client.get("/api/academic-years")
-        catalog = await client.get("/api/class-catalog", params={"year_id": other_year_id})
-
-    assert [item["id"] for item in years.json()] == [world.year]
-    assert catalog.status_code == 200
-    assert catalog.json() == []
-
-
 @pytest.mark.parametrize(
     ("method", "path", "kwargs"),
     [

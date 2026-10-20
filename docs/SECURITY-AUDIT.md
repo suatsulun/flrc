@@ -51,7 +51,7 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
 
 ### High
 
-#### SEC-01: Teachers could enumerate and alter other classes and subjects (Fixed)
+#### SEC-01: Teachers could enumerate and alter other classes and subjects (Fixed, then reversed by ADR-071)
 
 - Location: `apps/backend/src/flrc/modules/grades/permissions.py:18`,
   `apps/backend/src/flrc/modules/grades/router.py:264`,
@@ -65,6 +65,10 @@ only technical exploit complexity. “Fixed” means fixed and regression-tested
 - Evidence: `test_teacher_cannot_cross_class_or_subject_boundaries`,
   `test_teacher_cannot_enumerate_unassigned_academic_year`, and the parameterized privileged-route
   probe in `apps/backend/tests/test_security_hardening.py`.
+- Reversal: ADR-071 deliberately restores school-wide teacher reads and confirmed writes. The
+  assignment checks and their two regression tests were removed; the privileged-route probe
+  remains, and `apps/backend/tests/test_grades.py` now pins the confirmation and audit-grant flow
+  for unassigned classes.
 
 #### SEC-02: Hostile XLSX files could exhaust memory/CPU or silently truncate a roster (Fixed)
 

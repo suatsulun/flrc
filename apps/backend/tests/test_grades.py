@@ -38,18 +38,75 @@ async def test_grid_read_returns_columns_roster_and_missing_version_zero(api, wo
     assert body["columns"][1]["owned_by_you"] is False
 
 
-async def test_class_catalog_hides_unassigned_classes_from_teachers(api, world):
+async def test_teacher_sees_every_class_but_writes_outside_assignment_only_when_confirmed(
+    api, world
+):
     async with TestSession() as db:
         other = m.SchoolClass(year_id=world.year, grade_level=5, section="B")
-        db.add(other)
+        pupil = m.Student(full_name="Synthetic Pupil", search_name="synthetic pupil")
+        db.add_all([other, pupil])
+        await db.flush()
+        db.add(
+            m.Enrollment(
+                student_id=pupil.id, class_id=other.id, year_id=world.year, school_number=51003
+            )
+        )
         await db.commit()
+        other_id, pupil_id = other.id, pupil.id
+
+    body = {"subject": "english", "cells": [cell(pupil_id, world.main_column, 90)]}
+    async with api(world.main) as client:
+        catalog = await client.get("/api/class-catalog")
+        grid = await client.get(
+            f"/api/classes/{other_id}/grid", params={"subject": "english", "locale": "en"}
+        )
+        unconfirmed = await client.post(f"/api/classes/{other_id}/grid/save", json=body)
+        confirmed = await client.post(
+            f"/api/classes/{other_id}/grid/save",
+            json={**body, "confirm_outside_assignment": True},
+        )
+
+    boards = {item["name"]: item["subjects"][0]["can_write"] for item in catalog.json()}
+    assert boards == {"5/A": True, "5/B": False}
+    assert [row["student_id"] for row in grid.json()["rows"]] == [pupil_id]
+    assert not any(column["owned_by_you"] for column in grid.json()["columns"])
+    assert unconfirmed.json()["rejected"][0]["code"] == "outside_assignment_confirmation_required"
+    assert confirmed.json()["applied"][0]["version"] == 1
+    async with TestSession() as db:
+        entry = (await db.execute(select(m.AuditEntry))).scalars().one()
+        assert entry.actor_id == world.main.id
+        assert entry.via_grant_id is not None
+
+
+async def test_teacher_can_browse_a_year_without_their_assignments(api, world):
+    async with TestSession() as db:
+        other_year = m.AcademicYear(label="2040-2041", status="archived")
+        db.add(other_year)
+        await db.flush()
+        semester = m.Semester(year_id=other_year.id, number=1, status="locked")
+        db.add_all([semester, m.SchoolClass(year_id=other_year.id, grade_level=5, section="C")])
+        await db.flush()
+        db.add(
+            m.ColumnDefinition(
+                semester_id=semester.id,
+                grade_level=5,
+                subject="english",
+                value_type="score",
+                owner_role="main",
+                labels={"tr": "Score"},
+                position=1,
+            )
+        )
+        await db.commit()
+        other_year_id = other_year.id
 
     async with api(world.main) as client:
-        response = await client.get("/api/class-catalog")
+        years = await client.get("/api/academic-years")
+        catalog = await client.get("/api/class-catalog", params={"year_id": other_year_id})
 
-    assert response.status_code == 200
-    catalog = response.json()
-    assert [item["name"] for item in catalog] == ["5/A"]
+    assert {item["id"] for item in years.json()} == {world.year, other_year_id}
+    assert [item["name"] for item in catalog.json()] == ["5/C"]
+    assert catalog.json()[0]["subjects"][0]["can_write"] is False
 
 
 async def test_admin_is_warned_as_unassigned_but_save_authority_is_preserved(api, world):

@@ -3051,6 +3051,12 @@ Admin "Add column" stored only a Turkish label, whatever the subject.
   every primary English field (grades Hazırlık–4) and every German/French rating row and teacher
   note. German/French scores only feed the karne average and middle-school English fields print
   in English alone, so they need none. The admin forms show the Turkish box only when needed.
+- Names cannot be edited after creation, so the same rule guards the other ways a field reaches
+  a card: changing an unused field's type answers `turkish_wording_required` when the new type
+  prints Turkish wording the field lacks (recreate it instead), and copying a column set checks
+  every copied field against the target first. A copy into the other karne language answers
+  `copy_language_mismatch` unless the fields already carry names in that language; nothing is
+  copied when a field fails either check.
 - Stored labels without the subject's language fall back to Turkish, then any entry, so
   existing columns stay readable.
 - Printed cards are unchanged: they stay bilingual, Turkish first with the subject's language

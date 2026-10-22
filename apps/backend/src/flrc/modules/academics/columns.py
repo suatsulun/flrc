@@ -115,6 +115,19 @@ def _check_programme(grade: int, subject: str, value_type: str, counts_in_averag
         raise HTTPException(422, {"code": "grade_four_l2_scale_only"})
 
 
+def _lacks_turkish(
+    grade: int,
+    subject: str,
+    value_type: str,
+    labels: dict[str, str],
+    group_labels: dict[str, str] | None,
+) -> bool:
+    """Whether a printed card would show this field in Turkish without its Turkish wording."""
+    return prints_turkish(grade, subject, value_type) and (
+        not labels.get("tr") or (group_labels is not None and not group_labels.get("tr"))
+    )
+
+
 async def _editable_semester(db: AsyncSession, semester_id: int | None) -> Semester:
     if semester_id is None:
         semester = await db.scalar(
@@ -180,9 +193,16 @@ async def create_column(
     semester = await _editable_semester(db, semester_id)
     _check_owner_rule(body.subject, body.owner_role)
     _check_programme(body.grade_level, body.subject, body.value_type, body.counts_in_average)
-    if prints_turkish(body.grade_level, body.subject, body.value_type) and (
-        not body.turkish_name or (body.group and not body.turkish_group)
-    ):
+    locale = SUBJECT_LOCALE[body.subject]
+    labels = {locale: body.name}
+    if body.turkish_name:
+        labels["tr"] = body.turkish_name
+    group_labels = None
+    if body.group:
+        group_labels = {locale: body.group}
+        if body.turkish_group:
+            group_labels["tr"] = body.turkish_group
+    if _lacks_turkish(body.grade_level, body.subject, body.value_type, labels, group_labels):
         raise HTTPException(422, {"code": "turkish_wording_required"})
     max_pos = (
         await db.execute(
@@ -193,15 +213,6 @@ async def create_column(
             )
         )
     ).scalar_one()
-    locale = SUBJECT_LOCALE[body.subject]
-    labels = {locale: body.name}
-    if body.turkish_name:
-        labels["tr"] = body.turkish_name
-    group_labels = None
-    if body.group:
-        group_labels = {locale: body.group}
-        if body.turkish_group:
-            group_labels["tr"] = body.turkish_group
     column = ColumnDefinition(
         semester_id=semester.id,
         position=max_pos + 1,
@@ -235,7 +246,8 @@ async def update_column(
         updates.get("value_type", column.value_type),
         updates.get("counts_in_average", column.counts_in_average),
     )
-    if updates.get("value_type", column.value_type) != column.value_type:
+    value_type = updates.get("value_type", column.value_type)
+    if value_type != column.value_type:
         has_data = await db.scalar(
             select(func.count())
             .select_from(GradeValue)
@@ -243,6 +255,12 @@ async def update_column(
         )
         if has_data:
             raise HTTPException(409, {"code": "column_type_in_use"})
+        # Names cannot be patched, so a field cannot become one its card prints in Turkish
+        # unless it already has the Turkish wording; recreate it with the wording instead.
+        if _lacks_turkish(
+            column.grade_level, column.subject, value_type, column.labels, column.group_labels
+        ):
+            raise HTTPException(422, {"code": "turkish_wording_required"})
     for key, value in updates.items():
         setattr(column, key, value)
     await db.commit()
@@ -354,6 +372,23 @@ async def copy_columns(
         for column in result.scalars()
         if allows_column_type(body.target_grade_level, body.target_subject, column.value_type)
     ]
+    # Copied fields keep their stored wording, so the target must be able to name and print
+    # them: in its subject's language, and in Turkish where its card prints Turkish.
+    target_locale = SUBJECT_LOCALE[body.target_subject]
+    for src in sources:
+        if body.target_subject != body.source_subject and (
+            not src.labels.get(target_locale)
+            or (src.group_labels is not None and not src.group_labels.get(target_locale))
+        ):
+            raise HTTPException(422, {"code": "copy_language_mismatch"})
+        if _lacks_turkish(
+            body.target_grade_level,
+            body.target_subject,
+            src.value_type,
+            src.labels,
+            src.group_labels,
+        ):
+            raise HTTPException(422, {"code": "turkish_wording_required"})
     is_l2_target = body.target_subject in ("german", "french")
     for src in sources:
         db.add(

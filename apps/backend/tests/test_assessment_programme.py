@@ -125,6 +125,57 @@ async def test_middle_english_rejects_opinion_creation_and_copy(api, world, grad
         assert changed.status_code == 422
 
 
+async def test_copy_keeps_names_in_the_target_language_with_its_turkish_wording(api, world):
+    async with TestSession() as db:
+        year = m.AcademicYear(label="2097-2098", status="setup")
+        db.add(year)
+        await db.flush()
+        semester = m.Semester(year_id=year.id, number=1, status="open")
+        db.add(semester)
+        await db.commit()
+        params = {"semester_id": semester.id}
+
+    def copy(source: tuple[int, str], target: tuple[int, str]) -> dict[str, object]:
+        return {
+            "source_grade_level": source[0],
+            "source_subject": source[1],
+            "target_grade_level": target[0],
+            "target_subject": target[1],
+        }
+
+    async with api(world.admin) as client:
+        # Middle-school English prints in English alone, so it needs no Turkish wording.
+        middle = {**column_body("english", "score", 5), "owner_role": "main", "turkish_name": None}
+        assert (await client.post("/api/columns", params=params, json=middle)).status_code == 201
+        german = column_body("german", "scale3", 5)
+        assert (await client.post("/api/columns", params=params, json=german)).status_code == 201
+        primary = await client.post(
+            "/api/columns/copy", params=params, json=copy((5, "english"), (4, "english"))
+        )
+        french = await client.post(
+            "/api/columns/copy", params=params, json=copy((5, "german"), (5, "french"))
+        )
+        same = await client.post(
+            "/api/columns/copy", params=params, json=copy((5, "german"), (6, "german"))
+        )
+        left_empty = [
+            await client.get(
+                "/api/columns", params={**params, "grade_level": grade, "subject": subject}
+            )
+            for grade, subject in ((4, "english"), (5, "french"))
+        ]
+
+    # The primary English card prints Turkish the middle-school field never had.
+    assert primary.status_code == 422
+    assert primary.json()["detail"]["code"] == "turkish_wording_required"
+    # A German field has no French name to show.
+    assert french.status_code == 422
+    assert french.json()["detail"]["code"] == "copy_language_mismatch"
+    assert [response.json() for response in left_empty] == [[], []]
+    assert same.status_code == 200
+    assert same.json() == {"copied": 1}
+
+
 async def test_middle_english_migration_retires_fields_but_preserves_saved_comments(api, world):
     async with TestSession() as db:
         note = m.ColumnDefinition(

@@ -2786,6 +2786,14 @@ Read the diff against: 5 create_table · the composite unique on grade_values ·
 
 ### 2.1.2 The columns API
 
+**Maintenance note:** the assembly below teaches the Phase-2 shape and predates ADR-072. The
+current contract is `src/flrc/modules/academics/columns.py`: `ColumnCreate` takes one
+`name` (and optional `group`) in the subject's language, plus `turkish_name`/`turkish_group` when
+the printed card shows the field in Turkish (`turkish_wording_required` otherwise). `ColumnPatch`
+changes only `counts_in_average`, `value_type` and `owner_role`; names are never patched. Type
+changes and copies re-check the Turkish wording, and a copy into the other karne language needs
+names in that language (`copy_language_mismatch`). The programme rules in Step 2.1 apply first.
+
 **What we're building:** admin-only CRUD plus two operations CRUD doesn't have: **reorder** (the up/down arrows) and **copy** (September's sanity: duplicating a column set to another grade or the twin language).
 
 **Why the delete branch has two outcomes:** a column with grades is _history_; the minus button hides it (`is_active=false`) instead of destroying data, and tells the admin which case happened. Cascade-deleting grades from a UI button is a résumé-ending feature (ARCH §3.3).

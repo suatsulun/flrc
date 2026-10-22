@@ -517,6 +517,12 @@ async def test_fields_are_named_in_their_subject_language(api, world):
             params={"semester_id": world.semester},
             json={**french, "value_type": "score", "name": "Lecture"},
         )
+        # A score cannot become a rating row the karne prints in Turkish without that wording.
+        retyped = await client.patch(
+            f"/api/columns/{score.json()['id']}",
+            params={"semester_id": world.semester},
+            json={"value_type": "scale3"},
+        )
         for subject in ("english", "german", "french"):
             grid = await client.get(f"/api/classes/{world.cls}/grid", params={"subject": subject})
             names[subject] = [
@@ -525,7 +531,7 @@ async def test_fields_are_named_in_their_subject_language(api, world):
                 if column["position"] >= 10
             ]
 
-    for rejected in (untranslated, ungrouped):
+    for rejected in (untranslated, ungrouped, retyped):
         assert rejected.status_code == 422
         assert rejected.json()["detail"]["code"] == "turkish_wording_required"
     assert created.status_code == 201

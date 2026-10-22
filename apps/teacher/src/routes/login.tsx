@@ -40,7 +40,7 @@ function LoginPage() {
   const [signInPending, setSignInPending] = useState(false);
   const { error } = Route.useSearch();
   const { data: user } = useQuery(sessionOptions());
-  // Only the public demo serves this route; elsewhere it is a 404 and stays undefined.
+  // Null everywhere except the public demo.
   const { data: demo } = useQuery({
     ...demoInfoOptions(),
     retry: false,

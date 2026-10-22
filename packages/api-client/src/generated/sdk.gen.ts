@@ -41,7 +41,7 @@ export const healthz = <ThrowOnError extends boolean = false>(options?: Options<
 /**
  * Demo Info
  *
- * Public: lets the login page describe the demo before anyone signs in.
+ * Public: lets the login page describe the demo before anyone signs in; null elsewhere.
  */
 export const demoInfo = <ThrowOnError extends boolean = false>(options?: Options<DemoInfoData, ThrowOnError>): RequestResult<DemoInfoResponses, unknown, ThrowOnError> => (options?.client ?? client).get<DemoInfoResponses, unknown, ThrowOnError>({ url: '/api/demo', ...options });
 

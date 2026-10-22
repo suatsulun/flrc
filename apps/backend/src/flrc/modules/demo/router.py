@@ -19,8 +19,10 @@ class DemoInfoOut(BaseModel):
 
 
 @router.get("/demo")
-async def demo_info() -> DemoInfoOut:
-    """Public: lets the login page describe the demo before anyone signs in."""
+async def demo_info() -> DemoInfoOut | None:
+    """Public: lets the login page describe the demo before anyone signs in; null elsewhere."""
+    if settings.env != "demo":
+        return None
     return DemoInfoOut(
         next_reset_at=schedule.next_reset_at(),
         visitor_lifetime_hours=int(VISITOR_LIFETIME.total_seconds() // 3600),

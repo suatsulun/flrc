@@ -2068,9 +2068,11 @@ export type DemoInfoData = {
 
 export type DemoInfoResponses = {
     /**
+     * Response Demo Info
+     *
      * Successful Response
      */
-    200: DemoInfoOut;
+    200: DemoInfoOut | null;
 };
 
 export type DemoInfoResponse = DemoInfoResponses[keyof DemoInfoResponses];

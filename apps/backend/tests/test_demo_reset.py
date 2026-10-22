@@ -90,7 +90,7 @@ def test_public_login_requires_the_nightly_reset() -> None:
             create_app()
 
 
-async def test_demo_routes_exist_only_in_demo_mode() -> None:
+async def test_demo_info_is_null_and_ops_routes_absent_outside_demo_mode() -> None:
     with reset_settings():
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as api:
@@ -103,8 +103,10 @@ async def test_demo_routes_exist_only_in_demo_mode() -> None:
 
     app = create_app()  # dev settings
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as api:
-        assert (await api.get("/api/demo")).status_code == 404
+        info = await api.get("/api/demo")
         assert (await api.get("/api/ops/demo/status")).status_code == 404
+    assert info.status_code == 200
+    assert info.json() is None
 
 
 async def test_ops_routes_require_the_token() -> None:

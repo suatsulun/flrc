@@ -102,6 +102,7 @@ async def test_every_data_route_is_fail_closed_without_a_session() -> None:
         ("GET", "/api/auth/login"),
         ("GET", "/api/auth/callback"),
         ("POST", "/api/auth/logout"),
+        ("GET", "/api/demo"),
     }
     checked: set[tuple[str, str]] = set()
     failures: list[tuple[str, str, int]] = []

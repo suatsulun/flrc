@@ -115,7 +115,7 @@ export const demoInfoQueryKey = (options?: Options<DemoInfoData>) => createQuery
 /**
  * Demo Info
  *
- * Public: lets the login page describe the demo before anyone signs in.
+ * Public: lets the login page describe the demo before anyone signs in; null elsewhere.
  */
 export const demoInfoOptions = (options?: Options<DemoInfoData>) => queryOptions<DemoInfoResponse, DefaultError, DemoInfoResponse, ReturnType<typeof demoInfoQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

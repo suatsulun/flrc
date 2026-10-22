@@ -106,8 +106,8 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router, prefix="/api")
     app.include_router(system_router, prefix="/api")
+    app.include_router(demo_router, prefix="/api")
     if settings.env == "demo":
-        app.include_router(demo_router, prefix="/api")
         app.include_router(demo_ops_router, prefix="/api")
     protected_api = APIRouter(dependencies=[Depends(current_user)])
     protected_api.include_router(me_router)

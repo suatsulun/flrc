@@ -77,7 +77,7 @@
           "demo"
         ],
         "summary": "Demo Info",
-        "description": "Public: lets the login page describe the demo before anyone signs in.",
+        "description": "Public: lets the login page describe the demo before anyone signs in; null elsewhere.",
         "operationId": "demo_info",
         "responses": {
           "200": {
@@ -85,7 +85,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DemoInfoOut"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DemoInfoOut"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Demo Info"
                 }
               }
             }

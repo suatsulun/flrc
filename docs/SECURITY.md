@@ -56,7 +56,8 @@ Only these paths work without an application session:
 - the static login application and its JavaScript/CSS assets;
 - `/api/auth/login` and `/api/auth/callback`, which are necessary to create a Google session;
 - `/api/auth/logout`, which returns no data and remains protected by the exact-origin check;
-- `/api/healthz`, which returns HTTP 204 with an empty body.
+- `/api/healthz`, which returns HTTP 204 with an empty body;
+- `/api/demo`, which returns `null` everywhere except the public demo (see below).
 
 Browser application files cannot be secret: a browser must download them to display the login
 screen. They contain no credentials or school data. OpenAPI and interactive API documentation are
@@ -232,9 +233,9 @@ every other environment, including school mode.
 The demo also mounts two operations routes, `POST /api/ops/demo/reset` and
 `GET /api/ops/demo/status`, which exist only in `ENV=demo` and require the `X-Ops-Token` header to
 equal `OPS_TOKEN`; they bypass the Origin check because no browser cookie is involved. The public
-`GET /api/demo` route reports only the next reset time and the visitor lifetime. A Neon API key
-scoped to the demo project performs the branch restore and is scrubbed from telemetry like the
-other secrets.
+`GET /api/demo` route reports only the next reset time and the visitor lifetime, and `null` in
+every other environment. A Neon API key scoped to the demo project performs the branch restore and
+is scrubbed from telemetry like the other secrets.
 
 ## Automated proof
 

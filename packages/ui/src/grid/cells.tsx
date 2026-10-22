@@ -1,5 +1,5 @@
 import { LockIcon } from "lucide-react";
-import { useState, type KeyboardEvent, type RefCallback } from "react";
+import { useCallback, useRef, useState, type KeyboardEvent, type RefCallback } from "react";
 
 import { Button } from "../components/button";
 import {
@@ -34,7 +34,9 @@ export type CellProps = {
  */
 const cellBase =
   "h-9 rounded-md border border-input bg-card text-sm transition-[background-color,border-color,box-shadow] outline-none hover:border-border-strong focus-visible:z-10 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/35";
-const cautionClass = "border-dashed border-warning/70 bg-warning-surface/40";
+// Opaque, so a cell reads the same on a striped, hovered or active row.
+const cautionClass =
+  "border-dashed border-warning/70 bg-[color-mix(in_oklab,var(--warning-surface)_40%,var(--card))]";
 const dirtyClass = "border-primary bg-accent font-semibold text-accent-foreground";
 
 export function ScoreCell({
@@ -164,6 +166,15 @@ export function TextCell({
   const text = typeof value === "string" ? value : "";
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(text);
+  // The editor is opened by hand, not by a dialog trigger, so tell it where focus goes back.
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const triggerRef = useCallback(
+    (element: HTMLButtonElement | null) => {
+      trigger.current = element;
+      cellRef?.(element);
+    },
+    [cellRef],
+  );
 
   const openEditor = () => {
     setDraft(text);
@@ -180,10 +191,11 @@ export function TextCell({
   return (
     <>
       <button
-        ref={cellRef}
+        ref={triggerRef}
         type="button"
         aria-label={label ?? editorLabels.title}
         aria-haspopup="dialog"
+        aria-expanded={open}
         title={text || editorLabels.empty}
         className={cn(
           cellBase,
@@ -208,7 +220,7 @@ export function TextCell({
           else finishEditing();
         }}
       >
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl" finalFocus={trigger}>
           <DialogHeader>
             <DialogTitle>{editorLabels.title}</DialogTitle>
             <DialogDescription>{editorLabels.description}</DialogDescription>

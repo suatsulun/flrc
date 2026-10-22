@@ -537,11 +537,15 @@ for (const subject of ["english", "german", "french"] as const) {
       await expect(categories.getByRole("button").last()).toHaveText("Teacher notes1");
       await categories.getByRole("button").last().click();
       await expect(page.getByText(assessments[4][0], { exact: true })).toHaveCount(0);
-      await page
-        .getByRole("button", { name: `${names[0]} — Teacher’s comments`, exact: true })
-        .click();
+      const note = page.getByRole("button", {
+        name: `${names[0]} — Teacher’s comments`,
+        exact: true,
+      });
+      await note.click();
       await page.getByRole("dialog").getByRole("textbox").fill("Synthetic teacher feedback");
       await page.getByRole("button", { name: "Done", exact: true }).click();
+      // Focus returns to the student's note, so their row stays marked and keys continue there.
+      await expect(note).toBeFocused();
       await page.getByTestId("save-grid").click();
       await expect
         .poll(() => saved?.cells)

@@ -12,6 +12,7 @@ import { assessmentOptions, filterAssessments, type AssessmentFilter } from "./a
 import { AssessmentFilters } from "./assessment-filters";
 import { BulkRatings } from "./bulk-ratings";
 import "./english-grid.css";
+import "./grade-row.css";
 
 const gridTableFeatures = tableFeatures({});
 type GridColumnDef = ColumnDef<typeof gridTableFeatures, GridRowOut, unknown>;
@@ -285,7 +286,7 @@ export const GridTable = memo(function GridTable({
             {table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                className="group transition-colors even:bg-muted/25 hover:bg-accent/40 focus-within:bg-accent/55"
+                className="grade-row group transition-colors even:bg-muted/25 hover:bg-accent/40"
               >
                 {row.getAllCells().map((cell) => (
                   <td

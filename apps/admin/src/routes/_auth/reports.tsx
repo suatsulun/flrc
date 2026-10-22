@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { DownloadIcon, FileTextIcon, ExternalLinkIcon, Loader2Icon } from "lucide-react";
+import { ClockIcon, DownloadIcon, FileTextIcon, ExternalLinkIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import {
   createYearExportJobMutation,
@@ -21,6 +21,7 @@ import { NativeSelect } from "@flrc/ui/components/native-select";
 import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { Segmented } from "@flrc/ui/components/segmented";
 import { AdminPage } from "../../admin/AdminPage";
+import { PdfLeaveGuard } from "../../admin/PdfLeaveGuard";
 import { academicContextLabels } from "@flrc/i18n";
 
 const JOB_KEY = "flrc-active-export-job";
@@ -32,6 +33,9 @@ const REPORT_KINDS: ReportKind[] = [
   "german_karne",
   "french_karne",
 ];
+type PdfRequest = { kind: ReportKind; url: string };
+/** How long a finished PDF's blob URL (and its "open" toast) stays usable. */
+const PDF_URL_LIFETIME_MS = 300_000;
 const LOCALES = [
   { value: "tr", label: "TR", title: "Türkçe" },
   { value: "en", label: "EN", title: "English" },
@@ -58,7 +62,11 @@ function ReportsPage() {
   const [semesterNumber, setSemesterNumber] = useState<number>();
   const [reportClasses, setReportClasses] = useState<Partial<Record<ReportKind, number>>>({});
   const [locale, setLocale] = useState<Locale>("tr");
-  const [generatingKind, setGeneratingKind] = useState<ReportKind>();
+  const [pdfQueue, setPdfQueue] = useState<PdfRequest[]>([]);
+  // The ref is the queue's source of truth for the runner; state mirrors it for rendering.
+  const pdfQueueRef = useRef<PdfRequest[]>([]);
+  // Set only while the queue head's request is in flight.
+  const pdfAbortRef = useRef<AbortController | null>(null);
   const [jobId, setJobId] = useState<number | null>(
     () => Number(sessionStorage.getItem(JOB_KEY)) || null,
   );
@@ -87,9 +95,10 @@ function ReportsPage() {
     );
   };
   const selectedClassId = (kind: ReportKind) => {
-    if (!user.demo && reportClasses[kind] === 0) return 0;
     const eligible = eligibleClasses(kind);
-    return eligible.find((item) => item.id === reportClasses[kind])?.id ?? eligible[0]?.id;
+    const chosen = reportClasses[kind];
+    if (!user.demo && eligible.length > 0 && (chosen === undefined || chosen === 0)) return 0;
+    return eligible.find((item) => item.id === chosen)?.id ?? eligible[0]?.id;
   };
   const reportUrl = (kind: ReportKind) => {
     const classId = selectedClassId(kind);
@@ -148,42 +157,67 @@ function ReportsPage() {
     }
   }, [activeJob, queryClient, t]);
 
-  async function openReport(kind: ReportKind) {
-    const url = reportUrl(kind);
-    if (!url || generatingKind) return;
+  useEffect(
+    () => () => {
+      pdfAbortRef.current?.abort();
+      pdfAbortRef.current = null;
+      pdfQueueRef.current = [];
+    },
+    [],
+  );
 
-    setGeneratingKind(kind);
-    const toastId = `pdf-${kind}`;
-    toast.loading(t("reports.generatingPdf"), { id: toastId });
-    const reportTab = window.open("", "_blank");
-    if (reportTab) {
-      reportTab.document.title = t("reports.generatingPdf");
-      reportTab.document.body.style.cssText =
-        "margin:0;display:grid;place-items:center;min-height:100vh;font:16px system-ui;background:#eef1ec;color:#25312c";
-      reportTab.document.body.textContent = t("reports.generatingPdf");
-    }
+  const updatePdfQueue = (next: PdfRequest[]) => {
+    pdfQueueRef.current = next;
+    setPdfQueue(next);
+  };
 
+  async function runPdfQueue() {
+    const request = pdfQueueRef.current[0];
+    if (!request || pdfAbortRef.current) return;
+    const controller = new AbortController();
+    pdfAbortRef.current = controller;
     try {
-      const response = await fetch(url, { headers: { Accept: "application/pdf" } });
+      const response = await fetch(request.url, {
+        headers: { Accept: "application/pdf" },
+        signal: controller.signal,
+      });
       if (!response.ok) throw new Error(`PDF generation failed (${response.status})`);
-      const blobUrl = URL.createObjectURL(await response.blob());
-      if (reportTab) {
-        reportTab.location.href = blobUrl;
-      } else {
-        const anchor = document.createElement("a");
-        anchor.href = blobUrl;
-        anchor.target = "_blank";
-        anchor.rel = "noopener noreferrer";
-        anchor.click();
+      const blob = await response.blob();
+      if (controller.signal.aborted) return;
+      const blobUrl = URL.createObjectURL(blob);
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), PDF_URL_LIFETIME_MS);
+      if (!window.open(blobUrl, "_blank")) {
+        toast.success(t("reports.pdfReady"), {
+          action: {
+            label: t("reports.openReadyPdf"),
+            onClick: () => window.open(blobUrl, "_blank"),
+          },
+          duration: PDF_URL_LIFETIME_MS,
+        });
       }
-      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 300_000);
-      toast.success(t("reports.pdfReady"), { id: toastId });
     } catch {
-      reportTab?.close();
-      toast.error(t("reports.pdfFailed"), { id: toastId });
+      if (!controller.signal.aborted) toast.error(t("reports.pdfFailed"));
     } finally {
-      setGeneratingKind(undefined);
+      // A stopped run no longer owns the queue: stopAll already cleared it.
+      if (pdfAbortRef.current === controller) {
+        pdfAbortRef.current = null;
+        updatePdfQueue(pdfQueueRef.current.slice(1));
+        void runPdfQueue();
+      }
     }
+  }
+
+  function openReport(kind: ReportKind) {
+    const url = reportUrl(kind);
+    if (!url || pdfQueueRef.current.some((request) => request.kind === kind)) return;
+    updatePdfQueue([...pdfQueueRef.current, { kind, url }]);
+    void runPdfQueue();
+  }
+
+  function stopAll() {
+    pdfAbortRef.current?.abort();
+    pdfAbortRef.current = null;
+    updatePdfQueue([]);
   }
 
   if (jobsPending || yearsPending) {
@@ -208,6 +242,7 @@ function ReportsPage() {
         </Field>
       }
     >
+      <PdfLeaveGuard active={pdfQueue.length > 0} onLeave={stopAll} />
       {selectedYear ? (
         <AcademicContextBar
           years={years}
@@ -226,6 +261,8 @@ function ReportsPage() {
       <div className="grid gap-3 md:grid-cols-2">
         {REPORT_KINDS.map((kind) => {
           const url = reportUrl(kind);
+          const queuePosition = pdfQueue.findIndex((request) => request.kind === kind);
+          const queued = queuePosition !== -1;
           return (
             <Card key={kind} className="flex flex-col">
               <CardContent className="flex flex-1 flex-col">
@@ -247,7 +284,7 @@ function ReportsPage() {
                       <NativeSelect
                         id={id}
                         value={selectedClassId(kind) ?? ""}
-                        disabled={classesFetching || Boolean(generatingKind)}
+                        disabled={classesFetching || queued}
                         onChange={(event) =>
                           setReportClasses((previous) => ({
                             ...previous,
@@ -268,13 +305,13 @@ function ReportsPage() {
                 <Button
                   className="mt-4 self-start"
                   size="sm"
-                  disabled={!url || Boolean(generatingKind)}
-                  pending={generatingKind === kind}
+                  disabled={!url || queuePosition > 0}
+                  pending={queuePosition === 0}
                   pendingLabel={t("reports.generatingPdf")}
-                  onClick={() => void openReport(kind)}
+                  onClick={() => openReport(kind)}
                 >
-                  <ExternalLinkIcon />
-                  {t("reports.openPdf")}
+                  {queuePosition > 0 ? <ClockIcon /> : <ExternalLinkIcon />}
+                  {t(queuePosition > 0 ? "reports.queuedPdf" : "reports.openPdf")}
                 </Button>
               </CardContent>
             </Card>

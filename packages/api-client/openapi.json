@@ -936,16 +936,6 @@
             }
           },
           {
-            "name": "locale",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "tr",
-              "title": "Locale"
-            }
-          },
-          {
             "name": "semester",
             "in": "query",
             "required": false,
@@ -3123,16 +3113,6 @@
               "type": "string",
               "title": "Subject"
             }
-          },
-          {
-            "name": "locale",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "tr",
-              "title": "Locale"
-            }
           }
         ],
         "responses": {
@@ -4428,18 +4408,43 @@
             ],
             "title": "Owner Role"
           },
-          "labels": {
-            "$ref": "#/components/schemas/LabelSet"
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name"
           },
-          "group_labels": {
+          "group": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/LabelSet"
+                "type": "string"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Group"
+          },
+          "turkish_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turkish Name"
+          },
+          "turkish_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turkish Group"
           },
           "counts_in_average": {
             "type": "boolean",
@@ -4453,7 +4458,7 @@
           "subject",
           "value_type",
           "owner_role",
-          "labels"
+          "name"
         ],
         "title": "ColumnCreate"
       },
@@ -4503,6 +4508,23 @@
           "is_active": {
             "type": "boolean",
             "title": "Is Active"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "readOnly": true
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -4516,32 +4538,14 @@
           "group_labels",
           "counts_in_average",
           "position",
-          "is_active"
+          "is_active",
+          "name",
+          "group"
         ],
         "title": "ColumnOut"
       },
       "ColumnPatch": {
         "properties": {
-          "labels": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/LabelSet"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "group_labels": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/LabelSet"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "counts_in_average": {
             "anyOf": [
               {
@@ -5629,8 +5633,8 @@
         "properties": {
           "tr": {
             "type": "string",
-            "minLength": 1,
-            "title": "Tr"
+            "title": "Tr",
+            "default": ""
           },
           "en": {
             "type": "string",
@@ -5649,10 +5653,8 @@
           }
         },
         "type": "object",
-        "required": [
-          "tr"
-        ],
-        "title": "LabelSet"
+        "title": "LabelSet",
+        "description": "Stored wording per language; the printed cards pair Turkish with the subject's language."
       },
       "LanguageBody": {
         "properties": {

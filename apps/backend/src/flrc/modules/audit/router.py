@@ -14,6 +14,7 @@ from flrc.core.rate_limit import export_rate_limit
 from flrc.core.spreadsheets import safe_spreadsheet_cell
 from flrc.db.models import AuditEntry, ColumnDefinition, SaveBatch, Student, User
 from flrc.db.session import get_session
+from flrc.modules.academics.fields import field_name
 from flrc.modules.auth.dependencies import require_admin
 
 router = APIRouter(prefix="/audit", tags=["audit"])
@@ -60,6 +61,7 @@ def _base_query(
             User.full_name.label("actor"),
             Student.full_name.label("student"),
             ColumnDefinition.labels,
+            ColumnDefinition.subject,
         )
         .join(SaveBatch, SaveBatch.id == AuditEntry.batch_id)
         .join(User, User.id == AuditEntry.actor_id)
@@ -88,7 +90,7 @@ def _to_item(row: Any) -> AuditItemOut:
         class_id=row.class_id,
         actor=row.actor,
         student=row.student,
-        column_label=row.labels.get("tr", "?"),
+        column_label=field_name(row.labels, row.subject),
         old_value=_rendered(entry.old_score, entry.old_scale, entry.old_text),
         new_value=_rendered(entry.new_score, entry.new_scale, entry.new_text),
         old_existed=entry.old_existed,

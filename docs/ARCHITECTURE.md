@@ -590,9 +590,12 @@ Rules:
 
 - API returns stable machine codes for errors and statuses;
 - frontend translates machine codes;
-- report column and group labels are stored per locale, with Turkish as the required fallback;
-- seed columns provide a Turkish fallback plus available report-language translations; fluent
-  school staff review the configured labels before production;
+- report column and group labels are stored per locale for the bilingual printed cards; fields a
+  card prints in Turkish require Turkish wording when created;
+- the apps show each field by one name in its subject's language (English, German, French),
+  whatever the UI language, falling back to Turkish for older columns (ADR-072);
+- seed columns provide Turkish plus the subject's language; fluent school staff review the
+  configured labels before production;
 - seed-only semantic identifiers never become a second runtime translation system;
 - no literal UI strings in production components after the i18n step lands.
 
@@ -804,8 +807,8 @@ The Docker image carries WeasyPrint's system dependencies so production matches 
 
 `GET /api/reports/pdf` returns a complete semester set for `english_elementary`, `english_middle`,
 `german_karne`, or `french_karne` to coordinators/admins. The data builder runs before rendering;
-WeasyPrint runs outside the async event loop. The browser keeps an opened tab in a generating
-state until the PDF arrives (ADR-028). There is no current report-job creation endpoint.
+WeasyPrint runs outside the async event loop. The Report centre requests one set at a time and
+opens a tab only once the PDF arrives (ADR-028). There is no current report-job creation endpoint.
 
 `POST /api/exports/year/{year_id}` creates an admin-only `year_export` job and enqueues its id.
 Celery uses JSON messages, ignores results, and stores progress/output in `job_runs`. Polling and
@@ -1096,10 +1099,14 @@ workspaces prefetch the other class tabs in the selected grade after the current
 this bounded warm-up is at most one grade's A-G classes, not the whole school, and each browser
 warms those tabs sequentially to avoid multiplying a twenty-user arrival into a large request burst.
 
-The four direct PDF report sets remain synchronous at the API boundary (ADR-028), but the browser
-fetches the PDF as a blob while keeping a user-opened tab in a generating state. When rendering
-finishes, that same tab receives the PDF and the initiating button returns to idle. Whole-year XLSX
-exports remain durable background jobs with queued/running/succeeded/failed toast transitions.
+The four direct PDF report sets remain synchronous at the API boundary (ADR-028). The browser
+fetches each PDF as a blob without pre-opening a tab: the running set's button shows a spinner,
+further sets queue behind it and run one request at a time, and a finished set opens in a new tab,
+or offers an "Open PDF" toast action when the popup is blocked. While sets are queued or running,
+in-app navigation and sign-out ask before leaving, with Leave enabled after four seconds; leaving
+aborts the request and clears the queue. Tab close and reload get only the browser's own prompt.
+Whole-year XLSX exports remain durable background jobs with queued/running/succeeded/failed toast
+transitions.
 
 ---
 

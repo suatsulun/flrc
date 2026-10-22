@@ -18,7 +18,7 @@ from flrc.db.models import (
 )
 from flrc.db.session import get_session
 from flrc.modules.academics.class_names import class_label
-from flrc.modules.academics.fields import cell_value, pick_label
+from flrc.modules.academics.fields import cell_value, field_name
 from flrc.modules.academics.programme import has_teacher_comments
 from flrc.modules.auth.dependencies import require_coordinator_or_admin
 
@@ -137,7 +137,6 @@ async def get_archive_grid(
     subject: Subject,
     actor: Annotated[User, Depends(require_coordinator_or_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-    locale: str = "tr",
 ) -> ArchiveGridOut:
     del actor
     school_class = await db.get(SchoolClass, class_id)
@@ -207,7 +206,7 @@ async def get_archive_grid(
         columns=[
             ArchiveColumnOut(
                 id=column.id,
-                label=pick_label(column.labels, locale),
+                label=field_name(column.labels, column.subject),
                 value_type=column.value_type,
             )
             for column in columns
@@ -280,7 +279,7 @@ async def get_student_history(
         cells_by_term.setdefault(term.id, []).append(
             HistoryCell(
                 column_id=column.id,
-                label=pick_label(column.labels, "tr"),
+                label=field_name(column.labels, column.subject),
                 subject=column.subject,
                 value_type=column.value_type,
                 value=cell_value(grade, column.value_type),

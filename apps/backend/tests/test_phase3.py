@@ -458,7 +458,7 @@ async def test_column_owner_must_match_subject(api, world):
                 "subject": "english",
                 "value_type": "score",
                 "owner_role": "german",
-                "labels": {"tr": "Uyumsuz", "en": "Mismatch", "de": "", "fr": ""},
+                "name": "Mismatch",
                 "counts_in_average": False,
             },
         )

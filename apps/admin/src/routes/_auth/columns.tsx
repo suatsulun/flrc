@@ -35,7 +35,6 @@ import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { AdminPage } from "../../admin/AdminPage";
 
 const SUBJECTS = ["english", "german", "french"] as const;
-const LOCALES = ["tr", "en", "de", "fr"] as const;
 type Subject = (typeof SUBJECTS)[number];
 
 export const Route = createFileRoute("/_auth/columns")({
@@ -47,14 +46,10 @@ export const Route = createFileRoute("/_auth/columns")({
 });
 
 const formSchema = z.object({
-  label_tr: z.string().min(1),
-  label_en: z.string(),
-  label_de: z.string(),
-  label_fr: z.string(),
-  group_tr: z.string(),
-  group_en: z.string(),
-  group_de: z.string(),
-  group_fr: z.string(),
+  name: z.string().trim().min(1),
+  group: z.string().trim(),
+  turkish_name: z.string().trim(),
+  turkish_group: z.string().trim(),
   value_type: z.enum(["score", "scale3", "text"]),
   owner_role: z.enum(["main", "skills", "german", "french"]),
   counts_in_average: z.boolean(),
@@ -159,7 +154,7 @@ function ColumnsPage() {
                     {column.position}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{column.labels.tr}</span>
+                    <span className="block truncate text-sm font-medium">{column.name}</span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
                       <Badge tone="outline">{t(`columns.valueTypes.${column.value_type}`)}</Badge>
                       <Badge tone="neutral">{t(`roles.${column.owner_role}`)}</Badge>
@@ -201,7 +196,7 @@ function ColumnsPage() {
                       variant="destructive"
                       aria-label={t("columns.delete")}
                       disabled={remove.isPending}
-                      onClick={() => setDeleteTarget({ id: column.id, label: column.labels.tr })}
+                      onClick={() => setDeleteTarget({ id: column.id, label: column.name })}
                     >
                       <Trash2Icon />
                     </Button>
@@ -245,19 +240,25 @@ function CreateDialog({
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      label_tr: "",
-      label_en: "",
-      label_de: "",
-      label_fr: "",
-      group_tr: "",
-      group_en: "",
-      group_de: "",
-      group_fr: "",
+      name: "",
+      group: "",
+      turkish_name: "",
+      turkish_group: "",
       value_type: scaleOnly ? "scale3" : "score",
       owner_role: isSecondLanguage ? subject : "main",
       counts_in_average: false,
     },
   });
+  const valueType = useWatch({ control: form.control, name: "value_type" });
+  const effectiveType =
+    scaleOnly && valueType === "score"
+      ? "scale3"
+      : !allowText && valueType === "text"
+        ? "score"
+        : valueType;
+  // Mirrors backend prints_turkish: the primary English card prints every field in Turkish
+  // too; the karne prints its ratings and notes in Turkish, while its scores only feed the average.
+  const printsTurkish = subject === "english" ? grade < 5 : effectiveType !== "score";
   const create = useMutation({
     ...createColumnMutation(),
     onSuccess: () => {
@@ -267,31 +268,24 @@ function CreateDialog({
     },
   });
   const submit = form.handleSubmit((values) => {
-    const labels = {
-      tr: values.label_tr,
-      en: values.label_en,
-      de: values.label_de,
-      fr: values.label_fr,
-    };
-    const groupLabels = {
-      tr: values.group_tr,
-      en: values.group_en,
-      de: values.group_de,
-      fr: values.group_fr,
-    };
+    if (printsTurkish && !values.turkish_name) {
+      form.setError("turkish_name", { type: "required" });
+      return;
+    }
+    if (printsTurkish && values.group && !values.turkish_group) {
+      form.setError("turkish_group", { type: "required" });
+      return;
+    }
     create.mutate({
       body: {
         grade_level: grade,
         subject,
-        value_type:
-          scaleOnly && values.value_type === "score"
-            ? "scale3"
-            : !allowText && values.value_type === "text"
-              ? "score"
-              : values.value_type,
+        value_type: effectiveType,
         owner_role: values.owner_role,
-        labels,
-        group_labels: Object.values(groupLabels).some(Boolean) ? groupLabels : null,
+        name: values.name,
+        group: values.group || null,
+        turkish_name: printsTurkish ? values.turkish_name : null,
+        turkish_group: printsTurkish && values.group ? values.turkish_group : null,
         counts_in_average: !scaleOnly && values.counts_in_average,
       },
     });
@@ -314,33 +308,32 @@ function CreateDialog({
             <p className="text-sm text-muted-foreground">{t("grid.gradeFourScaleOnly")}</p>
           ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
-            {LOCALES.map((locale) => (
+            <Field
+              label={t("columns.name", { language: t(`subjects.${subject}`) })}
+              error={form.formState.errors.name ? t("forms.required") : undefined}
+            >
+              {(id) => <Input id={id} {...form.register("name")} />}
+            </Field>
+            {printsTurkish ? (
               <Field
-                key={locale}
-                label={t("columns.labelLocale", { locale: locale.toUpperCase() })}
-                error={
-                  locale === "tr" && form.formState.errors.label_tr
-                    ? t("forms.required")
-                    : undefined
-                }
+                label={t("columns.turkishName")}
+                error={form.formState.errors.turkish_name ? t("forms.required") : undefined}
               >
-                {(id) => <Input id={id} {...form.register(`label_${locale}`)} />}
+                {(id) => <Input id={id} lang="tr" {...form.register("turkish_name")} />}
               </Field>
-            ))}
+            ) : null}
+            <Field label={t("columns.group")}>
+              {(id) => <Input id={id} {...form.register("group")} />}
+            </Field>
+            {printsTurkish ? (
+              <Field
+                label={t("columns.turkishGroup")}
+                error={form.formState.errors.turkish_group ? t("forms.required") : undefined}
+              >
+                {(id) => <Input id={id} lang="tr" {...form.register("turkish_group")} />}
+              </Field>
+            ) : null}
           </div>
-
-          <details className="rounded-lg border border-border px-3 py-2">
-            <summary className="cursor-pointer text-sm font-medium">
-              {t("columns.groupLabels")}
-            </summary>
-            <div className="mt-3 grid gap-3 pb-1 sm:grid-cols-2">
-              {LOCALES.map((locale) => (
-                <Field key={locale} label={locale.toUpperCase()}>
-                  {(id) => <Input id={id} {...form.register(`group_${locale}`)} />}
-                </Field>
-              ))}
-            </div>
-          </details>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={t("columns.valueType")}>

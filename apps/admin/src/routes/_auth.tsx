@@ -1,5 +1,5 @@
 import { appShellLabels } from "@flrc/i18n";
-import { Outlet, createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { Outlet, createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -27,6 +27,7 @@ import { PageActivity } from "@flrc/ui/components/page-activity";
 
 import { LanguageSwitch } from "@flrc/ui/components/language-switch";
 import { LOGO_URL, SCHOOL_SHORT_NAME } from "@flrc/branding";
+import { allowDocumentExit } from "../admin/document-exit";
 
 // One public origin serves both panels (ADR-022); development runs them on two ports.
 // The configured value may be an origin or a path; both resolve against this origin.
@@ -56,18 +57,29 @@ function AdminLayout() {
   const { t, i18n } = useTranslation();
   const demo = user.demo;
   const queryClient = useQueryClient();
+  const router = useRouter();
   const initialLoads = useIsFetching({
     predicate: (query) => query.state.data === undefined,
   });
 
   const logout = async () => {
+    // Signing out leaves the page, so a page that blocks leaving (a running PDF set) must
+    // agree before the session ends.
+    const destination = teacherHref("/login");
+    if (!(await allowDocumentExit(router, destination))) return;
     const response = await fetch("/api/auth/logout", { method: "POST" });
     if (!response.ok) {
       toast.error(t("feedback.actionFailed"));
       return;
     }
     queryClient.clear();
-    window.location.replace(teacherHref("/login"));
+    // The page already agreed to leave; skip the blockers and the browser's leave prompt.
+    void router.navigate({
+      href: destination,
+      replace: true,
+      reloadDocument: true,
+      ignoreBlocker: true,
+    });
   };
 
   return (
@@ -92,6 +104,28 @@ function AdminLayout() {
           <a
             href={teacherHref("/")}
             className="hidden rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"
+            onClick={(event) => {
+              // A plain click leaves this panel; the page's leave guard is asked first.
+              if (
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              )
+                return;
+              event.preventDefault();
+              const destination = event.currentTarget.href;
+              void allowDocumentExit(router, destination).then((allowed) => {
+                if (allowed) {
+                  void router.navigate({
+                    href: destination,
+                    reloadDocument: true,
+                    ignoreBlocker: true,
+                  });
+                }
+              });
+            }}
           >
             {t("goToTeacher")}
           </a>

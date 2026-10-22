@@ -101,6 +101,11 @@ separate mount described below.
 | `favicon.svg` | The browser tab icon                                               |
 | `brand.json`  | `name` and `accentColor` for the API's report cards                |
 
+The web shows `logo.svg` 36px tall in the top bar and 112px tall on the sign-in page, as wide as
+its proportions need up to about 3:1. A wide lockup with small text therefore reads poorly there;
+with a private report overlay, `public/logo.svg` can be a compact mark while the backend keeps the
+full lockup for report cards.
+
 `brand.js` is plain, dependency-free JavaScript. Copy the generated
 `apps/teacher/public/branding/brand.js` and change the strings:
 

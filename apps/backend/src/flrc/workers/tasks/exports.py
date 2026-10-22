@@ -2,14 +2,26 @@ from io import BytesIO
 from typing import Any
 
 from openpyxl import Workbook
-from sqlalchemy import Select, select
+from sqlalchemy import Select, case, func, select
 from sqlalchemy.orm import Session
 
 from flrc.core.spreadsheets import safe_spreadsheet_cell
 from flrc.db import models as m
 from flrc.db.sync import sync_engine
+from flrc.modules.academics.fields import SUBJECT_LOCALE
 from flrc.modules.jobs.service import mark_failed, mark_running, mark_succeeded
 from flrc.workers.celery import celery_app
+
+# SQL twin of fields.field_name: the subject's language, else Turkish, else any entry.
+_labels = m.ColumnDefinition.labels
+FIELD_NAME = func.coalesce(
+    func.nullif(_labels.op("->>")(case(SUBJECT_LOCALE, value=m.ColumnDefinition.subject)), ""),
+    func.nullif(_labels.op("->>")("tr"), ""),
+    func.nullif(_labels.op("->>")("en"), ""),
+    func.nullif(_labels.op("->>")("de"), ""),
+    func.nullif(_labels.op("->>")("fr"), ""),
+    "",
+)
 
 
 def build_year_workbook(db: Session, year_id: int, progress: m.JobRun | None = None) -> bytes:
@@ -79,7 +91,7 @@ def build_year_workbook(db: Session, year_id: int, progress: m.JobRun | None = N
         m.ColumnDefinition.subject,
         m.ColumnDefinition.value_type,
         m.ColumnDefinition.owner_role,
-        m.ColumnDefinition.labels["tr"].astext,
+        FIELD_NAME,
         m.ColumnDefinition.position,
         m.ColumnDefinition.is_active,
     ).where(m.ColumnDefinition.semester_id.in_(semester_ids))
@@ -92,7 +104,7 @@ def build_year_workbook(db: Session, year_id: int, progress: m.JobRun | None = N
             "subject",
             "value_type",
             "owner_role",
-            "label_tr",
+            "name",
             "position",
             "is_active",
         ],
@@ -104,7 +116,7 @@ def build_year_workbook(db: Session, year_id: int, progress: m.JobRun | None = N
             m.Enrollment.school_number,
             m.Enrollment.stage,
             m.GradeValue.column_definition_id,
-            m.ColumnDefinition.labels["tr"].astext,
+            FIELD_NAME,
             m.ColumnDefinition.semester_id,
             m.ColumnDefinition.subject,
             m.GradeValue.score,

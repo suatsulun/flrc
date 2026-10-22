@@ -28,6 +28,7 @@ from flrc.db.models import (
 )
 from flrc.db.session import get_session
 from flrc.modules.academics.class_names import class_label
+from flrc.modules.academics.fields import field_name
 from flrc.modules.academics.programme import (
     Stage,
     allows_column_type,
@@ -313,7 +314,7 @@ async def _audit_payload(db: AsyncSession, year_id: int) -> bytes:
                     row.student_name,
                     class_label(row.grade_level, row.section),
                     column.subject,
-                    column.labels.get("tr", ""),
+                    field_name(column.labels, column.subject),
                     _value(entry.old_score, entry.old_scale, entry.old_text),
                     _value(entry.new_score, entry.new_scale, entry.new_text),
                     entry.forced,

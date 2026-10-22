@@ -38,6 +38,7 @@ export function ClassAddColumn({
   const allowText = subject !== "english" || grade < 5;
   const [addingColumn, setAddingColumn] = useState(false);
   const [columnLabel, setColumnLabel] = useState("");
+  const [turkishLabel, setTurkishLabel] = useState("");
   const [columnType, setColumnType] = useState<ValueType>("score");
   const effectiveType =
     scaleOnly && columnType === "score"
@@ -45,11 +46,15 @@ export function ClassAddColumn({
       : !allowText && columnType === "text"
         ? "score"
         : columnType;
+  // Mirrors backend prints_turkish: the primary English card prints every field in Turkish
+  // too; the karne prints its ratings and notes in Turkish, while its scores only feed the average.
+  const printsTurkish = subject === "english" ? grade < 5 : effectiveType !== "score";
   const ownerRoles: Role[] = subject === "english" ? ["main", "skills"] : [subject];
   const createColumn = useMutation({
     ...createColumnMutation(),
     onSuccess: () => {
       setColumnLabel("");
+      setTurkishLabel("");
       setAddingColumn(false);
       toast.success(t("classWorkspace.columnAdded"));
       void onChanged();
@@ -57,7 +62,7 @@ export function ClassAddColumn({
   });
   function addColumn(event: FormEvent) {
     event.preventDefault();
-    if (!semesterId || !columnLabel.trim()) return;
+    if (!semesterId || !columnLabel.trim() || (printsTurkish && !turkishLabel.trim())) return;
     createColumn.mutate({
       query: { semester_id: semesterId },
       body: {
@@ -65,7 +70,8 @@ export function ClassAddColumn({
         subject,
         value_type: effectiveType,
         owner_role: columnOwner,
-        labels: { tr: columnLabel.trim(), en: "", de: "", fr: "" },
+        name: columnLabel.trim(),
+        turkish_name: printsTurkish ? turkishLabel.trim() : null,
         counts_in_average: !scaleOnly && effectiveType === "score",
       },
     });
@@ -97,7 +103,11 @@ export function ClassAddColumn({
       ) : null}
       {addingColumn && semesterId ? (
         <form
-          className="grid gap-2 rounded-lg border border-primary/25 bg-accent/45 p-2 sm:grid-cols-[minmax(12rem,1fr)_10rem_10rem_auto]"
+          className={`grid gap-2 rounded-lg border border-primary/25 bg-accent/45 p-2 ${
+            printsTurkish
+              ? "sm:grid-cols-[minmax(12rem,1fr)_minmax(12rem,1fr)_10rem_10rem_auto]"
+              : "sm:grid-cols-[minmax(12rem,1fr)_10rem_10rem_auto]"
+          }`}
           onSubmit={addColumn}
         >
           <Input
@@ -105,9 +115,19 @@ export function ClassAddColumn({
             required
             value={columnLabel}
             onChange={(event) => setColumnLabel(event.target.value)}
-            placeholder={t("classWorkspace.columnName")}
-            aria-label={t("classWorkspace.columnName")}
+            placeholder={t("classWorkspace.columnName", { language: t(`subjects.${subject}`) })}
+            aria-label={t("classWorkspace.columnName", { language: t(`subjects.${subject}`) })}
           />
+          {printsTurkish ? (
+            <Input
+              required
+              lang="tr"
+              value={turkishLabel}
+              onChange={(event) => setTurkishLabel(event.target.value)}
+              placeholder={t("classWorkspace.turkishName")}
+              aria-label={t("classWorkspace.turkishName")}
+            />
+          ) : null}
           <NativeSelect
             aria-label={t("classWorkspace.columnType")}
             value={effectiveType}

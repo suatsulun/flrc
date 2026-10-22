@@ -17,7 +17,7 @@ from flrc.db.models import (
     User,
 )
 from flrc.modules.academics.class_names import PREP_GRADE, class_label
-from flrc.modules.academics.fields import cell_value
+from flrc.modules.academics.fields import SUBJECT_LOCALE, cell_value
 from flrc.modules.academics.fields import pick_label as field_label
 from flrc.modules.reports.models import ReportCard, ReportField, ReportSigner
 
@@ -40,8 +40,6 @@ SUBJECT_LABELS = {
     "german": {"tr": "Almanca", "en": "German", "de": "Deutsch", "fr": "Allemand"},
     "french": {"tr": "Fransızca", "en": "French", "de": "Französisch", "fr": "Français"},
 }
-# The language printed next to Turkish on each subject's card.
-SUBJECT_LANGUAGE = {"english": "en", "german": "de", "french": "fr"}
 SECOND_LANGUAGES = ("german", "french")
 
 
@@ -230,7 +228,7 @@ def build_report_set(
     for value in grade_values:
         values_by_student.setdefault(value.student_id, {})[value.column_definition_id] = value
 
-    subject_language = SUBJECT_LANGUAGE[spec.subject]
+    subject_language = SUBJECT_LOCALE[spec.subject]
 
     cards: list[ReportCard] = []
     for school_class in classes:
@@ -252,7 +250,7 @@ def build_report_set(
             language_fields: list[ReportField] = []
             language = student_language.get(student.id)
             if language is not None:
-                second_language = SUBJECT_LANGUAGE[language]
+                second_language = SUBJECT_LOCALE[language]
                 language_label = pick_label(SUBJECT_LABELS[language], second_language)
                 language_fields = [
                     bilingual_field(

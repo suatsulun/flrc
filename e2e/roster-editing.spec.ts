@@ -51,6 +51,8 @@ test("class tables clear languages, drag new notes, and remove columns and stude
     await page.getByRole("button", { name: "Add column", exact: true }).click();
     await page.getByLabel("Column title").fill(`Synthetic ${subject} Note`);
     await page.getByLabel("Column type").selectOption("text");
+    // The karne prints Turkish beside German/French notes, so the wording box appears for them.
+    await page.getByLabel("Turkish wording on the report card").fill(`Sentetik ${subject} not`);
     await page.getByRole("button", { name: "Add", exact: true }).click();
     await expect(headers.last()).toContainText(`Synthetic ${subject} Note`);
     await page.getByRole("radio", { name: "Remove", exact: true }).click();

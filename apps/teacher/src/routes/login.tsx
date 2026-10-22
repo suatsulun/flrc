@@ -61,7 +61,11 @@ function LoginPage() {
 
       <div className="relative w-full max-w-sm">
         <div className="flex flex-col items-center text-center">
-          <SchoolLogo src={LOGO_URL} schoolName={SCHOOL_NAME} className="size-24 rounded-2xl" />
+          <SchoolLogo
+            src={LOGO_URL}
+            schoolName={SCHOOL_NAME}
+            className="h-28 max-w-80 rounded-2xl"
+          />
           <h1 className="font-heading mt-5 text-2xl font-semibold tracking-tight text-balance">
             {SCHOOL_NAME}
           </h1>

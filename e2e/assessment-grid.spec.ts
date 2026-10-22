@@ -603,7 +603,8 @@ for (const locale of ["tr", "en", "de", "fr"]) {
     grid.meta.subject = "english";
     grid.columns = englishDefaults.map((column, i) => ({
       id: i + 1,
-      label: column.labels[locale],
+      // Field names stay English whatever the UI language.
+      label: column.labels.en,
       group: null,
       value_type: column.value_type,
       owner_role: column.owner_role,

@@ -1,0 +1,11 @@
+/* The row being edited is tinted and marked with an edge bar, so the teacher always
+   sees whose grades or note they are entering. It stays marked while that row's note
+   or bulk-rating dialog is open. Cells keep their own card surface, so entered values
+   read exactly as elsewhere; secondary text in the row darkens to stay legible. */
+.grade-row:is(:focus-within, :has([aria-expanded="true"])) {
+  --muted-foreground: var(--row-active-muted-foreground);
+  background: var(--row-active);
+}
+.grade-row:is(:focus-within, :has([aria-expanded="true"])) > td:first-child {
+  box-shadow: inset 4px 0 0 var(--row-active-edge);
+}

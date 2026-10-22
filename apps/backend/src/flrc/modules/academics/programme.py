@@ -32,6 +32,18 @@ def has_teacher_comments(grade_level: int, subject: str) -> bool:
     return subject != "english" or grade_level < 5
 
 
+def prints_turkish(grade_level: int, subject: str, value_type: str) -> bool:
+    """Whether a field's printed card shows Turkish wording beside the subject's language.
+
+    The primary English card prints every field bilingually. The karne prints its
+    rating rows and teacher comments bilingually; its scores only feed the average.
+    The middle-school English card prints the subject's language alone.
+    """
+    if subject == "english":
+        return grade_level < MIDDLE_START_GRADE
+    return value_type != "score"
+
+
 def uses_scale_only(grade_level: int, subject: str) -> bool:
     return grade_level == 4 and subject in ("german", "french")
 

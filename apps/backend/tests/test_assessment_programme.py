@@ -20,7 +20,8 @@ def column_body(subject: str, value_type: str, grade: int = 4) -> dict[str, obje
         "subject": subject,
         "value_type": value_type,
         "owner_role": subject,
-        "labels": {"tr": f"Synthetic {value_type}"},
+        "name": f"Synthetic {value_type}",
+        "turkish_name": f"Sentetik {value_type}",
     }
 
 

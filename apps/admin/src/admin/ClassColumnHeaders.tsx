@@ -105,7 +105,7 @@ export function ClassColumnHeaders({
               disabled={reorder.isPending}
               className="mb-1 flex w-full cursor-grab justify-center rounded p-1 text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
               aria-label={t("classWorkspace.dragColumn", {
-                name: column.labels.tr,
+                name: column.name,
               })}
               onDragStart={(event) => {
                 event.dataTransfer.effectAllowed = "move";
@@ -122,9 +122,9 @@ export function ClassColumnHeaders({
           ) : null}
           <span
             className="block min-w-0 font-semibold break-words [hyphens:auto]"
-            title={column.labels.tr}
+            title={column.name}
           >
-            {column.labels.tr}
+            {column.name}
           </span>
           <div className="mt-1 grid grid-cols-2 gap-0.5">
             {writable

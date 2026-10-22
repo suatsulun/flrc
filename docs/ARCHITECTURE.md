@@ -590,9 +590,12 @@ Rules:
 
 - API returns stable machine codes for errors and statuses;
 - frontend translates machine codes;
-- report column and group labels are stored per locale, with Turkish as the required fallback;
-- seed columns provide a Turkish fallback plus available report-language translations; fluent
-  school staff review the configured labels before production;
+- report column and group labels are stored per locale for the bilingual printed cards; fields a
+  card prints in Turkish require Turkish wording when created;
+- the apps show each field by one name in its subject's language (English, German, French),
+  whatever the UI language, falling back to Turkish for older columns (ADR-072);
+- seed columns provide Turkish plus the subject's language; fluent school staff review the
+  configured labels before production;
 - seed-only semantic identifiers never become a second runtime translation system;
 - no literal UI strings in production components after the i18n step lands.
 

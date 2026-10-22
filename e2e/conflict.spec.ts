@@ -11,7 +11,7 @@ test("two writers collide and overwrite is explicit", async ({ browser }) => {
   expect(assignmentsResponse.ok()).toBeTruthy();
   const assignment = (await assignmentsResponse.json())[0] as { class_id: number };
   const gridResponse = await owner.request.get(
-    `/api/classes/${assignment.class_id}/grid?subject=english&locale=en`,
+    `/api/classes/${assignment.class_id}/grid?subject=english`,
   );
   const grid = (await gridResponse.json()) as {
     rows: Array<{ student_id: number; cells: Record<string, { value: number | null }> }>;

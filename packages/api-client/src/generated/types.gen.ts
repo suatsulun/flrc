@@ -538,8 +538,22 @@ export type ColumnCreate = {
      * Owner Role
      */
     owner_role: 'main' | 'skills' | 'german' | 'french';
-    labels: LabelSet;
-    group_labels?: LabelSet | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Group
+     */
+    group?: string | null;
+    /**
+     * Turkish Name
+     */
+    turkish_name?: string | null;
+    /**
+     * Turkish Group
+     */
+    turkish_group?: string | null;
     /**
      * Counts In Average
      */
@@ -584,14 +598,20 @@ export type ColumnOut = {
      * Is Active
      */
     is_active: boolean;
+    /**
+     * Name
+     */
+    readonly name: string;
+    /**
+     * Group
+     */
+    readonly group: string | null;
 };
 
 /**
  * ColumnPatch
  */
 export type ColumnPatch = {
-    labels?: LabelSet | null;
-    group_labels?: LabelSet | null;
     /**
      * Counts In Average
      */
@@ -1217,12 +1237,14 @@ export type JobOut = {
 
 /**
  * LabelSet
+ *
+ * Stored wording per language; the printed cards pair Turkish with the subject's language.
  */
 export type LabelSet = {
     /**
      * Tr
      */
-    tr: string;
+    tr?: string;
     /**
      * En
      */
@@ -1999,6 +2021,46 @@ export type YearOut = {
     missing_school_numbers: number;
 };
 
+/**
+ * ColumnOut
+ */
+export type ColumnOutWritable = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Grade Level
+     */
+    grade_level: number;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * Value Type
+     */
+    value_type: string;
+    /**
+     * Owner Role
+     */
+    owner_role: string;
+    labels: LabelSet;
+    group_labels: LabelSet | null;
+    /**
+     * Counts In Average
+     */
+    counts_in_average: boolean;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+};
+
 export type LoginData = {
     body?: never;
     path?: never;
@@ -2574,10 +2636,6 @@ export type GetGridData = {
          * Subject
          */
         subject: 'english' | 'german' | 'french';
-        /**
-         * Locale
-         */
-        locale?: string;
         /**
          * Semester
          */
@@ -3831,10 +3889,6 @@ export type GetArchiveGridData = {
          * Subject
          */
         subject: 'english' | 'german' | 'french';
-        /**
-         * Locale
-         */
-        locale?: string;
     };
     url: '/api/archive/classes/{class_id}/grid';
 };

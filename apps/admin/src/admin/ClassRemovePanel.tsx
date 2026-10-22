@@ -90,7 +90,7 @@ export function ClassRemovePanel({
                 data-testid="remove-column-row"
               >
                 <div className="min-w-0 flex-1">
-                  <span className="block font-medium break-words">{c.labels.tr}</span>
+                  <span className="block font-medium break-words">{c.name}</span>
                   <span className="text-xs text-muted-foreground">
                     {t(`columns.valueTypes.${c.value_type}`)} · {t(`roles.${c.owner_role}`)}
                   </span>
@@ -100,8 +100,8 @@ export function ClassRemovePanel({
                     variant="outline"
                     size="sm"
                     disabled={!columnsWritable || pending}
-                    aria-label={t("classWorkspace.removeColumnLabel", { name: c.labels.tr })}
-                    onClick={() => setTarget({ kind: "column", id: c.id, label: c.labels.tr })}
+                    aria-label={t("classWorkspace.removeColumnLabel", { name: c.name })}
+                    onClick={() => setTarget({ kind: "column", id: c.id, label: c.name })}
                   >
                     <Trash2Icon />
                     {t("classWorkspace.remove")}

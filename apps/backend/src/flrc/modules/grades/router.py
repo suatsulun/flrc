@@ -25,7 +25,7 @@ from flrc.db.models import (
 )
 from flrc.db.session import get_session
 from flrc.modules.academics.class_names import class_label
-from flrc.modules.academics.fields import VALUE_FIELD, CellValue, cell_value, pick_label
+from flrc.modules.academics.fields import VALUE_FIELD, CellValue, cell_value, field_name
 from flrc.modules.auth.dependencies import current_user, writable_semester
 
 router = APIRouter(tags=["grid"])
@@ -210,7 +210,7 @@ def _raw_conflict(
     *,
     student_id: int,
     column_id: int,
-    labels: dict[str, str],
+    label: str,
     your_value: CellValue,
     current_value: CellValue,
     updated_by_id: int | None,
@@ -219,7 +219,7 @@ def _raw_conflict(
     return {
         "student_id": student_id,
         "column_id": column_id,
-        "labels": labels,
+        "label": label,
         "your_value": your_value,
         "current_value": current_value,
         "updated_by_id": updated_by_id,
@@ -251,7 +251,7 @@ async def _hydrate_conflicts(
             student_id=c["student_id"],
             student_name=student_names.get(c["student_id"], "?"),
             column_id=c["column_id"],
-            column_label=pick_label(c["labels"], "tr"),
+            column_label=c["label"],
             your_value=c["your_value"],
             current_value=c["current_value"],
             updated_by=authors.get(c["updated_by_id"]),
@@ -267,7 +267,6 @@ async def get_grid(
     user: Annotated[User, Depends(current_user)],
     db: Annotated[AsyncSession, Depends(get_session)],
     subject: Subject,
-    locale: str = "tr",
     semester: int | None = None,
 ) -> GridOut:
     cls = await db.get(SchoolClass, class_id)
@@ -402,8 +401,10 @@ async def get_grid(
         columns=[
             GridColumnOut(
                 id=column.id,
-                label=pick_label(column.labels, locale),
-                group=pick_label(column.group_labels, locale) if column.group_labels else None,
+                label=field_name(column.labels, column.subject),
+                group=(
+                    field_name(column.group_labels, column.subject) if column.group_labels else None
+                ),
                 value_type=column.value_type,
                 owner_role=column.owner_role,
                 owner_name=(
@@ -588,7 +589,7 @@ async def save_grid(
                     _raw_conflict(
                         student_id=cell.student_id,
                         column_id=cell.column_id,
-                        labels=column.labels,
+                        label=field_name(column.labels, column.subject),
                         your_value=cell.value,
                         current_value=None,
                         updated_by_id=None,
@@ -633,7 +634,7 @@ async def save_grid(
                 _raw_conflict(
                     student_id=cell.student_id,
                     column_id=cell.column_id,
-                    labels=column.labels,
+                    label=field_name(column.labels, column.subject),
                     your_value=cell.value,
                     current_value=cell_value(current, column.value_type),
                     updated_by_id=current.updated_by,
@@ -775,7 +776,10 @@ async def undo_grid(
                 _raw_conflict(
                     student_id=entry.student_id,
                     column_id=entry.column_definition_id,
-                    labels=columns[entry.column_definition_id].labels,
+                    label=field_name(
+                        columns[entry.column_definition_id].labels,
+                        columns[entry.column_definition_id].subject,
+                    ),
                     your_value=_first_value(_entry_old(entry)),
                     current_value=_first_value(_grade_tuple(current)) if current else None,
                     updated_by_id=current.updated_by if current else None,

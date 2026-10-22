@@ -1,16 +1,18 @@
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, computed_field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flrc.db.models import AcademicYear, ColumnDefinition, GradeValue, Semester, User
 from flrc.db.session import get_session
 from flrc.modules.academics.class_names import MAX_GRADE, MIN_GRADE
+from flrc.modules.academics.fields import SUBJECT_LOCALE, field_name
 from flrc.modules.academics.programme import (
     allows_column_type,
     has_teacher_comments,
+    prints_turkish,
     uses_scale_only,
 )
 from flrc.modules.auth.dependencies import require_admin
@@ -20,10 +22,13 @@ router = APIRouter(prefix="/columns", tags=["columns"])
 Subject = Literal["english", "german", "french"]
 Role = Literal["main", "skills", "german", "french"]
 ValueType = Literal["score", "scale3", "text"]
+Text = Annotated[str, StringConstraints(strip_whitespace=True)]
 
 
 class LabelSet(BaseModel):
-    tr: str = Field(min_length=1)
+    """Stored wording per language; the printed cards pair Turkish with the subject's language."""
+
+    tr: str = ""
     en: str = ""
     de: str = ""
     fr: str = ""
@@ -34,14 +39,16 @@ class ColumnCreate(BaseModel):
     subject: Subject
     value_type: ValueType
     owner_role: Role
-    labels: LabelSet
-    group_labels: LabelSet | None = None
+    # A field has one name in the apps, written in its subject's language.
+    name: Annotated[Text, StringConstraints(min_length=1)]
+    group: Text | None = None
+    # Printed cards may also need Turkish wording (see prints_turkish).
+    turkish_name: Text | None = None
+    turkish_group: Text | None = None
     counts_in_average: bool = False
 
 
 class ColumnPatch(BaseModel):
-    labels: LabelSet | None = None
-    group_labels: LabelSet | None = None
     counts_in_average: bool | None = None
     value_type: ValueType | None = None
     owner_role: Role | None = None
@@ -60,6 +67,19 @@ class ColumnOut(BaseModel):
     counts_in_average: bool
     position: int
     is_active: bool
+
+    # Pydantic documents this decorator pair; mypy does not model it.
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def name(self) -> str:
+        return field_name(self.labels.model_dump(), self.subject)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def group(self) -> str | None:
+        if self.group_labels is None:
+            return None
+        return field_name(self.group_labels.model_dump(), self.subject)
 
 
 class DeleteResult(BaseModel):
@@ -160,6 +180,10 @@ async def create_column(
     semester = await _editable_semester(db, semester_id)
     _check_owner_rule(body.subject, body.owner_role)
     _check_programme(body.grade_level, body.subject, body.value_type, body.counts_in_average)
+    if prints_turkish(body.grade_level, body.subject, body.value_type) and (
+        not body.turkish_name or (body.group and not body.turkish_group)
+    ):
+        raise HTTPException(422, {"code": "turkish_wording_required"})
     max_pos = (
         await db.execute(
             select(func.coalesce(func.max(ColumnDefinition.position), 0)).where(
@@ -169,7 +193,22 @@ async def create_column(
             )
         )
     ).scalar_one()
-    column = ColumnDefinition(semester_id=semester.id, position=max_pos + 1, **body.model_dump())
+    locale = SUBJECT_LOCALE[body.subject]
+    labels = {locale: body.name}
+    if body.turkish_name:
+        labels["tr"] = body.turkish_name
+    group_labels = None
+    if body.group:
+        group_labels = {locale: body.group}
+        if body.turkish_group:
+            group_labels["tr"] = body.turkish_group
+    column = ColumnDefinition(
+        semester_id=semester.id,
+        position=max_pos + 1,
+        labels=labels,
+        group_labels=group_labels,
+        **body.model_dump(exclude={"name", "group", "turkish_name", "turkish_group"}),
+    )
     db.add(column)
     await db.commit()
     await db.refresh(column)

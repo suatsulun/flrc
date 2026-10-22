@@ -51,7 +51,7 @@ function GridPage() {
   const navigate = Route.useNavigate();
   const { user } = Route.useRouteContext();
   const subject = rawSubject as Subject;
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [ownershipColumns, setOwnershipColumns] = useState<GridColumnOut[]>([]);
   const ownershipSaveStarted = useRef(false);
@@ -60,7 +60,7 @@ function GridPage() {
 
   const queryOptions = {
     path: { class_id: Number(classId) },
-    query: { subject, locale: i18n.language, semester: requestedSemester },
+    query: { subject, semester: requestedSemester },
   };
   const gridKey = getGridQueryKey(queryOptions);
   const { data, isPending, isError } = useQuery(getGridOptions(queryOptions));
@@ -130,13 +130,12 @@ function GridPage() {
           path: { class_id: targetClassId },
           query: {
             subject,
-            locale: i18n.language,
             semester: data?.meta.semester_number ?? requestedSemester,
           },
         }),
         staleTime: 30_000,
       }),
-    [data?.meta.semester_number, i18n.language, queryClient, requestedSemester, subject],
+    [data?.meta.semester_number, queryClient, requestedSemester, subject],
   );
 
   usePrefetchSiblings(gradeTabs, prefetchBoard);

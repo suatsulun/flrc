@@ -3,6 +3,7 @@ import asyncio
 from sqlalchemy import delete, select, text, update
 
 from flrc.db import models as m
+from flrc.modules.reports.builder import bilingual_field
 from tests.conftest import TestSession, cell, save_grid
 
 
@@ -12,7 +13,7 @@ async def test_twenty_concurrent_grid_readers_receive_complete_tables(api, world
             *(
                 client.get(
                     f"/api/classes/{world.cls}/grid",
-                    params={"subject": "english", "locale": "en"},
+                    params={"subject": "english"},
                 )
                 for _ in range(20)
             )
@@ -28,7 +29,7 @@ async def test_grid_read_returns_columns_roster_and_missing_version_zero(api, wo
     async with api(world.main) as client:
         response = await client.get(
             f"/api/classes/{world.cls}/grid",
-            params={"subject": "english", "locale": "en"},
+            params={"subject": "english"},
         )
     assert response.status_code == 200
     body = response.json()
@@ -57,9 +58,7 @@ async def test_teacher_sees_every_class_but_writes_outside_assignment_only_when_
     body = {"subject": "english", "cells": [cell(pupil_id, world.main_column, 90)]}
     async with api(world.main) as client:
         catalog = await client.get("/api/class-catalog")
-        grid = await client.get(
-            f"/api/classes/{other_id}/grid", params={"subject": "english", "locale": "en"}
-        )
+        grid = await client.get(f"/api/classes/{other_id}/grid", params={"subject": "english"})
         unconfirmed = await client.post(f"/api/classes/{other_id}/grid/save", json=body)
         confirmed = await client.post(
             f"/api/classes/{other_id}/grid/save",
@@ -113,7 +112,7 @@ async def test_admin_is_warned_as_unassigned_but_save_authority_is_preserved(api
     async with api(world.admin) as client:
         grid = await client.get(
             f"/api/classes/{world.cls}/grid",
-            params={"subject": "english", "locale": "en"},
+            params={"subject": "english"},
         )
     assert grid.status_code == 200
     assert grid.json()["columns"][0]["owned_by_you"] is False
@@ -228,7 +227,7 @@ async def test_confirmed_save_allows_a_note_with_no_assigned_owner(api, world):
     async with api(world.skills) as client:
         grid = await client.get(
             f"/api/classes/{world.cls}/grid",
-            params={"subject": "english", "locale": "en"},
+            params={"subject": "english"},
         )
         saved = await client.post(
             f"/api/classes/{world.cls}/grid/save",
@@ -263,7 +262,7 @@ async def test_grant_allows_foreign_write_and_expiry_revokes_it(api, world):
         grant = await client.post(f"/api/classes/{world.cls}/grants", json={"role": "main"})
         grid = await client.get(
             f"/api/classes/{world.cls}/grid",
-            params={"subject": "english", "locale": "en"},
+            params={"subject": "english"},
         )
     assert grant.status_code == 200
     assert grid.json()["columns"][0]["owned_by_you"] is False
@@ -469,3 +468,75 @@ async def test_grade_save_still_rejects_oversized_batches(api, world):
     assert response.status_code == 422
     async with TestSession() as db:
         assert list(await db.scalars(select(m.GradeValue))) == []
+
+
+async def test_fields_are_named_in_their_subject_language(api, world):
+    async with TestSession() as db:
+        db.add_all(
+            m.ColumnDefinition(
+                semester_id=world.semester,
+                grade_level=5,
+                subject=subject,
+                value_type="score",
+                owner_role=role,
+                labels={"tr": "Sınav 1", "en": "Exam 1", "de": "Prüfung 1", "fr": "Examen 1"},
+                group_labels={
+                    "tr": "Sınavlar",
+                    "en": "Exams",
+                    "de": "Klassenarbeiten",
+                    "fr": "Examens",
+                },
+                position=10,
+            )
+            for subject, role in (("english", "main"), ("german", "german"), ("french", "french"))
+        )
+        await db.commit()
+
+    names = {}
+    french = {"grade_level": 5, "subject": "french", "value_type": "scale3", "owner_role": "french"}
+    async with api(world.admin) as client:
+        # Karne rating rows print in Turkish too, so the wording is required.
+        untranslated = await client.post(
+            "/api/columns",
+            params={"semester_id": world.semester},
+            json={**french, "name": "Dictée"},
+        )
+        ungrouped = await client.post(
+            "/api/columns",
+            params={"semester_id": world.semester},
+            json={**french, "name": "Dictée", "turkish_name": "Dikte", "group": "Examens"},
+        )
+        created = await client.post(
+            "/api/columns",
+            params={"semester_id": world.semester},
+            json={**french, "name": "  Dictée ", "turkish_name": " Dikte"},
+        )
+        # Karne scores only feed the average, so they need no Turkish wording.
+        score = await client.post(
+            "/api/columns",
+            params={"semester_id": world.semester},
+            json={**french, "value_type": "score", "name": "Lecture"},
+        )
+        for subject in ("english", "german", "french"):
+            grid = await client.get(f"/api/classes/{world.cls}/grid", params={"subject": subject})
+            names[subject] = [
+                (column["label"], column["group"])
+                for column in grid.json()["columns"]
+                if column["position"] >= 10
+            ]
+
+    for rejected in (untranslated, ungrouped):
+        assert rejected.status_code == 422
+        assert rejected.json()["detail"]["code"] == "turkish_wording_required"
+    assert created.status_code == 201
+    assert created.json()["name"] == "Dictée"
+    assert score.status_code == 201
+    async with TestSession() as db:
+        column = await db.get(m.ColumnDefinition, created.json()["id"])
+        printed = bilingual_field(column, None, "fr")
+    assert (printed.label, printed.label_alt) == ("Dikte", "Dictée")
+    assert names == {
+        "english": [("Exam 1", "Exams")],
+        "german": [("Prüfung 1", "Klassenarbeiten")],
+        "french": [("Examen 1", "Examens"), ("Dictée", None), ("Lecture", None)],
+    }

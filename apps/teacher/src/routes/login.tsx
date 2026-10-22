@@ -111,9 +111,12 @@ function LoginPage() {
               {t("auth.signIn")}
             </Button>
 
-            <p className="mt-4 text-center text-xs leading-5 text-muted-foreground">
-              {t("auth.coldStartNotice")}
-            </p>
+            {/* Only the free-tier demo sleeps; a school server is always on. */}
+            {demo ? (
+              <p className="mt-4 text-center text-xs leading-5 text-muted-foreground">
+                {t("auth.coldStartNotice")}
+              </p>
+            ) : null}
           </CardContent>
         </Card>
 

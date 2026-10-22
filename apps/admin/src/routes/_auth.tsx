@@ -1,5 +1,5 @@
 import { appShellLabels } from "@flrc/i18n";
-import { Outlet, createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { Outlet, createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -56,18 +56,31 @@ function AdminLayout() {
   const { t, i18n } = useTranslation();
   const demo = user.demo;
   const queryClient = useQueryClient();
+  const router = useRouter();
   const initialLoads = useIsFetching({
     predicate: (query) => query.state.data === undefined,
   });
 
   const logout = async () => {
+    // Signing out leaves the page, so a page that blocks leaving (a running PDF set) must
+    // agree before the session ends. This is the check the router runs before a document exit.
+    const here = router.history.location;
+    for (const { blockerFn } of router.history._getBlockers()) {
+      if (await blockerFn({ currentLocation: here, nextLocation: here, action: "PUSH" })) return;
+    }
     const response = await fetch("/api/auth/logout", { method: "POST" });
     if (!response.ok) {
       toast.error(t("feedback.actionFailed"));
       return;
     }
     queryClient.clear();
-    window.location.replace(teacherHref("/login"));
+    // The page already agreed to leave; skip the blockers and the browser's leave prompt.
+    void router.navigate({
+      href: teacherHref("/login"),
+      replace: true,
+      reloadDocument: true,
+      ignoreBlocker: true,
+    });
   };
 
   return (
@@ -92,6 +105,19 @@ function AdminLayout() {
           <a
             href={teacherHref("/")}
             className="hidden rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"
+            onClick={(event) => {
+              // A plain click leaves this panel; the router asks the page's leave guard first.
+              if (
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              )
+                return;
+              event.preventDefault();
+              void router.navigate({ href: event.currentTarget.href, reloadDocument: true });
+            }}
           >
             {t("goToTeacher")}
           </a>

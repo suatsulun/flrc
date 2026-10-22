@@ -329,9 +329,10 @@ The best way to hold the architecture in your head is to trace **one teacher sav
 6. The response returns `applied` with new versions. TanStack Query's `setQueryData` merges them into the cached grid (no refetch flash), and the store clears those dirty keys. The Save button ticks to ✓.
 7. Months later that cell is ink: a coordinator requests one of the four report sets through
    `/api/reports/pdf`. The builder assembles the report data, **Jinja2** renders HTML, and
-   **WeasyPrint** produces the PDF outside the API's async event loop. The browser opens that
-   response directly. A whole-year workbook follows the separate **Celery** path: queue its job id,
-   record progress/output in **Postgres `job_runs`**, and download through the authenticated API.
+   **WeasyPrint** produces the PDF outside the API's async event loop. The browser runs one set
+   request at a time and opens each PDF in a new tab once it arrives. A whole-year workbook follows
+   the separate **Celery** path: queue its job id, record progress/output in **Postgres
+   `job_runs`**, and download through the authenticated API.
 
 Every tool in Part I appears in that story or guards it. If a step ever feels arbitrary later, re-read the trace.
 

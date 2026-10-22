@@ -8,8 +8,8 @@ import { cn } from "#lib/utils";
  * The real logo is NOT part of this open repository. `@flrc/branding` resolves
  * `src` to the runtime overlay (`/branding/logo.svg`, mounted by a deployment)
  * or to the bundled generic mark; see branding/README.md and ADR-054. Any raster
- * or vector format the browser can render works; keep it roughly square and it
- * will sit correctly in the top bar.
+ * or vector format the browser can render works. The box has a fixed height and
+ * grows in width (up to about 3:1), so a wide mark is not shrunk to fit a square.
  *
  * Until a real logo is served, the placeholder below renders, so the layout
  * never shows a broken image.
@@ -24,15 +24,15 @@ export function SchoolLogo({
   className?: string;
 }) {
   const [failed, setFailed] = useState(false);
-  const box = cn("size-8 shrink-0 rounded-lg", className);
+  const box = cn("h-9 max-w-28 shrink-0 rounded-lg", className);
 
-  if (failed) return <PlaceholderMark className={box} />;
+  if (failed) return <PlaceholderMark className={cn(box, "aspect-square")} />;
 
   return (
     <img
       src={src}
       alt={schoolName}
-      className={cn(box, "object-contain")}
+      className={cn(box, "w-auto object-contain")}
       onError={() => setFailed(true)}
     />
   );

@@ -168,7 +168,7 @@ export function AppShell({
 
           {headerCollapsed ? (
             <div className="hidden min-w-0 items-center md:flex">
-              <SchoolLogo src={schoolLogoUrl} schoolName={schoolName} />
+              <SchoolLogo src={schoolLogoUrl} schoolName={schoolName} className="h-7" />
             </div>
           ) : (
             home

@@ -27,6 +27,7 @@ import { PageActivity } from "@flrc/ui/components/page-activity";
 
 import { LanguageSwitch } from "@flrc/ui/components/language-switch";
 import { LOGO_URL, SCHOOL_SHORT_NAME } from "@flrc/branding";
+import { allowDocumentExit } from "../admin/document-exit";
 
 // One public origin serves both panels (ADR-022); development runs them on two ports.
 // The configured value may be an origin or a path; both resolve against this origin.
@@ -63,11 +64,9 @@ function AdminLayout() {
 
   const logout = async () => {
     // Signing out leaves the page, so a page that blocks leaving (a running PDF set) must
-    // agree before the session ends. This is the check the router runs before a document exit.
-    const here = router.history.location;
-    for (const { blockerFn } of router.history._getBlockers()) {
-      if (await blockerFn({ currentLocation: here, nextLocation: here, action: "PUSH" })) return;
-    }
+    // agree before the session ends.
+    const destination = teacherHref("/login");
+    if (!(await allowDocumentExit(router, destination))) return;
     const response = await fetch("/api/auth/logout", { method: "POST" });
     if (!response.ok) {
       toast.error(t("feedback.actionFailed"));
@@ -76,7 +75,7 @@ function AdminLayout() {
     queryClient.clear();
     // The page already agreed to leave; skip the blockers and the browser's leave prompt.
     void router.navigate({
-      href: teacherHref("/login"),
+      href: destination,
       replace: true,
       reloadDocument: true,
       ignoreBlocker: true,
@@ -106,7 +105,7 @@ function AdminLayout() {
             href={teacherHref("/")}
             className="hidden rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"
             onClick={(event) => {
-              // A plain click leaves this panel; the router asks the page's leave guard first.
+              // A plain click leaves this panel; the page's leave guard is asked first.
               if (
                 event.button !== 0 ||
                 event.metaKey ||
@@ -116,7 +115,16 @@ function AdminLayout() {
               )
                 return;
               event.preventDefault();
-              void router.navigate({ href: event.currentTarget.href, reloadDocument: true });
+              const destination = event.currentTarget.href;
+              void allowDocumentExit(router, destination).then((allowed) => {
+                if (allowed) {
+                  void router.navigate({
+                    href: destination,
+                    reloadDocument: true,
+                    ignoreBlocker: true,
+                  });
+                }
+              });
             }}
           >
             {t("goToTeacher")}

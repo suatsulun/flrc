@@ -1,19 +1,18 @@
 import { useEffect, useState } from "react";
-import { deepEqual, useBlocker, type ShouldBlockFn } from "@tanstack/react-router";
+import { useBlocker, type ShouldBlockFn } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ConfirmDialog } from "@flrc/ui/components/dialog";
 
 const LEAVE_DELAY_SECONDS = 4;
 
-// Navigations that only change search params stay on the page. Document exits (the teacher
-// panel link, sign-out) reach the blocker with next equal to current, so they block as well.
-const leavesPage: ShouldBlockFn = ({ current, next }) =>
-  current.pathname !== next.pathname || deepEqual(current.search, next.search);
+// Only a different page leaves this one; search-param changes and following the link to the
+// page already open stay. Document exits ask through `allowDocumentExit` with their destination.
+const leavesPage: ShouldBlockFn = ({ current, next }) => current.pathname !== next.pathname;
 
 /**
  * Asks before leaving the page while PDF sets are generating or queued.
  *
- * Router navigations and document exits routed through the router get this dialog;
+ * Router navigations and document exits that ask through `allowDocumentExit` get this dialog;
  * tab close, reload and typed URLs can only get the browser's own prompt.
  */
 export function PdfLeaveGuard({ active, onLeave }: { active: boolean; onLeave: () => void }) {

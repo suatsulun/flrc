@@ -248,6 +248,12 @@ test("leaving while a PDF set generates asks first, then stops the request", asy
   await expect(generate).toHaveAttribute("data-pending", "true");
   await expect.poll(() => pdf.events).toEqual(["start english_elementary"]);
 
+  // Following the link to the page already open leaves nothing: no dialog, the set keeps running.
+  // A dialog here would cover the next click, which then could not reach the sidebar.
+  await page.getByRole("link", { name: "Report centre", exact: true }).click();
+  await expect(page).toHaveURL(`${adminOrigin}/admin/reports`);
+  await expect(generate).toHaveAttribute("data-pending", "true");
+
   await classTables.click();
   await expect(dialog.getByRole("heading", { name: "Leave this page?" })).toBeVisible();
   await expect(cancel).toBeEnabled();
@@ -257,6 +263,19 @@ test("leaving while a PDF set generates asks first, then stops the request", asy
   await expect(dialog).toBeHidden();
   await expect(page).toHaveURL(`${adminOrigin}/admin/reports`);
   await expect(generate).toHaveAttribute("data-pending", "true");
+
+  // Leaving the document (the teacher panel, signing out) asks the same question.
+  for (const exit of [
+    page.getByRole("link", { name: "Teacher panel", exact: true }),
+    page.getByRole("button", { name: "Sign out", exact: true }),
+  ]) {
+    await exit.click();
+    await expect(dialog.getByRole("heading", { name: "Leave this page?" })).toBeVisible();
+    await cancel.click();
+    await expect(dialog).toBeHidden();
+    await expect(page).toHaveURL(`${adminOrigin}/admin/reports`);
+    await expect(generate).toHaveAttribute("data-pending", "true");
+  }
 
   await classTables.click();
   await expect(leave).toBeDisabled();

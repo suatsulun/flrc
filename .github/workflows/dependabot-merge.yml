@@ -4,21 +4,21 @@ name: dependabot merge
 # once every required check passes; major versions wait for review (ADR-073).
 #
 # main requires up-to-date branches, and Dependabot only rebases on conflict,
-# so each merge would leave the other pull requests behind. This workflow moves
-# the oldest eligible pull request forward one step per run: merge it when it
-# is clean, otherwise bring it up to date and start its checks. Pushes made
-# with the workflow token start no workflows, so it dispatches ci and security
-# itself, on the updated branch and on main after a merge, and deletes the
-# merged branch. It reads pull requests through the API and never checks out
-# or runs their code.
+# so each merge would leave the other pull requests behind. Each run takes the
+# oldest eligible pull request all the way: bring it up to date, start its
+# checks, wait for them, merge it, delete its branch, then start a fresh run for
+# the next one. Pushes and runs made with the workflow token start no other
+# workflows, so this run waits for the checks itself instead of waiting to be
+# triggered. It reads pull requests through the API and never checks out or
+# runs their code.
 on:
-  # Each finished check run is the moment a pull request can become clean.
-  # This job only calls the API, so the write token never meets pull request code.
+  # Merges and pushes by people or Dependabot finish ci and security runs, which
+  # can make a pull request mergeable. This job only calls the API, so the write
+  # token never meets pull request code.
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [ci, security]
     types: [completed]
-  # GitHub delays and drops scheduled runs under load, so the schedule is only
-  # the fallback when no check run finishes.
+  # GitHub delays and drops scheduled runs, so this is only a fallback.
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
@@ -37,18 +37,101 @@ jobs:
     # Scheduled operations are opt-in; manual runs always proceed.
     if: ${{ github.event_name == 'workflow_dispatch' || vars.DEPENDABOT_MERGE_ENABLED == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 50
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      - name: Move the oldest eligible pull request forward
+      - name: Merge the oldest eligible pull request
         run: |
           set -euo pipefail
 
           dispatch_checks() {
             gh workflow run ci.yml --ref "$1"
             gh workflow run security.yml --ref "$1"
+          }
+
+          # The latest result for each check name, so re-dispatched checks replace older ones.
+          checks='[.statusCheckRollup[] | {
+              name: (.name // .context),
+              time: (.startedAt // ""),
+              done: ((.status // "COMPLETED") == "COMPLETED" and ((.state // "") | IN("PENDING", "EXPECTED") | not)),
+              bad: ((.conclusion // .state // "") | IN("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "ERROR"))
+            }] | group_by(.name) | map(max_by(.time))'
+
+          # Takes one pull request to a merge; returns 1 when it needs a person.
+          land() {
+            local n=$1 deadline=$((SECONDS + 40 * 60)) idle=0 approved=" "
+            local pr state head failed pending waiting id
+            while (( SECONDS < deadline )); do
+              pr=$(gh pr view "$n" --json state,headRefOid,mergeStateStatus,statusCheckRollup)
+              if [[ "$(jq -r .state <<<"$pr")" != OPEN ]]; then
+                echo "#$n: no longer open"
+                return 1
+              fi
+              state=$(jq -r .mergeStateStatus <<<"$pr")
+              head=$(jq -r .headRefOid <<<"$pr")
+              failed=$(jq "$checks | map(select(.bad)) | length" <<<"$pr")
+              pending=$(jq "$checks | map(select(.done | not)) | length" <<<"$pr")
+              if (( failed > 0 )); then
+                echo "#$n: failing checks; leaving it for review"
+                return 1
+              fi
+              case "$state" in
+                CLEAN | HAS_HOOKS | UNSTABLE)
+                  if (( pending == 0 )); then
+                    # --repo keeps gh from looking for a local checkout when deleting the branch.
+                    gh pr merge "$n" --repo "$GH_REPO" --squash --delete-branch --match-head-commit "$head"
+                    echo "#$n: merged; running the main checks"
+                    dispatch_checks main
+                    return 0
+                  fi
+                  ;;
+                BEHIND)
+                  gh pr update-branch "$n"
+                  for _ in $(seq 30); do
+                    sleep 5
+                    [[ "$(gh pr view "$n" --json headRefOid --jq .headRefOid)" != "$head" ]] && break
+                  done
+                  echo "#$n: brought up to date"
+                  idle=0
+                  ;;
+                BLOCKED)
+                  # A push by this token leaves the pull request's ci and security runs
+                  # waiting for approval, and the required checks count only those runs.
+                  # They run the same workflows Dependabot's own pushes run unapproved, on
+                  # a commit that only merges main into Dependabot's branch.
+                  waiting=$(gh run list --commit "$head" --event pull_request --json databaseId,conclusion \
+                    --jq '.[] | select(.conclusion == "action_required") | .databaseId')
+                  for id in $waiting; do
+                    if [[ "$approved" == *" $id "* ]]; then
+                      echo "::warning::#$n: run $id still waits for approval; approve it in the Actions tab"
+                      return 1
+                    fi
+                    if ! gh api -X POST "repos/$GH_REPO/actions/runs/$id/approve" >/dev/null; then
+                      echo "::warning::#$n: could not approve run $id; approve it in the Actions tab"
+                      return 1
+                    fi
+                    approved+="$id "
+                    echo "#$n: approved its checks (run $id)"
+                    idle=0
+                  done
+                  if [[ -z "$waiting" ]] && (( pending == 0 )) &&
+                    [[ -z "$(gh run list --commit "$head" --json status --jq '.[] | select(.status != "completed") | .status')" ]] &&
+                    (( ++idle >= 4 )); then
+                    echo "#$n: blocked with every check finished; leaving it for review"
+                    return 1
+                  fi
+                  ;;
+                DIRTY)
+                  echo "#$n: conflicts with main; Dependabot rebases it"
+                  return 1
+                  ;;
+              esac
+              sleep 30
+            done
+            echo "#$n: not mergeable after 40 minutes; leaving it"
+            return 1
           }
 
           for n in $(gh pr list --author app/dependabot --state open --json number,createdAt \
@@ -64,59 +147,10 @@ jobs:
               echo "#$n: contains a major version; waiting for review"
               continue
             fi
-
-            pr=$(gh pr view "$n" --json headRefName,headRefOid,mergeStateStatus,statusCheckRollup)
-            state=$(jq -r .mergeStateStatus <<<"$pr")
-            head=$(jq -r .headRefOid <<<"$pr")
-            branch=$(jq -r .headRefName <<<"$pr")
-            failed=$(jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE" or .conclusion == "CANCELLED"
-              or .conclusion == "TIMED_OUT" or .conclusion == "ACTION_REQUIRED"
-              or .state == "FAILURE" or .state == "ERROR")] | length' <<<"$pr")
-            pending=$(jq '[.statusCheckRollup[] | select((.status // "COMPLETED") != "COMPLETED"
-              or .state == "PENDING" or .state == "EXPECTED")] | length' <<<"$pr")
-
-            if (( failed > 0 )); then
-              echo "#$n: $state with failing checks; leaving it for review"
-              continue
+            if land "$n"; then
+              # The merge starts no workflows, so hand the rest to a fresh run.
+              gh workflow run dependabot-merge.yml
+              exit 0
             fi
-            case "$state" in
-              CLEAN | HAS_HOOKS)
-                # --repo keeps gh from looking for a local checkout when deleting the branch.
-                gh pr merge "$n" --repo "$GH_REPO" --squash --delete-branch --match-head-commit "$head"
-                echo "#$n: merged; running the main checks"
-                dispatch_checks main
-                exit 0
-                ;;
-              BEHIND)
-                gh pr update-branch "$n"
-                for _ in $(seq 30); do
-                  sleep 5
-                  [[ "$(gh pr view "$n" --json headRefOid --jq .headRefOid)" != "$head" ]] && break
-                done
-                echo "#$n: brought up to date; running its checks"
-                dispatch_checks "$branch"
-                exit 0
-                ;;
-              BLOCKED)
-                if (( pending > 0 )); then
-                  echo "#$n: checks are running; waiting"
-                  exit 0
-                fi
-                # Up to date but required checks never started, e.g. after an earlier update.
-                if [[ -z "$(gh run list --commit "$head" --event workflow_dispatch --json databaseId --jq '.[].databaseId')" ]]; then
-                  echo "#$n: required checks missing; running them"
-                  dispatch_checks "$branch"
-                  exit 0
-                fi
-                echo "#$n: blocked with no pending or failing checks; leaving it for review"
-                ;;
-              DIRTY)
-                echo "#$n: conflicts with main; Dependabot rebases it"
-                ;;
-              *)
-                echo "#$n: $state; checking again on the next run"
-                exit 0
-                ;;
-            esac
           done
           echo "Nothing to merge"

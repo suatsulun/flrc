@@ -53,7 +53,7 @@ def _base_query(
     student_id: int | None,
     date_from: datetime | None,
     date_to: datetime | None,
-) -> Select[Any]:
+) -> Select[*tuple[Any, ...]]:
     query = (
         select(
             AuditEntry,

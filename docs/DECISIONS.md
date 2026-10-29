@@ -3110,10 +3110,12 @@ dependencies outside the group in multi-ecosystem runs, so filtering majors woul
   changes ORM autoflush, `filter_by`, `Row` typing and PostgreSQL named types. Moving to it is a
   deliberate migration.
 - Dependabot security updates are enabled and grouped per package manager.
-- The `dependabot auto-merge` workflow enables squash auto-merge on Dependabot pull requests
-  unless their highest update is a major version, and turns it off if a refreshed group gains
-  one. It runs on `pull_request_target` because Dependabot's `pull_request` runs get a read-only
-  token, and it never checks out pull request code.
+- The `dependabot merge` workflow runs every 15 minutes once the repository variable
+  `DEPENDABOT_MERGE_ENABLED` is `true`. Each run moves the oldest eligible Dependabot pull
+  request one step: it squash-merges a clean one, deletes its branch and dispatches `ci` and
+  `security` on main; or it brings a behind one up to date and dispatches both on the branch.
+  It skips pull requests whose verified Dependabot commit lists a major version, red ones and
+  conflicting ones. It reads pull requests through the API and never runs their code.
 
 ## Alternatives considered
 
@@ -3121,16 +3123,17 @@ dependencies outside the group in multi-ecosystem runs, so filtering majors woul
   breaking major keeps every routine update red until its code is fixed.
 - One multi-ecosystem pull request without major versions: majors would never be proposed.
 - Merge every update by hand: the pull requests went stale and conflicted with main.
+- GitHub's native auto-merge from a `pull_request_target` workflow: tried first. Strict branch
+  protection left every overtaken pull request behind, merges by the workflow token started no
+  checks on main, and some merged branches stayed behind.
 
 ## Consequences
 
 - Routine and security updates reach main without a person once CI is green, and each merge
   redeploys the public demo (ADR-064).
-- Merges made by the workflow token do not start the `ci` and `security` push runs on main; the
-  required checks already ran on the up-to-date pull request head.
-- Main requires up-to-date branches, and Dependabot rebases only when a pull request conflicts or
-  its updates change. A pull request overtaken by another merge waits for "Update branch" or
-  `@dependabot rebase`.
+- One pull request merges at a time, so a burst of updates lands one check cycle apart.
+- Pushes made with the workflow token start no workflows, so the merge workflow dispatches the
+  checks itself, and `ci` and `security` accept `workflow_dispatch`.
 - Major versions and any group that contains one still need review.
 
 ## Supersedes / Superseded by

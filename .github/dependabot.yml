@@ -3,10 +3,11 @@ version: 2
 # Each package manager gets one weekly pull request for its minor and patch
 # updates, so a breaking major version never holds routine updates back. Major
 # versions arrive as separate pull requests and wait for review; the
-# dependabot-auto-merge workflow merges the rest once every required check
-# passes. The days are staggered so each grouped pull request can merge before
-# the next one opens: main requires branches to be up to date. Security updates
-# are grouped per package manager and open as soon as an advisory appears.
+# dependabot-merge workflow merges the rest, one at a time, once every required
+# check passes. The days are staggered so each grouped pull request can merge
+# before the next one opens.
+# Security updates are grouped per package manager and open as soon as an
+# advisory appears.
 updates:
   - package-ecosystem: npm
     directory: /

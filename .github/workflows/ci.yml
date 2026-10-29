@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  # The dependabot merge workflow dispatches this run, because pushes made with
+  # its token start no workflows.
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -11,8 +11,8 @@
     "typescript": "~6.0.3"
   },
   "dependencies": {
-    "i18next": "^26.4.7",
-    "i18next-browser-languagedetector": "^8.2.1",
-    "react-i18next": "^17.0.20"
+    "i18next": "^26.5.11",
+    "i18next-browser-languagedetector": "^8.2.3",
+    "react-i18next": "^17.1.9"
   }
 }

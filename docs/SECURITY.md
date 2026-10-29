@@ -287,9 +287,12 @@ TypeScript, and dependency review rejects newly introduced moderate-or-higher ru
 vulnerabilities, when GitHub Advanced Security is available. Private repositories without that
 entitlement leave the repository variable `GHAS_ENABLED` unset, so those unsupported jobs are
 skipped instead of producing false-red runs; set it to `true` only after enabling the feature.
-Dependabot checks npm, Python, Docker, and GitHub Actions weekly. Gitleaks scans the complete Git
-history on pull requests, main pushes, and the weekly schedule. Third-party workflow actions and
-runtime container bases are pinned to immutable digests.
+Dependabot security updates open as soon as an advisory affects a locked dependency, including
+indirect ones. Weekly version updates group each package manager's minor and patch releases
+(npm, uv, Docker, GitHub Actions); those and security updates merge themselves once every
+required check passes, while major versions wait for review (ADR-073). Gitleaks scans the
+complete Git history on pull requests, main pushes, and the weekly schedule. Third-party workflow
+actions and runtime container bases are pinned to immutable digests.
 
 ## Manual deployment proof
 

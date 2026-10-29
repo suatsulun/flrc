@@ -1,33 +1,57 @@
 version: 2
 
-# Keep routine version updates in one rolling PR across every package ecosystem.
-# Dependabot updates the same grouped PR on later scheduled runs while it is open.
-multi-ecosystem-groups:
-  all-dependencies:
-    schedule:
-      interval: weekly
-      day: monday
-
+# Each package manager gets one weekly pull request for its minor and patch
+# updates, so a breaking major version never holds routine updates back. Major
+# versions arrive as separate pull requests and wait for review; the
+# dependabot-auto-merge workflow merges the rest once every required check
+# passes. The days are staggered so each grouped pull request can merge before
+# the next one opens: main requires branches to be up to date. Security updates
+# are grouped per package manager and open as soon as an advisory appears.
 updates:
   - package-ecosystem: npm
     directory: /
-    patterns: ["*"]
-    multi-ecosystem-group: all-dependencies
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      npm:
+        patterns: ["*"]
+        update-types: [minor, patch]
     ignore:
       # TypeScript 7 is not supported by the current typescript-eslint and
       # @hey-api/openapi-ts release lines. Remove this when both support it.
       - dependency-name: typescript
         versions: [">=7.0.0"]
 
-  - package-ecosystem: pip
+  # The uv ecosystem updates uv.lock; pip would only read pyproject.toml, whose
+  # lower bounds already allow every new release, so the lock would never move.
+  - package-ecosystem: uv
     directory: /apps/backend
-    patterns: ["*"]
-    multi-ecosystem-group: all-dependencies
+    schedule:
+      interval: weekly
+      day: tuesday
+    groups:
+      python-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      python:
+        patterns: ["*"]
+        update-types: [minor, patch]
 
   - package-ecosystem: docker
     directory: /apps/backend
-    patterns: ["*"]
-    multi-ecosystem-group: all-dependencies
+    schedule:
+      interval: weekly
+      day: wednesday
+    groups:
+      # No update-types filter: most updates here refresh an image digest on the
+      # same tag, which has no semver level and would otherwise open one pull
+      # request per image. A major tag still waits for review before merging.
+      docker:
+        patterns: ["*"]
     ignore:
       # Python 3.13 is the repository/runtime contract. A 3.14 migration is an
       # explicit stack decision, not an unattended base-image update.
@@ -36,5 +60,10 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
-    patterns: ["*"]
-    multi-ecosystem-group: all-dependencies
+    schedule:
+      interval: weekly
+      day: thursday
+    groups:
+      github-actions:
+        patterns: ["*"]
+        update-types: [minor, patch]

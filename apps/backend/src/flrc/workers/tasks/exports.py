@@ -30,7 +30,7 @@ def build_year_workbook(db: Session, year_id: int, progress: m.JobRun | None = N
         raise ValueError("unknown_year")
     workbook = Workbook(write_only=True)
 
-    def write_sheet(title: str, headers: list[str], statement: Select[Any]) -> None:
+    def write_sheet(title: str, headers: list[str], statement: Select[*tuple[Any, ...]]) -> None:
         sheet = workbook.create_sheet(title)
         sheet.append(headers)
         # Stream both database rows and worksheet XML. Close the cursor before

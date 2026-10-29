@@ -131,7 +131,7 @@ async def _match_students(
     placements = Counter((row.grade_level, search_key(row.full_name)) for row in unnumbered)
     matches: dict[str, tuple[Enrollment | None, Student | None]] = {}
     for row in rows:
-        match = by_number.get(row.row_key)
+        match: tuple[Enrollment | None, Student] | None = by_number.get(row.row_key)
         if match is None:
             name = search_key(row.full_name)
             candidates = pending.get(name, [])

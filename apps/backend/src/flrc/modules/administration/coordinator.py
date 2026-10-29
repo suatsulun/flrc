@@ -64,7 +64,7 @@ async def _filled_cell_ids(
     )
     if student_ids is not None:
         statement = statement.where(GradeValue.student_id.in_(student_ids))
-    return set((await db.execute(statement)).tuples())
+    return {(student_id, column_id) for student_id, column_id in await db.execute(statement)}
 
 
 @router.get("/overview")

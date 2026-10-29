@@ -3105,10 +3105,10 @@ dependencies outside the group in multi-ecosystem runs, so filtering majors woul
 - Each package manager has its own weekly group of minor and patch updates, on staggered days
   (npm Monday, uv Tuesday, Docker Wednesday, GitHub Actions Thursday). Docker groups every update
   because digest refreshes have no semver level. Major versions open as separate pull requests.
-- Dependabot ignores SQLAlchemy 2.1 and later. SQLAlchemy numbers its major series in the second
-  digit, so semver calls 2.0 → 2.1 a minor update, but 2.1 drops the default greenlet install and
-  changes ORM autoflush, `filter_by`, `Row` typing and PostgreSQL named types. Moving to it is a
-  deliberate migration.
+- The backend is on SQLAlchemy 2.1, and Dependabot ignores 2.2 and later. SQLAlchemy numbers its
+  major series in the second digit, so semver calls a new series a minor update, but 2.1 dropped
+  the default greenlet install and changed ORM autoflush, `filter_by`, `Row` typing and
+  PostgreSQL named types. Moving to the next series is a deliberate migration.
 - Dependabot security updates are enabled and grouped per package manager.
 - The `dependabot merge` workflow runs every 15 minutes once the repository variable
   `DEPENDABOT_MERGE_ENABLED` is `true`. Each run moves the oldest eligible Dependabot pull

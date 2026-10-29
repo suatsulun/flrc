@@ -200,16 +200,15 @@ def build_report_set(
 
     student_language: dict[int, str] = {}
     if kind == "english_middle" and student_ids:
-        student_language = dict(
-            db.execute(
+        student_language = {
+            student_id: language
+            for student_id, language in db.execute(
                 select(StudentLanguage.student_id, StudentLanguage.language).where(
                     StudentLanguage.year_id == year.id,
                     StudentLanguage.student_id.in_(student_ids),
                 )
             )
-            .tuples()
-            .all()
-        )
+        }
 
     column_ids = [column.id for column in columns]
     grade_values = (

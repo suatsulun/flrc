@@ -12,6 +12,13 @@ name: dependabot merge
 # merged branch. It reads pull requests through the API and never checks out
 # or runs their code.
 on:
+  # Each finished check run is the moment a pull request can become clean.
+  # This job only calls the API, so the write token never meets pull request code.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [ci, security]
+    types: [completed]
+  # GitHub delays and drops scheduled runs under load, so the schedule is only
+  # the fallback when no check run finishes.
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:

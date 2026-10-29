@@ -3110,12 +3110,14 @@ dependencies outside the group in multi-ecosystem runs, so filtering majors woul
   the default greenlet install and changed ORM autoflush, `filter_by`, `Row` typing and
   PostgreSQL named types. Moving to the next series is a deliberate migration.
 - Dependabot security updates are enabled and grouped per package manager.
-- The `dependabot merge` workflow runs every 15 minutes once the repository variable
-  `DEPENDABOT_MERGE_ENABLED` is `true`. Each run moves the oldest eligible Dependabot pull
-  request one step: it squash-merges a clean one, deletes its branch and dispatches `ci` and
-  `security` on main; or it brings a behind one up to date and dispatches both on the branch.
-  It skips pull requests whose verified Dependabot commit lists a major version, red ones and
-  conflicting ones. It reads pull requests through the API and never runs their code.
+- The `dependabot merge` workflow runs whenever a `ci` or `security` run finishes, with a
+  15-minute schedule as fallback because GitHub delays and drops scheduled runs, once the
+  repository variable `DEPENDABOT_MERGE_ENABLED` is `true`. Each run moves the oldest eligible
+  Dependabot pull request one step: it squash-merges a clean one, deletes its branch and
+  dispatches `ci` and `security` on main; or it brings a behind one up to date and dispatches
+  both on the branch. It skips pull requests whose verified Dependabot commit lists a major
+  version, red ones and conflicting ones. It reads pull requests through the API and never runs
+  their code.
 
 ## Alternatives considered
 

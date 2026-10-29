@@ -7,6 +7,8 @@ on:
     branches: [main]
   schedule:
     - cron: "17 3 * * 1"
+  # Dispatched by the dependabot merge workflow; see ci.yml.
+  workflow_dispatch:
 
 permissions:
   contents: read

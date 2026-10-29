@@ -1,0 +1,115 @@
+name: dependabot merge
+
+# Merges Dependabot's minor, patch and security pull requests one at a time
+# once every required check passes; major versions wait for review (ADR-073).
+#
+# main requires up-to-date branches, and Dependabot only rebases on conflict,
+# so each merge would leave the other pull requests behind. This workflow moves
+# the oldest eligible pull request forward one step per run: merge it when it
+# is clean, otherwise bring it up to date and start its checks. Pushes made
+# with the workflow token start no workflows, so it dispatches ci and security
+# itself, on the updated branch and on main after a merge, and deletes the
+# merged branch. It reads pull requests through the API and never checks out
+# or runs their code.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependabot-merge
+
+jobs:
+  merge:
+    name: Dependabot merge
+    # Scheduled operations are opt-in; manual runs always proceed.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.DEPENDABOT_MERGE_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Move the oldest eligible pull request forward
+        run: |
+          set -euo pipefail
+
+          dispatch_checks() {
+            gh workflow run ci.yml --ref "$1"
+            gh workflow run security.yml --ref "$1"
+          }
+
+          for n in $(gh pr list --author app/dependabot --state open --json number,createdAt \
+            --jq 'sort_by(.createdAt) | .[].number'); do
+            # Dependabot's own signed commit, always the first, describes the update.
+            first=$(gh api "repos/$GH_REPO/pulls/$n/commits?per_page=1" --jq '.[0]')
+            if [[ "$(jq -r '.author.login // ""' <<<"$first")" != "dependabot[bot]" ||
+              "$(jq -r '.commit.verification.verified' <<<"$first")" != "true" ]]; then
+              echo "#$n: first commit is not a verified Dependabot commit; skipping"
+              continue
+            fi
+            if jq -r '.commit.message' <<<"$first" | grep -q 'update-type: version-update:semver-major'; then
+              echo "#$n: contains a major version; waiting for review"
+              continue
+            fi
+
+            pr=$(gh pr view "$n" --json headRefName,headRefOid,mergeStateStatus,statusCheckRollup)
+            state=$(jq -r .mergeStateStatus <<<"$pr")
+            head=$(jq -r .headRefOid <<<"$pr")
+            branch=$(jq -r .headRefName <<<"$pr")
+            failed=$(jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE" or .conclusion == "CANCELLED"
+              or .conclusion == "TIMED_OUT" or .conclusion == "ACTION_REQUIRED"
+              or .state == "FAILURE" or .state == "ERROR")] | length' <<<"$pr")
+            pending=$(jq '[.statusCheckRollup[] | select((.status // "COMPLETED") != "COMPLETED"
+              or .state == "PENDING" or .state == "EXPECTED")] | length' <<<"$pr")
+
+            if (( failed > 0 )); then
+              echo "#$n: $state with failing checks; leaving it for review"
+              continue
+            fi
+            case "$state" in
+              CLEAN | HAS_HOOKS)
+                # --repo keeps gh from looking for a local checkout when deleting the branch.
+                gh pr merge "$n" --repo "$GH_REPO" --squash --delete-branch --match-head-commit "$head"
+                echo "#$n: merged; running the main checks"
+                dispatch_checks main
+                exit 0
+                ;;
+              BEHIND)
+                gh pr update-branch "$n"
+                for _ in $(seq 30); do
+                  sleep 5
+                  [[ "$(gh pr view "$n" --json headRefOid --jq .headRefOid)" != "$head" ]] && break
+                done
+                echo "#$n: brought up to date; running its checks"
+                dispatch_checks "$branch"
+                exit 0
+                ;;
+              BLOCKED)
+                if (( pending > 0 )); then
+                  echo "#$n: checks are running; waiting"
+                  exit 0
+                fi
+                # Up to date but required checks never started, e.g. after an earlier update.
+                if [[ -z "$(gh run list --commit "$head" --event workflow_dispatch --json databaseId --jq '.[].databaseId')" ]]; then
+                  echo "#$n: required checks missing; running them"
+                  dispatch_checks "$branch"
+                  exit 0
+                fi
+                echo "#$n: blocked with no pending or failing checks; leaving it for review"
+                ;;
+              DIRTY)
+                echo "#$n: conflicts with main; Dependabot rebases it"
+                ;;
+              *)
+                echo "#$n: $state; checking again on the next run"
+                exit 0
+                ;;
+            esac
+          done
+          echo "Nothing to merge"

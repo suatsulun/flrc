@@ -137,6 +137,8 @@ owns the hosted demo. Set `DEMO_RESET_ENABLED=true` after adding `DEMO_OPS_TOKEN
 with the demo API's configured operations token. Manual runs still validate the
 required secrets and report missing configuration as a failure. An unset flag
 means the scheduled job is skipped, not that a reset or backup succeeded.
+`DEPENDABOT_MERGE_ENABLED=true` lets the `dependabot merge` workflow merge Dependabot's minor,
+patch and security pull requests once their checks pass (ADR-073).
 
 Legacy copies with `backup.yml` must configure `PG_DUMP_URL`,
 `GDRIVE_SERVICE_ACCOUNT_JSON`, and `GDRIVE_BACKUP_FOLDER_ID` before setting

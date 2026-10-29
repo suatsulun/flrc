@@ -40,6 +40,12 @@ updates:
       python:
         patterns: ["*"]
         update-types: [minor, patch]
+    ignore:
+      # SQLAlchemy numbers its major series in the second digit. 2.1 drops the
+      # default greenlet install and changes autoflush, filter_by, Row typing
+      # and PostgreSQL named types, so moving to it is a deliberate migration.
+      - dependency-name: sqlalchemy
+        versions: [">=2.1"]
 
   - package-ecosystem: docker
     directory: /apps/backend

@@ -1,0 +1,41 @@
+name: dependabot auto-merge
+
+# Dependabot's minor, patch and security updates merge themselves once every
+# required check passes. Major versions wait for review.
+#
+# pull_request_target gives the token the write access that enabling auto-merge
+# needs; Dependabot's own pull_request runs only get a read-only token. This
+# workflow runs from main and never checks out or executes pull request code.
+on:
+  pull_request_target:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Dependabot auto-merge
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'suatsulun/flrc'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read the update metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+
+      - name: Merge once the required checks pass
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}
+
+      # A refreshed group can gain a major version after auto-merge was enabled.
+      - name: Leave major versions for review
+        if: >-
+          steps.metadata.outputs.update-type == 'version-update:semver-major' &&
+          github.event.pull_request.auto_merge != null
+        run: gh pr merge --disable-auto "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}

@@ -3081,10 +3081,64 @@ Narrows §4.10 for field names; printed report labels keep the per-language rule
 
 ---
 
+# ADR-073: Dependabot groups per package manager and merges what passes
+
+**Status:** Accepted  
+**Date:** 2026-10-29  
+**Phase:** 4.10 / operations
+
+## Context
+
+Dependabot opened one weekly pull request covering every package manager, and most failed.
+The Python entry used the `pip` ecosystem, which reads `pyproject.toml` only; its lower bounds
+already allowed every new release, so `uv.lock` never moved and each Python advisory needed a
+manual lock update. Version updates touch direct dependencies only and security updates were
+off, so an advisory in an indirect package failed the required locked-dependency audit on every
+pull request. One breaking major version (Sentry 11) failed the whole group and held back every
+safe update with it. The open group then went stale until main conflicted with it. A
+multi-ecosystem group cannot move major versions to separate pull requests: Dependabot skips
+dependencies outside the group in multi-ecosystem runs, so filtering majors would drop them.
+
+## Decision
+
+- The backend uses the `uv` ecosystem, so updates rewrite `uv.lock`.
+- Each package manager has its own weekly group of minor and patch updates, on staggered days
+  (npm Monday, uv Tuesday, Docker Wednesday, GitHub Actions Thursday). Docker groups every update
+  because digest refreshes have no semver level. Major versions open as separate pull requests.
+- Dependabot security updates are enabled and grouped per package manager.
+- The `dependabot auto-merge` workflow enables squash auto-merge on Dependabot pull requests
+  unless their highest update is a major version, and turns it off if a refreshed group gains
+  one. It runs on `pull_request_target` because Dependabot's `pull_request` runs get a read-only
+  token, and it never checks out pull request code.
+
+## Alternatives considered
+
+- Keep one multi-ecosystem pull request with major versions: fewest pull requests, but one
+  breaking major keeps every routine update red until its code is fixed.
+- One multi-ecosystem pull request without major versions: majors would never be proposed.
+- Merge every update by hand: the pull requests went stale and conflicted with main.
+
+## Consequences
+
+- Routine and security updates reach main without a person once CI is green, and each merge
+  redeploys the public demo (ADR-064).
+- Merges made by the workflow token do not start the `ci` and `security` push runs on main; the
+  required checks already ran on the up-to-date pull request head.
+- Main requires up-to-date branches, and Dependabot rebases only when a pull request conflicts or
+  its updates change. A pull request overtaken by another merge waits for "Update branch" or
+  `@dependabot rebase`.
+- Major versions and any group that contains one still need review.
+
+## Supersedes / Superseded by
+
+Extends ADR-043.
+
+---
+
 # ADR template for future decisions
 
 ```md
-# ADR-073: Title
+# ADR-074: Title
 
 **Status:** Proposed | Accepted | Superseded  
 **Date:** YYYY-MM-DD  

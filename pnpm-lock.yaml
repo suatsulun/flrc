@@ -6,7 +6,7 @@ settings:
 
 overrides:
   js-yaml@<4.3.2: '>=4.3.2'
-  fast-uri@>=3.0.0 <3.1.8: ^3.1.8
+  fast-uri@>=3.0.0 <3.1.9: ^3.1.9
   qs: 6.16.0
 
 importers:
@@ -1315,8 +1315,8 @@ packages:
   fast-levenshtein@2.0.6:
     resolution: {integrity: sha512-DCXu6Ifhqcks7TZKY3Hxp3y6qphY5SJZmrWMDrKcERSOXWQdMhU9Ig/PYrzyw/ul9jOIyh0N4M0tbC5hodg8dw==}
 
-  fast-uri@3.1.8:
-    resolution: {integrity: sha512-GZMtZUTNRpOVIECoXwLNZS5xUGE+mVNbTB8h/7Rwh2TFWcBQiPzTgyZi05BF9UMZKkLJv8XBRJTlU7zg8+ZfMg==}
+  fast-uri@3.1.9:
+    resolution: {integrity: sha512-hS/0Wt3Ya043oKXs0sIxrMpKQITXhMLIrVAKKXi4gozGC9v7YRWVnXIZzjNPTO02M9BdxLCWqK1yRXgNziVyJQ==}
 
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
@@ -1880,15 +1880,15 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  seroval-plugins@1.6.8:
-    resolution: {integrity: sha512-N7mWAMydj89EnYTHtRpS3LBrAz3J9O6oVrqpuXuvlAHfAUG8WEKqtbAd7SBiJNY5NfCAFhSdyAh7wI4Shjqy4g==}
-    engines: {node: '>=10'}
+  seroval-plugins@1.7.3:
+    resolution: {integrity: sha512-gKP1jak0eor3KVHRGAyCAFJ9xKXkf97eWruYK5lcDHimsjr23RJGDuO0B8iOU6rvgYvACHpW+krmn3j2+2vxpQ==}
+    engines: {node: '>=20'}
     peerDependencies:
       seroval: ^1.0
 
-  seroval@1.6.8:
-    resolution: {integrity: sha512-HlSgSAkTk4EqHcje1ptJjfZi1YDv5KbhVJ/d3P7T/nAXua2VmDu+AKDX5VTdFfZf48nDkWB2TKYt0DrCSa+3wg==}
-    engines: {node: '>=10'}
+  seroval@1.7.3:
+    resolution: {integrity: sha512-fYkZS/GrMJhj1CW+IDoPlILRmYl5/S9L/OYju/sA2K/HQ3G5JBWDZHxaUWVZV/0hfAC2n1+9ysBRDtqMbMXvzA==}
+    engines: {node: '>=20'}
 
   shebang-command@2.0.0:
     resolution: {integrity: sha512-kHxr2zZpYtdmrN1qDjrrX/Z1rR1kG8Dx+gkpK1G4eXmvXswmcE1hTWBWYUzlraYw1/yZp6YuDY77YtvbN0dmDA==}
@@ -2606,8 +2606,8 @@ snapshots:
     dependencies:
       '@tanstack/history': 1.162.5
       cookie-es: 3.1.1
-      seroval: 1.6.8
-      seroval-plugins: 1.6.8(seroval@1.6.8)
+      seroval: 1.7.3
+      seroval-plugins: 1.7.3(seroval@1.7.3)
 
   '@tanstack/router-generator@1.167.44':
     dependencies:
@@ -2820,7 +2820,7 @@ snapshots:
   ajv@8.20.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 3.1.8
+      fast-uri: 3.1.9
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
     optional: true
@@ -3038,7 +3038,7 @@ snapshots:
 
   fast-levenshtein@2.0.6: {}
 
-  fast-uri@3.1.8:
+  fast-uri@3.1.9:
     optional: true
 
   fdir@6.5.0(picomatch@4.0.7):
@@ -3475,11 +3475,11 @@ snapshots:
 
   semver@7.8.5: {}
 
-  seroval-plugins@1.6.8(seroval@1.6.8):
+  seroval-plugins@1.7.3(seroval@1.7.3):
     dependencies:
-      seroval: 1.6.8
+      seroval: 1.7.3
 
-  seroval@1.6.8: {}
+  seroval@1.7.3: {}
 
   shebang-command@2.0.0:
     dependencies:

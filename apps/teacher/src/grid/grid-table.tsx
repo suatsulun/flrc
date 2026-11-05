@@ -1,5 +1,5 @@
 import { TableCaption } from "@flrc/ui/components/table";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { tableFeatures, useTable, type ColumnDef } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
 import { ChevronLeftIcon, ChevronRightIcon, TriangleAlertIcon } from "lucide-react";
@@ -20,12 +20,15 @@ type GridColumnDef = ColumnDef<typeof gridTableFeatures, GridRowOut, unknown>;
 export const GridTable = memo(function GridTable({
   data,
   readOnly,
+  footer,
 }: {
   data: GridOut;
   readOnly: boolean;
+  /** The sticky bar below the rows; keyboard movement keeps cells clear of it. */
+  footer: RefObject<HTMLElement | null>;
 }) {
   const { t } = useTranslation();
-  const navigation = useGridKeyboard();
+  const navigation = useGridKeyboard(footer);
   const surface = useRef<HTMLDivElement>(null);
   const [surfaceWidth, setSurfaceWidth] = useState(0);
   const [selection, setSelection] = useState<{ group: AssessmentFilter; page: number }>({

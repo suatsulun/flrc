@@ -1069,7 +1069,9 @@ required finding the button, and the unsaved count was only legible on the butto
 Full spreadsheet movement: all four arrows, `Enter`/`Shift+Enter` for next/previous row, and
 `⌘S`/`Ctrl+S` to save from anywhere, including mid-cell. Cells register in a `row:column` map so
 movement is a lookup rather than a DOM query. The header and student column freeze; a persistent bar
-shows the unsaved count, the keyboard hints, and Save.
+shows the unsaved count, the keyboard hints, and Save. Movement does its own scrolling, because the
+browser reveals a focused cell only at the window edges: a cell even partly behind the frozen header
+or the bar jumps to the middle of the rows between them.
 
 Arrow-left/right serve two jobs, and the text selection decides which: a whole value selected
 (true right after focus) or a caret at the very edge moves the cell; otherwise the caret moves

@@ -701,7 +701,8 @@ test("arrow keys never leave the focused cell under the sticky headings or save 
     "english-overview",
   );
   // Both edges of the cell are on screen and not covered by the app header, the
-  // column headings, or the save bar.
+  // column headings, or the save bar. Checked without waiting: the jump is
+  // instant, so no scroll is still animating toward an earlier cell.
   const focusedCellVisible = () =>
     page.evaluate(() => {
       const cell = document.activeElement!;
@@ -718,7 +719,7 @@ test("arrow keys never leave the focused cell under the sticky headings or save 
     for (const row of cells) {
       await page.keyboard.press(key);
       await expect(page.getByTestId(`cell-${row.student_id}-1`).getByRole("textbox")).toBeFocused();
-      await expect.poll(focusedCellVisible).toBe(true);
+      expect(await focusedCellVisible()).toBe(true);
     }
   }
 });

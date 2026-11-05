@@ -84,7 +84,10 @@ function reveal(cell: HTMLElement, footer: HTMLElement | null) {
     footer?.getBoundingClientRect().top ?? Infinity,
   );
   if (top >= visibleTop && bottom <= visibleBottom) return;
+  // Instant: under the page's smooth scrolling, a jump still animating toward an
+  // earlier cell would carry the cell reached by the next keys out of view.
   window.scrollTo({
     top: window.scrollY + (top + bottom) / 2 - (visibleTop + visibleBottom) / 2,
+    behavior: "instant",
   });
 }

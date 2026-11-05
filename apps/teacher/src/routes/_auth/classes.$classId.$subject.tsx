@@ -55,6 +55,7 @@ function GridPage() {
   const queryClient = useQueryClient();
   const [ownershipColumns, setOwnershipColumns] = useState<GridColumnOut[]>([]);
   const ownershipSaveStarted = useRef(false);
+  const saveBar = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>("auto");
   const phone = useIsPhone();
 
@@ -363,11 +364,13 @@ function GridPage() {
           key={`${classId}-${subject}-${data.meta.semester_number}`}
           data={data}
           readOnly={!writable}
+          footer={saveBar}
         />
       )}
 
       {isEmpty ? null : (
         <div
+          ref={saveBar}
           className={`sticky bottom-4 z-30 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-card/95 px-4 shadow-raised backdrop-blur ${compactGrid ? "py-1.5" : "py-2.5"}`}
         >
           <p className="flex items-center gap-2 text-sm font-medium">

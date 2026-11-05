@@ -587,6 +587,23 @@ const englishDefaults = JSON.parse(
   ]).toString(),
 ) as Array<{ labels: Record<string, string>; owner_role: string; value_type: string }>;
 
+function middleEnglishGrid(): GridOut {
+  const grid = fixture(5);
+  grid.meta.subject = "english";
+  grid.columns = englishDefaults.map((column, i) => ({
+    id: i + 1,
+    // Field names stay English whatever the UI language.
+    label: column.labels.en,
+    group: null,
+    value_type: column.value_type,
+    owner_role: column.owner_role,
+    owner_name: "Synthetic Teacher",
+    owned_by_you: column.owner_role === "main",
+    position: i + 1,
+  }));
+  return grid;
+}
+
 for (const locale of ["tr", "en", "de", "fr"]) {
   test(`middle English uses all 11 score columns with slanted headers in ${locale}`, async ({
     page,
@@ -599,19 +616,7 @@ for (const locale of ["tr", "en", "de", "fr"]) {
       localStorage.setItem("i18nextLng", lng);
       localStorage.setItem("flrc-theme", "light");
     }, locale);
-    const grid = fixture(5);
-    grid.meta.subject = "english";
-    grid.columns = englishDefaults.map((column, i) => ({
-      id: i + 1,
-      // Field names stay English whatever the UI language.
-      label: column.labels.en,
-      group: null,
-      value_type: column.value_type,
-      owner_role: column.owner_role,
-      owner_name: "Synthetic Teacher",
-      owned_by_you: column.owner_role === "main",
-      position: i + 1,
-    }));
+    const grid = middleEnglishGrid();
     let saved: SaveRequest | undefined;
     await mockGrid(page, grid, (body) => {
       saved = body;
@@ -676,3 +681,44 @@ for (const locale of ["tr", "en", "de", "fr"]) {
     await page.screenshot({ path: testInfo.outputPath("english-phone.png"), fullPage: true });
   });
 }
+
+test("arrow keys never leave the focused cell under the sticky headings or save bar", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+  const grid = middleEnglishGrid();
+  grid.rows = Array.from({ length: 24 }, (_, i) => ({
+    student_id: i + 1,
+    school_number: 78001 + i,
+    full_name: `Synthetic Student ${i + 1}`,
+    cells: {},
+  }));
+  await mockGrid(page, grid);
+  await page.goto(`${teacherUrl}/classes/1/english?semester=1`);
+  await expect(page.getByTestId("grade-grid-surface")).toHaveAttribute(
+    "data-layout",
+    "english-overview",
+  );
+  // Both edges of the cell are on screen and not covered by the app header, the
+  // column headings, or the save bar.
+  const focusedCellVisible = () =>
+    page.evaluate(() => {
+      const cell = document.activeElement!;
+      const { left, right, top, bottom } = cell.getBoundingClientRect();
+      return [top + 1, bottom - 1].every((y) =>
+        cell.contains(document.elementFromPoint((left + right) / 2, y)),
+      );
+    });
+  await page.getByTestId("cell-1-1").getByRole("textbox").focus();
+  for (const [key, cells] of [
+    ["ArrowDown", grid.rows.slice(1)],
+    ["ArrowUp", grid.rows.slice(0, -1).reverse()],
+  ] as const) {
+    for (const row of cells) {
+      await page.keyboard.press(key);
+      await expect(page.getByTestId(`cell-${row.student_id}-1`).getByRole("textbox")).toBeFocused();
+      await expect.poll(focusedCellVisible).toBe(true);
+    }
+  }
+});

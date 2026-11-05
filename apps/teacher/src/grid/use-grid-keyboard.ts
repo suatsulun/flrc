@@ -1,4 +1,4 @@
-import { useCallback, useRef, type KeyboardEvent } from "react";
+import { useCallback, useRef, type KeyboardEvent, type RefObject } from "react";
 
 /**
  * Spreadsheet keyboard model for the grade grid.
@@ -14,8 +14,14 @@ import { useCallback, useRef, type KeyboardEvent } from "react";
  *   - the whole value is selected (true right after focus) → move cell
  *   - the caret sits at the very start / end → move cell
  *   - otherwise → let the caret move within the text
+ *
+ * ── Scrolling ──────────────────────────────────────────────────────────────────
+ * The browser only scrolls a focused cell into view at the window edges, but the
+ * app header and the column headings stick over the top rows and the `footer`
+ * (the save bar) over the bottom ones. Movement reveals the cell itself instead:
+ * one even partly behind them jumps to the middle of the rows that stay visible.
  */
-export function useGridKeyboard() {
+export function useGridKeyboard(footer: RefObject<HTMLElement | null>) {
   const cells = useRef(new Map<string, HTMLElement>());
 
   const register = useCallback(
@@ -27,12 +33,16 @@ export function useGridKeyboard() {
     [],
   );
 
-  const focusCell = useCallback((row: number, column: number) => {
-    const target = cells.current.get(`${row}:${column}`);
-    if (!target) return false;
-    target.focus();
-    return true;
-  }, []);
+  const focusCell = useCallback(
+    (row: number, column: number) => {
+      const target = cells.current.get(`${row}:${column}`);
+      if (!target) return false;
+      target.focus({ preventScroll: true });
+      reveal(target, footer.current);
+      return true;
+    },
+    [footer],
+  );
 
   const onNavKey = useCallback(
     (row: number, column: number) => (event: KeyboardEvent) => {
@@ -61,4 +71,20 @@ export function useGridKeyboard() {
   );
 
   return { register, onNavKey };
+}
+
+function reveal(cell: HTMLElement, footer: HTMLElement | null) {
+  const { top, bottom } = cell.getBoundingClientRect();
+  // Every heading sticks at the same offset, so the first one's lower edge is
+  // where the visible rows begin, whether or not the headings are stuck yet.
+  const headings = cell.closest("table")?.querySelector("th");
+  const visibleTop = Math.max(0, headings?.getBoundingClientRect().bottom ?? 0);
+  const visibleBottom = Math.min(
+    document.documentElement.clientHeight,
+    footer?.getBoundingClientRect().top ?? Infinity,
+  );
+  if (top >= visibleTop && bottom <= visibleBottom) return;
+  window.scrollTo({
+    top: window.scrollY + (top + bottom) / 2 - (visibleTop + visibleBottom) / 2,
+  });
 }

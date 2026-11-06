@@ -579,5 +579,27 @@
     "value": "Value",
     "add": "Add",
     "close": "Close"
+  },
+  "classReport": {
+    "nav": "Class report",
+    "title": "Class report",
+    "semester": "Semester {{number}}",
+    "students": "{{count}} students",
+    "teacher": "Teacher: {{names}}",
+    "teachers": "Teachers: {{names}}",
+    "download": "Download PDF",
+    "print": "Print",
+    "allMine": "All my classes ({{count}})",
+    "backToTable": "Back to table",
+    "preparing": "Preparing the PDF…",
+    "rateLimited": "Too many PDFs in one minute. Please wait a moment and try again.",
+    "tableLabel": "Class report: every student with their English fields",
+    "number": "No.",
+    "readingHint": "Click a student, or move with ↑ ↓, to mark who you are discussing.",
+    "privacyNote": "The printout lists every student in this class. It is the teacher's copy for parent meetings.",
+    "emptyTitle": "No students in this class",
+    "emptyBody": "This class has no students in the selected semester.",
+    "unavailableTitle": "Class reports cover middle-school English",
+    "unavailableBody": "Open a grade 5 to 8 class to see its class report."
   }
 }

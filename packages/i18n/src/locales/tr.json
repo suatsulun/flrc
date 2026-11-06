@@ -579,5 +579,27 @@
     "value": "Değer",
     "add": "Ekle",
     "close": "Kapat"
+  },
+  "classReport": {
+    "nav": "Sınıf raporu",
+    "title": "Sınıf raporu",
+    "semester": "{{number}}. dönem",
+    "students": "{{count}} öğrenci",
+    "teacher": "Öğretmen: {{names}}",
+    "teachers": "Öğretmenler: {{names}}",
+    "download": "PDF indir",
+    "print": "Yazdır",
+    "allMine": "Tüm sınıflarım ({{count}})",
+    "backToTable": "Tabloya dön",
+    "preparing": "PDF hazırlanıyor…",
+    "rateLimited": "Bir dakika içinde çok fazla PDF istendi. Lütfen biraz bekleyip tekrar deneyin.",
+    "tableLabel": "Sınıf raporu: tüm öğrenciler ve İngilizce alanları",
+    "number": "No",
+    "readingHint": "Görüştüğünüz öğrenciyi işaretlemek için üzerine tıklayın veya ↑ ↓ tuşlarıyla ilerleyin.",
+    "privacyNote": "Çıktı bu sınıftaki tüm öğrencileri listeler. Veli görüşmeleri için öğretmen nüshasıdır.",
+    "emptyTitle": "Bu sınıfta öğrenci yok",
+    "emptyBody": "Seçilen dönemde bu sınıfta öğrenci bulunmuyor.",
+    "unavailableTitle": "Sınıf raporu ortaokul İngilizcesi içindir",
+    "unavailableBody": "Sınıf raporunu görmek için 5-8. sınıflardan birini açın."
   }
 }

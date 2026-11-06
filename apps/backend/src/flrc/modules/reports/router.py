@@ -8,10 +8,16 @@ from starlette.concurrency import run_in_threadpool
 from flrc.config import settings
 from flrc.db.models import AcademicYear, Semester, User
 from flrc.db.session import get_session
-from flrc.modules.auth.dependencies import require_admin, require_coordinator_or_admin
+from flrc.modules.auth.dependencies import current_user, require_admin, require_coordinator_or_admin
 from flrc.modules.jobs.router import JobOut
 from flrc.modules.jobs.service import create_job
 from flrc.modules.reports.builder import build_report_set
+from flrc.modules.reports.class_sheet import (
+    MAX_CLASSES,
+    Locale,
+    build_class_sheets,
+    render_class_sheets_pdf,
+)
 from flrc.modules.reports.render import render_report_pdf
 from flrc.workers.tasks.exports import export_year_job
 
@@ -60,6 +66,40 @@ async def download_report_set(
         headers={
             "Cache-Control": "no-store",
             "Content-Disposition": f'inline; filename="{kind}-s{semester_id}.pdf"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get("/reports/class-sheets")
+async def download_class_sheets(
+    _: Annotated[User, Depends(current_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+    semester_id: int,
+    class_id: Annotated[list[int], Query(min_length=1, max_length=MAX_CLASSES)],
+    locale: Locale = "tr",
+) -> Response:
+    """Printable middle-school English class sheets for parent meetings, one page per class.
+
+    Any teacher may print any class (ADR-071). Classes without students are left out.
+    """
+    semester = await db.get(Semester, semester_id)
+    if semester is None:
+        raise HTTPException(404, {"code": "unknown_semester"})
+    sheets = [
+        sheet
+        for sheet in await build_class_sheets(db, semester=semester, class_ids=class_id)
+        if sheet.students
+    ]
+    if not sheets:
+        raise HTTPException(409, {"code": "empty_report_set"})
+    pdf = await run_in_threadpool(render_class_sheets_pdf, sheets, locale)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": f'inline; filename="class-report-s{semester_id}.pdf"',
             "X-Content-Type-Options": "nosniff",
         },
     )

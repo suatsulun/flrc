@@ -579,5 +579,27 @@
     "value": "Valeur",
     "add": "Ajouter",
     "close": "Fermer"
+  },
+  "classReport": {
+    "nav": "Rapport de classe",
+    "title": "Rapport de classe",
+    "semester": "Semestre {{number}}",
+    "students": "{{count}} élèves",
+    "teacher": "Enseignant·e : {{names}}",
+    "teachers": "Enseignant·es : {{names}}",
+    "download": "Télécharger le PDF",
+    "print": "Imprimer",
+    "allMine": "Toutes mes classes ({{count}})",
+    "backToTable": "Retour au tableau",
+    "preparing": "Préparation du PDF…",
+    "rateLimited": "Trop de PDF en une minute. Veuillez patienter un instant puis réessayer.",
+    "tableLabel": "Rapport de classe : tous les élèves avec leurs champs d’anglais",
+    "number": "N°",
+    "readingHint": "Cliquez sur un élève, ou avancez avec ↑ ↓, pour marquer l’élève dont vous parlez.",
+    "privacyNote": "L’impression liste tous les élèves de cette classe. C’est l’exemplaire de l’enseignant·e pour les rencontres parents-professeurs.",
+    "emptyTitle": "Aucun élève dans cette classe",
+    "emptyBody": "Au semestre choisi, cette classe n’a aucun élève.",
+    "unavailableTitle": "Les rapports de classe concernent l’anglais au collège",
+    "unavailableBody": "Ouvrez une classe de la 5e à la 8e année pour voir son rapport de classe."
   }
 }

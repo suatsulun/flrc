@@ -418,6 +418,10 @@ export type ClassCatalogOut = {
      * Subjects
      */
     subjects: Array<ClassSubjectOut>;
+    /**
+     * Assigned Roles
+     */
+    assigned_roles: Array<string>;
 };
 
 /**
@@ -472,6 +476,96 @@ export type ClassPatch = {
      * Section
      */
     section?: string | null;
+};
+
+/**
+ * ClassSheetColumnOut
+ */
+export type ClassSheetColumnOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Group
+     */
+    group: string | null;
+    /**
+     * Value Type
+     */
+    value_type: 'score' | 'scale3';
+};
+
+/**
+ * ClassSheetOut
+ */
+export type ClassSheetOut = {
+    /**
+     * Class Id
+     */
+    class_id: number;
+    /**
+     * Class Name
+     */
+    class_name: string;
+    /**
+     * Grade Level
+     */
+    grade_level: number;
+    /**
+     * Year Id
+     */
+    year_id: number;
+    /**
+     * Year Label
+     */
+    year_label: string;
+    /**
+     * Semester Id
+     */
+    semester_id: number;
+    /**
+     * Semester Number
+     */
+    semester_number: number;
+    /**
+     * Teachers
+     */
+    teachers: Array<string>;
+    /**
+     * Columns
+     */
+    columns: Array<ClassSheetColumnOut>;
+    /**
+     * Students
+     */
+    students: Array<ClassSheetStudentOut>;
+};
+
+/**
+ * ClassSheetStudentOut
+ */
+export type ClassSheetStudentOut = {
+    /**
+     * Student Id
+     */
+    student_id: number;
+    /**
+     * School Number
+     */
+    school_number: number | null;
+    /**
+     * Full Name
+     */
+    full_name: string;
+    /**
+     * Values
+     */
+    values: Array<number | null>;
 };
 
 /**
@@ -2752,6 +2846,41 @@ export type UndoGridResponses = {
 
 export type UndoGridResponse = UndoGridResponses[keyof UndoGridResponses];
 
+export type GetClassSheetData = {
+    body?: never;
+    path: {
+        /**
+         * Class Id
+         */
+        class_id: number;
+    };
+    query?: {
+        /**
+         * Semester
+         */
+        semester?: number | null;
+    };
+    url: '/api/classes/{class_id}/sheet';
+};
+
+export type GetClassSheetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetClassSheetError = GetClassSheetErrors[keyof GetClassSheetErrors];
+
+export type GetClassSheetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ClassSheetOut;
+};
+
+export type GetClassSheetResponse = GetClassSheetResponses[keyof GetClassSheetResponses];
+
 export type ListAuditData = {
     body?: never;
     path?: never;
@@ -4156,6 +4285,42 @@ export type DownloadReportSetErrors = {
 export type DownloadReportSetError = DownloadReportSetErrors[keyof DownloadReportSetErrors];
 
 export type DownloadReportSetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type DownloadClassSheetsData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Semester Id
+         */
+        semester_id: number;
+        /**
+         * Class Id
+         */
+        class_id: Array<number>;
+        /**
+         * Locale
+         */
+        locale?: 'tr' | 'en' | 'de' | 'fr';
+    };
+    url: '/api/reports/class-sheets';
+};
+
+export type DownloadClassSheetsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DownloadClassSheetsError = DownloadClassSheetsErrors[keyof DownloadClassSheetsErrors];
+
+export type DownloadClassSheetsResponses = {
     /**
      * Successful Response
      */

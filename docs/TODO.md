@@ -27,6 +27,8 @@ backups, restore evidence, and human acceptance still require the separate relea
 - [x] Four/five sentence columns at laptop widths and the angled middle-English overview.
 - [x] Import review with file/review hashes and bounded bulk queries.
 - [x] Streaming year workbooks, private report overlays, teacher signatures, and identity audit.
+- [x] Middle-school English class reports: an on-screen class sheet and one-page PDFs per class or
+      for all of a teacher's classes, for parent meetings (ADR-074).
 - [x] School backup service with encryption, freshness checks, restore tests, and year archives.
 - [x] Authentication hardening, dependency audit, secret scanning, and synthetic regression suites.
 

@@ -127,6 +127,7 @@ async function mockGrid(
                 can_write: true,
               },
             ],
+            assigned_roles: ["german"],
           },
         ] satisfies ClassCatalogOut[],
       });

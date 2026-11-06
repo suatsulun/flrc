@@ -1,0 +1,12 @@
+/* The student being discussed is tinted and edged like the grid's active row, so the
+   teacher keeps their place in a wide row while talking with a parent. */
+.class-sheet-row {
+  scroll-margin-top: calc(var(--app-shell-header-height, 3.5rem) + 4rem);
+}
+.class-sheet-row:focus > td {
+  --muted-foreground: var(--row-active-muted-foreground);
+  background: var(--row-active);
+}
+.class-sheet-row:focus > td:first-child {
+  box-shadow: inset 4px 0 0 var(--row-active-edge);
+}

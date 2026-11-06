@@ -206,6 +206,22 @@ async def _roster_ids(db: AsyncSession, class_id: int, subject: str, year_id: in
     return set((await db.scalars(query)).all())
 
 
+async def grid_semester(db: AsyncSession, year_id: int, number: int | None) -> Semester:
+    """The requested semester of a year; without a number its open one, else its latest."""
+    semesters = list(await db.scalars(select(Semester).where(Semester.year_id == year_id)))
+    if not semesters:
+        raise HTTPException(409, {"code": "semester_missing"})
+    current = (
+        next((item for item in semesters if item.number == number), None)
+        if number is not None
+        else next((item for item in semesters if item.status == "open"), None)
+    )
+    current = current or (max(semesters, key=lambda item: item.number) if number is None else None)
+    if current is None:
+        raise HTTPException(404, {"code": "unknown_semester"})
+    return current
+
+
 def _raw_conflict(
     *,
     student_id: int,
@@ -276,19 +292,7 @@ async def get_grid(
     if year is None:
         raise HTTPException(404, {"code": "unknown_year"})
 
-    semesters = list(await db.scalars(select(Semester).where(Semester.year_id == year.id)))
-    if not semesters:
-        raise HTTPException(409, {"code": "semester_missing"})
-    current = (
-        next((item for item in semesters if item.number == semester), None)
-        if semester is not None
-        else next((item for item in semesters if item.status == "open"), None)
-    )
-    current = current or (
-        max(semesters, key=lambda item: item.number) if semester is None else None
-    )
-    if current is None:
-        raise HTTPException(404, {"code": "unknown_semester"})
+    current = await grid_semester(db, year.id, semester)
 
     columns = list(
         await db.scalars(

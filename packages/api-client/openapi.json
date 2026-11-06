@@ -1122,6 +1122,65 @@
         }
       }
     },
+    "/api/classes/{class_id}/sheet": {
+      "get": {
+        "tags": [
+          "class-sheets"
+        ],
+        "summary": "Get Class Sheet",
+        "description": "The class report preview; semester selection matches the grade grid.",
+        "operationId": "get_class_sheet",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Class Id"
+            }
+          },
+          {
+            "name": "semester",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassSheetOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/audit": {
       "get": {
         "tags": [
@@ -3539,6 +3598,77 @@
         }
       }
     },
+    "/api/reports/class-sheets": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Download Class Sheets",
+        "description": "Printable middle-school English class sheets for parent meetings, one page per class.\n\nAny teacher may print any class (ADR-071). Classes without students are left out.",
+        "operationId": "download_class_sheets",
+        "parameters": [
+          {
+            "name": "semester_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Semester Id"
+            }
+          },
+          {
+            "name": "class_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 1,
+              "maxItems": 40,
+              "title": "Class Id"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "tr",
+                "en",
+                "de",
+                "fr"
+              ],
+              "type": "string",
+              "default": "tr",
+              "title": "Locale"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/exports/year/{year_id}": {
       "post": {
         "tags": [
@@ -4205,6 +4335,13 @@
             },
             "type": "array",
             "title": "Subjects"
+          },
+          "assigned_roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assigned Roles"
           }
         },
         "type": "object",
@@ -4213,7 +4350,8 @@
           "name",
           "grade_level",
           "section",
-          "subjects"
+          "subjects",
+          "assigned_roles"
         ],
         "title": "ClassCatalogOut"
       },
@@ -4303,6 +4441,157 @@
         },
         "type": "object",
         "title": "ClassPatch"
+      },
+      "ClassSheetColumnOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "value_type": {
+            "type": "string",
+            "enum": [
+              "score",
+              "scale3"
+            ],
+            "title": "Value Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "group",
+          "value_type"
+        ],
+        "title": "ClassSheetColumnOut"
+      },
+      "ClassSheetOut": {
+        "properties": {
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          },
+          "class_name": {
+            "type": "string",
+            "title": "Class Name"
+          },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          },
+          "year_id": {
+            "type": "integer",
+            "title": "Year Id"
+          },
+          "year_label": {
+            "type": "string",
+            "title": "Year Label"
+          },
+          "semester_id": {
+            "type": "integer",
+            "title": "Semester Id"
+          },
+          "semester_number": {
+            "type": "integer",
+            "title": "Semester Number"
+          },
+          "teachers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Teachers"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/ClassSheetColumnOut"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "students": {
+            "items": {
+              "$ref": "#/components/schemas/ClassSheetStudentOut"
+            },
+            "type": "array",
+            "title": "Students"
+          }
+        },
+        "type": "object",
+        "required": [
+          "class_id",
+          "class_name",
+          "grade_level",
+          "year_id",
+          "year_label",
+          "semester_id",
+          "semester_number",
+          "teachers",
+          "columns",
+          "students"
+        ],
+        "title": "ClassSheetOut"
+      },
+      "ClassSheetStudentOut": {
+        "properties": {
+          "student_id": {
+            "type": "integer",
+            "title": "Student Id"
+          },
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "values": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Values"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id",
+          "school_number",
+          "full_name",
+          "values"
+        ],
+        "title": "ClassSheetStudentOut"
       },
       "ClassSubjectOut": {
         "properties": {

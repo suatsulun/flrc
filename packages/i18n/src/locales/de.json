@@ -579,5 +579,27 @@
     "value": "Wert",
     "add": "Hinzufügen",
     "close": "Schließen"
+  },
+  "classReport": {
+    "nav": "Klassenbericht",
+    "title": "Klassenbericht",
+    "semester": "{{number}}. Halbjahr",
+    "students": "{{count}} Schüler/innen",
+    "teacher": "Lehrkraft: {{names}}",
+    "teachers": "Lehrkräfte: {{names}}",
+    "download": "PDF herunterladen",
+    "print": "Drucken",
+    "allMine": "Alle meine Klassen ({{count}})",
+    "backToTable": "Zurück zur Tabelle",
+    "preparing": "PDF wird erstellt…",
+    "rateLimited": "Zu viele PDFs in einer Minute. Bitte kurz warten und erneut versuchen.",
+    "tableLabel": "Klassenbericht: alle Schüler/innen mit ihren Englisch-Feldern",
+    "number": "Nr.",
+    "readingHint": "Klicken Sie auf eine Zeile oder wechseln Sie mit ↑ ↓, um zu markieren, über wen Sie gerade sprechen.",
+    "privacyNote": "Der Ausdruck enthält alle Schüler/innen dieser Klasse. Er ist das Exemplar der Lehrkraft für Elterngespräche.",
+    "emptyTitle": "Keine Schüler/innen in dieser Klasse",
+    "emptyBody": "Im gewählten Halbjahr hat diese Klasse keine Schüler/innen.",
+    "unavailableTitle": "Klassenberichte gibt es für Englisch in der Mittelstufe",
+    "unavailableBody": "Öffnen Sie eine Klasse der Stufen 5 bis 8, um ihren Klassenbericht zu sehen."
   }
 }

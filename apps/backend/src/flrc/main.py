@@ -39,6 +39,7 @@ from flrc.modules.demo.router import router as demo_router
 from flrc.modules.grades.router import router as grades_router
 from flrc.modules.imports.router import router as imports_router
 from flrc.modules.jobs.router import router as jobs_router
+from flrc.modules.reports.class_sheet import router as class_sheet_router
 from flrc.modules.reports.router import router as reports_router
 from flrc.modules.system.router import router as system_router
 
@@ -115,6 +116,7 @@ def create_app() -> FastAPI:
     protected_api.include_router(columns_router)
     protected_api.include_router(assignments_router)
     protected_api.include_router(grades_router)
+    protected_api.include_router(class_sheet_router)
     protected_api.include_router(audit_router)
     protected_api.include_router(students_router)
     protected_api.include_router(users_router)

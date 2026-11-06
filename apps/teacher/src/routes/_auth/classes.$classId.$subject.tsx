@@ -1,14 +1,10 @@
-import { usePrefetchSiblings } from "@flrc/ui/hooks/use-prefetch-siblings";
-import { GRADES, academicContextLabels, gradeTabLabel } from "@flrc/i18n";
+import { GRADES } from "@flrc/i18n";
 import {
   getGridOptions,
   getGridQueryKey,
-  listAcademicYearsOptions,
-  listClassCatalogOptions,
   undoGridMutation,
   type GridColumnOut,
 } from "@flrc/api-client";
-import { AcademicContextBar } from "@flrc/ui/components/academic-context-bar";
 import { Badge } from "@flrc/ui/components/badge";
 import { Button } from "@flrc/ui/components/button";
 import { ConfirmDialog } from "@flrc/ui/components/dialog";
@@ -22,6 +18,8 @@ import { CheckIcon, TriangleAlertIcon, Undo2Icon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { BoardSwitcher } from "../../grid/board-switcher";
+import { SUBJECTS, type Subject } from "../../grid/subjects";
 import { ConflictDialog } from "../../grid/conflict-dialog";
 import { useDirtyStore } from "../../grid/dirty-store";
 import { GradeCell } from "../../grid/grade-cell";
@@ -32,7 +30,6 @@ import { useIsPhone } from "../../grid/use-is-phone";
 import { useSaveGrid } from "../../grid/use-save-grid";
 import { BulkRatings } from "../../grid/bulk-ratings";
 
-type Subject = "english" | "german" | "french";
 type View = "auto" | "grid" | "stepper";
 
 export const Route = createFileRoute("/_auth/classes/$classId/$subject")({
@@ -65,16 +62,6 @@ function GridPage() {
   };
   const gridKey = getGridQueryKey(queryOptions);
   const { data, isPending, isError } = useQuery(getGridOptions(queryOptions));
-  const { data: years = [] } = useQuery(listAcademicYearsOptions());
-  const { data: catalog = [] } = useQuery({
-    ...listClassCatalogOptions({
-      query: {
-        year_id: data?.meta.year_id,
-        semester: requestedSemester,
-      },
-    }),
-    enabled: Boolean(data),
-  });
   const dirtyCount = useDirtyStore((state) => Object.keys(state.cells).length);
   const save = useSaveGrid({ classId: Number(classId), subject, gridKey });
 
@@ -112,17 +99,6 @@ function GridPage() {
     [data?.columns],
   );
   const writable = data?.meta.semester_status === "open" && data.meta.year_status === "active";
-  const gradeTabs = useMemo(
-    () =>
-      data
-        ? catalog.filter(
-            (item) =>
-              item.grade_level === data.meta.grade_level &&
-              item.subjects.some((candidate) => candidate.subject === subject),
-          )
-        : [],
-    [catalog, data, subject],
-  );
 
   const prefetchBoard = useCallback(
     (targetClassId: number) =>
@@ -138,8 +114,6 @@ function GridPage() {
       }),
     [data?.meta.semester_number, queryClient, requestedSemester, subject],
   );
-
-  usePrefetchSiblings(gradeTabs, prefetchBoard);
 
   const attemptSave = useCallback(() => {
     if (!writable) return;
@@ -169,123 +143,28 @@ function GridPage() {
   const isEmpty = data.columns.length === 0 || data.rows.length === 0;
   const saveKey = isMacPlatform() ? "⌘S" : "Ctrl+S";
 
-  const goToBoard = (nextGrade: number, nextSubject: Subject) => {
-    const target = catalog.find(
-      (item) =>
-        item.grade_level === nextGrade &&
-        item.subjects.some((candidate) => candidate.subject === nextSubject),
-    );
-    if (!target) return;
-    void navigate({
-      to: "/classes/$classId/$subject",
-      params: { classId: String(target.id), subject: nextSubject },
-      search: { semester: data.meta.semester_number },
-    });
-  };
-
-  const switchYear = async (nextYearId: number) => {
-    const nextYear = years.find((item) => item.id === nextYearId);
-    if (!nextYear) return;
-    const nextSemester =
-      nextYear.semesters.find((item) => item.number === data.meta.semester_number)?.number ??
-      nextYear.semesters.find((item) => item.status === "open")?.number ??
-      nextYear.semesters[0]?.number ??
-      1;
-    const nextCatalog = await queryClient.fetchQuery(
-      listClassCatalogOptions({
-        query: { year_id: nextYearId, semester: nextSemester },
-      }),
-    );
-    const current = catalog.find((item) => item.id === Number(classId));
-    const target =
-      nextCatalog.find(
-        (item) =>
-          item.grade_level === data.meta.grade_level &&
-          item.section === current?.section &&
-          item.subjects.some((candidate) => candidate.subject === subject),
-      ) ??
-      nextCatalog.find(
-        (item) =>
-          item.grade_level === data.meta.grade_level &&
-          item.subjects.some((candidate) => candidate.subject === subject),
-      ) ??
-      nextCatalog.find((item) => item.subjects.some((candidate) => candidate.subject === subject));
-    if (!target) return;
-    await navigate({
-      to: "/classes/$classId/$subject",
-      params: { classId: String(target.id), subject },
-      search: { semester: nextSemester },
-    });
-  };
-
   const compactGrid = !showStepper;
 
   return (
     <div className={compactGrid ? "space-y-2" : "space-y-4"}>
-      <AcademicContextBar
-        years={years}
-        yearId={data.meta.year_id}
-        semesterNumber={data.meta.semester_number}
-        onYearChange={(next) => void switchYear(next)}
-        onSemesterChange={(next) =>
-          void navigate({
+      <BoardSwitcher
+        classId={classId}
+        subject={subject}
+        requestedSemester={requestedSemester}
+        meta={data.meta}
+        grades={GRADES}
+        subjects={SUBJECTS}
+        compact={compactGrid}
+        lockedLabel={t("grid.locked")}
+        goTo={(targetClassId, targetSubject, semester) =>
+          navigate({
             to: "/classes/$classId/$subject",
-            params: { classId, subject },
-            search: { semester: next },
+            params: { classId: String(targetClassId), subject: targetSubject },
+            search: { semester },
           })
         }
-        labels={academicContextLabels(t, t("grid.locked"))}
+        prefetchBoard={prefetchBoard}
       />
-
-      <div
-        className={`flex flex-col gap-3 rounded-xl border border-border bg-card shadow-card lg:flex-row lg:items-center ${compactGrid ? "p-2" : "p-3"}`}
-      >
-        <Segmented
-          ariaLabel={t("classes.gradeLevel")}
-          options={GRADES.map((item) => ({ value: item, label: gradeTabLabel(t, item) }))}
-          value={data.meta.grade_level}
-          onChange={(next) => goToBoard(next, subject)}
-          size="sm"
-          className="max-w-full"
-        />
-        <Segmented
-          ariaLabel={t("grid.subject")}
-          options={(["english", "german", "french"] as const).map((item) => ({
-            value: item,
-            label: t(`subjects.${item}`),
-          }))}
-          value={subject}
-          onChange={(next) => goToBoard(data.meta.grade_level, next)}
-          size="sm"
-          className="max-w-full"
-        />
-        <div className="flex min-w-0 flex-1 flex-wrap items-end gap-1 lg:justify-end">
-          {gradeTabs.map((schoolClass) => (
-            <button
-              key={schoolClass.id}
-              type="button"
-              aria-current={schoolClass.id === Number(classId) ? "page" : undefined}
-              className={[
-                "min-w-0 flex-1 basis-16 rounded-lg px-2 py-2 text-xs font-semibold outline-none transition-colors sm:text-sm",
-                schoolClass.id === Number(classId)
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-              ].join(" ")}
-              onPointerEnter={() => void prefetchBoard(schoolClass.id)}
-              onFocus={() => void prefetchBoard(schoolClass.id)}
-              onClick={() =>
-                void navigate({
-                  to: "/classes/$classId/$subject",
-                  params: { classId: String(schoolClass.id), subject },
-                  search: { semester: data.meta.semester_number },
-                })
-              }
-            >
-              {schoolClass.name}
-            </button>
-          ))}
-        </div>
-      </div>
 
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">

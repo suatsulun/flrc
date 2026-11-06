@@ -1,0 +1,189 @@
+{#
+  Middle-school English class sheets for parent-teacher meetings: one A4 landscape
+  page per class.
+
+  Unlike the report cards this is a plain table with page margins and a footer, so
+  it does not extend base.html's fixed, zero-margin sheets. Each class starts a new
+  page and fits it: the builder sizes the rows (and their type) from the class
+  size, names stay on one line, and headings are clipped at three lines. Rows
+  alternate in shade so a reader keeps their place across a wide row.
+
+  NOTE: this directory is in .prettierignore — Prettier reflows Jinja tags.
+#}
+<!doctype html>
+<html lang="{{ locale }}">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ title }}</title>
+    <style>
+      @page {
+        size: A4 landscape;
+        margin: 10mm 10mm 12mm;
+
+        @bottom-left {
+          content: element(notice);
+          vertical-align: top;
+          padding-top: 2mm;
+        }
+        @bottom-right {
+          content: counter(page) " / " counter(pages);
+          vertical-align: top;
+          padding-top: 2mm;
+          font-family: "DejaVu Sans", Arial, sans-serif;
+          font-size: 7pt;
+          color: #4c5a70;
+        }
+      }
+
+      * { box-sizing: border-box; }
+
+      :root {
+        --ink: #1d2433;
+        --ink-soft: #4c5a70;
+        --rule: #9aa7ba;
+        --hairline: #cdd5df;
+        /* Survives greyscale printers: about 8% ink, still clearly a second shade. */
+        --band: #e7ebf1;
+        --head: #d9e0ea;
+        --accent: {{ school.accent }};
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        font-family: "DejaVu Sans", Arial, sans-serif;
+        font-size: 8pt;
+        line-height: 1.2;
+      }
+
+      .notice {
+        position: running(notice);
+        font-size: 7pt;
+        color: var(--ink-soft);
+      }
+
+      .sheet + .sheet { break-before: page; }
+
+      .sheet-head {
+        display: flex;
+        align-items: flex-end;
+        gap: 4mm;
+        margin-bottom: 3mm;
+        padding-bottom: 2mm;
+        border-bottom: 0.6mm solid var(--accent);
+      }
+      .sheet-head img { height: 11mm; width: auto; }
+      .sheet-head .titles { flex: 1; }
+      .sheet-head h1 { margin: 0; font-size: 13pt; line-height: 1.2; }
+      .sheet-head h1 .kind { color: var(--ink-soft); font-weight: 400; }
+      .sheet-head p { margin: 0.8mm 0 0; color: var(--ink-soft); }
+      .sheet-head .printed { text-align: right; color: var(--ink-soft); font-size: 7pt; }
+
+      table.roster {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      .roster col.number { width: 13mm; }
+      .roster col.name { width: 64mm; }
+
+      .roster thead th {
+        background: var(--head);
+        border: 0.2mm solid var(--rule);
+        padding: 1mm 0.8mm;
+        font-size: 7pt;
+        font-weight: 700;
+        text-align: center;
+        vertical-align: bottom;
+        overflow-wrap: break-word;
+      }
+      /* Three heading lines at most, so the heading never pushes rows off the page. */
+      .roster thead th .clip { max-height: 8.6mm; overflow: hidden; }
+      .roster thead tr.groups th {
+        font-size: 6.5pt;
+        font-weight: 400;
+        font-style: italic;
+        vertical-align: middle;
+      }
+      .roster thead th.empty-group { background: white; border-top-color: white; border-left-color: white; }
+      .roster thead th.name { text-align: left; }
+
+      .roster tbody tr:nth-child(even) td { background: var(--band); }
+      .roster td {
+        border-left: 0.2mm solid var(--hairline);
+        border-right: 0.2mm solid var(--hairline);
+        border-top: 0.2mm solid var(--rule);
+        padding: 0 0.8mm;
+        vertical-align: middle;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .roster tbody tr:last-child td { border-bottom: 0.3mm solid var(--rule); }
+      .roster td.number { text-align: center; color: var(--ink-soft); }
+      .roster td.name { font-weight: 700; }
+      .roster td.value { text-align: center; }
+
+      .legend { margin-top: 2mm; font-size: 7pt; color: var(--ink-soft); }
+      .legend b { color: var(--ink); }
+    </style>
+  </head>
+  <body>
+    <div class="notice">{{ school.name }} · {{ text.notice }}</div>
+    {% for page in pages %}
+    <section class="sheet">
+      <header class="sheet-head">
+        {% if school.logo %}<img src="{{ school.logo }}" alt="" />{% endif %}
+        <div class="titles">
+          <h1>{{ page.heading }} <span class="kind">· {{ text.title }}</span></h1>
+          <p>{{ page.context }}{% if page.teachers %} · {{ page.teachers }}{% endif %}</p>
+        </div>
+        <div class="printed">{{ school.name }}<br />{{ text.printed }}: {{ printed_on }}</div>
+      </header>
+
+      <table class="roster" style="font-size: {{ page.font_pt }}pt">
+        <colgroup>
+          <col class="number" />
+          <col class="name" />
+          {% for column in page.columns %}<col />{% endfor %}
+        </colgroup>
+        <thead>
+          {% if page.group_spans %}
+          <tr class="groups">
+            <th class="empty-group" colspan="2"></th>
+            {% for group, span in page.group_spans %}
+            <th colspan="{{ span }}"{% if not group %} class="empty-group"{% endif %}>{{ group or "" }}</th>
+            {% endfor %}
+          </tr>
+          {% endif %}
+          <tr>
+            <th>{{ text.number }}</th>
+            <th class="name">{{ text.student }}</th>
+            {% for column in page.columns %}
+            <th><div class="clip">{{ column.label }}</div></th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for student in page.students %}
+          <tr style="height: {{ page.row_mm }}mm">
+            <td class="number">{{ student.school_number if student.school_number is not none else "—" }}</td>
+            <td class="name">{{ student.full_name }}</td>
+            {% for value in student["values"] %}
+            <td class="value">{{ value if value is not none else "" }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      {% if page.has_scale %}
+      <p class="legend">
+        <b>{{ text.rating }}:</b>
+        <b>3</b> {{ text.scale3 }} · <b>2</b> {{ text.scale2 }} · <b>1</b> {{ text.scale1 }}
+      </p>
+      {% endif %}
+    </section>
+    {% endfor %}
+  </body>
+</html>

@@ -1,9 +1,17 @@
 import { appShellLabels } from "@flrc/i18n";
-import { Outlet, createFileRoute, Link, redirect } from "@tanstack/react-router";
+import {
+  Outlet,
+  createFileRoute,
+  Link,
+  redirect,
+  useMatch,
+  useParams,
+  useSearch,
+} from "@tanstack/react-router";
 import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { LayoutGridIcon, ShieldCheckIcon } from "lucide-react";
+import { FileTextIcon, LayoutGridIcon, ShieldCheckIcon } from "lucide-react";
 import { listClassCatalogOptions, sessionOptions } from "@flrc/api-client";
 import {
   AppShell,
@@ -16,6 +24,7 @@ import { PageActivity } from "@flrc/ui/components/page-activity";
 
 import { LanguageSwitch } from "@flrc/ui/components/language-switch";
 import { LOGO_URL, SCHOOL_SHORT_NAME } from "@flrc/branding";
+import { REPORT_GRADES, reportClasses } from "../class-report/scope";
 
 export const Route = createFileRoute("/_auth")({
   beforeLoad: async ({ context }) => {
@@ -94,12 +103,35 @@ function TeacherNavigation({ isAdmin, onNavigate }: { isAdmin: boolean; onNaviga
   const { t } = useTranslation();
   // Shares the dashboard's cache entry, so this costs no extra request.
   const { data: catalog = [] } = useQuery(listClassCatalogOptions());
-
-  const myBoards = catalog.flatMap((schoolClass) =>
-    schoolClass.subjects
-      .filter((subject) => subject.can_write)
-      .map((subject) => ({ schoolClass, subject })),
+  // The class on screen, whether its grid or its class report is open.
+  const params = useParams({ strict: false });
+  const { semester } = useSearch({ strict: false });
+  const reportOpen = Boolean(
+    useMatch({ from: "/_auth/class-report/$classId", shouldThrow: false }),
   );
+
+  // Class reports are for middle-school English teachers; only they get the entry.
+  const myReportClasses = reportClasses(catalog, { mine: true });
+  const onScreen = catalog.find((item) => item.id === Number(params.classId));
+  const reportTarget =
+    params.classId &&
+    (reportOpen ||
+      (params.subject === "english" &&
+        onScreen !== undefined &&
+        REPORT_GRADES.includes(onScreen.grade_level)))
+      ? { classId: params.classId, semester }
+      : myReportClasses[0]
+        ? { classId: String(myReportClasses[0].id), semester: undefined }
+        : null;
+  // While a class report is open the shortcuts open reports of the teacher's middle-school
+  // English classes, which stay useful after a semester closes.
+  const myBoards = reportOpen
+    ? myReportClasses.map((schoolClass) => ({ schoolClass, subject: "english" as const }))
+    : catalog.flatMap((schoolClass) =>
+        schoolClass.subjects
+          .filter((subject) => subject.can_write)
+          .map((subject) => ({ schoolClass, subject: subject.subject })),
+      );
 
   return (
     <>
@@ -114,6 +146,20 @@ function TeacherNavigation({ isAdmin, onNavigate }: { isAdmin: boolean; onNaviga
           <LayoutGridIcon />
           {t("dashboard.allClasses")}
         </Link>
+        {myReportClasses.length && reportTarget ? (
+          <Link
+            to="/class-report/$classId"
+            params={{ classId: reportTarget.classId }}
+            search={{ semester: reportTarget.semester }}
+            className={sidebarItemClass}
+            activeProps={{ className: sidebarItemActiveClass }}
+            activeOptions={{ includeSearch: false }}
+            onClick={onNavigate}
+          >
+            <FileTextIcon />
+            {t("classReport.nav")}
+          </Link>
+        ) : null}
         {isAdmin ? (
           <a href={adminUrl} className={sidebarItemClass}>
             <ShieldCheckIcon />
@@ -126,22 +172,41 @@ function TeacherNavigation({ isAdmin, onNavigate }: { isAdmin: boolean; onNaviga
           of the sidebar, and one click from anywhere. */}
       {myBoards.length ? (
         <SidebarSection label={t("dashboard.myAssignments")}>
-          {myBoards.map(({ schoolClass, subject }) => (
-            <Link
-              key={`${schoolClass.id}-${subject.subject}`}
-              to="/classes/$classId/$subject"
-              params={{ classId: String(schoolClass.id), subject: subject.subject }}
-              search={{ semester: undefined }}
-              className={sidebarItemClass}
-              activeProps={{ className: sidebarItemActiveClass }}
-              onClick={onNavigate}
-            >
-              <span className="tabular w-8 shrink-0 text-xs text-muted-foreground">
-                {schoolClass.name}
-              </span>
-              <span className="truncate">{t(`subjects.${subject.subject}`)}</span>
-            </Link>
-          ))}
+          {myBoards.map(({ schoolClass, subject }) => {
+            const label = (
+              <>
+                <span className="tabular w-8 shrink-0 text-xs text-muted-foreground">
+                  {schoolClass.name}
+                </span>
+                <span className="truncate">{t(`subjects.${subject}`)}</span>
+              </>
+            );
+            const shared = {
+              search: { semester: undefined },
+              className: sidebarItemClass,
+              activeProps: { className: sidebarItemActiveClass },
+              onClick: onNavigate,
+            };
+            return reportOpen ? (
+              <Link
+                key={`${schoolClass.id}-${subject}`}
+                {...shared}
+                to="/class-report/$classId"
+                params={{ classId: String(schoolClass.id) }}
+              >
+                {label}
+              </Link>
+            ) : (
+              <Link
+                key={`${schoolClass.id}-${subject}`}
+                {...shared}
+                to="/classes/$classId/$subject"
+                params={{ classId: String(schoolClass.id), subject }}
+              >
+                {label}
+              </Link>
+            );
+          })}
         </SidebarSection>
       ) : null}
     </>

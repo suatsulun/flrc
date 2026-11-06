@@ -44,6 +44,9 @@ at **00:00 Europe/Istanbul**; visitor changes and sessions are cleared. Use fict
   gives promoted students fresh sequential school numbers, counted separately in each stage.
 - Teachers can filter assessment categories and stage 1-2-3 ratings for a pupil or a whole class
   before saving. Grade 4 German/French use ratings and comments without numeric averages.
+- Middle-school English teachers (grades 5-8) have a class report beside the grade table: the whole
+  class with every field in alternating rows, printed as one landscape page per class, or all of
+  their classes in one PDF, for parent-teacher meetings.
 - Slow actions keep their button disabled with an in-place spinner, page loads have visible
   progress/skeleton states, and reports announce start, completion, or failure without browser
   alert boxes. Same-grade class tables are prefetched to make tab switching feel immediate.

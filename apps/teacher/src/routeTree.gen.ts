@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthIndexRouteImport } from './routes/_auth/index'
+import { Route as AuthClassReportClassIdRouteImport } from './routes/_auth/class-report.$classId'
 import { Route as AuthClassesClassIdSubjectRouteImport } from './routes/_auth/classes.$classId.$subject'
 
 const AuthRoute = AuthRouteImport.update({
@@ -28,6 +29,11 @@ const AuthIndexRoute = AuthIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthClassReportClassIdRoute = AuthClassReportClassIdRouteImport.update({
+  id: '/class-report/$classId',
+  path: '/class-report/$classId',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthClassesClassIdSubjectRoute =
   AuthClassesClassIdSubjectRouteImport.update({
     id: '/classes/$classId/$subject',
@@ -38,11 +44,13 @@ const AuthClassesClassIdSubjectRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthIndexRoute
   '/login': typeof LoginRoute
+  '/class-report/$classId': typeof AuthClassReportClassIdRoute
   '/classes/$classId/$subject': typeof AuthClassesClassIdSubjectRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/': typeof AuthIndexRoute
+  '/class-report/$classId': typeof AuthClassReportClassIdRoute
   '/classes/$classId/$subject': typeof AuthClassesClassIdSubjectRoute
 }
 export interface FileRoutesById {
@@ -50,18 +58,21 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/login': typeof LoginRoute
   '/_auth/': typeof AuthIndexRoute
+  '/_auth/class-report/$classId': typeof AuthClassReportClassIdRoute
   '/_auth/classes/$classId/$subject': typeof AuthClassesClassIdSubjectRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/classes/$classId/$subject'
+  fullPaths:
+    '/' | '/login' | '/class-report/$classId' | '/classes/$classId/$subject'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/' | '/classes/$classId/$subject'
+  to: '/login' | '/' | '/class-report/$classId' | '/classes/$classId/$subject'
   id:
     | '__root__'
     | '/_auth'
     | '/login'
     | '/_auth/'
+    | '/_auth/class-report/$classId'
     | '/_auth/classes/$classId/$subject'
   fileRoutesById: FileRoutesById
 }
@@ -93,6 +104,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthIndexRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/class-report/$classId': {
+      id: '/_auth/class-report/$classId'
+      path: '/class-report/$classId'
+      fullPath: '/class-report/$classId'
+      preLoaderRoute: typeof AuthClassReportClassIdRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/classes/$classId/$subject': {
       id: '/_auth/classes/$classId/$subject'
       path: '/classes/$classId/$subject'
@@ -105,11 +123,13 @@ declare module '@tanstack/react-router' {
 
 interface AuthRouteChildren {
   AuthIndexRoute: typeof AuthIndexRoute
+  AuthClassReportClassIdRoute: typeof AuthClassReportClassIdRoute
   AuthClassesClassIdSubjectRoute: typeof AuthClassesClassIdSubjectRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthIndexRoute: AuthIndexRoute,
+  AuthClassReportClassIdRoute: AuthClassReportClassIdRoute,
   AuthClassesClassIdSubjectRoute: AuthClassesClassIdSubjectRoute,
 }
 

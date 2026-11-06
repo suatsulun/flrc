@@ -32,6 +32,9 @@ Not collected: gender, birthdate, national id, home address, browser tokens, or 
 - Direct PDF responses are not stored as job blobs. Downloaded files and school Drive archive
   bundles have the school's retention policy, independently of the 24-hour job-download expiry.
   Expired job blobs remain in storage until `flrc purge-job-outputs` removes them.
+- Middle-school English class sheets (ADR-074) print a whole class: school numbers, names and
+  every English field. Any signed-in teacher may generate one; the server keeps no copy, and the
+  footer marks each page as the teacher's copy listing every pupil in the class.
 - Dump files are age-encrypted. Archive PDFs/workbooks are readable files protected by school
   Shared Drive membership. `BACKUP_RETAIN` controls nightly dump retention (default 7);
   archived-year bundles are not automatically pruned.

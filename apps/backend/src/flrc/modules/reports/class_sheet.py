@@ -11,6 +11,7 @@ grade grid does. The PDF route lives in the reports router and shares its
 per-account rate limit; the preview is as cheap as a grid read and is not limited.
 """
 
+import math
 from collections.abc import Sequence
 from datetime import UTC, datetime, tzinfo
 from itertools import groupby
@@ -71,7 +72,6 @@ FIELD_MIN_MM = 7.0
 VALUE_PADDING_MM = 0.6
 # DejaVu Sans digits are 0.636 em wide: 0.2244 mm per digit for each point of type size.
 DIGIT_MM_PER_PT = 0.2244
-VALUE_MIN_PT = 6.0
 
 
 class ClassSheetColumnOut(BaseModel):
@@ -341,9 +341,11 @@ def column_widths(sheet: ClassSheetOut, row_pt: float) -> tuple[float, float, fl
         ),
         default=1,
     )
-    # 10% slack for rounding; half-point steps keep the type sizes tidy.
-    fitting_pt = 0.9 * (field_mm - VALUE_PADDING_MM) / (digits * DIGIT_MM_PER_PT)
-    value_pt = min(row_pt, max(VALUE_MIN_PT, int(fitting_pt * 2) / 2))
+    # 10% slack for rounding, in quarter points. The type never exceeds what fits, so grades
+    # never overlap: it stays at 6 pt or more up to about 48 three-digit fields and keeps
+    # shrinking past that rather than letting a value spill into its neighbour.
+    fitting_pt = 0.9 * max(field_mm - VALUE_PADDING_MM, 0.1) / (digits * DIGIT_MM_PER_PT)
+    value_pt = min(row_pt, max(0.25, math.floor(fitting_pt * 4) / 4))
     return round(name_mm, 2), round(field_mm, 2), value_pt
 
 

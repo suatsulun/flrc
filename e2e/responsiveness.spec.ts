@@ -82,6 +82,7 @@ async function mockReportCatalog(page: Page) {
             my_roles: [],
             can_write: !archived,
           })),
+          assigned_roles: [],
         },
       ],
     });

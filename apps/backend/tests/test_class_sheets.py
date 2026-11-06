@@ -1,5 +1,6 @@
 from io import BytesIO
 
+import pytest
 from pypdf import PdfReader
 from sqlalchemy import select
 
@@ -265,6 +266,36 @@ async def test_long_labels_names_and_many_fields_still_fit_one_page(
     assert name_mm < 64
     assert value_pt >= 6
     assert 3 * value_pt * DIGIT_MM_PER_PT + VALUE_PADDING_MM <= field_mm
+
+
+@pytest.mark.parametrize(("fields", "legible"), [(11, True), (40, True), (60, False), (120, False)])
+def test_grades_never_overflow_their_field(fields: int, legible: bool) -> None:
+    """However many fields a class has, a three-digit grade is sized to fit its own cell."""
+    sheet = ClassSheetOut(
+        class_id=1,
+        class_name="5/A",
+        grade_level=5,
+        year_id=1,
+        year_label="Synthetic year",
+        semester_id=1,
+        semester_number=1,
+        teachers=[],
+        columns=[
+            {"id": index, "label": f"Field {index}", "group": None, "value_type": "score"}
+            for index in range(fields)
+        ],
+        students=[
+            {
+                "student_id": 1,
+                "school_number": 1,
+                "full_name": "Synthetic",
+                "values": [100] * fields,
+            }
+        ],
+    )
+    _name_mm, field_mm, value_pt = column_widths(sheet, 9.0)
+    assert 3 * value_pt * DIGIT_MM_PER_PT + VALUE_PADDING_MM <= field_mm
+    assert (value_pt >= 6) is legible
 
 
 async def test_pdf_rejects_unknown_and_other_year_classes(api, world) -> None:

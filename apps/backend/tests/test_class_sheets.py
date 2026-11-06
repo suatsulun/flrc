@@ -178,6 +178,38 @@ async def test_a_full_class_prints_on_one_page_and_each_class_on_its_own(api, wo
         assert only_empty.json()["detail"]["code"] == "empty_report_set"
 
 
+async def test_long_headings_groups_and_ratings_still_fit_one_page(api, world) -> None:
+    """Every heading has a fixed height, so admin-entered labels cannot push rows off the page."""
+    await _fill_class(world, 34)
+    long_group = "A group heading an administrator typed at great length " * 6
+    long_label = "An assessment heading that keeps going well past three printed lines " * 3
+    async with TestSession() as db:
+        db.add_all(
+            [
+                m.ColumnDefinition(
+                    semester_id=world.semester,
+                    grade_level=5,
+                    subject="english",
+                    value_type="scale3" if position % 2 else "score",
+                    owner_role="main",
+                    labels={"tr": long_label, "en": f"{long_label}{position}"},
+                    group_labels={"tr": long_group, "en": f"{long_group}{position // 4}"},
+                    position=10 + position,
+                )
+                for position in range(12)
+            ]
+        )
+        await db.commit()
+    async with api(world.main) as client:
+        response = await client.get(
+            "/api/reports/class-sheets",
+            params={"semester_id": world.semester, "class_id": world.cls, "locale": "tr"},
+        )
+    assert response.status_code == 200
+    # 34 pupils, twelve long headings in three long groups and the rating legend: one page.
+    assert len(PdfReader(BytesIO(response.content)).pages) == 1
+
+
 async def test_pdf_rejects_unknown_and_other_year_classes(api, world) -> None:
     async with TestSession() as db:
         past_year = m.AcademicYear(label="2020-2021", status="archived")

@@ -50,8 +50,10 @@ Locale = Literal["tr", "en", "de", "fr"]
 MAX_CLASSES = 40
 ROLE_ORDER = {"main": 0, "skills": 1}
 
-# One class must fit one A4 landscape page. Of the 184 mm between the page margins,
-# the title block and up to three heading lines take about 40 mm; rows share the rest.
+# One class must fit one A4 landscape page. The template's margins leave 188 mm; the title
+# block takes about 17 mm and the field headings at most 12 mm (clipped at three lines).
+# Rows share what remains, less the one-line group row and the rating legend when present,
+# with about 15 mm kept in reserve.
 ROW_SPACE_MM = 144.0
 GROUP_ROW_MM = 5.0
 SCALE_LEGEND_MM = 6.0

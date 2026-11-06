@@ -1,18 +1,10 @@
 import { appShellLabels } from "@flrc/i18n";
-import {
-  Outlet,
-  createFileRoute,
-  Link,
-  redirect,
-  useMatch,
-  useParams,
-  useSearch,
-} from "@tanstack/react-router";
+import { Outlet, createFileRoute, Link, redirect, useMatch } from "@tanstack/react-router";
 import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { FileTextIcon, LayoutGridIcon, ShieldCheckIcon } from "lucide-react";
-import { listClassCatalogOptions, sessionOptions } from "@flrc/api-client";
+import { getGridOptions, listClassCatalogOptions, sessionOptions } from "@flrc/api-client";
 import {
   AppShell,
   SidebarSection,
@@ -103,23 +95,27 @@ function TeacherNavigation({ isAdmin, onNavigate }: { isAdmin: boolean; onNaviga
   const { t } = useTranslation();
   // Shares the dashboard's cache entry, so this costs no extra request.
   const { data: catalog = [] } = useQuery(listClassCatalogOptions());
-  // The class on screen, whether its grid or its class report is open.
-  const params = useParams({ strict: false });
-  const { semester } = useSearch({ strict: false });
-  const reportOpen = Boolean(
-    useMatch({ from: "/_auth/class-report/$classId", shouldThrow: false }),
-  );
+  const reportMatch = useMatch({ from: "/_auth/class-report/$classId", shouldThrow: false });
+  const gridMatch = useMatch({ from: "/_auth/classes/$classId/$subject", shouldThrow: false });
+  const englishGrid = gridMatch?.params.subject === "english" ? gridMatch : undefined;
+  // The English grid on screen is already in the cache under the same key, in whichever year
+  // and semester it shows; read its grade from there instead of the active-year catalog.
+  const { data: grid } = useQuery({
+    ...getGridOptions({
+      path: { class_id: Number(englishGrid?.params.classId) },
+      query: { subject: "english", semester: englishGrid?.search.semester },
+    }),
+    enabled: false,
+  });
+  const reportOpen = reportMatch !== undefined;
 
-  // Class reports are for middle-school English teachers; only they get the entry.
+  // Class reports are for middle-school English teachers; only they get the entry. It opens
+  // the report of the class on screen when that is a middle-school English class.
   const myReportClasses = reportClasses(catalog, { mine: true });
-  const onScreen = catalog.find((item) => item.id === Number(params.classId));
-  const reportTarget =
-    params.classId &&
-    (reportOpen ||
-      (params.subject === "english" &&
-        onScreen !== undefined &&
-        REPORT_GRADES.includes(onScreen.grade_level)))
-      ? { classId: params.classId, semester }
+  const reportTarget = reportMatch
+    ? { classId: reportMatch.params.classId, semester: reportMatch.search.semester }
+    : englishGrid && grid && REPORT_GRADES.includes(grid.meta.grade_level)
+      ? { classId: englishGrid.params.classId, semester: grid.meta.semester_number }
       : myReportClasses[0]
         ? { classId: String(myReportClasses[0].id), semester: undefined }
         : null;

@@ -5,8 +5,9 @@
   Unlike the report cards this is a plain table with page margins and a footer, so
   it does not extend base.html's fixed, zero-margin sheets. Each class starts a new
   page and fits it: the builder sizes the rows (and their type) from the class
-  size, names stay on one line, and headings are clipped at three lines. Rows
-  alternate in shade so a reader keeps their place across a wide row.
+  size, names and group headings stay on one line, and field headings are clipped
+  at three lines. Rows alternate in shade so a reader keeps their place across a
+  wide row.
 
   NOTE: this directory is in .prettierignore — Prettier reflows Jinja tags.
 #}
@@ -97,8 +98,10 @@
         vertical-align: bottom;
         overflow-wrap: break-word;
       }
-      /* Three heading lines at most, so the heading never pushes rows off the page. */
-      .roster thead th .clip { max-height: 8.6mm; overflow: hidden; }
+      /* Headings have fixed heights (three field lines, one group line) that the builder's
+         page budget reserves, so no label can push rows onto a second page. */
+      .roster thead th .clip { max-height: 9mm; overflow: hidden; }
+      .roster thead th .clip-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .roster thead tr.groups th {
         font-size: 6.5pt;
         font-weight: 400;
@@ -152,7 +155,7 @@
           <tr class="groups">
             <th class="empty-group" colspan="2"></th>
             {% for group, span in page.group_spans %}
-            <th colspan="{{ span }}"{% if not group %} class="empty-group"{% endif %}>{{ group or "" }}</th>
+            <th colspan="{{ span }}"{% if not group %} class="empty-group"{% endif %}><div class="clip-line">{{ group or "" }}</div></th>
             {% endfor %}
           </tr>
           {% endif %}

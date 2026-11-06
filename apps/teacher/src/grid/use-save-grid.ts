@@ -3,6 +3,7 @@ import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-quer
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
+  getClassSheetQueryKey,
   saveGridMutation,
   type ConflictOut,
   type GridOut,
@@ -30,7 +31,7 @@ export function useSaveGrid({ classId, subject, gridKey }: Arguments) {
         submitted: { cells: body.cells, draft: draft.cells },
       };
     },
-    onSuccess: (response, _variables, context) => {
+    onSuccess: (response, variables, context) => {
       const grid = queryClient.getQueryData<GridOut>(context.gridKey);
       const draft = useDirtyStore.getState();
       if (grid) {
@@ -40,6 +41,12 @@ export function useSaveGrid({ classId, subject, gridKey }: Arguments) {
         if (draft.generation === context.generation) {
           useDirtyStore.setState({ cells: merged.dirty });
         }
+      }
+      // The class report shows the same values; refetch it for every semester of the class.
+      if (response.applied.length) {
+        void queryClient.invalidateQueries({
+          queryKey: getClassSheetQueryKey({ path: { class_id: variables.path.class_id } }),
+        });
       }
       if (draft.generation !== context.generation) return;
       if (response.rejected.length) {

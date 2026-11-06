@@ -1,5 +1,6 @@
 import { GRADES } from "@flrc/i18n";
 import {
+  getClassSheetQueryKey,
   getGridOptions,
   getGridQueryKey,
   undoGridMutation,
@@ -88,9 +89,12 @@ function GridPage() {
 
   const undo = useMutation({
     ...undoGridMutation(),
-    onSuccess: () => {
+    onSuccess: (_response, variables) => {
       toast.success(t("grid.undoSuccess"));
       void queryClient.invalidateQueries({ queryKey: gridKey });
+      void queryClient.invalidateQueries({
+        queryKey: getClassSheetQueryKey({ path: { class_id: variables.path.class_id } }),
+      });
     },
   });
 

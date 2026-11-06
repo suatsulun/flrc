@@ -80,6 +80,9 @@ class ClassCatalogOut(BaseModel):
     grade_level: int
     section: str
     subjects: list[ClassSubjectOut]
+    # Every role the signed-in teacher holds in this class. A subject's `my_roles` keeps only
+    # those that own one of its active fields; class-wide features use this list instead.
+    assigned_roles: list[str]
 
 
 class AcademicSemesterOut(BaseModel):
@@ -285,6 +288,7 @@ async def list_class_catalog(
                 grade_level=school_class.grade_level,
                 section=school_class.section,
                 subjects=subjects,
+                assigned_roles=sorted(class_roles),
             )
         )
     return catalog

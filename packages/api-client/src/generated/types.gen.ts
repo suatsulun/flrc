@@ -418,6 +418,10 @@ export type ClassCatalogOut = {
      * Subjects
      */
     subjects: Array<ClassSubjectOut>;
+    /**
+     * Assigned Roles
+     */
+    assigned_roles: Array<string>;
 };
 
 /**

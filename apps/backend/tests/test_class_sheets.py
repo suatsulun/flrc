@@ -139,6 +139,22 @@ async def test_class_reports_are_for_middle_school_classes_only(api, world) -> N
         assert response.json()["detail"]["code"] == "class_report_middle_english_only"
 
 
+async def test_catalog_lists_every_assignment_even_without_owned_fields(api, world) -> None:
+    """The class report belongs to both English teachers, even when one owns no field."""
+    async with TestSession() as db:
+        skills_column = await db.get(m.ColumnDefinition, world.skills_column)
+        assert skills_column is not None
+        skills_column.is_active = False
+        await db.commit()
+    async with api(world.skills) as client:
+        catalog = (await client.get("/api/class-catalog")).json()
+    (entry,) = catalog
+    assert entry["assigned_roles"] == ["skills"]
+    # Field ownership still drives the grid's own shortcuts and warnings.
+    assert entry["subjects"][0]["my_roles"] == []
+    assert entry["subjects"][0]["can_write"] is False
+
+
 async def test_a_full_class_prints_on_one_page_and_each_class_on_its_own(api, world) -> None:
     await _fill_class(world, 34)
     async with TestSession() as db:

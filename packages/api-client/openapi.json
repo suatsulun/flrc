@@ -4335,6 +4335,13 @@
             },
             "type": "array",
             "title": "Subjects"
+          },
+          "assigned_roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assigned Roles"
           }
         },
         "type": "object",
@@ -4343,7 +4350,8 @@
           "name",
           "grade_level",
           "section",
-          "subjects"
+          "subjects",
+          "assigned_roles"
         ],
         "title": "ClassCatalogOut"
       },

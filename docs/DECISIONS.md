@@ -3171,7 +3171,9 @@ Other subjects and grades do not need it.
 
 - Class reports cover English in grades 5 to 8 only. The API refuses other classes with
   `class_report_middle_english_only`, and the teacher app shows the sidebar entry only to teachers
-  assigned to a middle-school English class.
+  assigned to a middle-school English class. Either English assignment (main or skills) counts,
+  whether or not that role owns any of the semester's fields: the class catalog reports every role
+  as `assigned_roles`, while a subject's `my_roles` keeps describing field ownership.
 - The report lives at `/class-report/{class}` beside the grade grid and reuses its year, semester
   and class pickers, narrowed to grades 5 to 8. The sidebar entry opens the report of the class on
   screen; while a report is open the sidebar shortcuts open reports of the teacher's classes.

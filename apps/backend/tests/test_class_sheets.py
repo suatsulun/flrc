@@ -1,8 +1,17 @@
 from io import BytesIO
 
 from pypdf import PdfReader
+from sqlalchemy import select
 
+from flrc.config import settings
 from flrc.db import models as m
+from flrc.modules.reports.class_sheet import (
+    DIGIT_MM_PER_PT,
+    VALUE_PADDING_MM,
+    ClassSheetOut,
+    column_widths,
+)
+from flrc.modules.reports.render import school_brand
 from tests.conftest import TestSession
 
 LONG_NAME = "Synthetic Abdurrahmangazi Karamehmetoğulları Pupil"
@@ -178,36 +187,68 @@ async def test_a_full_class_prints_on_one_page_and_each_class_on_its_own(api, wo
         assert only_empty.json()["detail"]["code"] == "empty_report_set"
 
 
-async def test_long_headings_groups_and_ratings_still_fit_one_page(api, world) -> None:
-    """Every heading has a fixed height, so admin-entered labels cannot push rows off the page."""
+async def test_long_labels_names_and_many_fields_still_fit_one_page(
+    api, world, monkeypatch, request
+) -> None:
+    """Every heading and the masthead have fixed heights, and fields share the width, so
+    admin-entered labels, long school and teacher names and many fields cannot push rows off
+    the page."""
+    monkeypatch.setattr(settings, "school_name", "Synthetic School With A Long Official Name " * 5)
+    school_brand.cache_clear()
+    request.addfinalizer(school_brand.cache_clear)
     await _fill_class(world, 34)
     long_group = "A group heading an administrator typed at great length " * 6
     long_label = "An assessment heading that keeps going well past three printed lines " * 3
     async with TestSession() as db:
+        for teacher in (world.main.id, world.skills.id):
+            user = await db.get(m.User, teacher)
+            assert user is not None
+            user.full_name = "Synthetic Teacher With A Very Long Name " * 4
+        columns = [
+            m.ColumnDefinition(
+                semester_id=world.semester,
+                grade_level=5,
+                subject="english",
+                value_type="scale3" if position % 2 else "score",
+                owner_role="main",
+                labels={"tr": long_label, "en": f"{long_label}{position}"},
+                group_labels={"tr": long_group, "en": f"{long_group}{position // 4}"},
+                position=10 + position,
+            )
+            for position in range(40)
+        ]
+        db.add_all(columns)
+        await db.flush()
+        pupils = await db.scalars(
+            select(m.Enrollment.student_id).where(m.Enrollment.class_id == world.cls)
+        )
         db.add_all(
-            [
-                m.ColumnDefinition(
-                    semester_id=world.semester,
-                    grade_level=5,
-                    subject="english",
-                    value_type="scale3" if position % 2 else "score",
-                    owner_role="main",
-                    labels={"tr": long_label, "en": f"{long_label}{position}"},
-                    group_labels={"tr": long_group, "en": f"{long_group}{position // 4}"},
-                    position=10 + position,
-                )
-                for position in range(12)
-            ]
+            m.GradeValue(
+                student_id=pupil,
+                column_definition_id=column.id,
+                version=1,
+                updated_by=world.main.id,
+                **({"scale": 3} if column.value_type == "scale3" else {"score": 100}),
+            )
+            for pupil in pupils
+            for column in columns
         )
         await db.commit()
     async with api(world.main) as client:
+        preview = await client.get(f"/api/classes/{world.cls}/sheet")
         response = await client.get(
             "/api/reports/class-sheets",
             params={"semester_id": world.semester, "class_id": world.cls, "locale": "tr"},
         )
     assert response.status_code == 200
-    # 34 pupils, twelve long headings in three long groups and the rating legend: one page.
+    # 34 pupils, 42 fields with long headings in long groups, the rating legend and two
+    # long teacher names: still one page.
     assert len(PdfReader(BytesIO(response.content)).pages) == 1
+    # The name column gives way so a three-digit score stays whole in each narrow field.
+    name_mm, field_mm, value_pt = column_widths(ClassSheetOut(**preview.json()), 7.5)
+    assert name_mm < 64
+    assert value_pt >= 6
+    assert 3 * value_pt * DIGIT_MM_PER_PT + VALUE_PADDING_MM <= field_mm
 
 
 async def test_pdf_rejects_unknown_and_other_year_classes(api, world) -> None:

@@ -74,11 +74,14 @@
         border-bottom: 0.6mm solid var(--accent);
       }
       .sheet-head img { height: 11mm; width: auto; }
-      .sheet-head .titles { flex: 1; }
-      .sheet-head h1 { margin: 0; font-size: 13pt; line-height: 1.2; }
+      /* The masthead has a fixed height too: one title line and at most two detail lines,
+         so long teacher or school names cannot push rows onto a second page. */
+      .sheet-head .titles { flex: 1; min-width: 0; }
+      .sheet-head h1 { margin: 0; font-size: 13pt; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .sheet-head h1 .kind { color: var(--ink-soft); font-weight: 400; }
-      .sheet-head p { margin: 0.8mm 0 0; color: var(--ink-soft); }
-      .sheet-head .printed { text-align: right; color: var(--ink-soft); font-size: 7pt; }
+      .sheet-head p { margin: 0.8mm 0 0; color: var(--ink-soft); max-height: 6.8mm; overflow: hidden; }
+      .sheet-head .printed { max-width: 70mm; text-align: right; color: var(--ink-soft); font-size: 7pt; }
+      .sheet-head .printed div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
       table.roster {
         width: 100%;
@@ -86,7 +89,6 @@
         table-layout: fixed;
       }
       .roster col.number { width: 13mm; }
-      .roster col.name { width: 64mm; }
 
       .roster thead th {
         background: var(--head);
@@ -125,7 +127,15 @@
       .roster tbody tr:last-child td { border-bottom: 0.3mm solid var(--rule); }
       .roster td.number { text-align: center; color: var(--ink-soft); }
       .roster td.name { font-weight: 700; }
-      .roster td.value { text-align: center; }
+      /* Grades are never shortened: the builder narrows the name column and sizes this type
+         so the widest value fits its field. */
+      .roster td.value {
+        padding: 0 0.3mm;
+        text-align: center;
+        font-size: var(--value-size);
+        overflow: visible;
+        text-overflow: clip;
+      }
 
       .legend { margin-top: 2mm; font-size: 7pt; color: var(--ink-soft); }
       .legend b { color: var(--ink); }
@@ -141,13 +151,13 @@
           <h1>{{ page.heading }} <span class="kind">· {{ text.title }}</span></h1>
           <p>{{ page.context }}{% if page.teachers %} · {{ page.teachers }}{% endif %}</p>
         </div>
-        <div class="printed">{{ school.name }}<br />{{ text.printed }}: {{ printed_on }}</div>
+        <div class="printed"><div>{{ school.name }}</div><div>{{ text.printed }}: {{ printed_on }}</div></div>
       </header>
 
-      <table class="roster" style="font-size: {{ page.font_pt }}pt">
+      <table class="roster" style="font-size: {{ page.font_pt }}pt; --value-size: {{ page.value_pt }}pt">
         <colgroup>
           <col class="number" />
-          <col class="name" />
+          <col class="name" style="width: {{ page.name_mm }}mm" />
           {% for column in page.columns %}<col />{% endfor %}
         </colgroup>
         <thead>

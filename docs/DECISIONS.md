@@ -3180,8 +3180,10 @@ Other subjects and grades do not need it.
   and paper share columns and order. Grades 5 to 8 English have no notes (ADR-063), so a sheet is
   one row per student, and text fields never reach it.
 - Each class prints on one A4 landscape page. The builder sizes rows (and their type) from the
-  class size, names stay on one line, and headings are clipped at three lines; up to 34 students fit
-  on the page. "All my classes" prints one page per class in one file; empty classes are left out.
+  class size; names, group headings and the title stay on one line, field headings and the
+  masthead details are clipped at a fixed height, and with many fields the name column narrows
+  and grade type shrinks so every grade stays whole. Up to 34 students fit on the page. "All my
+  classes" prints one page per class in one file; empty classes are left out.
 - Rows alternate in shade, and the preview marks the student the teacher clicks or reaches with the
   arrow keys.
 - Reads follow ADR-071: any signed-in teacher may preview or print any middle-school English class.

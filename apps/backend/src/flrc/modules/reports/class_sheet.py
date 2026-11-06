@@ -50,16 +50,28 @@ Locale = Literal["tr", "en", "de", "fr"]
 MAX_CLASSES = 40
 ROLE_ORDER = {"main": 0, "skills": 1}
 
-# One class must fit one A4 landscape page. The template's margins leave 188 mm; the title
-# block takes about 17 mm and the field headings at most 12 mm (clipped at three lines).
-# Rows share what remains, less the one-line group row and the rating legend when present,
-# with about 15 mm kept in reserve.
+# One class must fit one A4 landscape page. The template's margins leave 188 mm; the
+# masthead (one title line, at most two detail lines) takes at most 19 mm and the field
+# headings at most 12 mm (clipped at three lines). Rows share what remains, less the
+# one-line group row and the rating legend when present, with a few millimetres in reserve.
 ROW_SPACE_MM = 144.0
 GROUP_ROW_MM = 5.0
 SCALE_LEGEND_MM = 6.0
 ROW_MAX_MM = 7.5
 # 34 students still fit at this height; a larger class continues on a second page.
 ROW_MIN_MM = 4.2
+
+# Across the page: 277 mm between the side margins, a fixed number column, and a name column
+# that gives up width when there are many fields, so every grade stays whole and legible.
+TABLE_WIDTH_MM = 277.0
+NUMBER_WIDTH_MM = 13.0
+NAME_MAX_MM = 64.0
+NAME_MIN_MM = 40.0
+FIELD_MIN_MM = 7.0
+VALUE_PADDING_MM = 0.6
+# DejaVu Sans digits are 0.636 em wide: 0.2244 mm per digit for each point of type size.
+DIGIT_MM_PER_PT = 0.2244
+VALUE_MIN_PT = 6.0
 
 
 class ClassSheetColumnOut(BaseModel):
@@ -313,6 +325,28 @@ def row_height_mm(students: int, *, groups: bool, scale: bool) -> float:
     return round(min(ROW_MAX_MM, max(ROW_MIN_MM, space / max(students, 1))), 2)
 
 
+def column_widths(sheet: ClassSheetOut, row_pt: float) -> tuple[float, float, float]:
+    """Name and field widths (mm) and the value type size (pt) that shows every grade whole."""
+    fields = max(len(sheet.columns), 1)
+    name_mm = max(
+        NAME_MIN_MM, min(NAME_MAX_MM, TABLE_WIDTH_MM - NUMBER_WIDTH_MM - fields * FIELD_MIN_MM)
+    )
+    field_mm = (TABLE_WIDTH_MM - NUMBER_WIDTH_MM - name_mm) / fields
+    digits = max(
+        (
+            len(str(value))
+            for student in sheet.students
+            for value in student.values
+            if value is not None
+        ),
+        default=1,
+    )
+    # 10% slack for rounding; half-point steps keep the type sizes tidy.
+    fitting_pt = 0.9 * (field_mm - VALUE_PADDING_MM) / (digits * DIGIT_MM_PER_PT)
+    value_pt = min(row_pt, max(VALUE_MIN_PT, int(fitting_pt * 2) / 2))
+    return round(name_mm, 2), round(field_mm, 2), value_pt
+
+
 def _page(sheet: ClassSheetOut, text: dict[str, str]) -> dict[str, object]:
     """Arrange one sheet for the template: heading spans, legend and row height."""
     group_spans = [
@@ -321,6 +355,9 @@ def _page(sheet: ClassSheetOut, text: dict[str, str]) -> dict[str, object]:
     has_groups = any(group for group, _ in group_spans)
     has_scale = any(column.value_type == "scale3" for column in sheet.columns)
     row_mm = row_height_mm(len(sheet.students), groups=has_groups, scale=has_scale)
+    # Shrink the type with the row, so a full class stays on one page.
+    row_pt = 9.0 if row_mm >= 5.6 else 8.0 if row_mm >= 4.8 else 7.5
+    name_mm, _field_mm, value_pt = column_widths(sheet, row_pt)
     teachers_label = text["teacher"] if len(sheet.teachers) == 1 else text["teachers"]
     return {
         "heading": f"{sheet.class_name} · {text['subject']}",
@@ -337,8 +374,9 @@ def _page(sheet: ClassSheetOut, text: dict[str, str]) -> dict[str, object]:
         "students": sheet.students,
         "has_scale": has_scale,
         "row_mm": row_mm,
-        # Shrink the type with the row, so a full class stays on one page.
-        "font_pt": 9 if row_mm >= 5.6 else 8 if row_mm >= 4.8 else 7.5,
+        "font_pt": row_pt,
+        "name_mm": name_mm,
+        "value_pt": value_pt,
     }
 
 

@@ -227,8 +227,8 @@
     "bulkStudentHint": "Gilt für alle {{count}} Bewertungen dieses Schülers bzw. dieser Schülerin.",
     "bulkClassHint": "Gilt für alle {{count}} Bewertungen aller {{students}} Lernenden in diesem Fach.",
     "bulkSaveHint": "Umfasst alle Kategorien. Änderungen werden mit Speichern gespeichert.",
-    "noTeacherNotes": "Für dieses Fach ist kein Kommentarfeld eingerichtet. Ein Administrator kann unter Spalten ein Textfeld hinzufügen.",
-    "compactDraftAccess": "Das Speichern der Felder einer anderen Lehrkraft erfordert eine Bestätigung und wird protokolliert."
+    "noTeacherNotes": "Für dieses Fach ist keine Kommentarspalte eingerichtet. Ein Administrator kann unter Spalten eine Textspalte hinzufügen.",
+    "compactDraftAccess": "Das Speichern der Spalten einer anderen Lehrkraft erfordert eine Bestätigung und wird protokolliert."
   },
   "stepper": {
     "prev": "Zurück",
@@ -380,7 +380,7 @@
     "columnName": "Spaltentitel ({{language}})",
     "turkishName": "Türkischer Wortlaut im Zeugnis",
     "columnType": "Spaltentyp",
-    "columnOwner": "Zuständiges Fach",
+    "columnOwner": "Zuständige Lehrkraft",
     "typeScore": "Punktzahl (0-100)",
     "typeScale": "Dreistufige Kompetenz",
     "typeText": "Schriftliche Notiz",
@@ -847,7 +847,7 @@
       "file_too_large": "Die Datei ist zu groß; erlaubt sind höchstens 10 MB.",
       "forbidden": "Dafür fehlt Ihnen die Berechtigung.",
       "grade_change_requires_confirmation": "Der Wechsel in eine andere Klassenstufe muss bestätigt werden.",
-      "grade_four_l2_scale_only": "Deutsch und Französisch in Klasse 4 erlauben nur dreistufige Skalen- oder Textfelder.",
+      "grade_four_l2_scale_only": "Deutsch und Französisch in Klasse 4 erlauben nur dreistufige Skalen- oder Textspalten.",
       "import_has_errors": "Die Arbeitsmappe enthält Fehler, die zuerst behoben werden müssen.",
       "import_hash_mismatch": "Die Datei hat sich nach der Vorschau geändert. Aktualisieren Sie die Vorschau.",
       "import_review_mismatch": "Die Vorschau ist veraltet. Aktualisieren Sie sie und versuchen Sie es erneut.",
@@ -951,7 +951,7 @@
     "backToTable": "Zurück zur Tabelle",
     "preparing": "PDF wird erstellt…",
     "rateLimited": "Zu viele PDFs in einer Minute. Bitte kurz warten und erneut versuchen.",
-    "tableLabel": "Klassenbericht: alle Schüler/innen mit ihren Englisch-Feldern",
+    "tableLabel": "Klassenbericht: alle Schüler/innen mit ihren Englisch-Spalten",
     "number": "Nr.",
     "readingHint": "Klicken Sie auf eine Zeile oder wechseln Sie mit ↑ ↓, um zu markieren, über wen Sie gerade sprechen.",
     "privacyNote": "Der Ausdruck enthält alle Schüler/innen dieser Klasse. Er ist das Exemplar der Lehrkraft für Elterngespräche.",

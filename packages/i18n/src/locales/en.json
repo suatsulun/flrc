@@ -227,8 +227,8 @@
     "bulkStudentHint": "Applies to all {{count}} rating assessments for this student.",
     "bulkClassHint": "Applies to all {{count}} rating assessments for each of the {{students}} students in this subject.",
     "bulkSaveHint": "Includes every category. Changes are saved when you press Save.",
-    "noTeacherNotes": "No teacher notes field is configured for this subject. An administrator can add a text field under Columns.",
-    "compactDraftAccess": "Saving another teacher’s fields requires confirmation and is recorded in the audit trail."
+    "noTeacherNotes": "No teacher notes column is configured for this subject. An administrator can add a text column under Columns.",
+    "compactDraftAccess": "Saving another teacher’s columns requires confirmation and is recorded in the audit trail."
   },
   "stepper": {
     "prev": "Previous",
@@ -380,7 +380,7 @@
     "columnName": "Column title ({{language}})",
     "turkishName": "Turkish wording on the report card",
     "columnType": "Column type",
-    "columnOwner": "Responsible field",
+    "columnOwner": "Responsible teacher",
     "typeScore": "Score (0-100)",
     "typeScale": "Three-level skill",
     "typeText": "Written note",
@@ -847,7 +847,7 @@
       "file_too_large": "The file is too large; the limit is 10 MB.",
       "forbidden": "You do not have permission to do this.",
       "grade_change_requires_confirmation": "Moving a student to another grade needs confirmation.",
-      "grade_four_l2_scale_only": "Grade 4 German and French allow only three-level scale or text fields.",
+      "grade_four_l2_scale_only": "Grade 4 German and French allow only three-level scale or text columns.",
       "import_has_errors": "The workbook has errors that must be fixed first.",
       "import_hash_mismatch": "The file changed after the preview. Refresh the preview.",
       "import_review_mismatch": "The preview is out of date. Refresh it and try again.",
@@ -951,7 +951,7 @@
     "backToTable": "Back to table",
     "preparing": "Preparing the PDF…",
     "rateLimited": "Too many PDFs in one minute. Please wait a moment and try again.",
-    "tableLabel": "Class report: every student with their English fields",
+    "tableLabel": "Class report: every student with their English columns",
     "number": "No.",
     "readingHint": "Click a student, or move with ↑ ↓, to mark who you are discussing.",
     "privacyNote": "The printout lists every student in this class. It is the teacher's copy for parent meetings.",

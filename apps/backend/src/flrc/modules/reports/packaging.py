@@ -13,6 +13,9 @@ school's back-cover PDF on the German/French karne. A ZIP that would pass the ou
 cut into numbered parts between whole files, one part in memory at a time.
 """
 
+import shutil
+import tempfile
+import time
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import Future, ProcessPoolExecutor
@@ -47,6 +50,36 @@ ZIP_MIME = "application/zip"
 MAX_OUTPUT_BYTES = 192 * 1024 * 1024
 # A ZIP under construction moves to a temporary file beyond this size.
 SPOOL_BYTES = 8 * 1024 * 1024
+# Every job renders in its own temporary folder, named after the job so a folder left by a
+# killed worker can be told apart from a live job's.
+WORKSPACE_PREFIX = "flrc-report-"
+# A folder nothing has written to for this long belongs to no running job.
+STALE_WORKSPACE_SECONDS = 6 * 3600
+
+
+def workspace_prefix(job_id: int) -> str:
+    return f"{WORKSPACE_PREFIX}{job_id}-"
+
+
+def reclaim_workspaces(live_job_ids: Iterable[int]) -> int:
+    """Delete report workspaces left behind by jobs that are no longer running.
+
+    A forced stop (SIGKILL, an out-of-memory kill) skips the job's own cleanup and leaves its
+    rendered PDFs on disk. A folder is removed when its job is not live, or when nothing has
+    touched it for ``STALE_WORKSPACE_SECONDS`` (a job still marked running after a kill); a
+    live job's recent folder is never touched. Returns how many folders were removed.
+    """
+    live = set(live_job_ids)
+    removed = 0
+    for folder in Path(tempfile.gettempdir()).glob(f"{WORKSPACE_PREFIX}*"):
+        job, _, _rest = folder.name.removeprefix(WORKSPACE_PREFIX).partition("-")
+        if not folder.is_dir() or not job.isdigit():
+            continue
+        stale = time.time() - folder.stat().st_mtime > STALE_WORKSPACE_SECONDS
+        if int(job) not in live or stale:
+            shutil.rmtree(folder, ignore_errors=True)
+            removed += 1
+    return removed
 
 
 class ReportPackagingError(ValueError):
@@ -285,6 +318,7 @@ def package_report_set(
     on_class_done: Callable[[int], None] = lambda _done: None,
     max_bytes: int = MAX_OUTPUT_BYTES,
     on_part: Callable[[int, bytes], None] = lambda _number, _data: None,
+    workspace: str = WORKSPACE_PREFIX,
 ) -> PackagedSet:
     """Render every class once and package the result.
 
@@ -302,7 +336,7 @@ def package_report_set(
     cover_path = back_cover_file(first.entries[0].card.kind)
     workers = render_worker_limit()
     with ExitStack() as stack:
-        folder = Path(stack.enter_context(TemporaryDirectory(prefix="flrc-report-")))
+        folder = Path(stack.enter_context(TemporaryDirectory(prefix=workspace)))
         # A pool per job: its processes, and the memory they used, end with the job.
         pool = (
             stack.enter_context(

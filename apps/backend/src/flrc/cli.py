@@ -1,10 +1,9 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
 from faker import Faker
-from sqlalchemy import delete, func, select, text, update
+from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
 from flrc.config import settings
@@ -647,12 +646,11 @@ def reset() -> None:
 
 @app.command("purge-job-outputs")
 def purge_job_outputs() -> None:
-    now = datetime.now(UTC).replace(tzinfo=None)
+    """Drop expired job outputs and the parts of report sets that did not finish (ADR-077)."""
+    from flrc.modules.jobs.service import purge_job_outputs as purge
+
     with Session(sync_engine()) as db:
-        condition = (m.JobRun.output_expires_at < now, m.JobRun.output_blob.is_not(None))
-        count = db.scalar(select(func.count()).select_from(m.JobRun).where(*condition)) or 0
-        db.execute(update(m.JobRun).where(*condition).values(output_blob=None))
-        db.commit()
+        count = purge(db)
     typer.echo(f"purged {count} job outputs")
 
 

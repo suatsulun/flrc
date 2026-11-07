@@ -1,5 +1,8 @@
 """Report downloads, background report jobs, the student picker and download names (ADR-077)."""
 
+import os
+import tempfile
+import time
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
@@ -13,12 +16,13 @@ import pikepdf
 import pytest
 from pypdf import PdfReader
 from redis.asyncio import Redis
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import Session
 
 from flrc.config import settings
 from flrc.core import rate_limit
 from flrc.db import models as m
+from flrc.modules.jobs import service as jobs_service
 from flrc.modules.reports import packaging
 from flrc.modules.reports import router as reports_router
 from flrc.modules.reports.builder import build_report_entries
@@ -840,3 +844,112 @@ async def test_classes_are_built_only_as_render_processes_take_them(world, monke
     # job never holds more than two classes' cards (and never any class's PDF bytes).
     assert taken_when_done == [2, 3, 3]
     assert len(zip_names(result.data)) == 3
+
+
+def now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+async def test_a_pupil_moved_mid_job_fails_the_set_instead_of_misfiling(
+    api,
+    world,
+    queued,
+    monkeypatch,  # noqa: F811
+) -> None:
+    other = await add_class(world, 6, "A", [("Pupil Alpha", 6001)])
+    original = report_tasks.build_report_entries
+    moved = False
+
+    def move_then_build(db, **arguments):
+        nonlocal moved
+        if not moved:
+            # Another admin moves a pupil while the job runs, before the first class renders.
+            moved = True
+            with Session(create_engine(TEST_URL_SYNC)) as other_db:
+                other_db.execute(
+                    update(m.Enrollment)
+                    .where(m.Enrollment.student_id == world.student_two)
+                    .values(class_id=other.id)
+                )
+                other_db.commit()
+        return original(db, **arguments)
+
+    monkeypatch.setattr(report_tasks, "build_report_entries", move_then_build)
+    async with api(world.admin) as client:
+        created = await client.post(
+            "/api/reports/jobs",
+            json={"semester_id": world.semester, "kind": "english_middle", "format": "per_class"},
+        )
+        job_id = created.json()["id"]
+        report_tasks.report_set_job(job_id)
+        job = (await client.get(f"/api/jobs/{job_id}")).json()
+    # The pupil left 5/A after the set was frozen and was not in 6/A when it was: printing
+    # would drop them silently, so the job refuses.
+    assert job["status"] == "failed"
+    assert job["error_code"] == "report_roster_changed"
+
+
+def test_stale_workspaces_are_reclaimed_but_a_live_jobs_is_kept(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    live = tmp_path / f"{packaging.workspace_prefix(7)}abc"
+    finished = tmp_path / f"{packaging.workspace_prefix(8)}def"
+    stuck = tmp_path / f"{packaging.workspace_prefix(9)}ghi"
+    unrelated = tmp_path / "something-else"
+    for folder in (live, finished, stuck, unrelated):
+        folder.mkdir()
+        (folder / "class-0000.pdf").write_bytes(b"%PDF-")
+    # Job 9 still says running, but nothing has touched its workspace for a day.
+    old = time.time() - 24 * 3600
+    os.utime(stuck, (old, old))
+
+    removed = packaging.reclaim_workspaces(live_job_ids={7, 9})
+
+    assert removed == 2
+    assert live.exists() and unrelated.exists()
+    assert not finished.exists() and not stuck.exists()
+
+
+async def test_staged_parts_expire_on_their_own_and_purge_reclaims_aborted_ones(world) -> None:
+    async with TestSession() as db:
+        request = m.JobRun(
+            kind="report_set", status="running", requested_by=world.admin.id, payload={}
+        )
+        db.add(request)
+        await db.commit()
+        request_id = request.id
+    with Session(create_engine(TEST_URL_SYNC)) as db:
+        job = db.get(m.JobRun, request_id)
+        assert job is not None
+        jobs_service.store_part(db, job, number=1, filename="part 1.zip", data=b"zip")
+        part = db.scalar(select(m.JobRun).where(m.JobRun.parent_id == request_id))
+        assert part is not None
+        # Staged with a bounded expiry of its own, even before the set succeeds.
+        assert part.output_expires_at is not None
+        assert part.output_expires_at <= now() + jobs_service.STAGED_PART_TTL
+
+        # The worker died before cleanup: the request failed and the part is past its bound.
+        job.status = "failed"
+        part.output_expires_at = now() - timedelta(seconds=1)
+        db.commit()
+        assert jobs_service.purge_job_outputs(db) == 1
+        assert db.scalar(select(m.JobRun).where(m.JobRun.parent_id == request_id)) is None
+
+
+async def test_a_coordinator_sees_their_own_year_export(api, world) -> None:
+    coordinator = await add_coordinator()
+    async with TestSession() as db:
+        mine = m.JobRun(
+            kind="year_export", status="queued", requested_by=coordinator.id, payload={}
+        )
+        theirs = m.JobRun(
+            kind="year_export", status="queued", requested_by=world.admin.id, payload={}
+        )
+        db.add_all([mine, theirs])
+        await db.commit()
+        mine_id, theirs_id = mine.id, theirs.id
+    async with api(coordinator) as client:
+        listed = {job["id"] for job in (await client.get("/api/jobs")).json()}
+        assert (await client.get(f"/api/jobs/{mine_id}")).status_code == 200
+    # The list shows exactly what the coordinator may open.
+    assert mine_id in listed
+    assert theirs_id not in listed

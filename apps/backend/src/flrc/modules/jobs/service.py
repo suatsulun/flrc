@@ -64,12 +64,18 @@ def mark_failed(db: Session, job: JobRun, code: str) -> None:
     db.commit()
 
 
+# A staged part outlives no job: if the job dies before replacing this with the set's shared
+# expiry, ``purge_job_outputs`` reclaims it on its own.
+STAGED_PART_TTL = timedelta(hours=6)
+
+
 def store_part(db: Session, job: JobRun, *, number: int, filename: str, data: bytes) -> None:
     """Save one finished part of a split output and release its bytes from the session.
 
     A part is a ``job_runs`` row under its request, so it keeps the blob store, the download
     route and the request's authorization. It stays hidden as ``running`` until the whole set
-    is finished, so a failed set never leaves half a download behind.
+    is finished, so a failed set never leaves half a download behind; until then it carries
+    a short staging expiry of its own.
     """
     part = JobRun(
         kind=job.kind,
@@ -82,6 +88,7 @@ def store_part(db: Session, job: JobRun, *, number: int, filename: str, data: by
         output_mime="application/zip",
         output_size=len(data),
         output_blob=data,
+        output_expires_at=datetime.now(UTC).replace(tzinfo=None) + STAGED_PART_TTL,
     )
     db.add(part)
     db.commit()
@@ -111,3 +118,29 @@ def mark_parts_succeeded(db: Session, job: JobRun) -> None:
 def discard_parts(db: Session, job_id: int) -> None:
     db.execute(delete(JobRun).where(JobRun.parent_id == job_id))
     db.commit()
+
+
+def purge_job_outputs(db: Session) -> int:
+    """Reclaim stored outputs past their expiry and parts of requests that did not succeed.
+
+    Parts of a failed request, or staged parts past their bound, are deleted outright, so an
+    aborted set is cleaned up even when its own exception handler never ran. Expired outputs
+    keep their history row and lose only their bytes (ADR-024). Returns how many outputs were
+    reclaimed.
+    """
+    now = datetime.now(UTC).replace(tzinfo=None)
+    failed_requests = select(JobRun.id).where(JobRun.status == "failed")
+    aborted = db.execute(
+        delete(JobRun).where(
+            JobRun.parent_id.is_not(None),
+            (JobRun.parent_id.in_(failed_requests))
+            | ((JobRun.status != "succeeded") & (JobRun.output_expires_at < now)),
+        )
+    )
+    expired = db.execute(
+        update(JobRun)
+        .where(JobRun.output_expires_at < now, JobRun.output_blob.is_not(None))
+        .values(output_blob=None)
+    )
+    db.commit()
+    return int(getattr(aborted, "rowcount", 0) or 0) + int(getattr(expired, "rowcount", 0) or 0)

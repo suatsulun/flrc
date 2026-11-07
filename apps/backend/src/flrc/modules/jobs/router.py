@@ -67,10 +67,11 @@ async def list_jobs(
     """
     visible = select(JobRun.id)
     if not user.is_admin:
-        visible = (
-            visible.where(JobRun.kind != "year_export")
-            if user.is_coordinator
-            else visible.where(JobRun.requested_by == user.id)
+        # The same rule as ``may_read_job``: one's own jobs, and for coordinators every job
+        # except year exports.
+        own = JobRun.requested_by == user.id
+        visible = visible.where(
+            or_(own, JobRun.kind != "year_export") if user.is_coordinator else own
         )
     newest = visible.where(JobRun.parent_id.is_(None)).order_by(JobRun.id.desc()).limit(limit)
     now = datetime.now(UTC).replace(tzinfo=None)

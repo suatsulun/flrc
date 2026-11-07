@@ -3441,7 +3441,19 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
   `principals/middle.svg` embeds a 3072 × 4608 RGBA PNG that becomes a 642 KiB image plus an
   86 KiB alpha mask in every file; the school logo's 2036 × 556 JPEG adds 80 KiB; fonts and page
   content are about 15 KiB. A class PDF shares them once (22 pupils: 893 KB).
-- Coordinators see report jobs in the downloads list, as `may_read_job` already allowed.
+- Coordinators see report jobs in the downloads list, as `may_read_job` already allowed, and
+  their own year exports; the list and the download use the same rule.
+- A job freezes its classes and their pupils in one read when it starts and builds each class
+  from that list. Before anything is published, every frozen pupil must appear exactly once; a
+  pupil moved or removed during the job fails it with `report_roster_changed` instead of being
+  printed twice or dropped.
+- Each job renders in its own temporary folder, `flrc-report-<job id>-…`. A worker reclaims
+  folders of jobs that are no longer queued or running, and any folder untouched for six hours,
+  when it starts and before each job, so a forced stop cannot leave pupils' PDFs on disk.
+- A staged part carries its own six-hour expiry until the set succeeds and replaces it with the
+  shared one. `purge_job_outputs` (nightly in the backup sidecar, or `flrc purge-job-outputs`)
+  deletes parts of failed requests and staged parts past that bound, even when the job's own
+  cleanup never ran.
 
 ## Supersedes / Superseded by
 

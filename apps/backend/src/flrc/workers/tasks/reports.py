@@ -15,6 +15,7 @@ from flrc.modules.jobs.service import (
     mark_parts_succeeded,
     mark_running,
     mark_succeeded,
+    record_progress,
     store_part,
 )
 from flrc.modules.reports import packaging
@@ -61,12 +62,18 @@ def run_report_job(db: Session, job: m.JobRun) -> None:
         pupils = [s.id for s in item.students if not wanted_students or s.id in wanted_students]
         if pupils:
             classes.append((item.id, pupils))
+    # A chosen class or pupil who has since left the set (moved, removed, another language)
+    # would be missing from the file without notice; the request is refused instead, as at
+    # enqueue.
+    if wanted_classes and {class_id for class_id, _ in classes} != wanted_classes:
+        raise ReportPackagingError("class_not_in_report_set")
+    if wanted_students and {pupil for _, ids in classes for pupil in ids} != wanted_students:
+        raise ReportPackagingError("student_not_in_report_set")
     if not classes:
         raise ReportPackagingError("empty_report_set")
     # A redelivered job starts over; parts of an interrupted attempt are not this set's.
     discard_parts(db, job.id)
     mark_running(db, job, total=len(classes))
-    reclaim_workspaces(live_report_jobs(db))
     printed: list[int] = []
 
     def class_sets() -> Iterator[ClassSet]:
@@ -86,8 +93,7 @@ def run_report_job(db: Session, job: m.JobRun) -> None:
     filename = job.output_filename or "report"
 
     def advance(done: int) -> None:
-        job.progress = done
-        db.commit()
+        record_progress(db, job, done)
 
     def save_part(number: int, data: bytes) -> None:
         store_part(db, job, number=number, filename=part_filename(filename, number), data=data)
@@ -108,7 +114,7 @@ def run_report_job(db: Session, job: m.JobRun) -> None:
         mark_succeeded(db, job, data=result.data, filename=filename, mime=result.mime)
         return
     save_part(result.parts, result.data)
-    mark_parts_succeeded(db, job)
+    mark_parts_succeeded(db, job, parts=result.parts)
 
 
 def live_report_jobs(db: Session) -> list[int]:
@@ -123,12 +129,16 @@ def live_report_jobs(db: Session) -> list[int]:
     )
 
 
+def reclaim_finished_workspaces(db: Session) -> None:
+    removed = reclaim_workspaces(live_report_jobs(db))
+    logger.info("reclaimed %s report workspaces", removed)
+
+
 @worker_ready.connect
 def reclaim_report_workspaces(**_kwargs: object) -> None:
     """A restarted worker first removes what killed jobs left in its temporary folder."""
     with Session(sync_engine()) as db:
-        removed = reclaim_workspaces(live_report_jobs(db))
-    logger.info("reclaimed %s report workspaces", removed)
+        reclaim_finished_workspaces(db)
 
 
 @celery_app.task(name="reports.set")
@@ -154,3 +164,7 @@ def report_set_job(job_id: int) -> None:
             if fresh is not None:
                 mark_failed(db, fresh, "report_set_failed")
             raise
+        finally:
+            # The job is finished now, so a workspace an interrupted earlier attempt left
+            # behind is no longer protected as live and goes with this attempt's.
+            reclaim_finished_workspaces(db)

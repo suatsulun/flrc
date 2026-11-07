@@ -56,7 +56,8 @@
       "collectGrades": {
         "title": "Complete the semester {{number}} grades",
         "body": "{{percent}} of grades are entered; empty cells: {{missing}}. Lock the semester once every grade is in.",
-        "noFields": "No fields are set up for this semester yet."
+        "noFields": "No fields are set up for this semester yet.",
+        "withoutFields": "Classes without fields: {{count}}. Set up their fields so their grades can be entered before the semester is locked."
       },
       "advanceSemester": {
         "title": "Move on to semester 2",
@@ -782,6 +783,8 @@
       "pageMapping": "The pages could not be matched to students safely, so no file was made. Please tell your administrator.",
       "tooLarge": "A single file in this selection is larger than allowed. Choose fewer students or classes, or try a ZIP format.",
       "retired": "This old job can no longer run; prepare it again.",
+      "jobsPending": "Several of your files are still being prepared. Wait for one to finish, then try again.",
+      "queueUnavailable": "The file could not be queued because the job service is unavailable. Try again in a few minutes.",
       "jobFailed": "Something went wrong while preparing the file. Please try again."
     }
   },

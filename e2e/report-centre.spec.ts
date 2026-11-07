@@ -387,3 +387,37 @@ test("a set split into numbered parts lists each part with its own download", as
 
   await context.close();
 });
+
+test("a job that failed because its classes or pupils changed asks for a fresh selection", async ({
+  browser,
+}) => {
+  const { context, page, api } = await openReportCentre(browser);
+  const failed = (id: number, code: string) => ({
+    id,
+    kind: "report_set",
+    status: "failed",
+    progress: 0,
+    total: 2,
+    output_filename: SCHOOL_ZIP,
+    output_size: null,
+    output_expires_at: null,
+    error_code: code,
+    created_at: "2026-11-07T09:00:00",
+    parent_id: null,
+    part: null,
+  });
+  // A pupil moved while the job ran; a chosen class lost every pupil before it started.
+  api.jobs.push(failed(802, "report_roster_changed"), failed(801, "class_not_in_report_set"));
+  await page.reload();
+
+  const downloads = page
+    .locator('[data-slot="card"]')
+    .filter({ has: page.getByText("Downloads", { exact: true }) });
+  await expect(
+    downloads.getByText(
+      "The selection is out of date: a class or student list has changed. Reload the page and try again.",
+    ),
+  ).toHaveCount(2);
+
+  await context.close();
+});

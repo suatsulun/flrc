@@ -1562,7 +1562,9 @@ export const getReportRosterOptions = (options: Options<GetReportRosterData>) =>
  * Queue a report set as a background job: the whole school, classes, or students.
  *
  * Empty `class_ids` and `student_ids` mean every eligible class. The finished file waits
- * in the downloads list for 24 hours (ADR-024, ADR-077).
+ * in the downloads list for 24 hours (ADR-024, ADR-077). An account with
+ * `MAX_PENDING_REPORT_JOBS` report jobs still waiting or running is refused with
+ * `report_jobs_pending` until one finishes.
  */
 export const createReportJobMutation = (options?: Partial<Options<CreateReportJobData>>): UseMutationOptions<CreateReportJobResponse, CreateReportJobError, Options<CreateReportJobData>> => {
     const mutationOptions: UseMutationOptions<CreateReportJobResponse, CreateReportJobError, Options<CreateReportJobData>> = {

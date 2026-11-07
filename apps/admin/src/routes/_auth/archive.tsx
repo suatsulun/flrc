@@ -11,7 +11,6 @@ import { Badge } from "@flrc/ui/components/badge";
 import { Card, CardBody } from "@flrc/ui/components/card";
 import { EmptyState } from "@flrc/ui/components/empty-state";
 import { NativeSelect } from "@flrc/ui/components/native-select";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import {
   Table,
   TableBody,
@@ -24,6 +23,7 @@ import {
   TableText,
 } from "@flrc/ui/components/table";
 import { AdminPage } from "../../admin/AdminPage";
+import { ArchiveGridSkeleton, ArchiveSkeleton } from "../../admin/page-skeletons";
 
 export const Route = createFileRoute("/_auth/archive")({ component: ArchivePage });
 
@@ -60,13 +60,11 @@ function ArchivePage() {
   } = useQuery({ ...gridOptions, enabled: selectedClassId !== undefined });
 
   if (yearsError || classesError || gridError) return <EmptyState title={t("errors.load")} />;
-  if (
-    yearsPending ||
+  if (yearsPending) return <ArchiveSkeleton />;
+  // Changing the year, class, semester or subject keeps the pickers on screen.
+  const gridLoading =
     (selectedYearId !== undefined && classesPending) ||
-    (selectedClassId !== undefined && gridPending)
-  ) {
-    return <PageSkeleton />;
-  }
+    (selectedClassId !== undefined && gridPending);
 
   return (
     <AdminPage
@@ -126,7 +124,9 @@ function ArchivePage() {
         </>
       }
     >
-      {!grid || grid.rows.length === 0 ? (
+      {gridLoading ? (
+        <ArchiveGridSkeleton />
+      ) : !grid || grid.rows.length === 0 ? (
         <EmptyState title={t("archive.empty")} description={t("archive.emptyBody")} />
       ) : (
         <Card>

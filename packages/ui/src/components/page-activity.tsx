@@ -1,21 +1,26 @@
-import { LoaderCircleIcon } from "lucide-react";
-
 import { Skeleton } from "#components/skeleton";
 import { cn } from "#lib/utils";
 
-/** A persistent, non-blocking signal for a page's first data request. */
+/**
+ * The page's one polite "Loading…" announcement while its first data loads. Sighted
+ * users see the page's skeleton instead, so the status itself stays visually hidden.
+ * It is always mounted: a live region that exists before its text changes is announced
+ * reliably.
+ */
 function PageActivity({ active, label }: { active: boolean; label: string }) {
-  if (!active) return null;
-
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="pointer-events-none fixed top-[calc(var(--app-shell-header-height)+0.75rem)] left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-popover/95 px-3 py-1.5 text-xs font-medium text-popover-foreground shadow-raised backdrop-blur"
-    >
-      <LoaderCircleIcon className="size-3.5 animate-spin text-primary" />
-      <span>{label}</span>
-    </div>
+    <p role="status" className="sr-only">
+      {active ? label : null}
+    </p>
+  );
+}
+
+/** A loading announcement for a skeleton shown where no `PageActivity` is listening. */
+function LoadingStatus({ label }: { label: string }) {
+  return (
+    <p role="status" className="sr-only">
+      {label}
+    </p>
   );
 }
 
@@ -38,15 +43,4 @@ function PageSkeleton({ className }: { className?: string }) {
   );
 }
 
-function FullScreenLoading({ label }: { label: string }) {
-  return (
-    <main className="grid min-h-svh place-items-center bg-background" role="status">
-      <span className="flex items-center gap-3 rounded-full border border-border bg-popover px-4 py-2 text-sm font-medium shadow-raised">
-        <LoaderCircleIcon className="size-4 animate-spin text-primary" />
-        {label}
-      </span>
-    </main>
-  );
-}
-
-export { FullScreenLoading, PageActivity, PageSkeleton };
+export { LoadingStatus, PageActivity, PageSkeleton };

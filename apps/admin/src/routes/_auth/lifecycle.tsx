@@ -21,10 +21,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@flrc/ui/components/ca
 import { Field } from "@flrc/ui/components/field";
 import { Input } from "@flrc/ui/components/input";
 import { ConfirmDialog } from "@flrc/ui/components/dialog";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { AdminPage } from "../../admin/AdminPage";
 import { errorMessage } from "../../admin/feedback";
 import { useNotifyDone } from "../../admin/undo-toast";
+import { LifecycleSkeleton } from "../../admin/page-skeletons";
 
 export const Route = createFileRoute("/_auth/lifecycle")({ component: LifecyclePage });
 
@@ -143,7 +143,7 @@ function LifecyclePage() {
     close.isPending ||
     auditPending;
 
-  if (yearsPending) return <PageSkeleton />;
+  if (yearsPending) return <LifecycleSkeleton />;
 
   return (
     <AdminPage title={t("lifecycle.title")} description={t("lifecycle.description")}>

@@ -2,6 +2,7 @@ import { listJobsOptions } from "@flrc/api-client";
 import { Badge } from "@flrc/ui/components/badge";
 import { buttonVariants } from "@flrc/ui/components/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@flrc/ui/components/card";
+import { SkeletonList } from "@flrc/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowRightIcon, DownloadIcon, Loader2Icon } from "lucide-react";
@@ -24,6 +25,7 @@ export function JobsCard() {
   const { t, i18n } = useTranslation();
   const {
     data: jobs = [],
+    isPending,
     isError,
     // Expiry is judged at fetch time; a list refetches on focus and while jobs run.
     dataUpdatedAt,
@@ -56,7 +58,9 @@ export function JobsCard() {
           <ArrowRightIcon className="size-3.5" />
         </Link>
       </CardHeader>
-      {isError ? (
+      {isPending ? (
+        <SkeletonList rows={3} action className="border-t border-border" />
+      ) : isError ? (
         <p className="border-t border-border px-5 py-6 text-sm text-muted-foreground">
           {t("errors.load")}
         </p>

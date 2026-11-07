@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { listStudentsOptions } from "@flrc/api-client";
 import { Button } from "@flrc/ui/components/button";
 import { Input } from "@flrc/ui/components/input";
+import { Skeleton } from "@flrc/ui/components/skeleton";
 import { XIcon } from "lucide-react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -82,9 +83,19 @@ export function StudentPicker({
           aria-label={t("audit.studentFilter")}
           className="absolute top-full right-0 left-0 z-40 mt-1 max-h-72 overflow-auto rounded-lg border border-border bg-popover p-1 shadow-lg"
         >
-          {matches.length === 0 ? (
+          {matches.length === 0 && isFetching ? (
+            <li className="px-2 py-1">
+              <span className="sr-only">{t("loading")}</span>
+              {Array.from({ length: 3 }, (_, index) => (
+                <div key={index} aria-hidden className="flex items-center gap-2 py-1.5">
+                  <Skeleton className="h-3.5 w-10 shrink-0 rounded-md" />
+                  <Skeleton className="h-4 flex-1 rounded-md" />
+                </div>
+              ))}
+            </li>
+          ) : matches.length === 0 ? (
             <li className="px-2 py-1.5 text-sm text-muted-foreground">
-              {isFetching ? t("loading") : t("audit.noStudentMatches")}
+              {t("audit.noStudentMatches")}
             </li>
           ) : (
             matches.map((student) => (

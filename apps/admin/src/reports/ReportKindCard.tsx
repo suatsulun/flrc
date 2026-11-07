@@ -9,6 +9,7 @@ import { Card, CardContent } from "@flrc/ui/components/card";
 import { Field } from "@flrc/ui/components/field";
 import { NativeSelect } from "@flrc/ui/components/native-select";
 import { Segmented } from "@flrc/ui/components/segmented";
+import { Skeleton } from "@flrc/ui/components/skeleton";
 import {
   planDelivery,
   reportFormatOptions,
@@ -41,7 +42,11 @@ export function ReportKindCard({
   onStartJob: (kind: ReportKind, format: ReportFormat, scope: JobScope) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
-  const { data: roster = [], isFetching } = useQuery({
+  const {
+    data: roster = [],
+    isLoading: rosterLoading,
+    isFetching,
+  } = useQuery({
     ...getReportRosterOptions({ query: { semester_id: semesterId ?? 0, kind } }),
     enabled: semesterId !== undefined,
   });
@@ -114,20 +119,24 @@ export function ReportKindCard({
 
         <div className="grid gap-2">
           <Field label={t("reports.classLabel")}>
-            {(id) => (
-              <NativeSelect
-                id={id}
-                value={selectedClass?.id ?? ""}
-                disabled={unavailable || busy}
-                onChange={(event) => setClassId(Number(event.target.value))}
-              >
-                {roster.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {t("reports.classOption", { name: item.name, count: item.students.length })}
-                  </option>
-                ))}
-              </NativeSelect>
-            )}
+            {(id) =>
+              rosterLoading ? (
+                <Skeleton className="h-9 w-full" />
+              ) : (
+                <NativeSelect
+                  id={id}
+                  value={selectedClass?.id ?? ""}
+                  disabled={unavailable || busy}
+                  onChange={(event) => setClassId(Number(event.target.value))}
+                >
+                  {roster.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {t("reports.classOption", { name: item.name, count: item.students.length })}
+                    </option>
+                  ))}
+                </NativeSelect>
+              )
+            }
           </Field>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -157,9 +166,13 @@ export function ReportKindCard({
         <div className="mt-auto grid gap-3 border-t border-border pt-4">
           {demo ? null : (
             <div className="grid gap-2">
-              <p className="text-[0.8125rem] font-medium">
-                {t("reports.wholeSchool", { count: students })}
-              </p>
+              {rosterLoading ? (
+                <Skeleton className="h-4 w-48 max-w-full rounded-md" />
+              ) : (
+                <p className="text-[0.8125rem] font-medium">
+                  {t("reports.wholeSchool", { count: students })}
+                </p>
+              )}
               <Segmented
                 ariaLabel={t("reports.formatLabel")}
                 options={reportFormatOptions(t)}

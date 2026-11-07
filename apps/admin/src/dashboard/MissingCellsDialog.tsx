@@ -8,6 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@flrc/ui/components/dialog";
+import { LoadingStatus } from "@flrc/ui/components/page-activity";
+import { SkeletonTableRows } from "@flrc/ui/components/skeleton";
 import {
   Table,
   TableBody,
@@ -73,6 +75,7 @@ export function MissingCellsDialog({
             })}
           </DialogDescription>
         </DialogHeader>
+        {isPending ? <LoadingStatus label={t("loading")} /> : null}
         <div className="overflow-hidden rounded-lg border border-border">
           <TableScroll
             aria-label={t("adminDashboard.missing.tableLabel")}
@@ -95,7 +98,7 @@ export function MissingCellsDialog({
               </TableHead>
               <TableBody>
                 {isPending ? (
-                  <TableEmpty colSpan={3}>{t("loading")}</TableEmpty>
+                  <SkeletonTableRows columns={3} rows={Math.min(row.missing_cells, 8)} />
                 ) : isError ? (
                   <TableEmpty colSpan={3}>{t("errors.load")}</TableEmpty>
                 ) : cells.length === 0 ? (

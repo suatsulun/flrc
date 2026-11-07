@@ -30,10 +30,10 @@ import { EmptyState } from "@flrc/ui/components/empty-state";
 import { Field } from "@flrc/ui/components/field";
 import { Input } from "@flrc/ui/components/input";
 import { NativeSelect } from "@flrc/ui/components/native-select";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { AdminPage } from "../../admin/AdminPage";
 import { CopyFieldsDialog } from "../../admin/CopyFieldsDialog";
 import { apiError } from "../../admin/feedback";
+import { ColumnsListSkeleton } from "../../admin/page-skeletons";
 import { RenameFieldDialog } from "../../admin/RenameFieldDialog";
 import { useNotifyDone } from "../../admin/undo-toast";
 import { useRefreshQueries } from "../../admin/use-refresh-queries";
@@ -114,7 +114,6 @@ function ColumnsPage() {
     reorder.mutate({ ids, name: columns[index].name });
   };
 
-  if (columnsPending) return <PageSkeleton />;
   if (columnsError && !locked) return <EmptyState title={t("errors.load")} />;
 
   return (
@@ -173,7 +172,9 @@ function ColumnsPage() {
         </>
       }
     >
-      {locked ? (
+      {columnsPending ? (
+        <ColumnsListSkeleton />
+      ) : locked ? (
         <EmptyState title={t("columns.lockedTitle")} description={t("columns.locked")} />
       ) : columns.length === 0 ? (
         <EmptyState title={t("columns.empty")} description={t("columns.emptyBody")} />

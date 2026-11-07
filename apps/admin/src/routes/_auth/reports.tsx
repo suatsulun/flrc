@@ -9,10 +9,10 @@ import { Button } from "@flrc/ui/components/button";
 import { Card, CardHeader, CardTitle } from "@flrc/ui/components/card";
 import { Field } from "@flrc/ui/components/field";
 import { NativeSelect } from "@flrc/ui/components/native-select";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { Segmented } from "@flrc/ui/components/segmented";
 import { academicContextLabels } from "@flrc/i18n";
 import { AdminPage } from "../../admin/AdminPage";
+import { ReportsSkeleton } from "../../admin/page-skeletons";
 import { PdfLeaveGuard } from "../../admin/PdfLeaveGuard";
 import { DownloadsList } from "../../reports/DownloadsList";
 import { ReportKindCard } from "../../reports/ReportKindCard";
@@ -83,7 +83,7 @@ function ReportsPage() {
     }
   }
 
-  if (yearsPending) return <PageSkeleton />;
+  if (yearsPending) return <ReportsSkeleton />;
 
   return (
     <AdminPage

@@ -8,6 +8,12 @@ import de from "./locales/de.json";
 import tr from "./locales/tr.json";
 
 export const initI18n = () => {
+  // `<html lang>` follows the UI language from the first render on, so the browser hyphenates,
+  // reads aloud and upper-cases with the right rules (Turkish İ only in Turkish). Registered
+  // before `init`, which announces the detected language through the same event.
+  i18n.on("languageChanged", (language) => {
+    document.documentElement.lang = i18n.resolvedLanguage ?? language;
+  });
   i18n
     .use(LanguageDetector)
     .use(initReactI18next)

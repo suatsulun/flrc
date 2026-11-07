@@ -1,8 +1,4 @@
-import {
-  getPreviewScopeOptions,
-  listClassCatalogOptions,
-  type PreviewClassOut,
-} from "@flrc/api-client";
+import { getPreviewScopeOptions, type PreviewClassOut } from "@flrc/api-client";
 import { Button } from "@flrc/ui/components/button";
 import { EmptyState } from "@flrc/ui/components/empty-state";
 import { Field } from "@flrc/ui/components/field";
@@ -27,7 +23,7 @@ import { errorCode } from "../../class-report/api-error";
 import { useCardPreviewPdf, type CardKind } from "../../class-report/card-preview-pdf";
 import { usePdfErrorMessage } from "../../class-report/class-sheet-pdf";
 import { ReportModeSwitch } from "../../class-report/report-mode-switch";
-import { reportClasses } from "../../class-report/scope";
+import { REPORT_GRADES } from "../../class-report/scope";
 
 const CARD_KINDS: readonly CardKind[] = [
   "english_elementary",
@@ -66,21 +62,24 @@ function entryKey(entry: Pick<PreviewClassOut, "class_id" | "kind">) {
 function CardPreviewPage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
+  const { user } = Route.useRouteContext();
   const { t } = useTranslation();
   const pdfErrorMessage = usePdfErrorMessage();
+  // Administrators and coordinators see every class of the year; teachers their own classes.
+  const wholeSchool = user.is_admin || user.is_coordinator;
 
   const scopeQuery = useQuery(
     getPreviewScopeOptions({ query: { semester_id: search.semesterId } }),
   );
-  // Shares the navigation's cache entry; decides whether class sheets are offered at all.
-  const { data: catalog = [] } = useQuery(listClassCatalogOptions());
-  const sheetClasses = reportClasses(catalog, { mine: true });
 
   const scope = scopeQuery.data;
+  // The requested card, else another card of the requested class, else the first card.
   const entry =
     scope?.classes.find(
       (item) => item.class_id === search.classId && (!search.kind || item.kind === search.kind),
-    ) ?? scope?.classes[0];
+    ) ??
+    scope?.classes.find((item) => item.class_id === search.classId) ??
+    scope?.classes[0];
   const students = entry?.students ?? [];
   const foundIndex = students.findIndex((student) => student.student_id === search.studentId);
   const index = foundIndex >= 0 ? foundIndex : 0;
@@ -148,21 +147,22 @@ function CardPreviewPage() {
         ? t("cardPreview.cardFrench")
         : t("cardPreview.cardEnglish");
 
-  // The class sheet opens on the class in view when it has one, else on the teacher's first.
-  const sheetTarget =
-    sheetClasses.find((item) => item.id === entry?.class_id) ?? sheetClasses[0] ?? null;
-  const modeSwitch = sheetTarget ? (
+  // The class sheet opens on the class in view when it is a middle-school class, else on the
+  // user's default class report.
+  const modeSwitch = (
     <ReportModeSwitch
       mode="preview"
       onChange={() =>
-        void navigate({
-          to: "/class-report/$classId",
-          params: { classId: String(sheetTarget.id) },
-          search: { semester: scope?.semester_number },
-        })
+        void (entry && REPORT_GRADES.includes(entry.grade_level)
+          ? navigate({
+              to: "/class-report/$classId",
+              params: { classId: String(entry.class_id) },
+              search: { semester: scope?.semester_number },
+            })
+          : navigate({ to: "/class-report" }))
       }
     />
-  ) : null;
+  );
 
   const header = (
     <>
@@ -192,7 +192,7 @@ function CardPreviewPage() {
           </p>
         ) : null}
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          {t("cardPreview.description")}
+          {wholeSchool ? t("cardPreview.descriptionAll") : t("cardPreview.description")}
         </p>
       </div>
     </>
@@ -208,7 +208,7 @@ function CardPreviewPage() {
           <EmptyState
             icon={<FileSearchIcon />}
             title={t("cardPreview.emptyTitle")}
-            description={t("cardPreview.emptyBody")}
+            description={wholeSchool ? t("cardPreview.emptyAllBody") : t("cardPreview.emptyBody")}
           />
         ) : (
           <p className="text-sm text-destructive">{t("errors.load")}</p>
@@ -278,7 +278,7 @@ function CardPreviewPage() {
         <EmptyState
           icon={<FileSearchIcon />}
           title={t("cardPreview.emptyTitle")}
-          description={t("cardPreview.emptyBody")}
+          description={wholeSchool ? t("cardPreview.emptyAllBody") : t("cardPreview.emptyBody")}
         />
       ) : !student ? (
         <EmptyState

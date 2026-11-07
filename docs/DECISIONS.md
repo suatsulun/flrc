@@ -3530,6 +3530,28 @@ to hand out an unofficial copy.
   per-minute limit only because the viewer waits for paging to settle.
 - Deployments with their own proxy configuration must add `frame-src 'self' blob:` to their CSP.
 
+## Amendment (2026-11-07): the report section for everyone, school-wide previews
+
+The school owner asked that every teacher-panel user reach both report views, and that the people
+who oversee the school check any card from the teacher panel instead of downloading sets.
+
+- The teacher sidebar always has a "Raporlar" section with "Sınıf raporu" and "Karne önizleme";
+  both pages carry the mode switch. This replaces the rule above that teachers without class
+  sheets get only Karne önizleme, and ADR-074's rule that only middle-school English teachers see
+  the class-sheet entry (its endpoint already served every authenticated user).
+- Sınıf raporu opens the middle-school English class on screen; otherwise `/class-report` opens
+  the user's own middle-school English class, else the year's first one. A year without any such
+  class shows an explanation instead.
+- `GET /api/reports/preview/scope`: administrators **and coordinators** get every class of the
+  year with every card it has — the English card of its grade, and the German or French karne
+  when at least one of its pupils takes that language. Teachers still get only the classes they
+  hold an assignment in; a teacher without one gets an empty scope, which the page explains.
+- `GET /api/reports/preview`: coordinators join administrators: any existing card, 404 for an
+  unknown pupil and 409 for a card the pupil does not get. Teachers keep the 403-only rule, and
+  the watermark, crop, id-based selection and rate limit are unchanged.
+- Coordinators and administrators can already download every official set from the admin report
+  centre, so a watermarked on-screen copy exposes nothing new to them.
+
 ## Supersedes / Superseded by
 
 Builds on ADR-071 (narrows it for report cards) and ADR-074.

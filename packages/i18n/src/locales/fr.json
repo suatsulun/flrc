@@ -911,6 +911,9 @@
   },
   "classReport": {
     "nav": "Rapport de classe",
+    "navSection": "Rapports",
+    "noneTitle": "Aucun rapport de classe à afficher",
+    "noneBody": "Les rapports de classe concernent l’anglais au collège (de la 5e à la 8e année), et cette année scolaire n’a aucune classe de ce type. Les rapports s’ouvriront ici une fois les classes ajoutées.",
     "title": "Rapport de classe",
     "semester": "Semestre {{number}}",
     "students": "{{count}} élèves",
@@ -939,6 +942,7 @@
     "nav": "Aperçu du bulletin",
     "title": "Aperçu du bulletin",
     "description": "Vérifiez à l’écran les bulletins des élèves de vos classes avant leur impression. L’aperçu est en lecture seule.",
+    "descriptionAll": "Vérifiez à l’écran les bulletins de toutes les classes de l’école avant leur impression. L’aperçu est en lecture seule.",
     "classLabel": "Classe et bulletin",
     "semesterLabel": "Semestre",
     "studentsLabel": "Élèves",
@@ -956,6 +960,7 @@
     "retry": "Réessayer",
     "emptyTitle": "Aucun bulletin à afficher",
     "emptyBody": "Aucune classe ne vous est attribuée pour cette année scolaire. L’aperçu ne concerne que les classes où vous enseignez.",
+    "emptyAllBody": "Cette année scolaire n’a pas encore de classes. Une fois les classes et les élèves ajoutés, vous pourrez afficher leurs bulletins ici.",
     "noStudentsTitle": "Aucun élève pour ce bulletin",
     "noStudentsBody": "Aucun élève de cette classe ne reçoit ce bulletin.",
     "watermarkNote": "Les aperçus portent le filigrane ÖNİZLEME (aperçu) et sont en lecture seule ; les bulletins officiels s’impriment depuis l’espace d’administration."

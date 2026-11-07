@@ -19,6 +19,7 @@ import {
 import { sessionOptions } from "@flrc/api-client";
 import {
   AppShell,
+  PanelSwitchLink,
   SidebarSection,
   sidebarItemActiveClass,
   sidebarItemClass,
@@ -102,9 +103,9 @@ function AdminLayout() {
             onChange={(language) => void i18n.changeLanguage(language)}
             ariaLabel={t("shell.language")}
           />
-          <a
+          <PanelSwitchLink
             href={teacherHref("/")}
-            className="hidden rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"
+            label={t("goToTeacher")}
             onClick={(event) => {
               // A plain click leaves this panel; the page's leave guard is asked first.
               if (
@@ -127,9 +128,7 @@ function AdminLayout() {
                 }
               });
             }}
-          >
-            {t("goToTeacher")}
-          </a>
+          />
         </>
       }
     >

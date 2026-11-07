@@ -911,6 +911,9 @@
   },
   "classReport": {
     "nav": "Sınıf raporu",
+    "navSection": "Raporlar",
+    "noneTitle": "Gösterilecek sınıf raporu yok",
+    "noneBody": "Sınıf raporu ortaokul İngilizcesi (5-8. sınıflar) içindir ve bu eğitim yılında böyle bir sınıf bulunmuyor. Sınıflar eklendiğinde raporlar burada açılır.",
     "title": "Sınıf raporu",
     "semester": "{{number}}. dönem",
     "students": "{{count}} öğrenci",
@@ -939,6 +942,7 @@
     "nav": "Karne önizleme",
     "title": "Karne önizleme",
     "description": "Derslerine girdiğiniz sınıflardaki öğrencilerin karnelerini yazdırılmadan önce ekranda kontrol edin. Önizleme yalnızca görüntülemek içindir.",
+    "descriptionAll": "Okuldaki bütün sınıfların öğrencilerinin karnelerini yazdırılmadan önce ekranda kontrol edin. Önizleme yalnızca görüntülemek içindir.",
     "classLabel": "Sınıf ve karne",
     "semesterLabel": "Dönem",
     "studentsLabel": "Öğrenciler",
@@ -956,6 +960,7 @@
     "retry": "Tekrar dene",
     "emptyTitle": "Önizlenecek karne yok",
     "emptyBody": "Bu eğitim yılında size atanmış bir sınıf bulunmuyor. Karne önizleme yalnızca derslerine girdiğiniz sınıflar içindir.",
+    "emptyAllBody": "Bu eğitim yılında henüz sınıf bulunmuyor. Sınıflar ve öğrenciler eklendiğinde karnelerini burada önizleyebilirsiniz.",
     "noStudentsTitle": "Bu karne için öğrenci yok",
     "noStudentsBody": "Bu sınıfta bu karneyi alan öğrenci bulunmuyor.",
     "watermarkNote": "Önizlemeler ÖNİZLEME filigranı taşır ve yalnızca görüntülenir; resmi karneler yönetim panelinden yazdırılır."

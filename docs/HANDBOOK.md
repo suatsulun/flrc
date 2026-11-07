@@ -26,7 +26,7 @@ and report changes are committed source, not verified school deployment state.
 | 2.11, 4.6: tests          | Frontend packages have no standalone `test` script. Use root Playwright, configured test servers, and the existing synthetic backend suite.                                                                              |
 | 3.5, 3.9-3.10: years      | Rollover preserves student identity and assigns fresh numbers per year and school stage (ADR-070). Year lists sort by label, not insertion id.                                                                           |
 | 4.2-4.4: reports          | One class or one pupil downloads directly from `/api/reports/pdf`; larger sets are `report_set` Celery jobs with a format choice and a 24-hour downloads list (ADR-077). Private report overlays/signatures use ADR-057. |
-| 4.4: teacher previews     | Teachers view their own students' cards with an ÖNİZLEME watermark at `/card-preview` via `/api/reports/preview` (ADR-078).                                                                                              |
+| 4.4: teacher previews     | Every teacher-panel user has Sınıf raporu and Karne önizleme. ÖNİZLEME-watermarked cards at `/card-preview` (`/api/reports/preview`): own classes for teachers, every class for admins/coordinators (ADR-078).           |
 | 4.5, 4.9-4.10: operations | School deployment consumes paired images, runtime branding, nightly encrypted backups, and monthly restore tests from `infra/school-template/`.                                                                          |
 
 Backend pytest fixtures wipe the fixed local `flrc_test` database; migration tests also downgrade
@@ -2319,8 +2319,10 @@ create `routes/login.tsx`. Use Vite `base: "/admin/"` and `server.port: 5174`; g
 `basepath: "/admin"`. In the admin `_auth` guard, `/api/me` failure redirects externally to
 `${VITE_TEACHER_URL}/login`, an authenticated user without `is_admin` redirects to
 `VITE_TEACHER_URL`, and only an admin returns `{ user }`. Admin logout also returns to the shared
-teacher login. The teacher dashboard shows its admin link only when `user.is_admin`; its local
-default is `http://localhost:5174/admin`.
+teacher login. The teacher panel's top bar shows "Yönetim paneli", right after the language switch,
+only when `user.is_admin || user.is_coordinator`; the admin top bar shows "Öğretmen paneli" in the
+same spot through the same `PanelSwitchLink`, and both move into the menu drawer below `md`. The
+local default is `http://localhost:5174/admin`.
 
 **Layer 3 · Exact assembly (backend):** (1) `config.py` gains
 `admin_origin: str = "http://localhost:5174"` (and `.env.example` follows). (2) `middleware.py`: build

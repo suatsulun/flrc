@@ -212,17 +212,21 @@ async def patch_student(
     db: Annotated[AsyncSession, Depends(get_session)],
     year_id: int,
 ) -> StudentWriteOut:
-    student = await db.get(Student, student_id)
-    if student is None:
-        raise HTTPException(404, {"code": "unknown_student"})
-    enrollment = await db.scalar(
-        select(Enrollment).where(
-            Enrollment.student_id == student_id,
-            Enrollment.year_id == year_id,
+    # Locked until the commit, so the recorded undo snapshot is what this edit replaced.
+    row = (
+        await db.execute(
+            select(Enrollment, Student)
+            .join(Student, Student.id == Enrollment.student_id)
+            .where(Enrollment.student_id == student_id, Enrollment.year_id == year_id)
+            .with_for_update(of=[Enrollment, Student])
+            .execution_options(populate_existing=True)
         )
-    )
-    if enrollment is None:
+    ).one_or_none()
+    if row is None:
+        if await db.get(Student, student_id) is None:
+            raise HTTPException(404, {"code": "unknown_student"})
         raise HTTPException(404, {"code": "unknown_enrollment"})
+    enrollment, student = row
     year = await db.get(AcademicYear, year_id)
     if year is None or year.status == "archived":
         raise HTTPException(409, {"code": "year_not_writable"})

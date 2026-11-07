@@ -22,6 +22,7 @@ from flrc.modules.administration.names import search_key
 from flrc.modules.administration.roster_service import (
     assign_student_language,
     is_duplicate_school_number,
+    lock_enrollments,
     move_students,
     remove_student,
     school_number_taken,
@@ -236,12 +237,16 @@ async def patch_admin_roster_student(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> RosterStudentWriteOut:
+    # The pupil and their enrollment stay locked from reading the previous values until
+    # the commit, so the recorded undo snapshot is exactly what this edit replaced.
     row = (
         await db.execute(
             select(Enrollment, Student, SchoolClass)
             .join(Student, Student.id == Enrollment.student_id)
             .join(SchoolClass, SchoolClass.id == Enrollment.class_id)
             .where(Enrollment.class_id == class_id, Enrollment.student_id == student_id)
+            .with_for_update(of=[Enrollment, Student])
+            .execution_options(populate_existing=True)
         )
     ).one_or_none()
     if row is None:
@@ -394,36 +399,32 @@ async def set_student_language(
 ) -> StudentLanguageOut:
     await _ensure_year_writable(db, year_id)
     student_ids = list(dict.fromkeys(body.student_ids))
-    enrollments = list(
+    enrollments = await lock_enrollments(db, year_id=year_id, student_ids=student_ids)
+    if len(enrollments) != len(student_ids):
+        raise HTTPException(422, {"code": "student_not_enrolled_in_year"})
+    grades = dict(
         (
             await db.execute(
-                select(Enrollment, SchoolClass)
-                .join(SchoolClass, SchoolClass.id == Enrollment.class_id)
-                .where(
-                    Enrollment.year_id == year_id,
-                    Enrollment.student_id.in_(student_ids),
+                select(SchoolClass.id, SchoolClass.grade_level).where(
+                    SchoolClass.id.in_({item.class_id for item in enrollments})
                 )
             )
         ).all()
     )
-    if len(enrollments) != len(student_ids):
-        raise HTTPException(422, {"code": "student_not_enrolled_in_year"})
-    if body.language and any(item[1].grade_level < L2_START_GRADE for item in enrollments):
+    if body.language and any(grades[item.class_id] < L2_START_GRADE for item in enrollments):
         raise HTTPException(422, {"code": "language_grade_too_low"})
-    existing = {
-        item.student_id: item
-        for item in await db.scalars(
-            select(StudentLanguage).where(
-                StudentLanguage.year_id == year_id,
-                StudentLanguage.student_id.in_(student_ids),
+    existing = dict(
+        (
+            await db.execute(
+                select(StudentLanguage.student_id, StudentLanguage.language).where(
+                    StudentLanguage.year_id == year_id,
+                    StudentLanguage.student_id.in_(student_ids),
+                )
             )
-        )
-    }
+        ).all()
+    )
     before = [
-        {
-            "student_id": student_id,
-            "language": existing[student_id].language if student_id in existing else None,
-        }
+        {"student_id": student_id, "language": existing.get(student_id)}
         for student_id in student_ids
     ]
     for student_id in student_ids:

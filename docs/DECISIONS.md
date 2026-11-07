@@ -3261,11 +3261,17 @@ undo (Step 2.8); administrative writes had none.
   `school_number_taken` with the number, the pupil holding it and their class, and nothing changes.
   Other answers: `404 unknown_action`, `409 action_already_undone`, `410 action_expired`.
 - Undoing an add removes what was added unless it is in use: a new field with grades
-  (`field_has_grades`), a class with pupils (`class_in_use`), an account that signed in or has
-  work (`user_in_use`). An added pupil who already has grades follows ordinary roster removal: the
-  enrollment goes, the person and grades stay; a pupil with nothing attached is deleted again.
+  (`field_has_grades`) or with grade history whose grades were undone (`field_has_history`; the
+  audit trail is never touched), a class with pupils (`class_in_use`), an account that signed in
+  or has work (`user_in_use`). An added pupil who already has grades follows ordinary roster
+  removal: the enrollment goes, the person and grades stay; a pupil with nothing attached is
+  deleted again. Deleting a field that only has such history hides it, like a graded field.
 - Deleted rows return with their original ids (classes, fields), so later actions that refer to
   them still apply. A hidden field with grades is shown again with its grades.
+- Every recorded write locks the rows it changes before reading their previous values and holds
+  the lock until it commits with its action; undo handlers take the same locks before checking.
+  A pupil's number, class and second language are guarded by their enrollment row, so language
+  writes and their undo cannot interleave.
 - The backup sidecar deletes expired rows and their images each night before the dump
   (`flrc purge-admin-actions` does the same by hand). Until then an expired row is listed as
   `expired` and cannot be undone.

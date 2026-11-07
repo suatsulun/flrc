@@ -4,6 +4,8 @@ Primary (Hazırlık to grade 4) and middle-school (grades 5-8) pupils may share 
 number. The `world` fixture's middle-school class 5/A holds 51001 and 51002.
 """
 
+from unittest.mock import ANY
+
 from sqlalchemy import select
 
 from flrc.db import models as m
@@ -180,7 +182,7 @@ async def test_cross_stage_move_keeps_numbers_and_refuses_clashes_atomically(api
         assert refused.status_code == 409
         assert refused.json()["detail"]["code"] == "duplicate_school_number"
     assert moved.status_code == 200, moved.text
-    assert moved.json() == {"changed": 1, "unchanged": 0}
+    assert moved.json() == {"changed": 1, "unchanged": 0, "action_id": ANY}
     assert await placement(world.year, clashing) == (primary, "primary", 51001)
     assert await placement(world.year, world.student_one) == (world.cls, "middle", 51001)
     assert await placement(world.year, free) == (world.cls, "middle", 40001)

@@ -349,7 +349,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ColumnOut"
+                  "$ref": "#/components/schemas/ColumnWriteOut"
                 }
               }
             }
@@ -417,7 +417,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ColumnOut"
+                  "$ref": "#/components/schemas/ColumnWriteOut"
                 }
               }
             }
@@ -532,11 +532,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "boolean"
-                  },
-                  "title": "Response Reorder Columns"
+                  "$ref": "#/components/schemas/ReorderOut"
                 }
               }
             }
@@ -595,11 +591,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "integer"
-                  },
-                  "title": "Response Copy Columns"
+                  "$ref": "#/components/schemas/CopyOut"
                 }
               }
             }
@@ -882,11 +874,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "boolean"
-                  },
-                  "title": "Response Upsert Assignment"
+                  "$ref": "#/components/schemas/AssignmentWriteOut"
                 }
               }
             }
@@ -1533,7 +1521,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StudentOut"
+                  "$ref": "#/components/schemas/StudentWriteOut"
                 }
               }
             }
@@ -1594,7 +1582,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StudentOut"
+                  "$ref": "#/components/schemas/StudentWriteOut"
                 }
               }
             }
@@ -1696,7 +1684,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ManagedUserOut"
+                  "$ref": "#/components/schemas/ManagedUserWriteOut"
                 }
               }
             }
@@ -1748,7 +1736,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ManagedUserOut"
+                  "$ref": "#/components/schemas/ManagedUserWriteOut"
                 }
               }
             }
@@ -1833,7 +1821,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ManagedUserOut"
+                  "$ref": "#/components/schemas/ManagedUserWriteOut"
                 }
               }
             }
@@ -1873,7 +1861,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ManagedUserOut"
+                  "$ref": "#/components/schemas/ManagedUserWriteOut"
                 }
               }
             }
@@ -1960,7 +1948,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminClassOut"
+                  "$ref": "#/components/schemas/AdminClassWriteOut"
                 }
               }
             }
@@ -2012,7 +2000,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminClassOut"
+                  "$ref": "#/components/schemas/AdminClassWriteOut"
                 }
               }
             }
@@ -2052,11 +2040,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "boolean"
-                  },
-                  "title": "Response Delete Admin Class"
+                  "$ref": "#/components/schemas/ClassDeleteOut"
                 }
               }
             }
@@ -2152,11 +2136,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/MatrixSlotOut"
-                  },
-                  "title": "Response Replace Assignment Matrix"
+                  "$ref": "#/components/schemas/AssignmentMatrixWriteOut"
                 }
               }
             }
@@ -2266,7 +2246,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RosterStudentOut"
+                  "$ref": "#/components/schemas/RosterStudentWriteOut"
                 }
               }
             }
@@ -2362,7 +2342,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RosterStudentOut"
+                  "$ref": "#/components/schemas/RosterStudentWriteOut"
                 }
               }
             }
@@ -2403,11 +2383,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "integer"
-                  },
-                  "type": "object",
-                  "title": "Response Move Admin Roster"
+                  "$ref": "#/components/schemas/RosterMoveOut"
                 }
               }
             }
@@ -2459,11 +2435,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "integer"
-                  },
-                  "title": "Response Set Student Language"
+                  "$ref": "#/components/schemas/StudentLanguageOut"
                 }
               }
             }
@@ -3510,6 +3482,111 @@
         }
       }
     },
+    "/api/admin/actions": {
+      "get": {
+        "tags": [
+          "admin-actions"
+        ],
+        "summary": "List Admin Actions",
+        "description": "Recent undoable admin changes, newest first; rows past expiry show as expired\nuntil the nightly purge removes them.",
+        "operationId": "list_admin_actions",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminActionPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/actions/{action_id}/undo": {
+      "post": {
+        "tags": [
+          "admin-actions"
+        ],
+        "summary": "Undo Admin Action",
+        "description": "Restore the state before an action in one transaction, or change nothing.",
+        "operationId": "undo_admin_action",
+        "parameters": [
+          {
+            "name": "action_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Action Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminActionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reports/pdf": {
       "get": {
         "tags": [
@@ -3768,6 +3845,137 @@
         ],
         "title": "AcademicYearOut"
       },
+      "AdminActionOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "student.add",
+              "student.remove",
+              "student.move",
+              "student.edit",
+              "student.language",
+              "class.create",
+              "class.edit",
+              "class.delete",
+              "field.create",
+              "field.delete",
+              "field.edit",
+              "field.reorder",
+              "field.copy",
+              "user.create",
+              "user.edit",
+              "signature.upload",
+              "signature.delete",
+              "assignments.replace"
+            ],
+            "title": "Kind"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "undone",
+              "expired"
+            ],
+            "title": "Status"
+          },
+          "undone_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undone At"
+          },
+          "undone_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undone By"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "actor",
+          "created_at",
+          "expires_at",
+          "status",
+          "undone_at",
+          "undone_by",
+          "params"
+        ],
+        "title": "AdminActionOut"
+      },
+      "AdminActionPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminActionOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "AdminActionPage"
+      },
       "AdminClassOut": {
         "properties": {
           "id": {
@@ -3805,6 +4013,49 @@
           "student_count"
         ],
         "title": "AdminClassOut"
+      },
+      "AdminClassWriteOut": {
+        "properties": {
+          "action_id": {
+            "type": "integer",
+            "title": "Action Id"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "year_id": {
+            "type": "integer",
+            "title": "Year Id"
+          },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          },
+          "section": {
+            "type": "string",
+            "title": "Section"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "student_count": {
+            "type": "integer",
+            "title": "Student Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "id",
+          "year_id",
+          "grade_level",
+          "section",
+          "name",
+          "student_count"
+        ],
+        "title": "AdminClassWriteOut"
       },
       "AppliedOut": {
         "properties": {
@@ -4051,6 +4302,27 @@
         ],
         "title": "AssignmentChange"
       },
+      "AssignmentMatrixWriteOut": {
+        "properties": {
+          "action_id": {
+            "type": "integer",
+            "title": "Action Id"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/MatrixSlotOut"
+            },
+            "type": "array",
+            "title": "Slots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "slots"
+        ],
+        "title": "AssignmentMatrixWriteOut"
+      },
       "AssignmentOut": {
         "properties": {
           "class_id": {
@@ -4110,6 +4382,24 @@
           "user_name"
         ],
         "title": "AssignmentSlotOut"
+      },
+      "AssignmentWriteOut": {
+        "properties": {
+          "action_id": {
+            "type": "integer",
+            "title": "Action Id"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "ok"
+        ],
+        "title": "AssignmentWriteOut"
       },
       "AuditItemOut": {
         "properties": {
@@ -4381,6 +4671,24 @@
           "section"
         ],
         "title": "ClassCreate"
+      },
+      "ClassDeleteOut": {
+        "properties": {
+          "action_id": {
+            "type": "integer",
+            "title": "Action Id"
+          },
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "deleted"
+        ],
+        "title": "ClassDeleteOut"
       },
       "ClassOut": {
         "properties": {
@@ -4878,10 +5186,109 @@
               }
             ],
             "title": "Owner Role"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
           }
         },
         "type": "object",
         "title": "ColumnPatch"
+      },
+      "ColumnWriteOut": {
+        "properties": {
+          "action_id": {
+            "type": "integer",
+            "title": "Action Id"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "value_type": {
+            "type": "string",
+            "title": "Value Type"
+          },
+          "owner_role": {
+            "type": "string",
+            "title": "Owner Role"
+          },
+          "labels": {
+            "$ref": "#/components/schemas/LabelSet"
+          },
+          "group_labels": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabelSet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counts_in_average": {
+            "type": "boolean",
+            "title": "Counts In Average"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "readOnly": true
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "id",
+          "grade_level",
+          "subject",
+          "value_type",
+          "owner_role",
+          "labels",
+          "group_labels",
+          "counts_in_average",
+          "position",
+          "is_active",
+          "name",
+          "group"
+        ],
+        "title": "ColumnWriteOut"
       },
       "CompletenessRow": {
         "properties": {
@@ -5061,8 +5468,30 @@
         ],
         "title": "CopyBody"
       },
+      "CopyOut": {
+        "properties": {
+          "action_id": {
+            "type": "integer",
+            "title": "Action Id"
+          },
+          "copied": {
+            "type": "integer",
+            "title": "Copied"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "copied"
+        ],
+        "title": "CopyOut"
+      },
       "DeleteResult": {
         "properties": {
+          "action_id": {
+            "type": "integer",
+            "title": "Action Id"
+          },
           "deleted": {
             "type": "boolean",
             "title": "Deleted"
@@ -5074,6 +5503,7 @@
         },
         "type": "object",
         "required": [
+          "action_id",
           "deleted",
           "disabled"
         ],
@@ -6089,6 +6519,93 @@
         ],
         "title": "ManagedUserOut"
       },
+      "ManagedUserWriteOut": {
+        "properties": {
+          "action_id": {
+            "type": "integer",
+            "title": "Action Id"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "is_admin": {
+            "type": "boolean",
+            "title": "Is Admin"
+          },
+          "is_coordinator": {
+            "type": "boolean",
+            "title": "Is Coordinator"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "teaching_field": {
+            "type": "string",
+            "title": "Teaching Field"
+          },
+          "teaching_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teaching Stage"
+          },
+          "report_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Name"
+          },
+          "signature_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature Url"
+          },
+          "revoked_sessions": {
+            "type": "integer",
+            "title": "Revoked Sessions",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "id",
+          "email",
+          "full_name",
+          "is_admin",
+          "is_coordinator",
+          "is_active",
+          "teaching_field",
+          "teaching_stage"
+        ],
+        "title": "ManagedUserWriteOut"
+      },
       "MatrixSlotOut": {
         "properties": {
           "class_id": {
@@ -6421,6 +6938,47 @@
         ],
         "title": "ReorderBody"
       },
+      "ReorderOut": {
+        "properties": {
+          "action_id": {
+            "type": "integer",
+            "title": "Action Id"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "ok"
+        ],
+        "title": "ReorderOut"
+      },
+      "RosterMoveOut": {
+        "properties": {
+          "action_id": {
+            "type": "integer",
+            "title": "Action Id"
+          },
+          "changed": {
+            "type": "integer",
+            "title": "Changed"
+          },
+          "unchanged": {
+            "type": "integer",
+            "title": "Unchanged"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "changed",
+          "unchanged"
+        ],
+        "title": "RosterMoveOut"
+      },
       "RosterStudentCreate": {
         "properties": {
           "school_number": {
@@ -6547,6 +7105,10 @@
       },
       "RosterStudentRemoveResult": {
         "properties": {
+          "action_id": {
+            "type": "integer",
+            "title": "Action Id"
+          },
           "student_id": {
             "type": "integer",
             "title": "Student Id"
@@ -6558,10 +7120,58 @@
         },
         "type": "object",
         "required": [
+          "action_id",
           "student_id",
           "removed"
         ],
         "title": "RosterStudentRemoveResult"
+      },
+      "RosterStudentWriteOut": {
+        "properties": {
+          "action_id": {
+            "type": "integer",
+            "title": "Action Id"
+          },
+          "student_id": {
+            "type": "integer",
+            "title": "Student Id"
+          },
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "student_id",
+          "school_number",
+          "full_name",
+          "language"
+        ],
+        "title": "RosterStudentWriteOut"
       },
       "RowModel": {
         "properties": {
@@ -6831,6 +7441,24 @@
         ],
         "title": "StudentHistoryOut"
       },
+      "StudentLanguageOut": {
+        "properties": {
+          "action_id": {
+            "type": "integer",
+            "title": "Action Id"
+          },
+          "changed": {
+            "type": "integer",
+            "title": "Changed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "changed"
+        ],
+        "title": "StudentLanguageOut"
+      },
       "StudentOut": {
         "properties": {
           "id": {
@@ -6929,6 +7557,51 @@
         },
         "type": "object",
         "title": "StudentPatch"
+      },
+      "StudentWriteOut": {
+        "properties": {
+          "action_id": {
+            "type": "integer",
+            "title": "Action Id"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "year_id": {
+            "type": "integer",
+            "title": "Year Id"
+          },
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id",
+          "id",
+          "school_number",
+          "full_name",
+          "year_id",
+          "class_id"
+        ],
+        "title": "StudentWriteOut"
       },
       "UserCreate": {
         "properties": {

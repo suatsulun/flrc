@@ -106,6 +106,9 @@ gateway secrets, and request bodies.
 
 ## Recurring work
 
+- Nightly (automatic): the backup sidecar deletes admin undo records older than seven days
+  (ADR-075) before the dump; `admin_actions_purged` in its log reports the count. Without the
+  sidecar, run `flrc purge-admin-actions` as part of the monthly work.
 - Monthly: dependency/container update, `flrc purge-job-outputs`, access-role review, missing assignments, completeness anomalies.
 - Before year close: confirm both semesters are locked, store the audit export, then verify the
   automatically created next year and its fresh sequential student numbers. Resolve any missing

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flrc.db.models import AcademicYear, Enrollment, SchoolClass, Student, User
 from flrc.db.session import get_session
+from flrc.modules.academics.class_names import class_label
 from flrc.modules.academics.programme import stage_for_grade
 from flrc.modules.administration.names import search_key
 from flrc.modules.administration.roster_service import (
@@ -17,6 +18,12 @@ from flrc.modules.administration.roster_service import (
     school_number_taken,
 )
 from flrc.modules.auth.dependencies import require_admin
+from flrc.modules.changes.service import (
+    ActionWrite,
+    change_list,
+    changed_values,
+    record_action,
+)
 
 router = APIRouter(prefix="/admin/students", tags=["admin-students"])
 
@@ -27,6 +34,10 @@ class StudentOut(BaseModel):
     full_name: str
     year_id: int
     class_id: int
+
+
+class StudentWriteOut(StudentOut, ActionWrite):
+    pass
 
 
 class StudentPage(BaseModel):
@@ -142,8 +153,7 @@ async def create_student(
     body: StudentCreate,
     user: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-) -> StudentOut:
-    del user
+) -> StudentWriteOut:
     school_class = await db.get(SchoolClass, body.class_id)
     if school_class is None or school_class.year_id != body.year_id:
         raise HTTPException(422, {"code": "invalid_class"})
@@ -172,13 +182,25 @@ async def create_student(
             school_number=body.school_number,
         )
     )
+    action = await record_action(
+        db,
+        actor=user,
+        kind="student.add",
+        params={
+            "student": student.full_name,
+            "class": class_label(school_class.grade_level, school_class.section),
+            "number": body.school_number,
+        },
+        undo={"student_id": student.id, "year_id": body.year_id},
+    )
     await _commit_numbered(db)
-    return StudentOut(
+    return StudentWriteOut(
         id=student.id,
         school_number=body.school_number,
         full_name=student.full_name,
         year_id=body.year_id,
         class_id=body.class_id,
+        action_id=action.id,
     )
 
 
@@ -189,8 +211,7 @@ async def patch_student(
     user: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
     year_id: int,
-) -> StudentOut:
-    del user
+) -> StudentWriteOut:
     student = await db.get(Student, student_id)
     if student is None:
         raise HTTPException(404, {"code": "unknown_student"})
@@ -205,6 +226,10 @@ async def patch_student(
     year = await db.get(AcademicYear, year_id)
     if year is None or year.status == "archived":
         raise HTTPException(409, {"code": "year_not_writable"})
+    before: dict[str, object] = {
+        "full_name": student.full_name,
+        "school_number": enrollment.school_number,
+    }
     if body.school_number is not None and body.school_number != enrollment.school_number:
         if await school_number_taken(
             db,
@@ -218,11 +243,33 @@ async def patch_student(
     if body.full_name is not None:
         student.full_name = body.full_name.strip()
         student.search_name = search_key(student.full_name)
+    changed_before, changed_after = changed_values(
+        before, {"full_name": student.full_name, "school_number": enrollment.school_number}
+    )
+    school_class = await db.get(SchoolClass, enrollment.class_id)
+    assert school_class is not None
+    action = await record_action(
+        db,
+        actor=user,
+        kind="student.edit",
+        params={
+            "student": student.full_name,
+            "class": class_label(school_class.grade_level, school_class.section),
+            "changes": change_list(changed_before, changed_after),
+        },
+        undo={
+            "student_id": student_id,
+            "year_id": year_id,
+            "before": changed_before,
+            "after": changed_after,
+        },
+    )
     await _commit_numbered(db)
-    return StudentOut(
+    return StudentWriteOut(
         id=student.id,
         school_number=enrollment.school_number,
         full_name=student.full_name,
         year_id=enrollment.year_id,
         class_id=enrollment.class_id,
+        action_id=action.id,
     )

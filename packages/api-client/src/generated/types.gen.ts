@@ -45,9 +45,101 @@ export type AcademicYearOut = {
 };
 
 /**
+ * AdminActionOut
+ */
+export type AdminActionOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: 'student.add' | 'student.remove' | 'student.move' | 'student.edit' | 'student.language' | 'class.create' | 'class.edit' | 'class.delete' | 'field.create' | 'field.delete' | 'field.edit' | 'field.reorder' | 'field.copy' | 'user.create' | 'user.edit' | 'signature.upload' | 'signature.delete' | 'assignments.replace';
+    /**
+     * Actor
+     */
+    actor: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Status
+     */
+    status: 'available' | 'undone' | 'expired';
+    /**
+     * Undone At
+     */
+    undone_at: string | null;
+    /**
+     * Undone By
+     */
+    undone_by: string | null;
+    /**
+     * Params
+     */
+    params: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * AdminActionPage
+ */
+export type AdminActionPage = {
+    /**
+     * Items
+     */
+    items: Array<AdminActionOut>;
+    /**
+     * Next Cursor
+     */
+    next_cursor: number | null;
+};
+
+/**
  * AdminClassOut
  */
 export type AdminClassOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Year Id
+     */
+    year_id: number;
+    /**
+     * Grade Level
+     */
+    grade_level: number;
+    /**
+     * Section
+     */
+    section: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Student Count
+     */
+    student_count: number;
+};
+
+/**
+ * AdminClassWriteOut
+ */
+export type AdminClassWriteOut = {
+    /**
+     * Action Id
+     */
+    action_id: number;
     /**
      * Id
      */
@@ -235,6 +327,20 @@ export type AssignmentChange = {
 };
 
 /**
+ * AssignmentMatrixWriteOut
+ */
+export type AssignmentMatrixWriteOut = {
+    /**
+     * Action Id
+     */
+    action_id: number;
+    /**
+     * Slots
+     */
+    slots: Array<MatrixSlotOut>;
+};
+
+/**
  * AssignmentOut
  */
 export type AssignmentOut = {
@@ -268,6 +374,20 @@ export type AssignmentSlotOut = {
      * User Name
      */
     user_name: string | null;
+};
+
+/**
+ * AssignmentWriteOut
+ */
+export type AssignmentWriteOut = {
+    /**
+     * Action Id
+     */
+    action_id: number;
+    /**
+     * Ok
+     */
+    ok: boolean;
 };
 
 /**
@@ -440,6 +560,20 @@ export type ClassCreate = {
      * Section
      */
     section: string;
+};
+
+/**
+ * ClassDeleteOut
+ */
+export type ClassDeleteOut = {
+    /**
+     * Action Id
+     */
+    action_id: number;
+    /**
+     * Deleted
+     */
+    deleted: boolean;
 };
 
 /**
@@ -718,6 +852,62 @@ export type ColumnPatch = {
      * Owner Role
      */
     owner_role?: 'main' | 'skills' | 'german' | 'french' | null;
+    /**
+     * Name
+     */
+    name?: string | null;
+};
+
+/**
+ * ColumnWriteOut
+ */
+export type ColumnWriteOut = {
+    /**
+     * Action Id
+     */
+    action_id: number;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Grade Level
+     */
+    grade_level: number;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * Value Type
+     */
+    value_type: string;
+    /**
+     * Owner Role
+     */
+    owner_role: string;
+    labels: LabelSet;
+    group_labels: LabelSet | null;
+    /**
+     * Counts In Average
+     */
+    counts_in_average: boolean;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Name
+     */
+    readonly name: string;
+    /**
+     * Group
+     */
+    readonly group: string | null;
 };
 
 /**
@@ -823,9 +1013,27 @@ export type CopyBody = {
 };
 
 /**
+ * CopyOut
+ */
+export type CopyOut = {
+    /**
+     * Action Id
+     */
+    action_id: number;
+    /**
+     * Copied
+     */
+    copied: number;
+};
+
+/**
  * DeleteResult
  */
 export type DeleteResult = {
+    /**
+     * Action Id
+     */
+    action_id: number;
     /**
      * Deleted
      */
@@ -1440,6 +1648,60 @@ export type ManagedUserOut = {
 };
 
 /**
+ * ManagedUserWriteOut
+ */
+export type ManagedUserWriteOut = {
+    /**
+     * Action Id
+     */
+    action_id: number;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Full Name
+     */
+    full_name: string;
+    /**
+     * Is Admin
+     */
+    is_admin: boolean;
+    /**
+     * Is Coordinator
+     */
+    is_coordinator: boolean;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Teaching Field
+     */
+    teaching_field: string;
+    /**
+     * Teaching Stage
+     */
+    teaching_stage: string | null;
+    /**
+     * Report Name
+     */
+    report_name?: string | null;
+    /**
+     * Signature Url
+     */
+    signature_url?: string | null;
+    /**
+     * Revoked Sessions
+     */
+    revoked_sessions?: number;
+};
+
+/**
  * MatrixSlotOut
  */
 export type MatrixSlotOut = {
@@ -1662,6 +1924,38 @@ export type ReorderBody = {
 };
 
 /**
+ * ReorderOut
+ */
+export type ReorderOut = {
+    /**
+     * Action Id
+     */
+    action_id: number;
+    /**
+     * Ok
+     */
+    ok: boolean;
+};
+
+/**
+ * RosterMoveOut
+ */
+export type RosterMoveOut = {
+    /**
+     * Action Id
+     */
+    action_id: number;
+    /**
+     * Changed
+     */
+    changed: number;
+    /**
+     * Unchanged
+     */
+    unchanged: number;
+};
+
+/**
  * RosterStudentCreate
  */
 export type RosterStudentCreate = {
@@ -1724,6 +2018,10 @@ export type RosterStudentPatch = {
  */
 export type RosterStudentRemoveResult = {
     /**
+     * Action Id
+     */
+    action_id: number;
+    /**
      * Student Id
      */
     student_id: number;
@@ -1731,6 +2029,32 @@ export type RosterStudentRemoveResult = {
      * Removed
      */
     removed: boolean;
+};
+
+/**
+ * RosterStudentWriteOut
+ */
+export type RosterStudentWriteOut = {
+    /**
+     * Action Id
+     */
+    action_id: number;
+    /**
+     * Student Id
+     */
+    student_id: number;
+    /**
+     * School Number
+     */
+    school_number: number | null;
+    /**
+     * Full Name
+     */
+    full_name: string;
+    /**
+     * Language
+     */
+    language: string | null;
 };
 
 /**
@@ -1900,6 +2224,20 @@ export type StudentHistoryOut = {
 };
 
 /**
+ * StudentLanguageOut
+ */
+export type StudentLanguageOut = {
+    /**
+     * Action Id
+     */
+    action_id: number;
+    /**
+     * Changed
+     */
+    changed: number;
+};
+
+/**
  * StudentOut
  */
 export type StudentOut = {
@@ -1951,6 +2289,36 @@ export type StudentPatch = {
      * Full Name
      */
     full_name?: string | null;
+};
+
+/**
+ * StudentWriteOut
+ */
+export type StudentWriteOut = {
+    /**
+     * Action Id
+     */
+    action_id: number;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * School Number
+     */
+    school_number: number | null;
+    /**
+     * Full Name
+     */
+    full_name: string;
+    /**
+     * Year Id
+     */
+    year_id: number;
+    /**
+     * Class Id
+     */
+    class_id: number;
 };
 
 /**
@@ -2119,6 +2487,50 @@ export type YearOut = {
  * ColumnOut
  */
 export type ColumnOutWritable = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Grade Level
+     */
+    grade_level: number;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * Value Type
+     */
+    value_type: string;
+    /**
+     * Owner Role
+     */
+    owner_role: string;
+    labels: LabelSet;
+    group_labels: LabelSet | null;
+    /**
+     * Counts In Average
+     */
+    counts_in_average: boolean;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+};
+
+/**
+ * ColumnWriteOut
+ */
+export type ColumnWriteOutWritable = {
+    /**
+     * Action Id
+     */
+    action_id: number;
     /**
      * Id
      */
@@ -2396,7 +2808,7 @@ export type CreateColumnResponses = {
     /**
      * Successful Response
      */
-    201: ColumnOut;
+    201: ColumnWriteOut;
 };
 
 export type CreateColumnResponse = CreateColumnResponses[keyof CreateColumnResponses];
@@ -2466,7 +2878,7 @@ export type UpdateColumnResponses = {
     /**
      * Successful Response
      */
-    200: ColumnOut;
+    200: ColumnWriteOut;
 };
 
 export type UpdateColumnResponse = UpdateColumnResponses[keyof UpdateColumnResponses];
@@ -2494,13 +2906,9 @@ export type ReorderColumnsError = ReorderColumnsErrors[keyof ReorderColumnsError
 
 export type ReorderColumnsResponses = {
     /**
-     * Response Reorder Columns
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: boolean;
-    };
+    200: ReorderOut;
 };
 
 export type ReorderColumnsResponse = ReorderColumnsResponses[keyof ReorderColumnsResponses];
@@ -2528,13 +2936,9 @@ export type CopyColumnsError = CopyColumnsErrors[keyof CopyColumnsErrors];
 
 export type CopyColumnsResponses = {
     /**
-     * Response Copy Columns
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: number;
-    };
+    200: CopyOut;
 };
 
 export type CopyColumnsResponse = CopyColumnsResponses[keyof CopyColumnsResponses];
@@ -2706,13 +3110,9 @@ export type UpsertAssignmentError = UpsertAssignmentErrors[keyof UpsertAssignmen
 
 export type UpsertAssignmentResponses = {
     /**
-     * Response Upsert Assignment
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: boolean;
-    };
+    200: AssignmentWriteOut;
 };
 
 export type UpsertAssignmentResponse = UpsertAssignmentResponses[keyof UpsertAssignmentResponses];
@@ -3037,7 +3437,7 @@ export type CreateStudentResponses = {
     /**
      * Successful Response
      */
-    201: StudentOut;
+    201: StudentWriteOut;
 };
 
 export type CreateStudentResponse = CreateStudentResponses[keyof CreateStudentResponses];
@@ -3072,7 +3472,7 @@ export type PatchStudentResponses = {
     /**
      * Successful Response
      */
-    200: StudentOut;
+    200: StudentWriteOut;
 };
 
 export type PatchStudentResponse = PatchStudentResponses[keyof PatchStudentResponses];
@@ -3133,7 +3533,7 @@ export type CreateManagedUserResponses = {
     /**
      * Successful Response
      */
-    201: ManagedUserOut;
+    201: ManagedUserWriteOut;
 };
 
 export type CreateManagedUserResponse = CreateManagedUserResponses[keyof CreateManagedUserResponses];
@@ -3163,7 +3563,7 @@ export type PatchManagedUserResponses = {
     /**
      * Successful Response
      */
-    200: ManagedUserOut;
+    200: ManagedUserWriteOut;
 };
 
 export type PatchManagedUserResponse = PatchManagedUserResponses[keyof PatchManagedUserResponses];
@@ -3193,7 +3593,7 @@ export type DeleteUserSignatureResponses = {
     /**
      * Successful Response
      */
-    200: ManagedUserOut;
+    200: ManagedUserWriteOut;
 };
 
 export type DeleteUserSignatureResponse = DeleteUserSignatureResponses[keyof DeleteUserSignatureResponses];
@@ -3251,7 +3651,7 @@ export type UploadUserSignatureResponses = {
     /**
      * Successful Response
      */
-    200: ManagedUserOut;
+    200: ManagedUserWriteOut;
 };
 
 export type UploadUserSignatureResponse = UploadUserSignatureResponses[keyof UploadUserSignatureResponses];
@@ -3308,7 +3708,7 @@ export type CreateAdminClassResponses = {
     /**
      * Successful Response
      */
-    201: AdminClassOut;
+    201: AdminClassWriteOut;
 };
 
 export type CreateAdminClassResponse = CreateAdminClassResponses[keyof CreateAdminClassResponses];
@@ -3336,13 +3736,9 @@ export type DeleteAdminClassError = DeleteAdminClassErrors[keyof DeleteAdminClas
 
 export type DeleteAdminClassResponses = {
     /**
-     * Response Delete Admin Class
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: boolean;
-    };
+    200: ClassDeleteOut;
 };
 
 export type DeleteAdminClassResponse = DeleteAdminClassResponses[keyof DeleteAdminClassResponses];
@@ -3372,7 +3768,7 @@ export type PatchAdminClassResponses = {
     /**
      * Successful Response
      */
-    200: AdminClassOut;
+    200: AdminClassWriteOut;
 };
 
 export type PatchAdminClassResponse = PatchAdminClassResponses[keyof PatchAdminClassResponses];
@@ -3432,11 +3828,9 @@ export type ReplaceAssignmentMatrixError = ReplaceAssignmentMatrixErrors[keyof R
 
 export type ReplaceAssignmentMatrixResponses = {
     /**
-     * Response Replace Assignment Matrix
-     *
      * Successful Response
      */
-    200: Array<MatrixSlotOut>;
+    200: AssignmentMatrixWriteOut;
 };
 
 export type ReplaceAssignmentMatrixResponse = ReplaceAssignmentMatrixResponses[keyof ReplaceAssignmentMatrixResponses];
@@ -3504,7 +3898,7 @@ export type PatchAdminRosterStudentResponses = {
     /**
      * Successful Response
      */
-    200: RosterStudentOut;
+    200: RosterStudentWriteOut;
 };
 
 export type PatchAdminRosterStudentResponse = PatchAdminRosterStudentResponses[keyof PatchAdminRosterStudentResponses];
@@ -3566,7 +3960,7 @@ export type AddAdminRosterStudentResponses = {
     /**
      * Successful Response
      */
-    201: RosterStudentOut;
+    201: RosterStudentWriteOut;
 };
 
 export type AddAdminRosterStudentResponse = AddAdminRosterStudentResponses[keyof AddAdminRosterStudentResponses];
@@ -3589,13 +3983,9 @@ export type MoveAdminRosterError = MoveAdminRosterErrors[keyof MoveAdminRosterEr
 
 export type MoveAdminRosterResponses = {
     /**
-     * Response Move Admin Roster
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: number;
-    };
+    200: RosterMoveOut;
 };
 
 export type MoveAdminRosterResponse = MoveAdminRosterResponses[keyof MoveAdminRosterResponses];
@@ -3623,13 +4013,9 @@ export type SetStudentLanguageError = SetStudentLanguageErrors[keyof SetStudentL
 
 export type SetStudentLanguageResponses = {
     /**
-     * Response Set Student Language
-     *
      * Successful Response
      */
-    200: {
-        [key: string]: number;
-    };
+    200: StudentLanguageOut;
 };
 
 export type SetStudentLanguageResponse = SetStudentLanguageResponses[keyof SetStudentLanguageResponses];
@@ -4250,6 +4636,70 @@ export type DownloadJobResponses = {
      */
     200: unknown;
 };
+
+export type ListAdminActionsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Cursor
+         */
+        cursor?: number | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/admin/actions';
+};
+
+export type ListAdminActionsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAdminActionsError = ListAdminActionsErrors[keyof ListAdminActionsErrors];
+
+export type ListAdminActionsResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminActionPage;
+};
+
+export type ListAdminActionsResponse = ListAdminActionsResponses[keyof ListAdminActionsResponses];
+
+export type UndoAdminActionData = {
+    body?: never;
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/admin/actions/{action_id}/undo';
+};
+
+export type UndoAdminActionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UndoAdminActionError = UndoAdminActionErrors[keyof UndoAdminActionErrors];
+
+export type UndoAdminActionResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminActionOut;
+};
+
+export type UndoAdminActionResponse = UndoAdminActionResponses[keyof UndoAdminActionResponses];
 
 export type DownloadReportSetData = {
     body?: never;

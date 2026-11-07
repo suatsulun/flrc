@@ -7,8 +7,8 @@ _Architecture Decision Records for the project. Each decision explains the choic
 Records preserve the reasoning at their date; later explicit amendments take precedence over
 superseded parts. ADR-060's middle-English comments are superseded by ADR-063, while its grade-4
 German/French comments remain. ADR-053 to ADR-058 supply the current image/deployment/backup
-layout. The original fourteen-table design now includes `demo_visitors` and
-`report_identity_audits`.
+layout. The original fourteen-table design now includes `demo_visitors`,
+`report_identity_audits` and `admin_actions` (ADR-075).
 
 At this documentation refresh, ADR-063 and its implementation were still uncommitted.
 Year-label ordering and bounded PDF layout/fallback changes were also pending. No new architecture
@@ -3079,7 +3079,9 @@ translations.
 
 ## Supersedes / Superseded by
 
-Narrows §4.10 for field names; printed report labels keep the per-language rules.
+Narrows §4.10 for field names; printed report labels keep the per-language rules. ADR-076
+supersedes the "Names cannot be edited after creation" bullet: the subject-language name is now
+editable.
 
 ---
 
@@ -3215,6 +3217,120 @@ Other subjects and grades do not need it.
 ## Supersedes / Superseded by
 
 Builds on ADR-063, ADR-071 and ADR-072.
+
+---
+
+# ADR-075: Admin changes can be undone for seven days, and conflicts refuse the undo
+
+**Status:** Accepted  
+**Date:** 2026-11-07  
+**Phase:** 3.x (administration) maintenance
+
+## Context
+
+Administrators edit rosters, classes, fields, teachers and assignments in a live school year. A
+wrong drag-and-drop move, a deleted field or a replaced signature could only be repaired by hand,
+and only if someone remembered the previous values. Teachers' grade saves already have their own
+undo (Step 2.8); administrative writes had none.
+
+## Decision
+
+- Every undoable admin write adds one `admin_actions` row in the same transaction as the write:
+  `kind`, the acting admin, `summary.params` (display names resolved at write time: student,
+  class, field, teacher, from/to classes, counts), `undo_data` (the snapshot that restores the
+  previous rows) and, for signatures, the replaced or removed image in a deferred `blob` column.
+  Rows expire seven days after the write (`ADMIN_ACTION_TTL`).
+- Kinds are stable strings the admin app translates: `student.add`, `student.remove`,
+  `student.move`, `student.edit`, `student.language`, `class.create`, `class.edit`,
+  `class.delete`, `field.create`, `field.delete`, `field.edit`, `field.reorder`, `field.copy`,
+  `user.create`, `user.edit`, `signature.upload`, `signature.delete`, `assignments.replace`.
+  Year lifecycle actions, year creation and roster import commits are not undoable.
+- Each of those endpoints returns a top-level `action_id`. Write responses use their own models
+  (`ColumnWriteOut`, `RosterStudentWriteOut`, ...), so read models stay unchanged; the assignment
+  matrix `PUT` now answers `{slots, action_id}`.
+- `GET /api/admin/actions?cursor=&limit=` lists actions newest first with
+  `status: available | undone | expired`. `POST /api/admin/actions/{id}/undo` restores the
+  previous state in one transaction. Any administrator may undo any action; coordinators and
+  teachers get 403.
+- An undo first checks that the data still looks the way the action left it and that the previous
+  state is valid today, with the original endpoints' rules (school numbers per stage, class
+  duplicates and use, `editable_semester`, the last-admin and self-deactivation rules, teacher
+  subject and stage per role). If not, it refuses with
+  `409 {"code": "undo_blocked", "reason", "params"}` naming the blocker, for example
+  `school_number_taken` with the number, the pupil holding it and their class, and nothing changes.
+  Other answers: `404 unknown_action`, `409 action_already_undone`, `410 action_expired`.
+- Undoing an add removes what was added unless it is in use: a new field with grades
+  (`field_has_grades`), a class with pupils (`class_in_use`), an account that signed in or has
+  work (`user_in_use`). An added pupil who already has grades follows ordinary roster removal: the
+  enrollment goes, the person and grades stay; a pupil with nothing attached is deleted again.
+- Deleted rows return with their original ids (classes, fields), so later actions that refer to
+  them still apply. A hidden field with grades is shown again with its grades.
+- The backup sidecar deletes expired rows and their images each night before the dump
+  (`flrc purge-admin-actions` does the same by hand). Until then an expired row is listed as
+  `expired` and cannot be undone.
+
+## Alternatives considered
+
+- Event-sourcing every admin table: undo and history for free, but every reader would replay
+  events and every existing query would change.
+- Undo by replaying the request in reverse without a snapshot: deleted fields, removed pupils and
+  replaced images cannot be recreated from the request.
+- Overwrite later changes on undo ("last undo wins"): silently discards a colleague's newer edit.
+- Keep actions until the year is archived: snapshots hold pupils' names and signature images
+  longer than an accidental change needs.
+
+## Consequences
+
+- For seven days the database keeps copies of removed roster rows, deleted fields and replaced
+  signature images (PRIVACY-DATA-MAP). Backups taken in that window include them.
+- An undo that conflicts with later work is refused as a whole; the admin first undoes or edits
+  the later change. Edits of other attributes do not block an undo.
+- The nightly purge depends on the backup sidecar; an installation without it keeps expired rows
+  (still refused as `expired`) until `flrc purge-admin-actions` runs.
+
+## Supersedes / Superseded by
+
+Complements Step 2.8's grade undo; does not change it.
+
+---
+
+# ADR-076: Field names can be edited after creation
+
+**Status:** Accepted  
+**Date:** 2026-11-07  
+**Phase:** 2.x (grid and columns) maintenance
+
+## Context
+
+ADR-072 made a field's name its subject-language label and kept names fixed after creation, so a
+typo meant deleting the field, which is impossible without losing its place once grades exist.
+
+## Decision
+
+- `PATCH /api/columns/{id}` accepts an optional `name`, stripped and non-empty like
+  `ColumnCreate.name`. It is stored under the field's subject language (`SUBJECT_LOCALE`); the
+  Turkish wording, group names and other labels stay as created.
+- The same rule as other column edits applies (`editable_semester`): the open semester of the
+  active year or any semester of a setup year; locked semesters and archived years answer
+  `409 semester_locked`.
+- Grades stay attached because they reference the field id. A rename is recorded as
+  `field.edit` and can be undone (ADR-075).
+
+## Alternatives considered
+
+- Rename every stored label: the Turkish wording printed on bilingual cards would follow a name
+  typed in another language.
+- Keep names fixed: a typo stays on every printed card for the year.
+
+## Consequences
+
+Printed cards show the new name from the next generated PDF. Changing a type that needs Turkish
+wording still requires recreating the field with it.
+
+## Supersedes / Superseded by
+
+Supersedes ADR-072's "Names cannot be edited after creation" bullet; its Turkish-wording checks
+for type changes and copies remain.
 
 ---
 

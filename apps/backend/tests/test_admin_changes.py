@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from io import BytesIO
+from typing import Any
 
 import pytest
 from PIL import Image
@@ -594,6 +595,25 @@ async def test_undo_reorder_and_refusal_after_a_later_reorder(api, world):
     assert (await column_row(world.skills_column)).position == 2
 
 
+async def test_undo_reorder_refuses_a_field_deleted_while_it_waited(api, world):
+    async with api(world.admin) as client:
+        swapped = await client.post(
+            "/api/columns/reorder",
+            params={"semester_id": world.semester},
+            json={"ordered_ids": [world.skills_column, world.main_column]},
+        )
+        # The undo reads the field set before this deletion commits, then waits on its row.
+        async with TestSession() as db:
+            await db.execute(
+                delete(m.ColumnDefinition).where(m.ColumnDefinition.id == world.skills_column)
+            )
+            pending = asyncio.create_task(undo(client, swapped.json()["action_id"]))
+            await asyncio.sleep(0.5)
+            await db.commit()
+        assert_blocked(await pending, "order_changed", grade_level=5, subject="english")
+    assert (await column_row(world.main_column)).position == 2
+
+
 async def test_undo_copy_removes_copies_unless_graded(api, world):
     copy = {
         "source_grade_level": 5,
@@ -846,6 +866,75 @@ async def test_undo_signature_upload_and_delete_keep_the_images(api, world):
         assert (await client.get(path)).content == first_image
         assert (await undo(client, first.json()["action_id"])).status_code == 200
         assert (await client.get(path)).status_code == 404
+
+
+async def crossed(*requests: Callable[[], Awaitable[Any]]) -> list[Any]:
+    """Run requests at once, each held at its first admin-action write until all arrive.
+
+    A share lock on ``admin_actions`` lets every request take the row locks it takes before
+    recording, then releases them together, the worst interleaving of simultaneous requests.
+    """
+    async with TestSession() as db:
+        await db.execute(text("LOCK TABLE admin_actions IN SHARE MODE"))
+        pending = [asyncio.create_task(request()) for request in requests]
+        await asyncio.sleep(0.5)
+        await db.commit()
+    return await asyncio.gather(*pending)
+
+
+@pytest.mark.parametrize("write", ["edit", "signature", "undo"])
+async def test_two_admins_changing_each_others_accounts_do_not_deadlock(api, world, write):
+    async with TestSession() as db:
+        deputy = m.User(
+            email=f"deputy@{SCHOOL_DOMAIN}",
+            full_name="Synthetic Deputy",
+            is_admin=True,
+            teaching_stage="middle",
+        )
+        db.add(deputy)
+        await db.commit()
+    pairs = [(world.admin, deputy), (deputy, world.admin)]
+    renames: list[int] = []
+    if write == "undo":
+        for index, (actor, target) in enumerate(pairs):
+            async with api(actor) as client:
+                renamed = await client.patch(
+                    f"/api/admin/users/{target.id}",
+                    json={"full_name": f"Synthetic Renamed {index}"},
+                )
+            renames.append(renamed.json()["action_id"])
+
+    def change(index: int) -> Callable[[], Awaitable[Any]]:
+        actor, target = pairs[index]
+
+        async def request():
+            async with api(actor) as client:
+                if write == "edit":
+                    return await client.patch(
+                        f"/api/admin/users/{target.id}",
+                        json={"full_name": f"Synthetic Renamed {index}"},
+                    )
+                if write == "signature":
+                    return await client.put(
+                        f"/api/admin/users/{target.id}/signature",
+                        files={"file": ("s.png", png("black"), "image/png")},
+                    )
+                return await undo(client, renames[index])
+
+        return request
+
+    responses = await crossed(change(0), change(1))
+    assert [response.status_code for response in responses] == [200, 200]
+    async with TestSession() as db:
+        targets = [await db.get(m.User, target.id) for _, target in pairs]
+    if write == "signature":
+        assert all(target.signature_digest for target in targets)
+    else:
+        expected = {
+            "edit": ["Synthetic Renamed 0", "Synthetic Renamed 1"],
+            "undo": ["Synthetic Deputy", "Synthetic Admin"],
+        }[write]
+        assert [target.full_name for target in targets] == expected
 
 
 # Assignments ----------------------------------------------------------------

@@ -3571,9 +3571,10 @@ date filters.
   the newest year in setup, else nothing:
   - **Term status and next step.** One code with the facts behind it: `create_year`;
     `activate_year` with blockers (pupils without a school number, the only activation guard);
-    `collect_grades` while the open semester is incomplete, with its completion percentage;
-    `advance_semester` / `lock_semester` once it is complete; `close_year` when both semesters are
-    locked. A semester without any field is not complete.
+    `collect_grades` while the open semester is incomplete, with its completion percentage and a
+    blocker counting grids with pupils but no fields; `advance_semester` / `lock_semester` once it
+    is complete; `close_year` when both semesters are locked. A semester without any field is not
+    complete, and neither is one where a grid with pupils has no fields.
   - **Completion** of the open semester (else the last one) per class and subject, with a
     drill-down dialog listing each empty cell's pupil, field, owner role and assigned teacher
     (`/api/coordinator/classes/{id}/missing` now returns those names), linked to the class table.

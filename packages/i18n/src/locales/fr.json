@@ -56,7 +56,8 @@
       "collectGrades": {
         "title": "Compléter les notes du semestre {{number}}",
         "body": "{{percent}} des notes sont saisies ; cellules vides : {{missing}}. Verrouillez le semestre une fois toutes les notes saisies.",
-        "noFields": "Aucun champ n’est encore configuré pour ce semestre."
+        "noFields": "Aucun champ n’est encore configuré pour ce semestre.",
+        "withoutFields": "Classes sans champs : {{count}}. Configurez leurs champs pour que leurs notes puissent être saisies avant le verrouillage du semestre."
       },
       "advanceSemester": {
         "title": "Passer au semestre 2",

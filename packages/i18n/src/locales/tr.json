@@ -56,7 +56,8 @@
       "collectGrades": {
         "title": "{{number}}. dönem notlarını tamamlayın",
         "body": "Notların {{percent}} kadarı girildi; boş hücre: {{missing}}. Bütün notlar girilince dönemi kilitleyin.",
-        "noFields": "Bu dönem için henüz sütun tanımlanmadı."
+        "noFields": "Bu dönem için henüz sütun tanımlanmadı.",
+        "withoutFields": "Sütunu tanımlanmamış sınıflar: {{count}}. Dönem kilitlenmeden önce notların girilebilmesi için sütunlarını tanımlayın."
       },
       "advanceSemester": {
         "title": "2. döneme geçin",

@@ -17,6 +17,7 @@ from flrc.db.models import (
 )
 from flrc.db.session import get_session
 from flrc.modules.academics.class_names import class_label
+from flrc.modules.administration.account_locks import assignable, lock_accounts
 from flrc.modules.administration.classes import (
     apply_assignment_slots,
     assignment_mismatch,
@@ -392,8 +393,9 @@ async def upsert_assignment(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> AssignmentWriteOut:
-    teacher = await db.get(User, body.user_id)
-    if teacher is None or not teacher.is_active:
+    # The account first (ADR-080): a concurrent deactivation or deletion is waited for and seen.
+    teacher = (await lock_accounts(db, [body.user_id])).get(body.user_id)
+    if not assignable(teacher):
         raise HTTPException(422, {"code": "unknown_user"})
     school_class = await db.get(SchoolClass, class_id)
     if school_class is None:

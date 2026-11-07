@@ -36,6 +36,7 @@ from flrc.modules.academics.programme import (
     stage_for_grade,
     uses_scale_only,
 )
+from flrc.modules.administration.account_locks import lock_accounts
 from flrc.modules.auth.dependencies import require_admin
 
 router = APIRouter(prefix="/admin/years", tags=["admin-lifecycle"])
@@ -393,7 +394,13 @@ async def _create_rollover_year(
                 select(TeachingAssignment).where(TeachingAssignment.class_id.in_(class_by_id))
             )
         )
+        # Shared locks on the holders (ADR-080): a concurrent deletion is waited for, and a
+        # deleted account's slot starts the new year empty.
+        holders = await lock_accounts(db, {item.user_id for item in assignments})
         for assignment in assignments:
+            holder = holders.get(assignment.user_id)
+            if holder is None or holder.deleted_at is not None:
+                continue
             old_class = class_by_id[assignment.class_id]
             new_class = target_classes[(old_class.grade_level, old_class.section)]
             db.add(

@@ -29,6 +29,9 @@ import {
 } from "@flrc/ui/components/table";
 import { StudentHistorySkeleton } from "../../admin/page-skeletons";
 
+/** Report-card subjects in the order the school prints them. */
+const SUBJECT_ORDER = ["english", "german", "french"] as const;
+
 /** The year and semester on screen; absent values fall back to the latest recorded term. */
 type HistorySearch = { year?: number; semester?: 1 | 2 };
 
@@ -185,30 +188,42 @@ function StudentHistoryPage() {
                         <TableHeader align="right">{t("forms.value")}</TableHeader>
                       </tr>
                     </TableHead>
-                    <TableBody>
-                      {term.cells.map((cell) => (
-                        <TableRow key={cell.column_id}>
-                          <TableCell className="overflow-hidden">
-                            <span className="flex min-w-0 items-baseline gap-1.5">
-                              <TableText className="max-w-full">{cell.label}</TableText>
-                              <span className="truncate text-xs text-muted-foreground">
-                                {t(`subjects.${cell.subject}`)}
-                              </span>
-                            </span>
-                          </TableCell>
-                          <TableCell align="right" className="font-medium">
-                            {cell.value === null || cell.value === "" ? (
-                              <span className="text-muted-foreground">—</span>
-                            ) : (
-                              // Comment columns hold whole sentences.
-                              <TableText className="ml-auto max-w-full">
-                                {String(cell.value)}
-                              </TableText>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
+                    {SUBJECT_ORDER.map((subject) => {
+                      // English, German and French columns each read as their own block
+                      // instead of interleaving by column position.
+                      const cells = term.cells.filter((cell) => cell.subject === subject);
+                      if (cells.length === 0) return null;
+                      return (
+                        <TableBody key={subject}>
+                          <tr>
+                            <th
+                              colSpan={2}
+                              scope="colgroup"
+                              className="border-b border-border bg-muted/50 px-3 py-2 text-left text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+                            >
+                              {t(`subjects.${subject}`)}
+                            </th>
+                          </tr>
+                          {cells.map((cell) => (
+                            <TableRow key={cell.column_id}>
+                              <TableCell className="overflow-hidden">
+                                <TableText className="max-w-full">{cell.label}</TableText>
+                              </TableCell>
+                              <TableCell align="right" className="font-medium">
+                                {cell.value === null || cell.value === "" ? (
+                                  <span className="text-muted-foreground">—</span>
+                                ) : (
+                                  // Comment columns hold whole sentences.
+                                  <TableText className="ml-auto max-w-full">
+                                    {String(cell.value)}
+                                  </TableText>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      );
+                    })}
                   </Table>
                 </TableScroll>
               </CardBody>

@@ -62,6 +62,7 @@ from flrc.modules.administration.users import (
     account_state,
     ensure_admin_remains,
     ensure_assignments_fit,
+    lock_account_for_edit,
 )
 from flrc.modules.auth import demo
 from flrc.modules.changes.service import ActionKind, UndoBlocked
@@ -525,7 +526,7 @@ async def _undo_field_copy(ctx: UndoContext) -> None:
 
 
 async def _user(ctx: UndoContext, user_id: int) -> User:
-    user = await ctx.db.get(User, user_id, with_for_update=True)
+    user = await lock_account_for_edit(ctx.db, user_id, ctx.actor)
     if user is None:
         raise UndoBlocked("target_missing", user=ctx.params.get("user"))
     if user.id != ctx.actor.id and await demo.is_visitor(ctx.db, user.id):

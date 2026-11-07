@@ -22,7 +22,7 @@ from pypdf import PdfReader, PdfWriter
 
 from flrc.modules.reports.builder import ReportEntry
 from flrc.modules.reports.filenames import report_filename, student_scope
-from flrc.modules.reports.render import render_report_pdf
+from flrc.modules.reports.render import apply_back_cover, render_report_pdf
 
 ReportFormat = Literal["combined", "per_class", "per_student"]
 PDF_MIME = "application/pdf"
@@ -70,10 +70,12 @@ def expected_pages(kind: str, cards: int, *, one_card_per_sheet: bool) -> int:
     return 2 * cards
 
 
-def render_class(class_set: ClassSet, *, one_card_per_sheet: bool = False) -> bytes:
+def render_class(
+    class_set: ClassSet, *, one_card_per_sheet: bool = False, back_cover: bool = True
+) -> bytes:
     """Render one class and check its pages against the card mapping."""
     cards = [entry.card for entry in class_set.entries]
-    pdf = render_report_pdf(cards, one_card_per_sheet=one_card_per_sheet)
+    pdf = render_report_pdf(cards, one_card_per_sheet=one_card_per_sheet, back_cover=back_cover)
     pages = len(PdfReader(BytesIO(pdf)).pages)
     if pages != expected_pages(cards[0].kind, len(cards), one_card_per_sheet=one_card_per_sheet):
         raise ReportPackagingError("report_page_mapping")
@@ -234,22 +236,25 @@ def package_report_set(
     if report_format == "combined":
         writer = PdfWriter()
         for done, class_set in enumerate(classes, start=1):
-            pdf = render_class(class_set)
+            # The school's back cover goes on once, to the merged document, below.
+            pdf = render_class(class_set, back_cover=False)
             reader = PdfReader(BytesIO(pdf))
             if done == 1 and reader.metadata:
                 writer.add_metadata(_metadata(reader))
             for page in reader.pages:
                 writer.add_page(page)
             _release_source(writer, reader)
-            # Each class repeats the fonts and any back cover; fold them as the set grows so
-            # memory follows the finished document, not the sum of its class PDFs.
-            writer.compress_identical_objects()
             on_class_done(done)
-        output = BytesIO()
-        writer.write(output)
-        if output.tell() > max_bytes:
+        # Classes repeat font subsets and artwork; fold them once the set is complete.
+        writer.compress_identical_objects()
+        merged = BytesIO()
+        writer.write(merged)
+        del writer
+        cards = [entry.card for class_set in classes for entry in class_set.entries]
+        data = apply_back_cover(merged.getvalue(), cards)
+        if len(data) > max_bytes:
             raise ReportPackagingError("report_output_too_large")
-        return PackagedSet(data=output.getvalue(), mime=PDF_MIME, parts=1)
+        return PackagedSet(data=data, mime=PDF_MIME, parts=1)
 
     zip_parts = _ZipParts(max_bytes, on_part)
     try:

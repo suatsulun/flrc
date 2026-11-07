@@ -3414,8 +3414,12 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
 
 ## Consequences
 
-- A worker holds one class PDF at a time plus one part. A combined PDF releases each class PDF
-  as soon as its pages are copied (pypdf otherwise keeps every merged source alive). Measured on
+- A worker holds one class PDF at a time plus one part. A combined set renders its classes
+  without the school's back cover (`render_report_pdf(..., back_cover=False)`), releases each
+  class PDF as soon as its pages are copied (pypdf otherwise keeps every merged source alive),
+  and applies the cover once to the merged document; per-class and per-pupil files keep their
+  own cover. Before this, a whole-school German combined set (448 pupils, 32 classes, two render
+  processes) peaked at 3,192 MiB and took 1,048 s. Measured on
   the 1,210-pupil local school with the private overlay (peak PSS of the worker and its render
   processes): whole-school primary English, 638 pupils in 29 classes, combined 6.7 MB in 41 s at
   800 MiB with four render processes and 6.0 MB in 58 s at 647 MiB with two; per-pupil ZIP 72 MB

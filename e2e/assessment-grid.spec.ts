@@ -579,7 +579,7 @@ for (const width of [1366, 390]) {
     await page.getByRole("button", { name: "Teacher notes 0", exact: true }).click();
     await expect(
       page.getByText(
-        "No teacher notes field is configured for this subject. An administrator can add a text field under Columns.",
+        "No teacher notes column is configured for this subject. An administrator can add a text column under Columns.",
         { exact: true },
       ),
     ).toBeVisible();

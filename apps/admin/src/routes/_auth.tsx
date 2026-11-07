@@ -8,7 +8,7 @@ import {
   CalendarDaysIcon,
   ClipboardListIcon,
   FileTextIcon,
-  GaugeIcon,
+  GraduationCapIcon,
   HistoryIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
@@ -156,16 +156,20 @@ function AdminNavigation({ isAdmin, onNavigate }: { isAdmin: boolean; onNavigate
     {
       label: t("shell.navOverview"),
       items: [
-        isAdmin
-          ? { to: "/classes", label: t("classWorkspace.title"), Icon: SchoolIcon }
-          : { to: "/", label: t("shell.overview"), Icon: LayoutDashboardIcon, exact: true },
+        { to: "/", label: t("shell.overview"), Icon: LayoutDashboardIcon, exact: true },
+        ...(isAdmin
+          ? [{ to: "/classes", label: t("classWorkspace.title"), Icon: SchoolIcon }]
+          : []),
       ],
     },
     ...(isAdmin
       ? [
           {
             label: t("shell.navPeople"),
-            items: [{ to: "/users", label: t("users.title"), Icon: KeyRoundIcon }],
+            items: [
+              { to: "/students", label: t("students.title"), Icon: GraduationCapIcon },
+              { to: "/users", label: t("users.title"), Icon: KeyRoundIcon },
+            ],
           },
           {
             label: t("shell.navSetup"),
@@ -181,7 +185,6 @@ function AdminNavigation({ isAdmin, onNavigate }: { isAdmin: boolean; onNavigate
       label: t("shell.navOperations"),
       items: [
         ...(isAdmin ? [{ to: "/audit", label: t("audit.title"), Icon: HistoryIcon }] : []),
-        { to: "/coordinator", label: t("coordinator.title"), Icon: GaugeIcon },
         { to: "/reports", label: t("reports.title"), Icon: FileTextIcon },
         { to: "/archive", label: t("archive.title"), Icon: ArchiveIcon },
       ],

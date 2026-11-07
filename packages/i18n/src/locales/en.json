@@ -371,6 +371,7 @@
     "moveColumnLeft": "Move column left",
     "moveColumnRight": "Move column right",
     "moveStudent": "Move {{name}} to another class",
+    "selectMoveColumn": "Select and move students",
     "gradeEntryInTeacher": "Grades are entered in the teacher table.",
     "addStudent": "Add student",
     "movingStudent": "Moving student…",

@@ -371,6 +371,7 @@
     "moveColumnLeft": "Déplacer la colonne à gauche",
     "moveColumnRight": "Déplacer la colonne à droite",
     "moveStudent": "Déplacer {{name}} vers une autre classe",
+    "selectMoveColumn": "Sélectionner et déplacer les élèves",
     "gradeEntryInTeacher": "Les notes sont saisies dans le tableau enseignant.",
     "addStudent": "Ajouter un élève",
     "movingStudent": "Déplacement de l’élève…",

@@ -371,6 +371,7 @@
     "moveColumnLeft": "Spalte nach links",
     "moveColumnRight": "Spalte nach rechts",
     "moveStudent": "{{name}} in eine andere Klasse verschieben",
+    "selectMoveColumn": "Schüler auswählen und verschieben",
     "gradeEntryInTeacher": "Bewertungen werden in der Lehrertabelle eingetragen.",
     "addStudent": "Lernenden hinzufügen",
     "movingStudent": "Lernender wird verschoben…",

@@ -31,6 +31,7 @@ from flrc.modules.administration.coordinator import (
     active_columns_by_scope,
     assigned_roles,
     completeness_rows,
+    completion_percent,
     scope_filled_cells,
     unassigned_roles,
     year_overview,
@@ -182,7 +183,7 @@ class DashboardOut(BaseModel):
 
 def _percent(filled: int, expected: int) -> float | None:
     """Nothing expected is not complete: a field-less grid must not read as 100 %."""
-    return round(filled / expected * 100, 1) if expected else None
+    return completion_percent(filled, expected) if expected else None
 
 
 async def _focus_year(db: AsyncSession) -> AcademicYear | None:

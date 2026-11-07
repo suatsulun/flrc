@@ -206,6 +206,14 @@ async def scope_filled_cells(
     )
 
 
+def completion_percent(filled: int, expected: int) -> float:
+    """Filled share of ``expected`` (> 0) in percent, truncated to one decimal.
+
+    Never rounded up: 2,199 of 2,200 cells must read 99.9 %, not a false 100 %.
+    """
+    return filled * 1000 // expected / 10
+
+
 def completeness_rows(
     rosters: list[ClassRoster],
     columns_by_scope: ColumnsByScope,
@@ -234,7 +242,7 @@ def completeness_rows(
                     expected_cells=expected,
                     filled_cells=filled,
                     missing_cells=expected - filled,
-                    percent=round((filled / expected * 100) if expected else 100.0, 1),
+                    percent=completion_percent(filled, expected) if expected else 100.0,
                 )
             )
     return result

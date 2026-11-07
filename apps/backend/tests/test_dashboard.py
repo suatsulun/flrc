@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from sqlalchemy import delete, select
 
 from flrc.db import models as m
+from flrc.modules.administration.coordinator import completion_percent
 from tests.conftest import TestSession
 
 ADMIN = m.User(id=90001, email="dash-admin@example.test", full_name="Dash Admin", is_admin=True)
@@ -500,3 +501,11 @@ async def test_missing_cells_name_pupil_field_and_owning_teacher(api, world) -> 
             "teacher_name": None,
         },
     ]
+
+
+def test_completion_percent_never_rounds_an_unfinished_grid_up_to_100() -> None:
+    # One empty cell in a full school must still read as unfinished on the dashboard.
+    assert completion_percent(2199, 2200) == 99.9
+    assert completion_percent(2, 3) == 66.6
+    assert completion_percent(1, 3) == 33.3
+    assert completion_percent(2200, 2200) == 100.0

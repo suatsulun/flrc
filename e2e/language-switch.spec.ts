@@ -30,6 +30,20 @@ for (const surface of ["login", "admin"] as const) {
       "aria-checked",
       "true",
     );
+    // `<html lang>` follows the UI language from the first load, so CSS upper-casing uses the
+    // language's rules: a dotted capital İ appears only in Turkish.
+    const uppercased = () =>
+      page.evaluate(() => {
+        const probe = document.createElement("span");
+        probe.style.textTransform = "uppercase";
+        probe.textContent = "teaching field";
+        document.body.append(probe);
+        const text = probe.innerText;
+        probe.remove();
+        return text;
+      });
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    expect(await uppercased()).toBe("TEACHING FIELD");
     for (const [language, label] of [
       ["de", "Sprache"],
       ["fr", "Langue"],
@@ -44,6 +58,8 @@ for (const surface of ["login", "admin"] as const) {
       await expect
         .poll(() => page.evaluate(() => localStorage.getItem("i18nextLng")))
         .toBe(language);
+      await expect(page.locator("html")).toHaveAttribute("lang", language);
+      expect(await uppercased()).toBe(language === "tr" ? "TEACHİNG FİELD" : "TEACHING FIELD");
     }
     await page.reload();
     await expect(

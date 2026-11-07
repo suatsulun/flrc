@@ -3,17 +3,17 @@ import { Outlet, createFileRoute, Link, redirect, useMatch } from "@tanstack/rea
 import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { FileSearchIcon, FileTextIcon, LayoutGridIcon, ShieldCheckIcon } from "lucide-react";
+import { FileSearchIcon, FileTextIcon, LayoutGridIcon } from "lucide-react";
 import { getGridOptions, listClassCatalogOptions, sessionOptions } from "@flrc/api-client";
 import {
   AppShell,
+  PanelSwitchLink,
   SidebarSection,
   sidebarItemActiveClass,
   sidebarItemClass,
 } from "@flrc/ui/components/app-shell";
 import { DemoBanner } from "@flrc/ui/components/demo-banner";
 import { PageActivity } from "@flrc/ui/components/page-activity";
-import { cn } from "@flrc/ui/lib/utils";
 
 import { LanguageSwitch } from "@flrc/ui/components/language-switch";
 import { LOGO_URL, SCHOOL_SHORT_NAME } from "@flrc/branding";
@@ -64,15 +64,19 @@ function AuthLayout() {
       onLogout={logout}
       labels={appShellLabels(t)}
       renderHome={(props) => <Link to="/" {...props} />}
-      renderNav={({ onNavigate }) => (
-        <TeacherNavigation isAdmin={user.is_admin} onNavigate={onNavigate} />
-      )}
+      renderNav={({ onNavigate }) => <TeacherNavigation onNavigate={onNavigate} />}
       topbarActions={
-        <LanguageSwitch
-          language={i18n.language}
-          onChange={(language) => void i18n.changeLanguage(language)}
-          ariaLabel={t("shell.language")}
-        />
+        <>
+          <LanguageSwitch
+            language={i18n.language}
+            onChange={(language) => void i18n.changeLanguage(language)}
+            ariaLabel={t("shell.language")}
+          />
+          {/* Only people who can open the admin panel get the way there. */}
+          {user.is_admin || user.is_coordinator ? (
+            <PanelSwitchLink href={adminUrl} label={t("goToAdmin")} />
+          ) : null}
+        </>
       }
     >
       {demo ? (
@@ -92,12 +96,11 @@ function AuthLayout() {
   );
 }
 
-function TeacherNavigation({ isAdmin, onNavigate }: { isAdmin: boolean; onNavigate: () => void }) {
+function TeacherNavigation({ onNavigate }: { onNavigate: () => void }) {
   const { t } = useTranslation();
   // Shares the dashboard's cache entry, so this costs no extra request.
   const { data: catalog = [] } = useQuery(listClassCatalogOptions());
   const reportMatch = useMatch({ from: "/_auth/class-report/$classId", shouldThrow: false });
-  const previewMatch = useMatch({ from: "/_auth/card-preview", shouldThrow: false });
   const gridMatch = useMatch({ from: "/_auth/classes/$classId/$subject", shouldThrow: false });
   const englishGrid = gridMatch?.params.subject === "english" ? gridMatch : undefined;
   // The English grid on screen is already in the cache under the same key, in whichever year
@@ -111,18 +114,15 @@ function TeacherNavigation({ isAdmin, onNavigate }: { isAdmin: boolean; onNaviga
   });
   const reportOpen = reportMatch !== undefined;
 
-  // Class reports are for middle-school English teachers; only they get that entry. It opens
-  // the report of the class on screen when that is a middle-school English class. Any teacher
-  // with an assignment may preview their own students' cards, so the others get Karne önizleme.
+  // Everyone gets the report section. Sınıf raporu opens the report of the class on screen
+  // when that is a middle-school English class; otherwise `/class-report` picks the user's own
+  // middle-school English class, else the school's first one.
   const myReportClasses = reportClasses(catalog, { mine: true });
-  const canPreviewCards = catalog.some((schoolClass) => schoolClass.assigned_roles.length > 0);
   const reportTarget = reportMatch
     ? { classId: reportMatch.params.classId, semester: reportMatch.search.semester }
     : englishGrid && grid && REPORT_GRADES.includes(grid.meta.grade_level)
       ? { classId: englishGrid.params.classId, semester: grid.meta.semester_number }
-      : myReportClasses[0]
-        ? { classId: String(myReportClasses[0].id), semester: undefined }
-        : null;
+      : null;
   // While a class report is open the shortcuts open reports of the teacher's middle-school
   // English classes, which stay useful after a semester closes.
   const myBoards = reportOpen
@@ -146,12 +146,15 @@ function TeacherNavigation({ isAdmin, onNavigate }: { isAdmin: boolean; onNaviga
           <LayoutGridIcon />
           {t("dashboard.allClasses")}
         </Link>
-        {myReportClasses.length && reportTarget ? (
+      </SidebarSection>
+
+      <SidebarSection label={t("classReport.navSection")}>
+        {reportTarget ? (
           <Link
             to="/class-report/$classId"
             params={{ classId: reportTarget.classId }}
             search={{ semester: reportTarget.semester }}
-            className={cn(sidebarItemClass, previewMatch && sidebarItemActiveClass)}
+            className={sidebarItemClass}
             activeProps={{ className: sidebarItemActiveClass }}
             activeOptions={{ includeSearch: false }}
             onClick={onNavigate}
@@ -159,30 +162,33 @@ function TeacherNavigation({ isAdmin, onNavigate }: { isAdmin: boolean; onNaviga
             <FileTextIcon />
             {t("classReport.nav")}
           </Link>
-        ) : canPreviewCards ? (
+        ) : (
           <Link
-            to="/card-preview"
-            search={{
-              semesterId: undefined,
-              classId: undefined,
-              kind: undefined,
-              studentId: undefined,
-            }}
+            to="/class-report"
             className={sidebarItemClass}
             activeProps={{ className: sidebarItemActiveClass }}
-            activeOptions={{ includeSearch: false }}
             onClick={onNavigate}
           >
-            <FileSearchIcon />
-            {t("cardPreview.nav")}
+            <FileTextIcon />
+            {t("classReport.nav")}
           </Link>
-        ) : null}
-        {isAdmin ? (
-          <a href={adminUrl} className={sidebarItemClass}>
-            <ShieldCheckIcon />
-            {t("goToAdmin")}
-          </a>
-        ) : null}
+        )}
+        <Link
+          to="/card-preview"
+          search={{
+            semesterId: undefined,
+            classId: undefined,
+            kind: undefined,
+            studentId: undefined,
+          }}
+          className={sidebarItemClass}
+          activeProps={{ className: sidebarItemActiveClass }}
+          activeOptions={{ includeSearch: false }}
+          onClick={onNavigate}
+        >
+          <FileSearchIcon />
+          {t("cardPreview.nav")}
+        </Link>
       </SidebarSection>
 
       {/* The boards this teacher is actually responsible for — the whole point

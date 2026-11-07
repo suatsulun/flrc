@@ -911,6 +911,9 @@
   },
   "classReport": {
     "nav": "Class report",
+    "navSection": "Reports",
+    "noneTitle": "No class reports to show",
+    "noneBody": "Class reports cover middle-school English (grades 5 to 8), and this school year has no such class. Reports open here once classes are added.",
     "title": "Class report",
     "semester": "Semester {{number}}",
     "students": "{{count}} students",
@@ -939,6 +942,7 @@
     "nav": "Report card preview",
     "title": "Report card preview",
     "description": "Check the report cards of students in the classes you teach on screen before they are printed. The preview is view-only.",
+    "descriptionAll": "Check the report cards of every class in the school on screen before they are printed. The preview is view-only.",
     "classLabel": "Class and card",
     "semesterLabel": "Semester",
     "studentsLabel": "Students",
@@ -956,6 +960,7 @@
     "retry": "Try again",
     "emptyTitle": "No report cards to preview",
     "emptyBody": "You have no class assignment in this school year. Previews cover only the classes you teach.",
+    "emptyAllBody": "This school year has no classes yet. Once classes and students are added, you can preview their report cards here.",
     "noStudentsTitle": "No students for this card",
     "noStudentsBody": "No student in this class receives this report card.",
     "watermarkNote": "Previews carry an ÖNİZLEME (preview) watermark and are view-only; official report cards are printed from the admin panel."

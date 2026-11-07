@@ -66,11 +66,8 @@ function ClassReportPage() {
     [data?.semester_number, queryClient, requestedSemester],
   );
 
-  // Karne önizleme opens on this class when the teacher teaches its English; the preview page
-  // falls back to the teacher's first class otherwise.
-  const ownsClass = reportClasses(catalog, { mine: true }).some(
-    (schoolClass) => schoolClass.id === data?.class_id,
-  );
+  // Karne önizleme opens on this class's English card when the user may preview it; the
+  // preview page falls back to the user's first class otherwise.
   const modeSwitch = (
     <ReportModeSwitch
       mode="sheet"
@@ -79,8 +76,8 @@ function ClassReportPage() {
           to: "/card-preview",
           search: {
             semesterId: data?.semester_id,
-            classId: ownsClass ? data?.class_id : undefined,
-            kind: ownsClass ? "english_middle" : undefined,
+            classId: data?.class_id,
+            kind: data ? "english_middle" : undefined,
             studentId: undefined,
           },
         })

@@ -935,6 +935,151 @@ async def test_staged_parts_expire_on_their_own_and_purge_reclaims_aborted_ones(
         assert db.scalar(select(m.JobRun).where(m.JobRun.parent_id == request_id)) is None
 
 
+async def test_a_finished_job_reclaims_the_workspace_of_its_interrupted_attempt(
+    api, world, queued, tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    async with api(world.admin) as client:
+        created = await client.post(
+            "/api/reports/jobs",
+            json={"semester_id": world.semester, "kind": "english_middle", "format": "per_class"},
+        )
+        job_id = created.json()["id"]
+    # A killed attempt left its PDFs behind, and the job still says running when the
+    # redelivered attempt takes it, so neither the restart nor the new attempt may remove them.
+    abandoned = tmp_path / f"{packaging.workspace_prefix(job_id)}killed"
+    abandoned.mkdir()
+    (abandoned / "class-0000.pdf").write_bytes(b"%PDF-")
+    async with TestSession() as db:
+        job = await db.get(m.JobRun, job_id)
+        assert job is not None
+        job.status = "running"
+        await db.commit()
+
+    report_tasks.report_set_job(job_id)
+
+    async with TestSession() as db:
+        job = await db.get(m.JobRun, job_id)
+        assert job is not None
+        assert job.status == "succeeded"
+    # Once the job is finished, nothing of either attempt stays on disk.
+    assert list(tmp_path.glob(f"{packaging.WORKSPACE_PREFIX}*")) == []
+
+
+async def three_part_pupil_set(world, monkeypatch) -> dict[str, object]:
+    """A per-pupil set of 5/A and 6/A that comes out in three parts."""
+    await three_pupil_class(world)
+    classes = middle_classes(world.semester)
+    largest = max(pupil_file_sizes(classes[1]))
+    overhead = packaging.ARCHIVE_OVERHEAD + 2 * (packaging.ENTRY_OVERHEAD + 300)
+    monkeypatch.setattr(packaging, "MAX_OUTPUT_BYTES", int(largest * 2.1) + overhead)
+    return {"semester_id": world.semester, "kind": "english_middle", "format": "per_student"}
+
+
+def age_part(request_id: int, number: int) -> None:
+    """Let a staged part's bound run out, as if it was stored more than six hours ago."""
+    with Session(create_engine(TEST_URL_SYNC)) as other:
+        other.execute(
+            update(m.JobRun)
+            .where(m.JobRun.parent_id == request_id, m.JobRun.part == number)
+            .values(output_expires_at=now() - timedelta(seconds=1))
+        )
+        other.commit()
+
+
+def nightly_purge() -> None:
+    """The backup sidecar's purge, in its own connection while the job runs."""
+    with Session(create_engine(TEST_URL_SYNC)) as other:
+        jobs_service.purge_job_outputs(other)
+
+
+async def test_a_split_job_that_keeps_advancing_keeps_its_staged_parts(
+    api, world, queued, monkeypatch
+) -> None:
+    body = await three_part_pupil_set(world, monkeypatch)
+    store, publish = report_tasks.store_part, report_tasks.mark_parts_succeeded
+
+    def store_then_age(db, job, **part):
+        store(db, job, **part)
+        if part["number"] == 1:
+            age_part(job.id, 1)
+
+    def purge_then_publish(db, job, *args, **kwargs):
+        # The job has finished classes since its first part: the purge must leave it alone.
+        nightly_purge()
+        publish(db, job, *args, **kwargs)
+
+    monkeypatch.setattr(report_tasks, "store_part", store_then_age)
+    monkeypatch.setattr(report_tasks, "mark_parts_succeeded", purge_then_publish)
+    async with api(world.admin) as client:
+        job_id = (await client.post("/api/reports/jobs", json=body)).json()["id"]
+        report_tasks.report_set_job(job_id)
+        job = (await client.get(f"/api/jobs/{job_id}")).json()
+        listed = (await client.get("/api/jobs")).json()
+
+    assert job["status"] == "succeeded"
+    parts = [item for item in listed if item["parent_id"] == job_id]
+    assert sorted(part["part"] for part in parts) == [1, 2, 3]
+
+
+async def test_purge_fails_a_stalled_split_job_instead_of_it_publishing_a_partial_set(
+    api, world, queued, monkeypatch
+) -> None:
+    body = await three_part_pupil_set(world, monkeypatch)
+    store = report_tasks.store_part
+
+    def store_then_stall(db, job, **part):
+        store(db, job, **part)
+        if part["number"] == 1:
+            # The job stops advancing past the staging bound right after its first part, and
+            # the nightly purge reclaims that part before the job resumes.
+            age_part(job.id, 1)
+            nightly_purge()
+
+    monkeypatch.setattr(report_tasks, "store_part", store_then_stall)
+    async with api(world.admin) as client:
+        job_id = (await client.post("/api/reports/jobs", json=body)).json()["id"]
+        with pytest.raises(jobs_service.IncompletePartsError):
+            report_tasks.report_set_job(job_id)
+        job = (await client.get(f"/api/jobs/{job_id}")).json()
+        listed = (await client.get("/api/jobs")).json()
+
+    assert job["status"] == "failed"
+    assert job["error_code"] == "report_set_failed"
+    assert [item for item in listed if item["parent_id"] == job_id] == []
+    async with TestSession() as db:
+        assert (
+            await db.scalars(select(m.JobRun.id).where(m.JobRun.parent_id == job_id))
+        ).all() == []
+
+
+async def test_a_split_set_missing_a_part_is_never_published(world) -> None:
+    async with TestSession() as db:
+        request = m.JobRun(
+            kind="report_set", status="running", requested_by=world.admin.id, payload={}
+        )
+        db.add(request)
+        await db.commit()
+        request_id = request.id
+    with Session(create_engine(TEST_URL_SYNC)) as db:
+        job = db.get(m.JobRun, request_id)
+        assert job is not None
+        for number in (2, 3):
+            jobs_service.store_part(
+                db, job, number=number, filename=f"part {number}.zip", data=b"zip"
+            )
+        with pytest.raises(jobs_service.IncompletePartsError):
+            jobs_service.mark_parts_succeeded(db, job, parts=3)
+        db.rollback()
+        statuses = db.scalars(
+            select(m.JobRun.status).where(
+                (m.JobRun.id == request_id) | (m.JobRun.parent_id == request_id)
+            )
+        ).all()
+        # Nothing was published: the request and both parts are still staged.
+        assert statuses == ["running"] * 3
+
+
 async def test_a_coordinator_sees_their_own_year_export(api, world) -> None:
     coordinator = await add_coordinator()
     async with TestSession() as db:

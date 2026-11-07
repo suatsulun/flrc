@@ -56,17 +56,39 @@ def mark_succeeded(db: Session, job: JobRun, *, data: bytes, filename: str, mime
     db.commit()
 
 
+FAILED_DETAIL = "The job failed. See server logs with this job id."
+
+
 def mark_failed(db: Session, job: JobRun, code: str) -> None:
     job.status = "failed"
     job.error_code = code
-    job.error_detail = "The job failed. See server logs with this job id."
+    job.error_detail = FAILED_DETAIL
     job.finished_at = datetime.now(UTC).replace(tzinfo=None)
     db.commit()
 
 
-# A staged part outlives no job: if the job dies before replacing this with the set's shared
-# expiry, ``purge_job_outputs`` reclaims it on its own.
+# A staged part outlives no job: every step the job finishes extends it, and once the job stops
+# advancing for this long ``purge_job_outputs`` fails the request and reclaims its parts.
 STAGED_PART_TTL = timedelta(hours=6)
+
+
+def record_progress(db: Session, job: JobRun, done: int) -> None:
+    """Record a finished step and extend the staging expiry of the parts stored so far.
+
+    Progress is the job's heartbeat: a set that keeps advancing never loses its staged parts,
+    however long it runs.
+    """
+    job.progress = done
+    db.execute(
+        update(JobRun)
+        .where(JobRun.parent_id == job.id, JobRun.status != "succeeded")
+        .values(output_expires_at=datetime.now(UTC).replace(tzinfo=None) + STAGED_PART_TTL)
+    )
+    db.commit()
+
+
+class IncompletePartsError(Exception):
+    """A split set lost a part, or its request stopped running, before it could be published."""
 
 
 def store_part(db: Session, job: JobRun, *, number: int, filename: str, data: bytes) -> None:
@@ -95,8 +117,19 @@ def store_part(db: Session, job: JobRun, *, number: int, filename: str, data: by
     db.expunge(part)
 
 
-def mark_parts_succeeded(db: Session, job: JobRun) -> None:
-    """Finish a split request: every part and the request share one 24-hour expiry."""
+def mark_parts_succeeded(db: Session, job: JobRun, *, parts: int) -> None:
+    """Finish a split request: every part and the request share one 24-hour expiry.
+
+    The request row is locked first, as ``purge_job_outputs`` locks it before reclaiming parts,
+    and the set is published only while the request is still running and holds exactly the
+    parts 1 to ``parts``; otherwise ``IncompletePartsError`` is raised and nothing changes.
+    """
+    db.refresh(job, with_for_update=True)
+    stored = db.scalars(
+        select(JobRun.part).where(JobRun.parent_id == job.id).order_by(JobRun.part)
+    ).all()
+    if job.status != "running" or list(stored) != list(range(1, parts + 1)):
+        raise IncompletePartsError(job.id)
     now = datetime.now(UTC).replace(tzinfo=None)
     expires = now + OUTPUT_TTL
     db.execute(
@@ -124,11 +157,28 @@ def purge_job_outputs(db: Session) -> int:
     """Reclaim stored outputs past their expiry and parts of requests that did not succeed.
 
     Parts of a failed request, or staged parts past their bound, are deleted outright, so an
-    aborted set is cleaned up even when its own exception handler never ran. Expired outputs
-    keep their history row and lose only their bytes (ADR-024). Returns how many outputs were
-    reclaimed.
+    aborted set is cleaned up even when its own exception handler never ran. A request still
+    queued or running whose staged parts expired has stopped advancing: it is marked failed
+    first, in the same transaction, so it can never publish a set without those parts.
+    Expired outputs keep their history row and lose only their bytes (ADR-024). Returns how
+    many outputs were reclaimed.
     """
     now = datetime.now(UTC).replace(tzinfo=None)
+    stalled = select(JobRun.parent_id).where(
+        JobRun.parent_id.is_not(None),
+        JobRun.status != "succeeded",
+        JobRun.output_expires_at < now,
+    )
+    db.execute(
+        update(JobRun)
+        .where(JobRun.id.in_(stalled), JobRun.status.in_(("queued", "running")))
+        .values(
+            status="failed",
+            error_code="report_set_failed",
+            error_detail=FAILED_DETAIL,
+            finished_at=now,
+        )
+    )
     failed_requests = select(JobRun.id).where(JobRun.status == "failed")
     aborted = db.execute(
         delete(JobRun).where(

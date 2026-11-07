@@ -3449,11 +3449,15 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
   printed twice or dropped.
 - Each job renders in its own temporary folder, `flrc-report-<job id>-…`. A worker reclaims
   folders of jobs that are no longer queued or running, and any folder untouched for six hours,
-  when it starts and before each job, so a forced stop cannot leave pupils' PDFs on disk.
+  when it starts and after each job, so a forced stop cannot leave pupils' PDFs on disk: the
+  attempt that finishes an interrupted job also removes the folder the killed attempt left.
 - A staged part carries its own six-hour expiry until the set succeeds and replaces it with the
-  shared one. `purge_job_outputs` (nightly in the backup sidecar, or `flrc purge-job-outputs`)
-  deletes parts of failed requests and staged parts past that bound, even when the job's own
-  cleanup never ran.
+  shared one; every class the job finishes extends it, so only a job that stopped advancing
+  loses its parts. `purge_job_outputs` (nightly in the backup sidecar, or
+  `flrc purge-job-outputs`) deletes parts of failed requests and staged parts past that bound,
+  even when the job's own cleanup never ran, and marks a request still queued or running whose
+  parts it reclaims as failed in the same transaction. A split set is published only while its
+  request is still running and holds every part from 1 to the last; otherwise it fails.
 
 ## Supersedes / Superseded by
 

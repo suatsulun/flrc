@@ -7,9 +7,11 @@ import type { TFunction } from "i18next";
 import { PlusIcon } from "lucide-react";
 import {
   createManagedUserMutation,
+  deleteManagedUserMutation,
   listManagedUsersOptions,
   listManagedUsersQueryKey,
   patchManagedUserMutation,
+  type ManagedUserOut,
   type ManagedUserWriteOut,
   type UserPatch,
 } from "@flrc/api-client";
@@ -20,9 +22,10 @@ import { Checkbox } from "@flrc/ui/components/checkbox";
 import { Field } from "@flrc/ui/components/field";
 import { Input } from "@flrc/ui/components/input";
 import { NativeSelect } from "@flrc/ui/components/native-select";
+import { CountdownConfirmDialog } from "@flrc/ui/components/countdown-confirm-dialog";
 import { ConfirmDialog } from "@flrc/ui/components/dialog";
 import { EmptyState } from "@flrc/ui/components/empty-state";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
+import { Skeleton } from "@flrc/ui/components/skeleton";
 import {
   Table,
   TableBody,
@@ -48,6 +51,16 @@ type UserConfirmation = {
   name: string;
   action: "deactivate" | "resetIdentity";
 };
+
+/** Seconds the permanent-delete button stays locked each time its dialog opens (ADR-080). */
+const DELETE_DELAY_SECONDS = 5;
+
+/** Classes shared by the add form and its skeleton, so loading does not shift the layout. */
+const ADD_FORM_GRID =
+  "grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto_auto]";
+
+/** Two row actions per line: a deactivated teacher's four actions wrap onto two lines. */
+const ACTIONS_WIDTH = "w-[20rem]";
 
 /** What a row control just changed, named for the success toast. */
 function accountChangeMessage(t: TFunction, user: ManagedUserWriteOut, body: UserPatch): string {
@@ -84,6 +97,7 @@ function UsersPage() {
   const [teachingStage, setTeachingStage] = useState<TeachingStage>("primary");
   const [search, setSearch] = useState("");
   const [confirmation, setConfirmation] = useState<UserConfirmation>();
+  const [deletion, setDeletion] = useState<{ userId: number; name: string }>();
   const [reportUserId, setReportUserId] = useState<number>();
   const {
     data: users = [],
@@ -108,6 +122,19 @@ function UsersPage() {
       void refresh();
     },
   });
+  const remove = useMutation({
+    ...deleteManagedUserMutation(),
+    onSuccess: (_, { path }) => {
+      // Permanent (ADR-080): the toast has no Undo, and the row leaves the list at once.
+      notifyDone(t("users.done.deleted", { name: deletion?.name ?? "" }));
+      setDeletion(undefined);
+      queryClient.setQueryData<ManagedUserOut[]>(listManagedUsersQueryKey(), (current) =>
+        current?.filter((item) => item.id !== path.user_id),
+      );
+      // Assignments, the dashboard and recorded changes all named this teacher.
+      void queryClient.invalidateQueries();
+    },
+  });
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -123,7 +150,7 @@ function UsersPage() {
     });
   }
 
-  if (usersPending) return <PageSkeleton />;
+  if (usersPending) return <UsersSkeleton />;
   if (usersError) return <EmptyState title={t("errors.load")} />;
 
   const normalizedSearch = search.trim().toLocaleLowerCase();
@@ -141,10 +168,7 @@ function UsersPage() {
           <CardTitle>{t("users.allow")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form
-            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem_11rem_auto]"
-            onSubmit={submit}
-          >
+          <form className={ADD_FORM_GRID} onSubmit={submit}>
             <Field label={t("users.email")}>
               {(id) => (
                 <Input
@@ -219,39 +243,53 @@ function UsersPage() {
         </CardHeader>
         <CardBody>
           <TableScroll aria-label={t("users.tableLabel")}>
-            <Table className="min-w-[76rem]">
+            {/* Fills the card at every width: the person column takes the spare width and every
+                other column hugs its content (`w-px`), so the actions meet the card's right edge.
+                Name and e-mail share one column so the whole row fits a 1440px screen. */}
+            <Table className="w-full">
               <TableCaption>{t("users.tableLabel")}</TableCaption>
               <TableHead>
                 <tr>
-                  <TableHeader className="sticky left-0 z-30 min-w-48 border-r bg-muted/95">
-                    {t("users.fullName")}
+                  <TableHeader className="z-30 min-w-40 border-r bg-muted/95 sm:left-0">
+                    {t("users.fullName")} · {t("users.email")}
                   </TableHeader>
-                  <TableHeader className="min-w-64">{t("users.email")}</TableHeader>
-                  <TableHeader>{t("users.teachingField")}</TableHeader>
-                  <TableHeader>{t("users.teachingStage")}</TableHeader>
-                  <TableHeader align="center">{t("users.admin")}</TableHeader>
-                  <TableHeader align="center">{t("users.coordinator")}</TableHeader>
-                  <TableHeader>{t("users.status")}</TableHeader>
-                  <TableHeader align="right">{t("users.actions")}</TableHeader>
+                  <TableHeader className="w-px whitespace-normal">
+                    {t("users.teachingField")}
+                  </TableHeader>
+                  <TableHeader className="w-px whitespace-normal">
+                    {t("users.teachingStage")}
+                  </TableHeader>
+                  <TableHeader className="w-px" align="center">
+                    {t("users.admin")}
+                  </TableHeader>
+                  <TableHeader className="w-px" align="center">
+                    {t("users.coordinator")}
+                  </TableHeader>
+                  <TableHeader className="w-px">{t("users.status")}</TableHeader>
+                  <TableHeader className="w-px" align="right">
+                    {t("users.actions")}
+                  </TableHeader>
                 </tr>
               </TableHead>
               <TableBody>
                 {visibleUsers.length === 0 ? (
-                  <TableEmpty colSpan={8}>
+                  <TableEmpty colSpan={7}>
                     {normalizedSearch ? t("users.noMatches") : t("users.empty")}
                   </TableEmpty>
                 ) : (
                   visibleUsers.map((user) => (
                     <TableRow key={user.id}>
-                      <TableCell className="sticky left-0 z-10 border-r bg-card font-medium group-even:bg-muted group-hover:bg-accent">
-                        <TableText className="max-w-48">{user.full_name}</TableText>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        <TableText className="max-w-64">{user.email}</TableText>
+                      <TableCell className="z-10 border-r bg-card group-even:bg-muted group-hover:bg-accent sm:sticky sm:left-0">
+                        <TableText className="max-w-40 font-medium sm:max-w-52 2xl:max-w-80">
+                          {user.full_name}
+                        </TableText>
+                        <TableText className="max-w-40 text-xs text-muted-foreground sm:max-w-52 2xl:max-w-80">
+                          {user.email}
+                        </TableText>
                       </TableCell>
                       <TableCell>
                         <NativeSelect
-                          className="w-32"
+                          className="w-auto"
                           aria-label={`${user.full_name} — ${t("users.teachingField")}`}
                           value={user.teaching_field}
                           disabled={patch.isPending}
@@ -272,7 +310,7 @@ function UsersPage() {
                       <TableCell>
                         {user.teaching_field === "english" ? (
                           <NativeSelect
-                            className="w-32"
+                            className="w-auto"
                             aria-label={`${user.full_name} — ${t("users.teachingStage")}`}
                             value={user.teaching_stage ?? "primary"}
                             disabled={patch.isPending}
@@ -292,7 +330,7 @@ function UsersPage() {
                       </TableCell>
                       <TableCell align="center">
                         <Checkbox
-                          aria-label={t("users.admin")}
+                          aria-label={`${user.full_name} — ${t("users.admin")}`}
                           checked={user.is_admin}
                           disabled={patch.isPending}
                           onCheckedChange={(checked) =>
@@ -305,7 +343,7 @@ function UsersPage() {
                       </TableCell>
                       <TableCell align="center">
                         <Checkbox
-                          aria-label={t("users.coordinator")}
+                          aria-label={`${user.full_name} — ${t("users.coordinator")}`}
                           checked={user.is_coordinator}
                           disabled={patch.isPending}
                           onCheckedChange={(checked) =>
@@ -322,7 +360,9 @@ function UsersPage() {
                         </Badge>
                       </TableCell>
                       <TableCell align="right">
-                        <div className="flex justify-end gap-2">
+                        <div
+                          className={`ml-auto flex flex-wrap justify-end gap-2 ${ACTIONS_WIDTH}`}
+                        >
                           <Button
                             size="sm"
                             variant="outline"
@@ -368,6 +408,17 @@ function UsersPage() {
                           >
                             {user.is_active ? t("users.deactivate") : t("users.reactivate")}
                           </Button>
+                          {!user.is_active ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-destructive/40 text-destructive hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive"
+                              disabled={patch.isPending || remove.isPending}
+                              onClick={() => setDeletion({ userId: user.id, name: user.full_name })}
+                            >
+                              {t("users.delete")}
+                            </Button>
+                          ) : null}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -419,6 +470,98 @@ function UsersPage() {
           });
         }}
       />
+      <CountdownConfirmDialog
+        open={Boolean(deletion)}
+        onOpenChange={(open) => !open && setDeletion(undefined)}
+        seconds={DELETE_DELAY_SECONDS}
+        title={t("users.deleteTitle", { name: deletion?.name })}
+        description={t("users.deleteDescription")}
+        cancelLabel={t("forms.cancel")}
+        confirmLabel={t("users.delete")}
+        countdownLabel={(seconds) => t("users.deleteCountdown", { seconds })}
+        pending={remove.isPending}
+        pendingLabel={t("feedback.saving")}
+        onConfirm={() => {
+          if (deletion) remove.mutate({ path: { user_id: deletion.userId } });
+        }}
+      >
+        <div className="grid gap-3 text-sm sm:grid-cols-2">
+          <section className="space-y-1.5">
+            <h3 className="font-semibold text-destructive">{t("users.deleteErased")}</h3>
+            <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+              <li>{t("users.deleteErasedIdentity")}</li>
+              <li>{t("users.deleteErasedReport")}</li>
+              <li>{t("users.deleteErasedAccess")}</li>
+            </ul>
+          </section>
+          <section className="space-y-1.5">
+            <h3 className="font-semibold">{t("users.deleteKept")}</h3>
+            <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+              <li>{t("users.deleteKeptGrades")}</li>
+              <li>{t("users.deleteKeptEmail")}</li>
+            </ul>
+          </section>
+        </div>
+      </CountdownConfirmDialog>
+    </AdminPage>
+  );
+}
+
+/** The page's own shape while the account list loads: add form, then the table. */
+function UsersSkeleton() {
+  const { t } = useTranslation();
+  return (
+    <AdminPage title={t("users.title")} description={t("users.description")}>
+      <Card aria-hidden>
+        <CardHeader>
+          <Skeleton className="h-5 w-36" />
+        </CardHeader>
+        <CardContent>
+          <div className={ADD_FORM_GRID}>
+            {["w-full", "w-full", "w-36", "w-36"].map((width, index) => (
+              <div key={index} className="grid gap-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className={`h-9 ${width}`} />
+              </div>
+            ))}
+            <Skeleton className="h-10 w-36 self-end" />
+          </div>
+        </CardContent>
+      </Card>
+      <Card aria-hidden>
+        <CardHeader>
+          <Skeleton className="h-5 w-44" />
+          <Skeleton className="h-9 w-full sm:w-72" />
+        </CardHeader>
+        <CardBody className="overflow-hidden">
+          <div className="flex items-center gap-6 border-b bg-muted/85 px-3 py-3">
+            <Skeleton className="h-3 w-40 flex-1" />
+            <Skeleton className="hidden h-3 w-24 md:block" />
+            <Skeleton className="hidden h-3 w-24 md:block" />
+            <Skeleton className="hidden h-3 w-16 lg:block" />
+            <Skeleton className="hidden h-3 w-20 lg:block" />
+            <Skeleton className="hidden h-3 w-14 lg:block" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          {Array.from({ length: 6 }, (_, index) => (
+            <div
+              key={index}
+              className="flex items-center gap-6 border-b border-border/70 px-3 py-2.5"
+            >
+              <div className="grid flex-1 gap-1.5">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-3 w-48 max-w-full" />
+              </div>
+              <Skeleton className="hidden h-9 w-28 md:block" />
+              <Skeleton className="hidden h-9 w-28 md:block" />
+              <Skeleton className="hidden size-4 rounded-sm lg:mx-6 lg:block" />
+              <Skeleton className="hidden size-4 rounded-sm lg:mx-8 lg:block" />
+              <Skeleton className="hidden h-6 w-14 rounded-full lg:block" />
+              <Skeleton className="h-9 w-40 sm:w-56" />
+            </div>
+          ))}
+        </CardBody>
+      </Card>
     </AdminPage>
   );
 }

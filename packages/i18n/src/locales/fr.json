@@ -455,6 +455,7 @@
     "classCount": "{{count}} classes",
     "noClassesAssigned": "Aucune classe affectée",
     "pickerDescription": "Cochez les classes pour ce rôle. Les modifications sont enregistrées immédiatement.",
+    "assignedLabel": "Affectée",
     "dropHere": "Déposer une classe ici",
     "classTray": "Classes",
     "classTrayHint": "Faites glisser une classe vers un enseignant.",

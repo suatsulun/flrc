@@ -455,6 +455,7 @@
     "classCount": "{{count}} classes",
     "noClassesAssigned": "No classes assigned yet",
     "pickerDescription": "Tick the classes for this role. Changes are saved immediately.",
+    "assignedLabel": "Assigned",
     "dropHere": "Drop a class here",
     "classTray": "Classes",
     "classTrayHint": "Drag a class into a teacher field.",

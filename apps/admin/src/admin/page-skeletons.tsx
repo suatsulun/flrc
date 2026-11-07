@@ -213,21 +213,26 @@ function AssignmentsFilterSkeleton() {
 
 /**
  * Teacher cards with their role drop zones, and the class tray. Phones get no tray and one
- * collapsed line per teacher: avatar, name, badges and the expand chevron.
+ * collapsed row per teacher: avatar, name over its badges, and the expand chevron.
  */
 export function AssignmentsBoardSkeleton() {
   return (
     <>
-      <div aria-hidden className="space-y-3 md:hidden">
+      <div aria-hidden className="space-y-2 md:hidden">
         <AssignmentsFilterSkeleton />
         {Array.from({ length: 6 }, (_, index) => (
           <Card key={index}>
-            <CardBody className="p-3">
+            <CardBody className="px-3 py-0.5">
               <div className="flex min-h-11 items-center gap-2.5">
                 <Skeleton className="size-8 shrink-0 rounded-full" />
-                <Skeleton className="h-4 min-w-0 flex-1 rounded-md" />
-                <Skeleton className="h-5 w-14 shrink-0 rounded-full" />
-                <Skeleton className="h-5 w-12 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <Skeleton className="h-4 w-40 max-w-full rounded-md" />
+                  <div className="flex gap-1">
+                    <Skeleton className="h-5 w-14 shrink-0 rounded-md" />
+                    <Skeleton className="h-5 w-16 shrink-0 rounded-md" />
+                    <Skeleton className="h-5 w-14 shrink-0 rounded-md" />
+                  </div>
+                </div>
                 <Skeleton className="size-4 shrink-0 rounded-md" />
               </div>
             </CardBody>

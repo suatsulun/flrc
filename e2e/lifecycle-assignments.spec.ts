@@ -14,6 +14,9 @@ test("teacher groups, translated fields, and year activation state stay explicit
   await page.goto(`${adminOrigin}/admin/assignments`);
   const cards = page.getByTestId("assignment-teacher-card");
   await expect(cards).toHaveCount(28);
+  // Desktop keeps every card open beside the drag tray; collapsing is phone-only.
+  await expect(page.locator("#main aside")).toBeVisible();
+  await expect(cards.locator("[aria-expanded]")).toHaveCount(0);
 
   await page.getByRole("radio", { name: "Primary", exact: true }).click();
   await expect(cards).toHaveCount(12);
@@ -58,6 +61,93 @@ test("teacher groups, translated fields, and year activation state stay explicit
       .count();
     expect(activeSemesterCount).toBeLessThanOrEqual(1);
   }
+
+  await context.close();
+});
+
+test("phones assign and remove classes by tapping instead of dragging", async ({ browser }) => {
+  const context = await authenticatedContext(browser, adminEmail);
+  await context.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await page.goto(`${adminOrigin}/admin/assignments`);
+  const cards = page.getByTestId("assignment-teacher-card");
+  await expect(cards).toHaveCount(28);
+  await expect(page.getByText(/^Tap a teacher to expand their card/)).toBeVisible();
+  await expect(page.getByText(/^Drag classes from the tray/)).toHaveCount(0);
+  await expect(page.locator("#main aside")).toBeHidden();
+  // Every teacher starts as one collapsed line, so the page stays short and never scrolls sideways.
+  await expect(cards.getByRole("button", { expanded: false })).toHaveCount(28);
+  await expect(cards.getByRole("button", { expanded: true })).toHaveCount(0);
+  const size = await page.evaluate(() => ({
+    width: document.documentElement.scrollWidth,
+    height: document.documentElement.scrollHeight,
+  }));
+  expect(size.width).toBeLessThanOrEqual(390);
+  expect(size.height).toBeLessThan(2200);
+
+  const card = cards.filter({ hasText: "E2E Middle Teacher 01" });
+  const toggle = card.locator("button[aria-expanded]");
+  await expect(toggle).toHaveAccessibleName(
+    "E2E Middle Teacher 01 English Middle school 0 classes",
+  );
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(card.getByText("middle-01@example-school.k12.tr")).toBeVisible();
+
+  // The picker offers only the teacher's stage and names who holds a slot already.
+  const addMain = card.getByRole("button", {
+    name: "E2E Middle Teacher 01 — Main teacher — Add class",
+  });
+  await addMain.click();
+  const mainPicker = page.getByRole("dialog", { name: "E2E Middle Teacher 01 · Main teacher" });
+  await expect(mainPicker.getByRole("radio")).toHaveText(["5", "6", "7", "8"]);
+  await expect(mainPicker.getByRole("radio", { name: "5", exact: true })).toBeChecked();
+  await expect(mainPicker.getByRole("listitem").filter({ hasText: "5/A" })).toContainText(
+    "E2E Owner",
+  );
+  await expect(mainPicker.getByRole("checkbox", { name: "5/A", exact: true })).not.toBeChecked();
+  await page.keyboard.press("Escape");
+  await expect(mainPicker).toBeHidden();
+  await expect(addMain).toBeFocused();
+
+  const addSkills = card.getByRole("button", {
+    name: "E2E Middle Teacher 01 — Skills teacher — Add class",
+  });
+  const addBox = await addSkills.boundingBox();
+  expect(addBox?.height).toBeGreaterThanOrEqual(40);
+  await addSkills.click();
+  const skillsPicker = page.getByRole("dialog", {
+    name: "E2E Middle Teacher 01 · Skills teacher",
+  });
+  const row = skillsPicker.getByRole("listitem").filter({ hasText: "5/A" });
+  await expect(row).toContainText("Not assigned");
+  await row.getByRole("checkbox", { name: "5/A", exact: true }).click();
+  await expect(
+    page.getByText("E2E Middle Teacher 01 assigned to 5/A as Skills teacher."),
+  ).toBeVisible();
+  await expect(row.getByRole("checkbox", { name: "5/A", exact: true })).toBeChecked();
+  await expect(row).toContainText("Assigned");
+  await skillsPicker.getByRole("button", { name: "Done" }).click();
+  await expect(skillsPicker).toBeHidden();
+
+  const remove = card.getByRole("button", { name: "Remove 5/A from E2E Middle Teacher 01" });
+  const removeBox = await remove.boundingBox();
+  expect(removeBox?.width).toBeGreaterThanOrEqual(40);
+  expect(removeBox?.height).toBeGreaterThanOrEqual(40);
+  await expect(toggle).toContainText("1 class");
+  await remove.click();
+  await expect(
+    page.getByText("E2E Middle Teacher 01 removed from 5/A as Skills teacher."),
+  ).toBeVisible();
+  await expect(remove).toHaveCount(0);
+  await expect(card.getByText("No classes assigned yet")).toHaveCount(2);
+  await expect(toggle).toContainText("0 classes");
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(card.getByText("middle-01@example-school.k12.tr")).toHaveCount(0);
 
   await context.close();
 });

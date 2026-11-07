@@ -455,6 +455,7 @@
     "classCount": "{{count}} sınıf",
     "noClassesAssigned": "Henüz sınıf atanmadı",
     "pickerDescription": "Bu görev için sınıfları işaretleyin. Seçimleriniz anında kaydedilir.",
+    "assignedLabel": "Atandı",
     "dropHere": "Sınıfı buraya bırakın",
     "classTray": "Sınıflar",
     "classTrayHint": "Bir sınıfı öğretmen alanına sürükleyin.",

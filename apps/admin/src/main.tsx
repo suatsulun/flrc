@@ -9,6 +9,7 @@ import { i18n, initI18n } from "@flrc/i18n";
 import { FullScreenLoading } from "@flrc/ui/components/page-activity";
 import { toast } from "sonner";
 import { routeTree } from "./routeTree.gen";
+import { errorMessage } from "./admin/feedback";
 import "./index.css";
 
 client.setConfig({ baseUrl: "" });
@@ -23,7 +24,12 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 
 const queryClient = new QueryClient({
   mutationCache: new MutationCache({
-    onError: () => toast.error(i18n.t("feedback.actionFailed")),
+    // Every failed admin write explains itself; a mutation that shows its own error inline
+    // opts out with `meta: { silentError: true }`.
+    onError: (error, _variables, _context, mutation) => {
+      if (mutation.meta?.silentError === true) return;
+      toast.error(errorMessage(error));
+    },
   }),
   defaultOptions: {
     queries: { staleTime: 30_000, retry: 1 },

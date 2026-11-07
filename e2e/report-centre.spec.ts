@@ -168,12 +168,36 @@ test("one class opens in a tab opened during the click and downloads under its s
   const card = reportCard(page, ELEMENTARY);
   await expect(card.getByLabel("Class", { exact: true })).toHaveValue("31");
 
-  // The tab opens synchronously with the click, then receives the PDF.
+  // The tab opens synchronously with the click, before the PDF exists (pop-up blockers only
+  // allow that), then receives the PDF. Headless Chromium has no PDF viewer and turns that
+  // navigation into a download; a headed browser shows the blob URL.
+  const pdfReady = Promise.withResolvers<void>();
+  api.pdfResponses.push(async (route) => {
+    await pdfReady.promise;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/pdf",
+      headers: {
+        "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(CLASS_FILE)}`,
+      },
+      body: minimalPdf(),
+    });
+  });
   const [popup] = await Promise.all([
     page.waitForEvent("popup"),
     card.getByRole("button", { name: "View", exact: true }).click(),
   ]);
-  await expect.poll(() => popup.url()).toMatch(/^blob:/);
+  expect(popup.url()).toBe("about:blank");
+  const delivered = Promise.race([
+    popup.waitForEvent("download").then(() => "download"),
+    // In headless Chromium the blob navigation is aborted in favour of the download.
+    popup.waitForURL(/^blob:/).then(
+      () => "blob",
+      () => new Promise<string>(() => undefined),
+    ),
+  ]);
+  pdfReady.resolve();
+  expect(["download", "blob"]).toContain(await delivered);
   expect(api.pdfQueries[0].get("class_id")).toBe("31");
   expect(api.pdfQueries[0].get("semester_id")).toBe("71");
 
@@ -226,10 +250,8 @@ test("the whole school becomes a job whose progress and file appear in Downloads
   const row = downloads.getByRole("listitem").filter({ hasText: SCHOOL_ZIP });
   await expect(row.getByText("Class 1/2")).toBeVisible();
   await expect(row.getByText("Ready", { exact: true })).toBeVisible({ timeout: 10_000 });
-  await expect(row.getByRole("link", { name: "Download" })).toHaveAttribute(
-    "href",
-    "/api/jobs/901/download",
-  );
+  // The base-ui Button renders the link with the button role.
+  await expect(row.locator('a[href="/api/jobs/901/download"]')).toBeVisible();
   await expect(page.getByText(`${SCHOOL_ZIP} is ready.`)).toBeVisible();
 
   await context.close();

@@ -62,6 +62,7 @@ from flrc.modules.administration.users import (
     account_state,
     ensure_admin_remains,
     ensure_assignments_fit,
+    lock_account_for_edit,
 )
 from flrc.modules.auth import demo
 from flrc.modules.changes.service import ActionKind, UndoBlocked
@@ -496,7 +497,10 @@ async def _undo_field_reorder(ctx: UndoContext) -> None:
             select(ColumnDefinition).where(ColumnDefinition.id.in_(after)).with_for_update()
         )
     }
-    if any(columns[column_id].position != position for column_id, position in after.items()):
+    # A field deleted after the scope was read is missing from the locked rows.
+    if columns.keys() != after.keys() or any(
+        columns[column_id].position != position for column_id, position in after.items()
+    ):
         raise UndoBlocked("order_changed", **params)
     for column_id, position in data["before"]:
         columns[int(column_id)].position = position
@@ -525,7 +529,7 @@ async def _undo_field_copy(ctx: UndoContext) -> None:
 
 
 async def _user(ctx: UndoContext, user_id: int) -> User:
-    user = await ctx.db.get(User, user_id, with_for_update=True)
+    user = await lock_account_for_edit(ctx.db, user_id, ctx.actor)
     if user is None:
         raise UndoBlocked("target_missing", user=ctx.params.get("user"))
     if user.id != ctx.actor.id and await demo.is_visitor(ctx.db, user.id):

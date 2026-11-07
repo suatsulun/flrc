@@ -7,7 +7,7 @@ from io import BytesIO
 
 import pytest
 from PIL import Image
-from sqlalchemy import create_engine, delete, func, select, update
+from sqlalchemy import create_engine, delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -1119,6 +1119,80 @@ async def test_student_edit_records_the_name_a_concurrent_edit_committed(api, wo
     async with TestSession() as db:
         student = await db.get(m.Student, world.student_one)
         assert student.full_name == "Synthetic Concurrent Name"
+
+
+async def wait_for_a_lock_wait() -> None:
+    """Return once some session of the test database is waiting for a lock."""
+    async with TestSession() as probe:
+        for _ in range(200):
+            waiting = await probe.scalar(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE datname = current_database() AND wait_event_type = 'Lock'"
+                )
+            )
+            if waiting:
+                return
+            await asyncio.sleep(0.02)
+    raise AssertionError("the request never waited for a lock")
+
+
+@pytest.mark.parametrize("write", ["year_language", "roster_language", "undo_language"])
+async def test_language_writes_lock_the_year_before_the_enrollment(api, world, write):
+    """A language write and a roster removal take the year, then the enrollment.
+
+    The other transaction does what removing the pupil does: it locks the year, then (once
+    the write is waiting) the pupil's enrollment. A write that locked the enrollment first
+    would then wait for the year (the new language row's foreign key) while the removal
+    waits for the enrollment, and PostgreSQL would abort one of them as a deadlock.
+    """
+    language_path = f"/api/admin/years/{world.year}/student-language"
+    async with api(world.admin) as client:
+        if write == "undo_language":
+            for language in ("german", None):
+                cleared = await client.put(
+                    language_path, json={"student_ids": [world.student_one], "language": language}
+                )
+                assert cleared.status_code == 200, cleared.text
+
+            def request():
+                return undo(client, cleared.json()["action_id"])
+        elif write == "roster_language":
+
+            def request():
+                return client.patch(
+                    f"/api/admin/classes/{world.cls}/roster/{world.student_one}",
+                    json={"language": "german"},
+                )
+        else:
+
+            def request():
+                return client.put(
+                    language_path, json={"student_ids": [world.student_one], "language": "german"}
+                )
+
+        async with TestSession() as remover:
+            await remover.execute(
+                select(m.AcademicYear).where(m.AcademicYear.id == world.year).with_for_update()
+            )
+            pending = asyncio.create_task(request())
+            await wait_for_a_lock_wait()
+            await remover.execute(
+                select(m.Enrollment)
+                .where(m.Enrollment.student_id == world.student_one)
+                .with_for_update()
+            )
+            await remover.commit()
+        response = await pending
+    assert response.status_code == 200, response.text
+    async with TestSession() as db:
+        language = await db.scalar(
+            select(m.StudentLanguage.language).where(
+                m.StudentLanguage.student_id == world.student_one,
+                m.StudentLanguage.year_id == world.year,
+            )
+        )
+    assert language == "german"
 
 
 async def test_class_edit_records_the_section_a_concurrent_edit_committed(api, world):

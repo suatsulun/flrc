@@ -780,6 +780,8 @@
       "pageMapping": "Sayfalar öğrencilere güvenle ayrılamadı, dosya oluşturulmadı. Lütfen yöneticiye bildirin.",
       "tooLarge": "Seçimdeki tek bir dosya izin verilen boyuttan büyük. Daha az öğrenci veya sınıf seçin, ya da ZIP biçimini deneyin.",
       "retired": "Bu eski iş artık çalıştırılamıyor; yeniden hazırlayın.",
+      "jobsPending": "Hazırlanmakta olan birkaç dosyanız var. Biri bitince yeniden deneyin.",
+      "queueUnavailable": "İş servisi şu anda kullanılamadığı için dosya sıraya alınamadı. Birkaç dakika sonra yeniden deneyin.",
       "jobFailed": "Dosya hazırlanırken bir hata oluştu. Yeniden deneyin."
     }
   },

@@ -451,6 +451,31 @@ async def test_middle_english_readiness_waits_for_second_language_scores(api) ->
     assert scored["german_karne"]["percent"] == 50.0
 
 
+async def test_english_card_without_english_fields_stays_incomplete(api) -> None:
+    """Filled second-language scores do not stand in for a class's missing English fields."""
+    school = await make_school()
+    async with TestSession() as db:
+        english = await db.get(m.ColumnDefinition, school.columns[0])
+        assert english is not None
+        english.is_active = False
+        await db.commit()
+    await fill_everything(school)
+
+    readiness = {item["kind"]: item for item in (await get_dashboard(api))["readiness"]}
+    assert readiness["english_middle"] == {
+        "kind": "english_middle",
+        "eligible_classes": 1,
+        "complete_classes": 0,
+        "students": 1,
+        "expected_cells": 0,
+        "filled_cells": 0,
+        "percent": None,
+    }
+    # The German karne has its own fields and is complete.
+    assert readiness["german_karne"]["complete_classes"] == 1
+    assert readiness["german_karne"]["percent"] == 100.0
+
+
 async def test_missing_cells_name_pupil_field_and_owning_teacher(api, world) -> None:
     async with TestSession() as db:
         db.add(

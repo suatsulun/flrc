@@ -13,7 +13,7 @@ from flrc.db.models import AcademicYear, SchoolClass, Semester, User
 from flrc.db.session import get_session
 from flrc.modules.auth.dependencies import current_user, require_admin, require_coordinator_or_admin
 from flrc.modules.jobs.router import JobOut
-from flrc.modules.jobs.service import create_job
+from flrc.modules.jobs.service import create_job, pending_jobs, publish_job
 from flrc.modules.reports.branding import ReportKind
 from flrc.modules.reports.builder import RosterClass, build_report_entries, eligible_roster
 from flrc.modules.reports.class_sheet import (
@@ -43,6 +43,10 @@ MAX_DIRECT_STUDENTS = 100
 # Bounds a job request; the whole school is an empty selection, not a list of every id.
 MAX_JOB_CLASSES = 200
 MAX_JOB_STUDENTS = 2000
+# Report jobs an account may have waiting or running at once. The single-process worker takes
+# a whole school in about a minute, so the per-minute request budget (`REPORT_LIMIT`) alone
+# would let one account's backlog grow without end; three covers all three card languages.
+MAX_PENDING_REPORT_JOBS = 3
 
 
 async def ping_worker_best_effort() -> None:
@@ -172,7 +176,9 @@ async def create_report_job(
     """Queue a report set as a background job: the whole school, classes, or students.
 
     Empty `class_ids` and `student_ids` mean every eligible class. The finished file waits
-    in the downloads list for 24 hours (ADR-024, ADR-077).
+    in the downloads list for 24 hours (ADR-024, ADR-077). An account with
+    `MAX_PENDING_REPORT_JOBS` report jobs still waiting or running is refused with
+    `report_jobs_pending` until one finishes.
     """
     if settings.env == "demo":
         raise HTTPException(422, {"code": "demo_report_class_required"})
@@ -218,6 +224,8 @@ async def create_report_job(
             raise HTTPException(409, {"code": "student_not_in_report_set"})
     if not roster:
         raise HTTPException(409, {"code": "empty_report_set"})
+    if await pending_jobs(db, kind="report_set", requested_by=user.id) >= MAX_PENDING_REPORT_JOBS:
+        raise HTTPException(409, {"code": "report_jobs_pending"})
 
     payload = ReportJobPayload(
         semester_id=semester.id,
@@ -241,7 +249,7 @@ async def create_report_job(
         ),
         total=len(roster),
     )
-    report_set_job.delay(job.id)
+    await publish_job(db, job, report_set_job.delay)
     background.add_task(ping_worker_best_effort)
     return JobOut.from_model(job)
 
@@ -287,6 +295,6 @@ async def create_year_export_job(
     job = await create_job(
         db, kind="year_export", requested_by=user.id, payload={"year_id": year_id}
     )
-    export_year_job.delay(job.id)
+    await publish_job(db, job, export_year_job.delay)
     background.add_task(ping_worker_best_effort)
     return JobOut.from_model(job)

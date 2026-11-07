@@ -600,6 +600,35 @@
     "emptyTitle": "No students in this class",
     "emptyBody": "This class has no students in the selected semester.",
     "unavailableTitle": "Class reports cover middle-school English",
-    "unavailableBody": "Open a grade 5 to 8 class to see its class report."
+    "unavailableBody": "Open a grade 5 to 8 class to see its class report.",
+    "rateLimitedWait": "Too many PDFs in one minute. Try again in {{seconds}} seconds.",
+    "modeLabel": "Report view",
+    "modeSheet": "Class report",
+    "modePreview": "Report card preview"
+  },
+  "cardPreview": {
+    "nav": "Report card preview",
+    "title": "Report card preview",
+    "description": "Check the report cards of students in the classes you teach on screen before they are printed. The preview is view-only.",
+    "classLabel": "Class and card",
+    "semesterLabel": "Semester",
+    "studentsLabel": "Students",
+    "previous": "Previous",
+    "next": "Next",
+    "position": "{{current}} / {{total}}",
+    "keyboardHint": "Use ← → to move between students.",
+    "cardEnglish": "English report card",
+    "cardGerman": "German report card",
+    "cardFrench": "French report card",
+    "frameTitle": "Report card preview: {{name}}",
+    "loading": "Preparing the report card…",
+    "failed": "The report card preview could not be created.",
+    "forbidden": "You may not preview this student's report card.",
+    "retry": "Try again",
+    "emptyTitle": "No report cards to preview",
+    "emptyBody": "You have no class assignment in this school year. Previews cover only the classes you teach.",
+    "noStudentsTitle": "No students for this card",
+    "noStudentsBody": "No student in this class receives this report card.",
+    "watermarkNote": "Previews carry an ÖNİZLEME (preview) watermark and are view-only; official report cards are printed from the admin panel."
   }
 }

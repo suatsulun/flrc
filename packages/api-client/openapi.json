@@ -3510,6 +3510,119 @@
         }
       }
     },
+    "/api/reports/preview/scope": {
+      "get": {
+        "tags": [
+          "report-preview"
+        ],
+        "summary": "Get Preview Scope",
+        "description": "The cards the signed-in user's own assignments produce in a semester's year.\n\nWithout ``semester_id`` the current term is used. Lists only classes where the\nuser holds a teaching assignment, administrators included.",
+        "operationId": "get_preview_scope",
+        "parameters": [
+          {
+            "name": "semester_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewScopeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/preview": {
+      "get": {
+        "tags": [
+          "report-preview"
+        ],
+        "summary": "Get Report Preview",
+        "description": "One student's card as an inline PDF marked \"\u00d6N\u0130ZLEME\" on every page.\n\nTeachers may preview only the card their own assignment in the student's\nclass produces; administrators may preview any card. Everyone else gets 403.",
+        "operationId": "get_report_preview",
+        "parameters": [
+          {
+            "name": "semester_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Semester Id"
+            }
+          },
+          {
+            "name": "student_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Student Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "english_elementary",
+                "english_middle",
+                "german_karne",
+                "french_karne"
+              ],
+              "type": "string",
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Watermarked card",
+            "content": {
+              "application/pdf": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reports/pdf": {
       "get": {
         "tags": [
@@ -6326,6 +6439,48 @@
         ],
         "title": "PreviewClass"
       },
+      "PreviewClassOut": {
+        "properties": {
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          },
+          "class_name": {
+            "type": "string",
+            "title": "Class Name"
+          },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "english_elementary",
+              "english_middle",
+              "german_karne",
+              "french_karne"
+            ],
+            "title": "Kind"
+          },
+          "students": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewStudentOut"
+            },
+            "type": "array",
+            "title": "Students"
+          }
+        },
+        "type": "object",
+        "required": [
+          "class_id",
+          "class_name",
+          "grade_level",
+          "kind",
+          "students"
+        ],
+        "title": "PreviewClassOut"
+      },
       "PreviewRow": {
         "properties": {
           "row": {
@@ -6360,6 +6515,103 @@
           "original_class"
         ],
         "title": "PreviewRow"
+      },
+      "PreviewScopeOut": {
+        "properties": {
+          "year_id": {
+            "type": "integer",
+            "title": "Year Id"
+          },
+          "year_label": {
+            "type": "string",
+            "title": "Year Label"
+          },
+          "semester_id": {
+            "type": "integer",
+            "title": "Semester Id"
+          },
+          "semester_number": {
+            "type": "integer",
+            "title": "Semester Number"
+          },
+          "semesters": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewSemesterOut"
+            },
+            "type": "array",
+            "title": "Semesters"
+          },
+          "classes": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewClassOut"
+            },
+            "type": "array",
+            "title": "Classes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "year_id",
+          "year_label",
+          "semester_id",
+          "semester_number",
+          "semesters",
+          "classes"
+        ],
+        "title": "PreviewScopeOut"
+      },
+      "PreviewSemesterOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "status"
+        ],
+        "title": "PreviewSemesterOut"
+      },
+      "PreviewStudentOut": {
+        "properties": {
+          "student_id": {
+            "type": "integer",
+            "title": "Student Id"
+          },
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id",
+          "school_number",
+          "full_name"
+        ],
+        "title": "PreviewStudentOut"
       },
       "RejectedOut": {
         "properties": {

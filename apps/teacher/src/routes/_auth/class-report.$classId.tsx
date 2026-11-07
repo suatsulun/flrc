@@ -14,8 +14,11 @@ import {
 } from "lucide-react";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { useClassSheetPdf } from "../../class-report/class-sheet-pdf";
+import { errorCode } from "../../class-report/api-error";
+import { classSheetFileName, useClassSheetPdf } from "../../class-report/class-sheet-pdf";
 import { ClassSheetTable } from "../../class-report/class-sheet-table";
+import { PdfLeaveGuard } from "../../class-report/pdf-leave-guard";
+import { ReportModeSwitch } from "../../class-report/report-mode-switch";
 import { REPORT_GRADES, reportClasses } from "../../class-report/scope";
 import { BoardSwitcher } from "../../grid/board-switcher";
 
@@ -28,20 +31,6 @@ export const Route = createFileRoute("/_auth/class-report/$classId")({
   }),
   component: ClassReportPage,
 });
-
-/** A file name people recognise in their downloads: `class-report-5-A-s1.pdf`. */
-function fileName(...parts: Array<string | number>) {
-  return `${parts.join("-").replace(/[\\/:*?"<>|\s]+/g, "-")}.pdf`;
-}
-
-/** The machine code of an API error body, such as `{"detail": {"code": "…"}}`. */
-function errorCode(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null || !("detail" in error)) return undefined;
-  const { detail } = error;
-  return typeof detail === "object" && detail !== null && "code" in detail
-    ? String(detail.code)
-    : undefined;
-}
 
 function ClassReportPage() {
   const { classId } = Route.useParams();
@@ -77,14 +66,39 @@ function ClassReportPage() {
     [data?.semester_number, queryClient, requestedSemester],
   );
 
+  // Karne önizleme opens on this class when the teacher teaches its English; the preview page
+  // falls back to the teacher's first class otherwise.
+  const ownsClass = reportClasses(catalog, { mine: true }).some(
+    (schoolClass) => schoolClass.id === data?.class_id,
+  );
+  const modeSwitch = (
+    <ReportModeSwitch
+      mode="sheet"
+      onChange={() =>
+        void navigate({
+          to: "/card-preview",
+          search: {
+            semesterId: data?.semester_id,
+            classId: ownsClass ? data?.class_id : undefined,
+            kind: ownsClass ? "english_middle" : undefined,
+            studentId: undefined,
+          },
+        })
+      }
+    />
+  );
+
   if (isPending) return <PageSkeleton />;
   if (isError) {
     return errorCode(error) === "class_report_middle_english_only" ? (
-      <EmptyState
-        icon={<FileTextIcon />}
-        title={t("classReport.unavailableTitle")}
-        description={t("classReport.unavailableBody")}
-      />
+      <div className="space-y-4">
+        {modeSwitch}
+        <EmptyState
+          icon={<FileTextIcon />}
+          title={t("classReport.unavailableTitle")}
+          description={t("classReport.unavailableBody")}
+        />
+      </div>
     ) : (
       <p className="text-sm text-destructive">{t("errors.load")}</p>
     );
@@ -101,6 +115,8 @@ function ClassReportPage() {
 
   return (
     <div className="space-y-4">
+      <PdfLeaveGuard active={busy} onLeave={pdf.cancel} />
+      {modeSwitch}
       <BoardSwitcher
         classId={classId}
         subject="english"
@@ -168,7 +184,7 @@ function ClassReportPage() {
                   "mine",
                   data.semester_id,
                   myClassIds,
-                  fileName("class-reports", data.year_label, `s${data.semester_number}`),
+                  classSheetFileName(null, data.year_label, data.semester_number),
                 )
               }
             >
@@ -182,7 +198,13 @@ function ClassReportPage() {
             disabled={busy || empty}
             pending={pdf.pending === "print"}
             pendingLabel={t("feedback.working")}
-            onClick={() => pdf.print(data.semester_id, [data.class_id])}
+            onClick={() =>
+              pdf.print(
+                data.semester_id,
+                [data.class_id],
+                classSheetFileName(data.class_name, data.year_label, data.semester_number),
+              )
+            }
           >
             <PrinterIcon />
             {t("classReport.print")}
@@ -197,7 +219,7 @@ function ClassReportPage() {
                 "download",
                 data.semester_id,
                 [data.class_id],
-                fileName("class-report", data.class_name, `s${data.semester_number}`),
+                classSheetFileName(data.class_name, data.year_label, data.semester_number),
               )
             }
           >

@@ -600,6 +600,35 @@
     "emptyTitle": "Aucun élève dans cette classe",
     "emptyBody": "Au semestre choisi, cette classe n’a aucun élève.",
     "unavailableTitle": "Les rapports de classe concernent l’anglais au collège",
-    "unavailableBody": "Ouvrez une classe de la 5e à la 8e année pour voir son rapport de classe."
+    "unavailableBody": "Ouvrez une classe de la 5e à la 8e année pour voir son rapport de classe.",
+    "rateLimitedWait": "Trop de PDF en une minute. Réessayez dans {{seconds}} secondes.",
+    "modeLabel": "Vue du rapport",
+    "modeSheet": "Rapport de classe",
+    "modePreview": "Aperçu du bulletin"
+  },
+  "cardPreview": {
+    "nav": "Aperçu du bulletin",
+    "title": "Aperçu du bulletin",
+    "description": "Vérifiez à l’écran les bulletins des élèves de vos classes avant leur impression. L’aperçu est en lecture seule.",
+    "classLabel": "Classe et bulletin",
+    "semesterLabel": "Semestre",
+    "studentsLabel": "Élèves",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "position": "{{current}} / {{total}}",
+    "keyboardHint": "Utilisez ← → pour passer d’un élève à l’autre.",
+    "cardEnglish": "Bulletin d’anglais",
+    "cardGerman": "Bulletin d’allemand",
+    "cardFrench": "Bulletin de français",
+    "frameTitle": "Aperçu du bulletin : {{name}}",
+    "loading": "Préparation du bulletin…",
+    "failed": "L’aperçu du bulletin n’a pas pu être créé.",
+    "forbidden": "Vous n’êtes pas autorisé·e à afficher le bulletin de cet élève.",
+    "retry": "Réessayer",
+    "emptyTitle": "Aucun bulletin à afficher",
+    "emptyBody": "Aucune classe ne vous est attribuée pour cette année scolaire. L’aperçu ne concerne que les classes où vous enseignez.",
+    "noStudentsTitle": "Aucun élève pour ce bulletin",
+    "noStudentsBody": "Aucun élève de cette classe ne reçoit ce bulletin.",
+    "watermarkNote": "Les aperçus portent le filigrane ÖNİZLEME (aperçu) et sont en lecture seule ; les bulletins officiels s’impriment depuis l’espace d’administration."
   }
 }

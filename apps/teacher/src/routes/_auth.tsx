@@ -3,7 +3,7 @@ import { Outlet, createFileRoute, Link, redirect, useMatch } from "@tanstack/rea
 import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { FileTextIcon, LayoutGridIcon, ShieldCheckIcon } from "lucide-react";
+import { FileSearchIcon, FileTextIcon, LayoutGridIcon, ShieldCheckIcon } from "lucide-react";
 import { getGridOptions, listClassCatalogOptions, sessionOptions } from "@flrc/api-client";
 import {
   AppShell,
@@ -13,6 +13,7 @@ import {
 } from "@flrc/ui/components/app-shell";
 import { DemoBanner } from "@flrc/ui/components/demo-banner";
 import { PageActivity } from "@flrc/ui/components/page-activity";
+import { cn } from "@flrc/ui/lib/utils";
 
 import { LanguageSwitch } from "@flrc/ui/components/language-switch";
 import { LOGO_URL, SCHOOL_SHORT_NAME } from "@flrc/branding";
@@ -96,6 +97,7 @@ function TeacherNavigation({ isAdmin, onNavigate }: { isAdmin: boolean; onNaviga
   // Shares the dashboard's cache entry, so this costs no extra request.
   const { data: catalog = [] } = useQuery(listClassCatalogOptions());
   const reportMatch = useMatch({ from: "/_auth/class-report/$classId", shouldThrow: false });
+  const previewMatch = useMatch({ from: "/_auth/card-preview", shouldThrow: false });
   const gridMatch = useMatch({ from: "/_auth/classes/$classId/$subject", shouldThrow: false });
   const englishGrid = gridMatch?.params.subject === "english" ? gridMatch : undefined;
   // The English grid on screen is already in the cache under the same key, in whichever year
@@ -109,9 +111,11 @@ function TeacherNavigation({ isAdmin, onNavigate }: { isAdmin: boolean; onNaviga
   });
   const reportOpen = reportMatch !== undefined;
 
-  // Class reports are for middle-school English teachers; only they get the entry. It opens
-  // the report of the class on screen when that is a middle-school English class.
+  // Class reports are for middle-school English teachers; only they get that entry. It opens
+  // the report of the class on screen when that is a middle-school English class. Any teacher
+  // with an assignment may preview their own students' cards, so the others get Karne önizleme.
   const myReportClasses = reportClasses(catalog, { mine: true });
+  const canPreviewCards = catalog.some((schoolClass) => schoolClass.assigned_roles.length > 0);
   const reportTarget = reportMatch
     ? { classId: reportMatch.params.classId, semester: reportMatch.search.semester }
     : englishGrid && grid && REPORT_GRADES.includes(grid.meta.grade_level)
@@ -147,13 +151,30 @@ function TeacherNavigation({ isAdmin, onNavigate }: { isAdmin: boolean; onNaviga
             to="/class-report/$classId"
             params={{ classId: reportTarget.classId }}
             search={{ semester: reportTarget.semester }}
-            className={sidebarItemClass}
+            className={cn(sidebarItemClass, previewMatch && sidebarItemActiveClass)}
             activeProps={{ className: sidebarItemActiveClass }}
             activeOptions={{ includeSearch: false }}
             onClick={onNavigate}
           >
             <FileTextIcon />
             {t("classReport.nav")}
+          </Link>
+        ) : canPreviewCards ? (
+          <Link
+            to="/card-preview"
+            search={{
+              semesterId: undefined,
+              classId: undefined,
+              kind: undefined,
+              studentId: undefined,
+            }}
+            className={sidebarItemClass}
+            activeProps={{ className: sidebarItemActiveClass }}
+            activeOptions={{ includeSearch: false }}
+            onClick={onNavigate}
+          >
+            <FileSearchIcon />
+            {t("cardPreview.nav")}
           </Link>
         ) : null}
         {isAdmin ? (

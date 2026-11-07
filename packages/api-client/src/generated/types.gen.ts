@@ -1597,6 +1597,32 @@ export type PreviewClass = {
 };
 
 /**
+ * PreviewClassOut
+ */
+export type PreviewClassOut = {
+    /**
+     * Class Id
+     */
+    class_id: number;
+    /**
+     * Class Name
+     */
+    class_name: string;
+    /**
+     * Grade Level
+     */
+    grade_level: number;
+    /**
+     * Kind
+     */
+    kind: 'english_elementary' | 'english_middle' | 'german_karne' | 'french_karne';
+    /**
+     * Students
+     */
+    students: Array<PreviewStudentOut>;
+};
+
+/**
  * PreviewRow
  */
 export type PreviewRow = {
@@ -1617,6 +1643,72 @@ export type PreviewRow = {
      * Original Class
      */
     original_class: string;
+};
+
+/**
+ * PreviewScopeOut
+ */
+export type PreviewScopeOut = {
+    /**
+     * Year Id
+     */
+    year_id: number;
+    /**
+     * Year Label
+     */
+    year_label: string;
+    /**
+     * Semester Id
+     */
+    semester_id: number;
+    /**
+     * Semester Number
+     */
+    semester_number: number;
+    /**
+     * Semesters
+     */
+    semesters: Array<PreviewSemesterOut>;
+    /**
+     * Classes
+     */
+    classes: Array<PreviewClassOut>;
+};
+
+/**
+ * PreviewSemesterOut
+ */
+export type PreviewSemesterOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Number
+     */
+    number: number;
+    /**
+     * Status
+     */
+    status: string;
+};
+
+/**
+ * PreviewStudentOut
+ */
+export type PreviewStudentOut = {
+    /**
+     * Student Id
+     */
+    student_id: number;
+    /**
+     * School Number
+     */
+    school_number: number | null;
+    /**
+     * Full Name
+     */
+    full_name: string;
 };
 
 /**
@@ -4250,6 +4342,74 @@ export type DownloadJobResponses = {
      */
     200: unknown;
 };
+
+export type GetPreviewScopeData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Semester Id
+         */
+        semester_id?: number | null;
+    };
+    url: '/api/reports/preview/scope';
+};
+
+export type GetPreviewScopeErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPreviewScopeError = GetPreviewScopeErrors[keyof GetPreviewScopeErrors];
+
+export type GetPreviewScopeResponses = {
+    /**
+     * Successful Response
+     */
+    200: PreviewScopeOut;
+};
+
+export type GetPreviewScopeResponse = GetPreviewScopeResponses[keyof GetPreviewScopeResponses];
+
+export type GetReportPreviewData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Semester Id
+         */
+        semester_id: number;
+        /**
+         * Student Id
+         */
+        student_id: number;
+        /**
+         * Kind
+         */
+        kind: 'english_elementary' | 'english_middle' | 'german_karne' | 'french_karne';
+    };
+    url: '/api/reports/preview';
+};
+
+export type GetReportPreviewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetReportPreviewError = GetReportPreviewErrors[keyof GetReportPreviewErrors];
+
+export type GetReportPreviewResponses = {
+    /**
+     * Watermarked card
+     */
+    200: Blob | File;
+};
+
+export type GetReportPreviewResponse = GetReportPreviewResponses[keyof GetReportPreviewResponses];
 
 export type DownloadReportSetData = {
     body?: never;

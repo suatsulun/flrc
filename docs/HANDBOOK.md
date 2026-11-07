@@ -26,6 +26,7 @@ and report changes are committed source, not verified school deployment state.
 | 2.11, 4.6: tests          | Frontend packages have no standalone `test` script. Use root Playwright, configured test servers, and the existing synthetic backend suite.                    |
 | 3.5, 3.9-3.10: years      | Rollover preserves student identity and assigns fresh numbers per year and school stage (ADR-070). Year lists sort by label, not insertion id.                 |
 | 4.2-4.4: reports          | Four PDF sets return directly from `/api/reports/pdf` (ADR-028); year XLSX exports remain durable Celery jobs. Private report overlays/signatures use ADR-057. |
+| 4.4: teacher previews     | Teachers view their own students' cards with an ÖNİZLEME watermark at `/card-preview` via `/api/reports/preview` (ADR-078).                                    |
 | 4.5, 4.9-4.10: operations | School deployment consumes paired images, runtime branding, nightly encrypted backups, and monthly restore tests from `infra/school-template/`.                |
 
 Backend pytest fixtures wipe the fixed local `flrc_test` database; migration tests also downgrade
@@ -8544,10 +8545,10 @@ Commit: `ops: structured request telemetry with privacy scrubbers`.
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Resource-Policy: same-origin
   Strict-Transport-Security: max-age=31536000; includeSubDomains
-  Content-Security-Policy: default-src 'self'; connect-src 'self' https://*.ingest.sentry.io; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com
+  Content-Security-Policy: default-src 'self'; connect-src 'self' https://*.ingest.sentry.io; img-src 'self' data:; frame-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com
 ```
 
-Treat CSP as a tested starting point. Browser console must be clean on login, grid, import, report download, Sentry initialization. Tighten the Sentry host to your actual DSN origin instead of a broad wildcard if practical.
+Treat CSP as a tested starting point. Browser console must be clean on login, grid, import, report download, report card preview, Sentry initialization. `frame-src 'self' blob:` exists only so the teacher panel's Karne önizleme can show its PDF in an iframe (ADR-078); without it the browser blocks the `blob:` frame. Tighten the Sentry host to your actual DSN origin instead of a broad wildcard if practical.
 
 Backend tests that are launch blockers:
 

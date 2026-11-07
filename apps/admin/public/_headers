@@ -6,4 +6,4 @@
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Resource-Policy: same-origin
   Strict-Transport-Security: max-age=31536000; includeSubDomains
-  Content-Security-Policy: default-src 'self'; connect-src 'self' https://*.ingest.sentry.io; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com
+  Content-Security-Policy: default-src 'self'; connect-src 'self' https://*.ingest.sentry.io; img-src 'self' data:; frame-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com

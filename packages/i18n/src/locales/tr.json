@@ -600,6 +600,35 @@
     "emptyTitle": "Bu sınıfta öğrenci yok",
     "emptyBody": "Seçilen dönemde bu sınıfta öğrenci bulunmuyor.",
     "unavailableTitle": "Sınıf raporu ortaokul İngilizcesi içindir",
-    "unavailableBody": "Sınıf raporunu görmek için 5-8. sınıflardan birini açın."
+    "unavailableBody": "Sınıf raporunu görmek için 5-8. sınıflardan birini açın.",
+    "rateLimitedWait": "Bir dakika içinde çok fazla PDF istendi. {{seconds}} saniye sonra tekrar deneyin.",
+    "modeLabel": "Rapor görünümü",
+    "modeSheet": "Sınıf raporu",
+    "modePreview": "Karne önizleme"
+  },
+  "cardPreview": {
+    "nav": "Karne önizleme",
+    "title": "Karne önizleme",
+    "description": "Derslerine girdiğiniz sınıflardaki öğrencilerin karnelerini yazdırılmadan önce ekranda kontrol edin. Önizleme yalnızca görüntülemek içindir.",
+    "classLabel": "Sınıf ve karne",
+    "semesterLabel": "Dönem",
+    "studentsLabel": "Öğrenciler",
+    "previous": "Önceki",
+    "next": "Sonraki",
+    "position": "{{current}} / {{total}}",
+    "keyboardHint": "← → tuşlarıyla öğrenciler arasında geçiş yapabilirsiniz.",
+    "cardEnglish": "İngilizce karne",
+    "cardGerman": "Almanca karne",
+    "cardFrench": "Fransızca karne",
+    "frameTitle": "{{name}} karne önizlemesi",
+    "loading": "Karne hazırlanıyor…",
+    "failed": "Karne önizlemesi oluşturulamadı.",
+    "forbidden": "Bu öğrencinin karnesini önizleme yetkiniz yok.",
+    "retry": "Tekrar dene",
+    "emptyTitle": "Önizlenecek karne yok",
+    "emptyBody": "Bu eğitim yılında size atanmış bir sınıf bulunmuyor. Karne önizleme yalnızca derslerine girdiğiniz sınıflar içindir.",
+    "noStudentsTitle": "Bu karne için öğrenci yok",
+    "noStudentsBody": "Bu sınıfta bu karneyi alan öğrenci bulunmuyor.",
+    "watermarkNote": "Önizlemeler ÖNİZLEME filigranı taşır ve yalnızca görüntülenir; resmi karneler yönetim panelinden yazdırılır."
   }
 }

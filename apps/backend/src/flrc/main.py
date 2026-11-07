@@ -40,6 +40,7 @@ from flrc.modules.grades.router import router as grades_router
 from flrc.modules.imports.router import router as imports_router
 from flrc.modules.jobs.router import router as jobs_router
 from flrc.modules.reports.class_sheet import router as class_sheet_router
+from flrc.modules.reports.preview import router as report_preview_router
 from flrc.modules.reports.router import router as reports_router
 from flrc.modules.system.router import router as system_router
 
@@ -127,6 +128,8 @@ def create_app() -> FastAPI:
     protected_api.include_router(archive_router)
     protected_api.include_router(coordinator_router)
     protected_api.include_router(jobs_router)
+    # Previews carry their own per-account single-report limit on the PDF route.
+    protected_api.include_router(report_preview_router)
     protected_reports = APIRouter(dependencies=[Depends(report_rate_limit)])
     protected_reports.include_router(reports_router)
     protected_api.include_router(protected_reports)

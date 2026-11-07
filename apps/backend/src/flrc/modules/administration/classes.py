@@ -1,4 +1,5 @@
-from typing import Annotated, Literal, Self
+from collections.abc import Mapping
+from typing import Annotated, Literal, Self, TypedDict
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
@@ -9,9 +10,12 @@ from sqlalchemy.orm import aliased
 
 from flrc.db.models import (
     AcademicYear,
+    AdminAction,
     Enrollment,
+    OverrideGrant,
     SaveBatch,
     SchoolClass,
+    Student,
     TeachingAssignment,
     User,
 )
@@ -24,8 +28,12 @@ from flrc.modules.academics.class_names import (
     normalize_section,
 )
 from flrc.modules.academics.programme import stage_for_grade
-from flrc.modules.administration.roster_service import is_duplicate_school_number
+from flrc.modules.administration.roster_service import (
+    NumberHolder,
+    is_duplicate_school_number,
+)
 from flrc.modules.auth.dependencies import require_admin
+from flrc.modules.changes.service import ActionWrite, record_action, with_action
 
 router = APIRouter(prefix="/admin", tags=["admin-classes"])
 Role = Literal["main", "skills", "german", "french"]
@@ -35,6 +43,21 @@ def _field_for_role(role: str) -> str:
     return "english" if role in ("main", "skills") else role
 
 
+def _class_name(school_class: SchoolClass) -> str:
+    return class_label(school_class.grade_level, school_class.section)
+
+
+def assignment_mismatch(
+    teaching_field: str, teaching_stage: str | None, grade_level: int, role: str
+) -> Literal["teacher_field_mismatch", "teacher_stage_mismatch"] | None:
+    """Why a teacher may not hold a class role: wrong subject, or English at the wrong stage."""
+    if teaching_field != _field_for_role(role):
+        return "teacher_field_mismatch"
+    if teaching_field == "english" and teaching_stage != stage_for_grade(grade_level):
+        return "teacher_stage_mismatch"
+    return None
+
+
 class AdminClassOut(BaseModel):
     id: int
     year_id: int
@@ -42,6 +65,14 @@ class AdminClassOut(BaseModel):
     section: str
     name: str
     student_count: int
+
+
+class AdminClassWriteOut(AdminClassOut, ActionWrite):
+    pass
+
+
+class ClassDeleteOut(ActionWrite):
+    deleted: bool
 
 
 class ClassCreate(BaseModel):
@@ -80,13 +111,81 @@ class MatrixSlotOut(BaseModel):
     user_active: bool
 
 
-async def _writable_year(db: AsyncSession, year_id: int) -> AcademicYear:
+class AssignmentMatrixWriteOut(ActionWrite):
+    slots: list[MatrixSlotOut]
+
+
+async def writable_class_year(db: AsyncSession, year_id: int) -> AcademicYear:
+    """Lock a year for a class or assignment write; archived years are read-only."""
     year = await db.scalar(select(AcademicYear).where(AcademicYear.id == year_id).with_for_update())
     if year is None:
         raise HTTPException(404, {"code": "unknown_year"})
     if year.status == "archived":
         raise HTTPException(409, {"code": "year_not_writable"})
     return year
+
+
+async def class_in_use(db: AsyncSession, class_id: int) -> bool:
+    """Whether a class holds pupils, saved grades, assignments or grants and so must stay."""
+    for model in (Enrollment, SaveBatch, TeachingAssignment, OverrideGrant):
+        found = await db.scalar(select(model.id).where(model.class_id == class_id).limit(1))
+        if found is not None:
+            return True
+    return False
+
+
+async def class_conflict(
+    db: AsyncSession, *, year_id: int, grade_level: int, section: str, class_id: int | None
+) -> SchoolClass | None:
+    """Another class of the year with the same grade and section."""
+    statement = select(SchoolClass).where(
+        SchoolClass.year_id == year_id,
+        SchoolClass.grade_level == grade_level,
+        SchoolClass.section == section,
+    )
+    if class_id is not None:
+        statement = statement.where(SchoolClass.id != class_id)
+    return await db.scalar(statement)
+
+
+async def stage_number_clash(
+    db: AsyncSession, school_class: SchoolClass, grade_level: int
+) -> NumberHolder | None:
+    """A pupil of the other stage holding a number this class would carry into it."""
+    if stage_for_grade(grade_level) == stage_for_grade(school_class.grade_level):
+        return None
+    other = aliased(Enrollment)
+    holder_class = aliased(SchoolClass)
+    row = (
+        await db.execute(
+            select(Enrollment.school_number, Student.full_name, holder_class)
+            .join(
+                other,
+                (other.year_id == Enrollment.year_id)
+                & (other.school_number == Enrollment.school_number)
+                & (other.class_id != school_class.id),
+            )
+            .join(Student, Student.id == other.student_id)
+            .join(holder_class, holder_class.id == other.class_id)
+            .where(
+                Enrollment.class_id == school_class.id,
+                other.stage == stage_for_grade(grade_level),
+            )
+            .limit(1)
+        )
+    ).first()
+    if row is None:
+        return None
+    number, student, holder = row
+    # The join matched equal numbers, so this one is never empty.
+    assert number is not None
+    return NumberHolder(
+        {
+            "number": number,
+            "student": student,
+            "class": class_label(holder.grade_level, holder.section),
+        }
+    )
 
 
 async def _class_out(db: AsyncSession, school_class: SchoolClass) -> AdminClassOut:
@@ -147,25 +246,31 @@ async def create_admin_class(
     body: ClassCreate,
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-) -> AdminClassOut:
-    del actor
-    await _writable_year(db, body.year_id)
-    duplicate = await db.scalar(
-        select(SchoolClass.id).where(
-            SchoolClass.year_id == body.year_id,
-            SchoolClass.grade_level == body.grade_level,
-            SchoolClass.section == body.section,
-        )
-    )
-    if duplicate is not None:
+) -> AdminClassWriteOut:
+    await writable_class_year(db, body.year_id)
+    if await class_conflict(
+        db,
+        year_id=body.year_id,
+        grade_level=body.grade_level,
+        section=body.section,
+        class_id=None,
+    ):
         raise HTTPException(409, {"code": "duplicate_class"})
     school_class = SchoolClass(
         year_id=body.year_id, grade_level=body.grade_level, section=body.section
     )
     db.add(school_class)
+    await db.flush()
+    action = await record_action(
+        db,
+        actor=actor,
+        kind="class.create",
+        params={"class": class_label(school_class.grade_level, school_class.section)},
+        undo={"class_id": school_class.id},
+    )
     await db.commit()
     await db.refresh(school_class)
-    return await _class_out(db, school_class)
+    return with_action(AdminClassWriteOut, await _class_out(db, school_class), action)
 
 
 @router.patch("/classes/{class_id}")
@@ -174,54 +279,55 @@ async def patch_admin_class(
     body: ClassPatch,
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-) -> AdminClassOut:
-    del actor
+) -> AdminClassWriteOut:
     school_class = await db.get(SchoolClass, class_id)
     if school_class is None:
         raise HTTPException(404, {"code": "unknown_class"})
-    await _writable_year(db, school_class.year_id)
+    await writable_class_year(db, school_class.year_id)
     grade = body.grade_level if body.grade_level is not None else school_class.grade_level
     section = normalize_section(
         grade, body.section if body.section is not None else school_class.section
     )
     if not section:
         raise HTTPException(422, {"code": "invalid_section"})
-    duplicate = await db.scalar(
-        select(SchoolClass.id).where(
-            SchoolClass.year_id == school_class.year_id,
-            SchoolClass.grade_level == grade,
-            SchoolClass.section == section,
-            SchoolClass.id != class_id,
-        )
-    )
-    if duplicate is not None:
+    if await class_conflict(
+        db,
+        year_id=school_class.year_id,
+        grade_level=grade,
+        section=section,
+        class_id=class_id,
+    ):
         raise HTTPException(409, {"code": "duplicate_class"})
     # Its pupils follow the class into the other school stage with their
     # numbers, so the edit is refused if one is already taken there.
-    if stage_for_grade(grade) != stage_for_grade(school_class.grade_level):
-        other = aliased(Enrollment)
-        clash = await db.scalar(
-            select(Enrollment.id)
-            .join(
-                other,
-                (other.year_id == Enrollment.year_id)
-                & (other.school_number == Enrollment.school_number)
-                & (other.class_id != class_id),
-            )
-            .where(Enrollment.class_id == class_id, other.stage == stage_for_grade(grade))
-            .limit(1)
-        )
-        if clash is not None:
-            raise HTTPException(409, {"code": "duplicate_school_number"})
+    if await stage_number_clash(db, school_class, grade) is not None:
+        raise HTTPException(409, {"code": "duplicate_school_number"})
+    previous_class = class_label(school_class.grade_level, school_class.section)
+    before = {"grade_level": school_class.grade_level, "section": school_class.section}
     school_class.grade_level, school_class.section = grade, section
     try:
+        await db.flush()
+        action = await record_action(
+            db,
+            actor=actor,
+            kind="class.edit",
+            params={
+                "class": class_label(grade, section),
+                "previous_class": previous_class,
+            },
+            undo={
+                "class_id": class_id,
+                "before": before,
+                "after": {"grade_level": grade, "section": section},
+            },
+        )
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
         if is_duplicate_school_number(exc):
             raise HTTPException(409, {"code": "duplicate_school_number"}) from exc
         raise
-    return await _class_out(db, school_class)
+    return with_action(AdminClassWriteOut, await _class_out(db, school_class), action)
 
 
 @router.delete("/classes/{class_id}")
@@ -229,27 +335,31 @@ async def delete_admin_class(
     class_id: int,
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-) -> dict[str, bool]:
-    del actor
+) -> ClassDeleteOut:
     school_class = await db.get(SchoolClass, class_id)
     if school_class is None:
         raise HTTPException(404, {"code": "unknown_class"})
-    year = await _writable_year(db, school_class.year_id)
+    year = await writable_class_year(db, school_class.year_id)
     if year.status != "setup":
         raise HTTPException(409, {"code": "class_delete_setup_only"})
-    blockers = 0
-    for model in (Enrollment, SaveBatch, TeachingAssignment):
-        blockers += (
-            await db.scalar(
-                select(func.count()).select_from(model).where(model.class_id == class_id)
-            )
-            or 0
-        )
-    if blockers:
+    if await class_in_use(db, class_id):
         raise HTTPException(409, {"code": "class_in_use"})
+    snapshot = {
+        "id": school_class.id,
+        "year_id": school_class.year_id,
+        "grade_level": school_class.grade_level,
+        "section": school_class.section,
+    }
     await db.delete(school_class)
+    action = await record_action(
+        db,
+        actor=actor,
+        kind="class.delete",
+        params={"class": class_label(school_class.grade_level, school_class.section)},
+        undo={"class": snapshot},
+    )
     await db.commit()
-    return {"deleted": True}
+    return ClassDeleteOut(deleted=True, action_id=action.id)
 
 
 async def _matrix(db: AsyncSession, year_id: int) -> list[MatrixSlotOut]:
@@ -274,6 +384,79 @@ async def _matrix(db: AsyncSession, year_id: int) -> list[MatrixSlotOut]:
     ]
 
 
+class SlotChange(TypedDict):
+    class_id: int
+    role: str
+    before: int | None
+    after: int | None
+
+
+async def apply_assignment_slots(
+    db: AsyncSession, slots: dict[tuple[int, str], int | None]
+) -> tuple[list[SlotChange], dict[int, str]]:
+    """Write validated ``(class_id, role) -> user_id`` slots; ``None`` clears one.
+
+    Returns the slots whose teacher actually changed, and the names of the teachers
+    who held the touched slots before.
+    """
+    rows = await db.execute(
+        select(TeachingAssignment, User.full_name)
+        .join(User, User.id == TeachingAssignment.user_id)
+        .where(TeachingAssignment.class_id.in_({class_id for class_id, _ in slots}))
+    )
+    assignments: dict[tuple[int, str], TeachingAssignment] = {}
+    holders: dict[int, str] = {}
+    for assignment, name in rows:
+        assignments[(assignment.class_id, assignment.role)] = assignment
+        holders[assignment.user_id] = name
+    changed: list[SlotChange] = []
+    for (class_id, role), user_id in slots.items():
+        existing = assignments.get((class_id, role))
+        before = existing.user_id if existing else None
+        if before == user_id:
+            continue
+        changed.append(SlotChange(class_id=class_id, role=role, before=before, after=user_id))
+        if user_id is None:
+            if existing:
+                await db.delete(existing)
+        elif existing:
+            existing.user_id = user_id
+        else:
+            db.add(TeachingAssignment(class_id=class_id, role=role, user_id=user_id))
+    await db.flush()
+    return changed, holders
+
+
+async def record_assignment_change(
+    db: AsyncSession,
+    *,
+    actor: User,
+    year_id: int,
+    changed: list[SlotChange],
+    classes: Mapping[int, SchoolClass],
+    names: Mapping[int, str],
+) -> AdminAction:
+    """Record assignment changes; ``classes`` and ``names`` cover every changed slot."""
+    return await record_action(
+        db,
+        actor=actor,
+        kind="assignments.replace",
+        params={
+            "count": len(changed),
+            "changes": [
+                {
+                    "class": _class_name(classes[item["class_id"]]),
+                    "role": item["role"],
+                    "from_teacher": names.get(item["before"]) if item["before"] else None,
+                    "to_teacher": names.get(item["after"]) if item["after"] else None,
+                }
+                for item in changed
+            ],
+        },
+        undo={"year_id": year_id, "slots": [dict(item) for item in changed]},
+    )
+
+
 @router.get("/years/{year_id}/assignments")
 async def list_assignment_matrix(
     year_id: int,
@@ -292,9 +475,8 @@ async def replace_assignment_matrix(
     body: AssignmentBulk,
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-) -> list[MatrixSlotOut]:
-    del actor
-    await _writable_year(db, year_id)
+) -> AssignmentMatrixWriteOut:
+    await writable_class_year(db, year_id)
     class_ids = {change.class_id for change in body.changes}
     user_ids = {change.user_id for change in body.changes if change.user_id is not None}
     classes = {
@@ -309,55 +491,29 @@ async def replace_assignment_matrix(
     if len(users) != len(user_ids) or any(not item.is_active for item in users.values()):
         raise HTTPException(422, {"code": "invalid_user"})
     # Validate every input before reducing repeated slots to their final value.
-    changes: dict[tuple[int, str], AssignmentChange] = {}
+    slots: dict[tuple[int, str], int | None] = {}
     for change in body.changes:
-        if change.user_id is not None and users[change.user_id].teaching_field != _field_for_role(
-            change.role
-        ):
-            raise HTTPException(
-                422,
-                {
-                    "code": "teacher_field_mismatch",
-                    "class_id": change.class_id,
-                    "role": change.role,
-                },
+        if change.user_id is not None:
+            user = users[change.user_id]
+            problem = assignment_mismatch(
+                user.teaching_field,
+                user.teaching_stage,
+                classes[change.class_id].grade_level,
+                change.role,
             )
-        if (
-            change.user_id is not None
-            and _field_for_role(change.role) == "english"
-            and users[change.user_id].teaching_stage
-            != stage_for_grade(classes[change.class_id].grade_level)
-        ):
-            raise HTTPException(
-                422,
-                {
-                    "code": "teacher_stage_mismatch",
-                    "class_id": change.class_id,
-                    "role": change.role,
-                },
-            )
-        changes[(change.class_id, change.role)] = change
-
-    assignments = {
-        (item.class_id, item.role): item
-        for item in await db.scalars(
-            select(TeachingAssignment).where(TeachingAssignment.class_id.in_(class_ids))
-        )
-    }
-    for key, change in changes.items():
-        existing = assignments.get(key)
-        if change.user_id is None:
-            if existing:
-                await db.delete(existing)
-        elif existing:
-            existing.user_id = change.user_id
-        else:
-            db.add(
-                TeachingAssignment(
-                    class_id=change.class_id,
-                    role=change.role,
-                    user_id=change.user_id,
+            if problem is not None:
+                raise HTTPException(
+                    422, {"code": problem, "class_id": change.class_id, "role": change.role}
                 )
-            )
+        slots[(change.class_id, change.role)] = change.user_id
+    changed, holders = await apply_assignment_slots(db, slots)
+    action = await record_assignment_change(
+        db,
+        actor=actor,
+        year_id=year_id,
+        changed=changed,
+        classes=classes,
+        names=holders | {item.id: item.full_name for item in users.values()},
+    )
     await db.commit()
-    return await _matrix(db, year_id)
+    return AssignmentMatrixWriteOut(slots=await _matrix(db, year_id), action_id=action.id)

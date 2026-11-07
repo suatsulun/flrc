@@ -324,3 +324,26 @@ class DemoVisitor(TimestampMixin, Base):
     subject_hash: Mapped[str | None] = mapped_column(unique=True, index=True)
     expires_at: Mapped[datetime]
     scrubbed_at: Mapped[datetime | None]
+
+
+class AdminAction(Base):
+    """One undoable administrative write, kept for seven days (ADR-075).
+
+    ``summary`` holds display parameters resolved when the write happened;
+    ``undo_data`` holds the snapshot that restores the previous state; ``blob``
+    keeps a replaced or removed signature image. The nightly maintenance pass
+    deletes rows once ``expires_at`` has passed.
+    """
+
+    __tablename__ = "admin_actions"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    kind: Mapped[str]
+    summary: Mapped[dict[str, object]] = mapped_column(JSONB)
+    undo_data: Mapped[dict[str, object]] = mapped_column(JSONB)
+    blob: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
+    created_at: Mapped[datetime]
+    expires_at: Mapped[datetime] = mapped_column(index=True)
+    undone_at: Mapped[datetime | None]
+    undone_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))

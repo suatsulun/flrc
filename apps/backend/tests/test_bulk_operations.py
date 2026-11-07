@@ -48,7 +48,7 @@ async def test_assignment_matrix_reads_do_not_grow_per_slot(api, world, record_p
                 f"/api/admin/years/{world.year}/assignments", json={"changes": changes}
             )
     assert response.status_code == 200
-    slots = {(item["class_id"], item["role"]): item["user_id"] for item in response.json()}
+    slots = {(item["class_id"], item["role"]): item["user_id"] for item in response.json()["slots"]}
     assert len(slots) == 42  # Includes the existing class, untouched by this request.
     for change in changes:
         assert slots[(change["class_id"], change["role"])] == change["user_id"]
@@ -81,7 +81,7 @@ async def test_repeated_assignment_slots_keep_last_change_and_validate_every_cha
     assert response.status_code == 200
     assert rejected.status_code == 422
     assert rejected.json()["detail"]["code"] == "teacher_field_mismatch"
-    assert final.json() == response.json()
+    assert final.json() == response.json()["slots"]
 
 
 def import_file(sheets):

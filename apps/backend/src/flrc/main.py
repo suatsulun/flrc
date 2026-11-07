@@ -33,6 +33,7 @@ from flrc.modules.auth.admin import router as admin_router
 from flrc.modules.auth.dependencies import current_user
 from flrc.modules.auth.me import router as me_router
 from flrc.modules.auth.router import router as auth_router
+from flrc.modules.changes.router import router as changes_router
 from flrc.modules.demo import reset as demo_reset
 from flrc.modules.demo.router import ops_router as demo_ops_router
 from flrc.modules.demo.router import router as demo_router
@@ -130,6 +131,7 @@ def create_app() -> FastAPI:
     protected_api.include_router(jobs_router)
     # Previews carry their own per-account single-report limit on the PDF route.
     protected_api.include_router(report_preview_router)
+    protected_api.include_router(changes_router)
     protected_reports = APIRouter(dependencies=[Depends(report_rate_limit)])
     protected_reports.include_router(reports_router)
     protected_api.include_router(protected_reports)

@@ -1,6 +1,13 @@
 import type { CompletenessRow, CompletionSummary } from "@flrc/api-client";
+import { Badge } from "@flrc/ui/components/badge";
 import { Button } from "@flrc/ui/components/button";
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from "@flrc/ui/components/card";
+import {
+  PhoneCardActions,
+  PhoneCardHeader,
+  PhoneCardItem,
+  PhoneCardList,
+} from "@flrc/ui/components/phone-card-list";
 import { Segmented } from "@flrc/ui/components/segmented";
 import {
   Table,
@@ -64,7 +71,7 @@ export function CompletionCard({
           onChange={setFilter}
         />
       </CardHeader>
-      <CardBody>
+      <CardBody className="hidden md:block">
         <TableScroll aria-label={t("coordinator.tableLabel")}>
           <Table className="w-full min-w-[52rem]">
             <TableCaption>{t("coordinator.tableLabel")}</TableCaption>
@@ -131,6 +138,62 @@ export function CompletionCard({
           </Table>
         </TableScroll>
       </CardBody>
+      {rows.length === 0 ? (
+        <p className="px-5 py-6 text-sm text-muted-foreground md:hidden">
+          {taught.length === 0
+            ? t("coordinator.empty")
+            : t("adminDashboard.completion.allComplete")}
+        </p>
+      ) : (
+        <PhoneCardList className="md:hidden" aria-label={t("coordinator.tableLabel")}>
+          {rows.map((row) => (
+            <PhoneCardItem key={`${row.class_id}-${row.subject}`} data-testid="completion-card">
+              <PhoneCardHeader
+                title={`${row.class_name} · ${t(`subjects.${row.subject}`)}`}
+                status={
+                  // Nothing expected yet is not "complete": like the bar, it shows no verdict.
+                  row.expected_cells === 0 ? null : (
+                    <Badge tone={row.missing_cells > 0 ? "warning" : "success"}>
+                      {row.missing_cells > 0
+                        ? `${t("coordinator.missing")}: ${row.missing_cells}`
+                        : formatPercent(100, i18n.language)}
+                    </Badge>
+                  )
+                }
+              />
+              <div className="space-y-2">
+                <CompletionBar percent={row.expected_cells === 0 ? null : row.percent} />
+                <p className="tabular flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>
+                    {t("coordinator.expected")}:{" "}
+                    <strong className="font-medium text-foreground">{row.expected_cells}</strong>
+                  </span>
+                  <span>
+                    {t("coordinator.filled")}:{" "}
+                    <strong className="font-medium text-foreground">{row.filled_cells}</strong>
+                  </span>
+                  <span className={row.missing_cells > 0 ? "font-medium text-warning" : undefined}>
+                    {t("coordinator.missing")}: <strong>{row.missing_cells}</strong>
+                  </span>
+                </p>
+              </div>
+              {row.missing_cells > 0 ? (
+                <PhoneCardActions>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setSelected(row)}
+                  >
+                    <ListChecksIcon />
+                    {t("adminDashboard.completion.details")}
+                  </Button>
+                </PhoneCardActions>
+              ) : null}
+            </PhoneCardItem>
+          ))}
+        </PhoneCardList>
+      )}
       {selected ? (
         <MissingCellsDialog
           row={selected}

@@ -44,7 +44,25 @@ export function DashboardSummaryCardsSkeleton() {
       </SkeletonCard>
       <SkeletonCard action className="lg:col-span-2">
         <SkeletonTable columns={7} rows={5} className="hidden md:block" />
-        <SkeletonPhoneCards rows={4} fields={2} actions={1} className="md:hidden" />
+        {/* Phone cards: class · subject with its badge, the bar over its counts, the drill-down. */}
+        <div aria-hidden className="divide-y divide-border md:hidden">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="space-y-3 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <Skeleton className="h-4 w-36 rounded-md" />
+                <Skeleton className="h-5 w-16 shrink-0 rounded-full" />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2.5">
+                  <Skeleton className="h-1.5 flex-1 rounded-full" />
+                  <Skeleton className="h-3 w-10 rounded-md" />
+                </div>
+                <Skeleton className="h-3 w-56 max-w-full rounded-md" />
+              </div>
+              <Skeleton className="h-10 w-full rounded-xl" />
+            </div>
+          ))}
+        </div>
       </SkeletonCard>
     </>
   );

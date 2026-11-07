@@ -3414,23 +3414,29 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
 
 ## Consequences
 
-- Packaging uses pikepdf (qpdf, bundled in its wheels) rather than pypdf. Each class is rendered
-  once without the school's back cover (`render_report_pdf(..., back_cover=False)`); a combined
-  set writes the class PDFs to a temporary folder, qpdf joins them from disk, and the cover goes
-  on once, its objects shared by every back page; class and pupil files are cut from the class
-  PDF and get their own copy of the cover. `render.py` applies covers to direct downloads with
-  the same pikepdf helper. A ZIP part is built in a disk-spooled file and saved when it closes.
-- Memory is not yet within the 1 GiB worker. Measured on the 1,210-pupil local school with the
-  private overlay and two render processes (peak PSS of the worker and its render processes):
-  whole-school German combined (448 pupils, 32 classes) 381 s, 60.5 MB, 1,736 MiB; middle-school
-  English per-pupil ZIP (572 pupils, 26 classes) 334 s, three parts of 166/166/99 MB, 1,731 MiB;
-  German per-class ZIP 392 s, three parts of 179/187/170 MB, 1,799 MiB. Rendering the German
-  classes alone, without any packaging, peaks at 1,720 MiB with the worker process itself at
-  1,204 MiB, so the remaining cost sits in the per-class render path of `render.py`, not in
-  packaging. Smaller sets stay within it: whole-school primary English, 638 pupils in 29 classes,
-  combined 6.0 MB in 58 s at 647 MiB and per-pupil ZIP 72 MB in 70 s at 565 MiB (two processes,
-  before pikepdf). The 192 MiB part size assumes ~500 MiB of rendering plus the part held twice
-  while it is saved.
+- Packaging uses pikepdf (qpdf, bundled in its wheels) rather than pypdf, and a report job
+  renders each class entirely inside a render process: the process gets only that class's
+  cards, renders it in batches of eight sheets (`JOB_RENDER_UNITS`), lets qpdf join the batches
+  on disk, splits and covers the files the format needs, and returns only their paths. The job's
+  own process builds each class's cards just before a render process can take them (two classes
+  in flight with two processes) and never holds a class's PDF or HTML. A combined set's class
+  files are joined from disk by qpdf and the cover goes on once, its objects shared by every
+  back page; class and pupil files carry their own cover. `render.py` covers direct downloads
+  with the same pikepdf helper. The render processes belong to the job and end with it, so their
+  memory returns between jobs. Celery's `worker_max_memory_per_child` and
+  `worker_max_tasks_per_child` act only on prefork pool children; the worker runs `--pool=solo`,
+  so they would not apply and are not set.
+- Measured on the 1,210-pupil local school with the private overlay and two render processes
+  (peak PSS of the job's process and its render processes; the part being saved to Postgres adds
+  the database driver's copy of up to one part):
+  - whole-school German combined (448 pupils, 32 classes): 68 s, 65.9 MB, 838 MiB (job process
+    238 MiB, render processes 405 and 403 MiB RSS);
+  - middle-school English per-pupil ZIP (572 pupils, 26 classes): 75 s, three parts of
+    166/166/99 MB, 718 MiB;
+  - whole-school German per-class ZIP: 75 s, three parts of 188/180/147 MB, 872 MiB.
+    Before the render-process change the same jobs took 334–392 s and peaked at 1.7–1.8 GiB,
+    with packaging still in the job's process. The 192 MiB part size assumes the rendering above
+    plus the part held twice while it is saved.
 - A middle-school English pupil file is about 840 KB, almost all of it the principal's signature:
   `principals/middle.svg` embeds a 3072 × 4608 RGBA PNG that becomes a 642 KiB image plus an
   86 KiB alpha mask in every file; the school logo's 2036 × 556 JPEG adds 80 KiB; fonts and page

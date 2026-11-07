@@ -149,7 +149,7 @@ async function mockReportApi(page: Page, hold?: Promise<void>) {
     }
     return route.fulfill({ json: listed });
   });
-  return { pdfQueries, jobBodies, pdfResponses };
+  return { pdfQueries, jobBodies, pdfResponses, jobs };
 }
 
 async function openReportCentre(browser: Browser, hold?: Promise<void>) {
@@ -339,6 +339,51 @@ test("leaving while a direct PDF downloads asks first, then stops the request", 
   await expect(page).toHaveURL(`${adminOrigin}/admin/classes`);
   await aborted;
   hold.resolve();
+
+  await context.close();
+});
+
+test("a set split into numbered parts lists each part with its own download", async ({
+  browser,
+}) => {
+  const { context, page, api } = await openReportCentre(browser);
+  const done = {
+    kind: "report_set",
+    status: "succeeded",
+    progress: 29,
+    total: 29,
+    output_size: 300_000_000,
+    output_expires_at: "2099-01-01T09:00:00",
+    error_code: null,
+    created_at: "2026-11-07T09:00:00",
+  };
+  const part = (number: number) => ({
+    ...done,
+    id: 700 + number,
+    parent_id: 700,
+    part: number,
+    output_size: 150_000_000,
+    output_filename: SCHOOL_ZIP.replace(".zip", ` (Bölüm ${number}).zip`),
+  });
+  api.jobs.push(part(2), part(1), {
+    ...done,
+    id: 700,
+    parent_id: null,
+    part: null,
+    output_filename: SCHOOL_ZIP,
+  });
+  await page.reload();
+
+  const downloads = page
+    .locator('[data-slot="card"]')
+    .filter({ has: page.getByText("Downloads", { exact: true }) });
+  const parts = downloads.getByRole("list", { name: `Parts of ${SCHOOL_ZIP}` });
+  await expect(parts.getByRole("listitem")).toHaveText([/\(Bölüm 1\)\.zip/, /\(Bölüm 2\)\.zip/]);
+  await expect(parts.locator('a[href="/api/jobs/701/download"]')).toBeVisible();
+  await expect(parts.locator('a[href="/api/jobs/702/download"]')).toBeVisible();
+  // The request itself has no single file to download.
+  await expect(downloads.locator('a[href="/api/jobs/700/download"]')).toHaveCount(0);
+  await expect(downloads.getByText("2 parts", { exact: false })).toBeVisible();
 
   await context.close();
 });

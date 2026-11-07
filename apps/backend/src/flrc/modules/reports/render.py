@@ -561,8 +561,12 @@ def _template_environment() -> Environment:
     return branding.environment(HERE / "templates") if branding else env
 
 
-def _apply_back_cover(pdf: bytes, cards: list[ReportCard]) -> bytes:
-    """Replace each duplex back with the original school PDF, without rasterizing it."""
+def apply_back_cover(pdf: bytes, cards: list[ReportCard]) -> bytes:
+    """Replace each duplex back with the original school PDF, without rasterizing it.
+
+    ``cards`` are the cards ``pdf`` holds, in order; a set merged from several classes takes
+    the cover once here instead of once per class (ADR-077).
+    """
     branding = report_branding()
     if branding is None:
         return pdf
@@ -641,8 +645,11 @@ def _stamp_watermark(pdf: bytes, text: str, *, two_up: bool) -> bytes:
     return result.getvalue()
 
 
-def _finish_report(pdf: bytes, cards: list[ReportCard], watermark: str | None) -> bytes:
-    pdf = _apply_back_cover(pdf, cards)
+def _finish_report(
+    pdf: bytes, cards: list[ReportCard], watermark: str | None, back_cover: bool
+) -> bytes:
+    if back_cover:
+        pdf = apply_back_cover(pdf, cards)
     if watermark is None:
         return pdf
     return _stamp_watermark(pdf, watermark, two_up=cards[0].kind == "english_middle")
@@ -817,7 +824,11 @@ def _chunk(units: list[object], count: int) -> list[list[object]]:
 
 
 def render_report_pdf(
-    cards: list[ReportCard], *, one_card_per_sheet: bool = False, watermark: str | None = None
+    cards: list[ReportCard],
+    *,
+    one_card_per_sheet: bool = False,
+    watermark: str | None = None,
+    back_cover: bool = True,
 ) -> bytes:
     """Render a report set, laying its sheets out in parallel when that helps.
 
@@ -837,6 +848,9 @@ def render_report_pdf(
     unset and are rendered exactly as before.
     ``one_card_per_sheet`` prints each middle-school card alone on its sheet
     instead of the guillotine imposition; other card kinds ignore it.
+    ``back_cover=False`` leaves the template's own duplex backs in place, page for page, for
+    a caller that merges several sets and applies the school's cover once with
+    :func:`apply_back_cover`.
     """
     template, context, units_key, units = _document_plan(cards, one_card_per_sheet)
     jinja_template = _template_environment().get_template(template)
@@ -854,11 +868,11 @@ def render_report_pdf(
         return parts[0] if len(parts) == 1 else _merge_pdf_parts(parts)
 
     if not parallel and len(chunks) == 1:
-        return _finish_report(render_pdf_document(document(units)), cards, watermark)
+        return _finish_report(render_pdf_document(document(units)), cards, watermark, back_cover)
 
     pool = _render_pool(workers) if parallel else None
     if pool is None:
-        return _finish_report(serial(), cards, watermark)
+        return _finish_report(serial(), cards, watermark, back_cover)
     try:
         parts: list[bytes] = []
         # Submit only one wave at a time; queued HTML also holds embedded images.
@@ -873,5 +887,5 @@ def render_report_pdf(
         # because the serial retry below renders the very same HTML.
         logger.warning("parallel report render failed, falling back to serial", exc_info=True)
         _discard_pool()
-        return _finish_report(serial(), cards, watermark)
-    return _finish_report(_merge_pdf_parts(parts), cards, watermark)
+        return _finish_report(serial(), cards, watermark, back_cover)
+    return _finish_report(_merge_pdf_parts(parts), cards, watermark, back_cover)

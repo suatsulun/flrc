@@ -7,8 +7,9 @@ from jinja2.exceptions import SecurityError
 from pypdf import PdfReader, PdfWriter
 
 from flrc.config import settings
-from flrc.modules.reports import render
+from flrc.modules.reports import packaging, render
 from flrc.modules.reports.branding import contained_file, report_branding
+from flrc.modules.reports.builder import ReportEntry
 from flrc.modules.reports.models import ReportCard, ReportSigner
 
 
@@ -142,3 +143,60 @@ def test_no_overlay_preserves_generic_templates(monkeypatch):
     html = render.render_report_html([card()])
     assert "Synthetic Elementary Principal" not in html
     assert 'class="cover-frame"' in html
+
+
+def cover_overlay(reports, config) -> None:
+    cover_bytes = render.render_pdf_document(
+        "<style>@page {size:A4 landscape}</style><p>SYNTHETIC ORIGINAL COVER</p>"
+    )
+    (reports / "cover.pdf").write_bytes(cover_bytes)
+    config["covers"] = {"german_karne": "cover.pdf"}
+    (reports / "config.json").write_text(json.dumps(config))
+
+
+def karne_classes() -> list[packaging.ClassSet]:
+    return [
+        packaging.ClassSet(
+            class_id=grade,
+            entries=[
+                ReportEntry(
+                    class_id=grade,
+                    student_id=grade * 10 + pupil,
+                    card=card(grade).model_copy(
+                        update={"student_name": f"Synthetic Pupil {grade}-{pupil}"}
+                    ),
+                )
+                for pupil in (1, 2)
+            ],
+        )
+        for grade in (4, 5, 6)
+    ]
+
+
+def test_combined_set_takes_the_back_cover_once_and_class_files_keep_theirs(overlay, monkeypatch):
+    reports, config = overlay
+    cover_overlay(reports, config)
+    opened: list[str] = []
+    original = render.contained_file
+
+    def counting(root, relative):
+        opened.append(relative)
+        return original(root, relative)
+
+    monkeypatch.setattr(render, "contained_file", counting)
+    combined = PdfReader(BytesIO(packaging.package_report_set(karne_classes(), "combined").data))
+    # The cover is read once, for the merged document, not once per class.
+    assert opened == ["cover.pdf"]
+    assert len(combined.pages) == 12
+    for index, page in enumerate(combined.pages):
+        text = page.extract_text()
+        if index % 2:
+            assert "SYNTHETIC ORIGINAL COVER" in text and "placeholder" not in text
+        else:
+            grade, pupil = 4 + index // 4, 1 + (index // 2) % 2
+            assert f"Synthetic Pupil {grade}-{pupil}" in text
+
+    opened.clear()
+    packaging.package_report_set(karne_classes(), "per_class")
+    # Class files are separate documents: each carries its own full-quality cover.
+    assert opened == ["cover.pdf"] * 3

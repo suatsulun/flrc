@@ -117,3 +117,34 @@ export async function startYearExport(yearId: number): Promise<JobOut> {
   if (!data) throw requestError(response, error);
   return data;
 }
+
+/** Requests to list and, for a set split into numbered parts, its parts in order (ADR-077). */
+export function groupJobParts(jobs: JobOut[]): {
+  requests: JobOut[];
+  partsOf: Map<number, JobOut[]>;
+} {
+  const listed = new Set(jobs.map((job) => job.id));
+  const partsOf = new Map<number, JobOut[]>();
+  for (const job of [...jobs].sort((a, b) => (a.part ?? 0) - (b.part ?? 0))) {
+    if (job.parent_id !== null && listed.has(job.parent_id)) {
+      partsOf.set(job.parent_id, [...(partsOf.get(job.parent_id) ?? []), job]);
+    }
+  }
+  const requests = jobs.filter((job) => job.parent_id === null || !listed.has(job.parent_id));
+  return { requests, partsOf };
+}
+
+/** A file size in the reader's locale: kilobytes below a megabyte, megabytes above. */
+export function formatBytes(bytes: number, locale: string): string {
+  return bytes >= 1_000_000
+    ? new Intl.NumberFormat(locale, {
+        style: "unit",
+        unit: "megabyte",
+        maximumFractionDigits: 1,
+      }).format(bytes / 1_000_000)
+    : new Intl.NumberFormat(locale, {
+        style: "unit",
+        unit: "kilobyte",
+        maximumFractionDigits: 0,
+      }).format(bytes / 1_000);
+}

@@ -539,8 +539,8 @@ async def test_a_page_mapping_mismatch_fails_the_job_instead_of_misfiling(
 ) -> None:
     original = packaging.render_report_pdf
 
-    def one_page_short(cards, *, one_card_per_sheet=False):
-        pdf = original(cards, one_card_per_sheet=one_card_per_sheet)
+    def one_page_short(cards, **options):
+        pdf = original(cards, **options)
         # Every karne is two pages; keep only the first, as a layout overflow bug might.
         return next(packaging.split_pdf(pdf, 1, 2 * len(cards)))
 
@@ -566,9 +566,9 @@ async def test_only_a_single_file_larger_than_a_part_fails_the_set(world, monkey
     rendered: list[int] = []
     original = packaging.render_report_pdf
 
-    def counting(cards, *, one_card_per_sheet=False):
+    def counting(cards, **options):
         rendered.append(len(cards))
-        return original(cards, one_card_per_sheet=one_card_per_sheet)
+        return original(cards, **options)
 
     monkeypatch.setattr(packaging, "render_report_pdf", counting)
     one_card = len(original([classes[0].entries[0].card], one_card_per_sheet=True))

@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { DownloadIcon, FileArchiveIcon, FileSpreadsheetIcon, FileTextIcon } from "lucide-react";
+import { FileArchiveIcon, FileSpreadsheetIcon, FileTextIcon } from "lucide-react";
 import { toast } from "sonner";
 import { listJobsOptions, type JobOut } from "@flrc/api-client";
 import { Badge } from "@flrc/ui/components/badge";
-import { Button } from "@flrc/ui/components/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@flrc/ui/components/card";
+import { JobDownloadButton, JobPartsList } from "./JobPartsList";
 import { jobFailureMessage } from "./report-errors";
+import { formatBytes, groupJobParts } from "./report-requests";
 
 /** A job that is still waiting or running: the list polls and shows its progress. */
 const isActive = (status: string) => status === "queued" || status === "running";
@@ -39,19 +40,6 @@ function JobIcon({ job }: { job: JobOut }) {
   );
 }
 
-function DownloadButton({ jobId, label }: { jobId: number; label: string }) {
-  return (
-    <Button
-      size="sm"
-      variant="outline"
-      render={<a href={`/api/jobs/${jobId}/download`} download />}
-    >
-      <DownloadIcon />
-      {label}
-    </Button>
-  );
-}
-
 /**
  * Report and export jobs with live progress, kept server-side for 24 hours (ADR-024, ADR-077):
  * the list survives reloads and polls only while a job is waiting or running. A set too large
@@ -69,14 +57,7 @@ export function DownloadsList() {
       (query.state.data ?? []).some((job) => isActive(job.status)) ? POLL_MS : false,
   });
   const seen = useRef(new Map<number, string>());
-  const listed = new Set(jobs.map((job) => job.id));
-  const partsOf = new Map<number, JobOut[]>();
-  for (const job of [...jobs].sort((a, b) => (a.part ?? 0) - (b.part ?? 0))) {
-    if (job.parent_id !== null && listed.has(job.parent_id)) {
-      partsOf.set(job.parent_id, [...(partsOf.get(job.parent_id) ?? []), job]);
-    }
-  }
-  const requests = jobs.filter((job) => job.parent_id === null || !listed.has(job.parent_id));
+  const { requests, partsOf } = groupJobParts(jobs);
 
   // A request finishing while the page is open says so; history loaded on arrival stays quiet.
   useEffect(() => {
@@ -105,18 +86,7 @@ export function DownloadsList() {
     hour: "2-digit",
     minute: "2-digit",
   });
-  const megabytes = new Intl.NumberFormat(i18n.language, {
-    style: "unit",
-    unit: "megabyte",
-    maximumFractionDigits: 1,
-  });
-  const kilobytes = new Intl.NumberFormat(i18n.language, {
-    style: "unit",
-    unit: "kilobyte",
-    maximumFractionDigits: 0,
-  });
-  const size = (bytes: number) =>
-    bytes >= 1_000_000 ? megabytes.format(bytes / 1_000_000) : kilobytes.format(bytes / 1_000);
+  const size = (bytes: number) => formatBytes(bytes, i18n.language);
 
   return (
     <Card aria-live="polite">
@@ -199,33 +169,11 @@ export function DownloadsList() {
                       >
                         {t(`reports.status.${job.status}`)}
                       </Badge>
-                      {ready && parts.length === 0 ? (
-                        <DownloadButton jobId={job.id} label={t("reports.download")} />
-                      ) : null}
+                      {ready && parts.length === 0 ? <JobDownloadButton jobId={job.id} /> : null}
                     </div>
                   </div>
                   {parts.length > 0 ? (
-                    <ul
-                      aria-label={t("reports.downloads.partsOf", { name })}
-                      className="mt-2 grid gap-1.5 border-l-2 border-border pl-4 sm:ml-11"
-                    >
-                      {parts.map((part) => (
-                        <li
-                          key={part.id}
-                          className="flex flex-wrap items-center justify-between gap-2 text-sm"
-                        >
-                          <span className="min-w-0 break-words">
-                            {part.output_filename}
-                            {part.output_size !== null ? (
-                              <span className="tabular ml-2 text-xs text-muted-foreground">
-                                {size(part.output_size)}
-                              </span>
-                            ) : null}
-                          </span>
-                          <DownloadButton jobId={part.id} label={t("reports.download")} />
-                        </li>
-                      ))}
-                    </ul>
+                    <JobPartsList name={name} parts={parts} className="mt-2 sm:ml-11" />
                   ) : null}
                 </li>
               );

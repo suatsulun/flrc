@@ -1636,6 +1636,14 @@ export type JobOut = {
      * Created At
      */
     created_at: string;
+    /**
+     * Parent Id
+     */
+    parent_id: number | null;
+    /**
+     * Part
+     */
+    part: number | null;
 };
 
 /**

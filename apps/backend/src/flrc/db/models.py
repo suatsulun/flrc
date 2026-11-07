@@ -304,6 +304,12 @@ class JobRun(TimestampMixin, Base):
     finished_at: Mapped[datetime | None]
     error_code: Mapped[str | None]
     error_detail: Mapped[str | None] = mapped_column(Text)
+    # A report set too large for one file is stored as numbered parts, each its own
+    # downloadable row under the request (ADR-077).
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("job_runs.id", ondelete="CASCADE"), index=True
+    )
+    part: Mapped[int | None]
 
 
 class DemoVisitor(TimestampMixin, Base):

@@ -7,8 +7,8 @@ one page when printed alone on its sheet. A class PDF whose page count disagrees
 mapping fails the job instead of handing anyone a mis-split file (ADR-077).
 
 Every file carries its own copy of what its pages use, including a school's back-cover PDF on
-the German/French karne, so ZIP outputs grow with the number of files. The output budget keeps
-a set within what the worker and the 24-hour blob store can hold.
+the German/French karne, so ZIP outputs grow with the number of files. A ZIP that would pass the
+output budget is cut into numbered parts between whole files, one part in memory at a time.
 """
 
 from collections.abc import Callable, Iterator
@@ -108,20 +108,15 @@ def split_pdf(pdf: bytes, pages_each: int, parts: int) -> Iterator[bytes]:
         yield output.getvalue()
 
 
-class _OutputBudget:
-    """Stops a set as soon as its output, projected from the students done, cannot fit."""
+def _release_source(writer: PdfWriter, reader: PdfReader) -> None:
+    """Let a merged class PDF be freed: its pages are already copied into the writer.
 
-    def __init__(self, max_bytes: int, students: int) -> None:
-        self.max_bytes = max_bytes
-        self.students = students
-        self.spent = 0
-        self.done = 0
-
-    def spend(self, size: int, students: int) -> None:
-        self.spent += size
-        self.done += students
-        if self.spent * self.students > self.max_bytes * self.done:
-            raise ReportPackagingError("report_output_too_large")
+    pypdf keeps every source reader reachable from the writer (to translate references and
+    to merge outlines later), so a whole-school set would hold every class PDF in memory.
+    Nothing is merged from a source after its pages are copied, so both maps can drop it.
+    """
+    writer._id_translated.pop(id(reader), None)
+    writer._merged_in_pages.clear()
 
 
 def _unique(name: str, taken: set[str]) -> str:
@@ -135,22 +130,106 @@ def _unique(name: str, taken: set[str]) -> str:
     return candidate
 
 
+# What an entry adds beyond its bytes: local and central headers with the name twice, and the
+# few bytes deflate adds to data that does not compress (PDF streams are compressed already).
+ENTRY_OVERHEAD = 256
+ARCHIVE_OVERHEAD = 1024
+# A pupil ZIP starts a new part at a class boundary when the class no longer fits and at most
+# this share of the part would stay unused.
+CLASS_BREAK_WASTE = 0.25
+
+
+def _entry_cost(size: int, name: str) -> int:
+    return size + size // 500 + ENTRY_OVERHEAD + 2 * len(name.encode())
+
+
+@dataclass(frozen=True)
+class PackagedSet:
+    """A packaged set: its last (or only) file, the MIME type, and how many parts it has."""
+
+    data: bytes
+    mime: str
+    parts: int
+
+
+class _ZipParts:
+    """ZIP entries written into numbered parts that each stay within the budget.
+
+    One part is open at a time, spooled to disk; a full part is handed to ``on_part`` and
+    released before the next begins. Parts break only between whole files.
+    """
+
+    def __init__(self, max_bytes: int, on_part: Callable[[int, bytes], None]) -> None:
+        self.capacity = max_bytes - ARCHIVE_OVERHEAD
+        self.on_part = on_part
+        self.number = 0
+        self.taken: set[str] = set()
+        self._open()
+
+    def _open(self) -> None:
+        self.spool = SpooledTemporaryFile(max_size=SPOOL_BYTES)
+        self.bundle = ZipFile(self.spool, "w", compression=ZIP_DEFLATED)
+        self.number += 1
+        self.used = 0
+        self.entries = 0
+
+    def _close(self) -> bytes:
+        self.bundle.close()
+        self.spool.seek(0)
+        data = self.spool.read()
+        self.spool.close()
+        return data
+
+    @property
+    def room(self) -> int:
+        return self.capacity - self.used
+
+    def next_part(self) -> None:
+        if self.entries:
+            self.on_part(self.number, self._close())
+            self._open()
+
+    def fits_fresh_part(self, size: int, name: str) -> bool:
+        return _entry_cost(size, name) <= self.capacity
+
+    def add(self, name: str, data: bytes) -> None:
+        cost = _entry_cost(len(data), name)
+        if cost > self.capacity:
+            # One file alone is larger than any part may be.
+            raise ReportPackagingError("report_output_too_large")
+        if cost > self.room:
+            self.next_part()
+        self.bundle.writestr(_unique(name, self.taken), data)
+        self.used += cost
+        self.entries += 1
+
+    def finish(self) -> PackagedSet:
+        return PackagedSet(data=self._close(), mime=ZIP_MIME, parts=self.number)
+
+    def abandon(self) -> None:
+        self.bundle.close()
+        self.spool.close()
+
+
 def package_report_set(
     classes: list[ClassSet],
     report_format: ReportFormat,
     on_class_done: Callable[[int], None] = lambda _done: None,
     max_bytes: int = MAX_OUTPUT_BYTES,
-) -> tuple[bytes, str]:
-    """Render every class once and package the result; returns the bytes and their MIME type.
+    on_part: Callable[[int, bytes], None] = lambda _number, _data: None,
+) -> PackagedSet:
+    """Render every class once and package the result.
 
-    ``on_class_done`` receives the number of finished classes after each one. A set whose
-    output is on course to pass ``max_bytes`` stops early with ``report_output_too_large``.
+    ``on_class_done`` receives the number of finished classes after each one. A ZIP larger
+    than ``max_bytes`` is cut into numbered parts: every full part goes to ``on_part`` as it
+    closes, and the last part is returned with the part count. Only a single file larger than
+    ``max_bytes`` (or a combined PDF, which cannot be split) fails with
+    ``report_output_too_large``.
     """
     if not classes:
         raise ReportPackagingError("empty_report_set")
     first = classes[0].entries[0].card
     kind, year_label, semester = first.kind, first.year_label, first.semester_number
-    budget = _OutputBudget(max_bytes, sum(len(item.entries) for item in classes))
 
     if report_format == "combined":
         writer = PdfWriter()
@@ -161,40 +240,46 @@ def package_report_set(
                 writer.add_metadata(_metadata(reader))
             for page in reader.pages:
                 writer.add_page(page)
+            _release_source(writer, reader)
             # Each class repeats the fonts and any back cover; fold them as the set grows so
             # memory follows the finished document, not the sum of its class PDFs.
             writer.compress_identical_objects()
             on_class_done(done)
         output = BytesIO()
         writer.write(output)
-        # Class PDFs overstate a combined set (its cover and fonts are shared), so only the
-        # finished document is measured.
         if output.tell() > max_bytes:
             raise ReportPackagingError("report_output_too_large")
-        return output.getvalue(), PDF_MIME
+        return PackagedSet(data=output.getvalue(), mime=PDF_MIME, parts=1)
 
-    taken: set[str] = set()
-    # Finished entries wait on disk, not in memory, until the archive is complete.
-    with SpooledTemporaryFile(max_size=SPOOL_BYTES) as archive:
-        with ZipFile(archive, "w", compression=ZIP_DEFLATED) as bundle:
-            for done, class_set in enumerate(classes, start=1):
-                if report_format == "per_class":
-                    pdf = render_class(class_set)
-                    budget.spend(len(pdf), len(class_set.entries))
-                    name = report_filename(class_set.class_name, kind, year_label, semester, "pdf")
-                    bundle.writestr(_unique(name, taken), pdf)
-                else:
-                    pdf = render_class(class_set, one_card_per_sheet=True)
-                    pages_each = expected_pages(kind, 1, one_card_per_sheet=True)
-                    students = split_pdf(pdf, pages_each, len(class_set.entries))
-                    for entry, student_pdf in zip(class_set.entries, students, strict=True):
-                        budget.spend(len(student_pdf), 1)
-                        card = entry.card
-                        scope = student_scope(
-                            card.class_name, card.school_number, card.student_name
-                        )
-                        name = report_filename(scope, kind, year_label, semester, "pdf")
-                        bundle.writestr(_unique(name, taken), student_pdf)
-                on_class_done(done)
-        archive.seek(0)
-        return archive.read(), ZIP_MIME
+    zip_parts = _ZipParts(max_bytes, on_part)
+    try:
+        for done, class_set in enumerate(classes, start=1):
+            if report_format == "per_class":
+                name = report_filename(class_set.class_name, kind, year_label, semester, "pdf")
+                zip_parts.add(name, render_class(class_set))
+            else:
+                pdf = render_class(class_set, one_card_per_sheet=True)
+                pages_each = expected_pages(kind, 1, one_card_per_sheet=True)
+                students = split_pdf(pdf, pages_each, len(class_set.entries))
+                for index, (entry, student_pdf) in enumerate(
+                    zip(class_set.entries, students, strict=True)
+                ):
+                    card = entry.card
+                    scope = student_scope(card.class_name, card.school_number, card.student_name)
+                    name = report_filename(scope, kind, year_label, semester, "pdf")
+                    if index == 0:
+                        # Keep a class together when it would not fit the part's remaining
+                        # room, would fit a fresh part, and starting one wastes little.
+                        estimate = len(student_pdf) * len(class_set.entries)
+                        if (
+                            _entry_cost(estimate, name) > zip_parts.room
+                            and zip_parts.fits_fresh_part(estimate, name)
+                            and zip_parts.room <= zip_parts.capacity * CLASS_BREAK_WASTE
+                        ):
+                            zip_parts.next_part()
+                    zip_parts.add(name, student_pdf)
+            on_class_done(done)
+    except BaseException:
+        zip_parts.abandon()
+        raise
+    return zip_parts.finish()

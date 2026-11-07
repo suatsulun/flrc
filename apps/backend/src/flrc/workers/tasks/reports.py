@@ -6,9 +6,18 @@ from sqlalchemy.orm import Session
 
 from flrc.db import models as m
 from flrc.db.sync import sync_engine
-from flrc.modules.jobs.service import mark_failed, mark_running, mark_succeeded
+from flrc.modules.jobs.service import (
+    discard_parts,
+    mark_failed,
+    mark_parts_succeeded,
+    mark_running,
+    mark_succeeded,
+    store_part,
+)
+from flrc.modules.reports import packaging
 from flrc.modules.reports.branding import ReportKind
 from flrc.modules.reports.builder import build_report_entries
+from flrc.modules.reports.filenames import part_filename
 from flrc.modules.reports.packaging import (
     ReportFormat,
     ReportPackagingError,
@@ -44,14 +53,26 @@ def run_report_job(db: Session, job: m.JobRun) -> None:
     classes = group_by_class(entries)
     if not classes:
         raise ReportPackagingError("empty_report_set")
+    # A redelivered job starts over; parts of an interrupted attempt are not this set's.
+    discard_parts(db, job.id)
     mark_running(db, job, total=len(classes))
+    filename = job.output_filename or "report"
 
     def advance(done: int) -> None:
         job.progress = done
         db.commit()
 
-    data, mime = package_report_set(classes, payload.format, advance)
-    mark_succeeded(db, job, data=data, filename=job.output_filename or "report", mime=mime)
+    def save_part(number: int, data: bytes) -> None:
+        store_part(db, job, number=number, filename=part_filename(filename, number), data=data)
+
+    result = package_report_set(
+        classes, payload.format, advance, packaging.MAX_OUTPUT_BYTES, save_part
+    )
+    if result.parts == 1:
+        mark_succeeded(db, job, data=result.data, filename=filename, mime=result.mime)
+        return
+    save_part(result.parts, result.data)
+    mark_parts_succeeded(db, job)
 
 
 @celery_app.task(name="reports.set")
@@ -66,11 +87,13 @@ def report_set_job(job_id: int) -> None:
             # An expected outcome (nothing to print, a page mapping refused): record the reason.
             logger.warning("report job %s failed: %s", job_id, error.code)
             db.rollback()
+            discard_parts(db, job_id)
             fresh = db.get(m.JobRun, job_id)
             if fresh is not None:
                 mark_failed(db, fresh, error.code)
         except Exception:
             db.rollback()
+            discard_parts(db, job_id)
             fresh = db.get(m.JobRun, job_id)
             if fresh is not None:
                 mark_failed(db, fresh, "report_set_failed")

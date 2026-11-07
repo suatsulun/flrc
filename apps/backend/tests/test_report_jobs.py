@@ -1,5 +1,8 @@
 """Report downloads, background report jobs, the student picker and download names (ADR-077)."""
 
+import gc
+import weakref
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from types import SimpleNamespace
 from urllib.parse import quote
@@ -557,13 +560,9 @@ async def test_a_page_mapping_mismatch_fails_the_job_instead_of_misfiling(
     assert download.status_code == 409
 
 
-async def test_a_set_that_cannot_fit_the_output_budget_stops_early(world, monkeypatch) -> None:
+async def test_only_a_single_file_larger_than_a_part_fails_the_set(world, monkeypatch) -> None:
     await three_pupil_class(world)
-    with Session(create_engine(TEST_URL_SYNC)) as db:
-        entries = build_report_entries(
-            db, semester_id=world.semester, kind="english_middle", locale="tr"
-        )
-    classes = packaging.group_by_class(entries)
+    classes = middle_classes(world.semester)
     rendered: list[int] = []
     original = packaging.render_report_pdf
 
@@ -572,16 +571,57 @@ async def test_a_set_that_cannot_fit_the_output_budget_stops_early(world, monkey
         return original(cards, one_card_per_sheet=one_card_per_sheet)
 
     monkeypatch.setattr(packaging, "render_report_pdf", counting)
-    one_card = len(original([entries[0].card], one_card_per_sheet=True))
+    one_card = len(original([classes[0].entries[0].card], one_card_per_sheet=True))
     with pytest.raises(packaging.ReportPackagingError, match="report_output_too_large"):
-        # Room for about two of the five pupils: the projection stops after the first class.
-        packaging.package_report_set(classes, "per_student", max_bytes=one_card * 2)
+        packaging.package_report_set(classes, "per_student", max_bytes=one_card // 2)
+    # The first pupil's file already cannot fit any part: nothing else is rendered.
     assert rendered == [2]
-    # The same set fits a budget sized for it.
-    data, mime = packaging.package_report_set(classes, "per_student", max_bytes=one_card * 10)
-    assert mime == "application/zip"
+
+
+def zip_names(data: bytes) -> list[str]:
     with ZipFile(BytesIO(data)) as bundle:
-        assert len(bundle.namelist()) == 5
+        return bundle.namelist()
+
+
+async def test_an_oversized_pupil_zip_splits_into_parts_between_whole_files(world) -> None:
+    await three_pupil_class(world)
+    classes = middle_classes(world.semester)
+    class_pdf = packaging.render_class(classes[0], one_card_per_sheet=True)
+    largest = max(len(part) for part in packaging.split_pdf(class_pdf, 1, 2))
+    # Room for two pupil files per part, never three.
+    overhead = packaging.ARCHIVE_OVERHEAD + 2 * (packaging.ENTRY_OVERHEAD + 300)
+    budget = int(largest * 2.1) + overhead
+    parts: dict[int, bytes] = {}
+    result = packaging.package_report_set(
+        classes, "per_student", max_bytes=budget, on_part=parts.__setitem__
+    )
+    parts[result.parts] = result.data
+    assert result.parts == len(parts) >= 2
+    assert list(parts) == list(range(1, result.parts + 1))
+    assert all(len(data) <= budget for data in parts.values())
+    names = [name for number in sorted(parts) for name in zip_names(parts[number])]
+    # Every pupil exactly once across the parts, in print order, each a whole one-page file.
+    assert names == [
+        f"5-A 51001 Synthetic Student One İngilizce Karne {TERM}.pdf",
+        f"5-A 51002 Synthetic Student Two İngilizce Karne {TERM}.pdf",
+        f"6-A 6001 Pupil Alpha İngilizce Karne {TERM}.pdf",
+        f"6-A 6002 Pupil Beta İngilizce Karne {TERM}.pdf",
+        f"6-A 6003 Pupil Gamma İngilizce Karne {TERM}.pdf",
+    ]
+    for data in parts.values():
+        with ZipFile(BytesIO(data)) as bundle:
+            for name in bundle.namelist():
+                assert len(PdfReader(BytesIO(bundle.read(name))).pages) == 1
+
+
+async def test_a_set_that_fits_one_part_stays_one_file(world) -> None:
+    await three_pupil_class(world)
+    parts: dict[int, bytes] = {}
+    result = packaging.package_report_set(
+        middle_classes(world.semester), "per_student", on_part=parts.__setitem__
+    )
+    assert result.parts == 1 and parts == {}
+    assert len(zip_names(result.data)) == 5
 
 
 async def test_class_sheet_download_is_named_for_its_classes(api, world) -> None:
@@ -601,3 +641,164 @@ async def test_class_sheet_download_is_named_for_its_classes(api, world) -> None
     assert disposition_name(several.headers["content-disposition"]) == quote(
         f"Sınıf Raporları {TERM}.pdf", safe=""
     )
+
+
+def middle_classes(world_semester: int, student_ids: list[int] | None = None):
+    with Session(create_engine(TEST_URL_SYNC)) as db:
+        entries = build_report_entries(
+            db,
+            semester_id=world_semester,
+            kind="english_middle",
+            locale="tr",
+            student_ids=student_ids,
+        )
+    return packaging.group_by_class(entries)
+
+
+async def test_combined_set_releases_each_class_pdf_once_merged(world, monkeypatch) -> None:
+    await three_pupil_class(world)
+    await add_class(world, 7, "A", [("Seventh One", 7001), ("Seventh Two", 7002)])
+    readers: list[weakref.ref[PdfReader]] = []
+
+    class TrackedReader(PdfReader):
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            readers.append(weakref.ref(self))
+
+    alive_after_class: list[int] = []
+
+    def count_alive(_done: int) -> None:
+        gc.collect()
+        alive_after_class.append(sum(1 for ref in readers if ref() is not None))
+
+    monkeypatch.setattr(packaging, "PdfReader", TrackedReader)
+    result = packaging.package_report_set(middle_classes(world.semester), "combined", count_alive)
+    # Only the class just merged may still be open; earlier class PDFs are gone from memory.
+    assert alive_after_class == [1, 1, 1]
+    assert len(PdfReader(BytesIO(result.data)).pages) == 1 + 2 + 1
+
+
+async def test_class_zip_parts_hold_whole_class_files(world) -> None:
+    pupils = await three_pupil_class(world)
+    # One pupil from 5/A, then all three of 6/A: two class files, four pupils.
+    classes = middle_classes(world.semester, [world.student_one, *pupils.students])
+    assert [len(item.entries) for item in classes] == [1, 3]
+    largest = max(len(packaging.render_class(item)) for item in classes)
+    budget = int(largest * 1.5) + packaging.ARCHIVE_OVERHEAD + packaging.ENTRY_OVERHEAD + 300
+    parts: dict[int, bytes] = {}
+    result = packaging.package_report_set(
+        classes, "per_class", max_bytes=budget, on_part=parts.__setitem__
+    )
+    parts[result.parts] = result.data
+    assert [zip_names(parts[number]) for number in sorted(parts)] == [
+        [f"5-A İngilizce Karne {TERM}.pdf"],
+        [f"6-A İngilizce Karne {TERM}.pdf"],
+    ]
+    assert all(len(data) <= budget for data in parts.values())
+
+
+async def test_jobs_list_reaches_every_unexpired_download(api, world) -> None:
+    now = datetime.now(UTC).replace(tzinfo=None)
+    async with TestSession() as db:
+        for index in range(30):
+            db.add(
+                m.JobRun(
+                    kind="report_set",
+                    status="succeeded",
+                    requested_by=world.admin.id,
+                    payload={},
+                    progress=1,
+                    total=1,
+                    output_filename=f"file {index}.pdf",
+                    output_size=3,
+                    output_blob=b"pdf",
+                    output_expires_at=now + timedelta(hours=20),
+                )
+            )
+        await db.flush()
+        for index in range(30):
+            db.add(
+                m.JobRun(
+                    kind="report_set",
+                    status="succeeded",
+                    requested_by=world.admin.id,
+                    payload={},
+                    progress=1,
+                    total=1,
+                    output_filename=f"newer expired {index}.pdf",
+                    output_expires_at=now - timedelta(hours=1),
+                )
+            )
+        await db.commit()
+    async with api(world.admin) as client:
+        listed = (await client.get("/api/jobs")).json()
+    names = [job["output_filename"] for job in listed]
+    # The 25 newest history rows, plus every older file that can still be downloaded.
+    assert all(f"file {index}.pdf" in names for index in range(30))
+    assert len(names) == 25 + 30
+    assert [job["id"] for job in listed] == sorted((job["id"] for job in listed), reverse=True)
+
+
+async def test_a_split_job_lists_numbered_parts_with_one_expiry_and_its_access(
+    api, world, queued, monkeypatch
+) -> None:
+    await three_pupil_class(world)
+    coordinator = await add_coordinator()
+    classes = middle_classes(world.semester)
+    largest = max(
+        len(part)
+        for part in packaging.split_pdf(
+            packaging.render_class(classes[1], one_card_per_sheet=True), 1, 3
+        )
+    )
+    overhead = packaging.ARCHIVE_OVERHEAD + 2 * (packaging.ENTRY_OVERHEAD + 300)
+    monkeypatch.setattr(packaging, "MAX_OUTPUT_BYTES", int(largest * 2.1) + overhead)
+    body = {"semester_id": world.semester, "kind": "english_middle", "format": "per_student"}
+    async with api(coordinator) as client:
+        created = (await client.post("/api/reports/jobs", json=body)).json()
+        report_tasks.report_set_job(created["id"])
+        listed = (await client.get("/api/jobs")).json()
+        request = next(job for job in listed if job["id"] == created["id"])
+        parts = sorted(
+            (job for job in listed if job["parent_id"] == created["id"]),
+            key=lambda job: job["part"],
+        )
+        downloads = [await client.get(f"/api/jobs/{part['id']}/download") for part in parts]
+        whole = await client.get(f"/api/jobs/{created['id']}/download")
+
+    base = f"Tüm Okul İngilizce Karne {TERM}"
+    assert request["status"] == "succeeded"
+    assert request["output_filename"] == f"{base}.zip"
+    assert [part["output_filename"] for part in parts] == [
+        f"{base} (Bölüm {number}).zip" for number in range(1, len(parts) + 1)
+    ]
+    assert len(parts) == 3
+    assert {part["output_expires_at"] for part in parts} == {request["output_expires_at"]}
+    assert all(part["status"] == "succeeded" for part in parts)
+    assert whole.status_code == 409
+    assert whole.json()["detail"]["code"] == "job_output_in_parts"
+
+    pupils: list[str] = []
+    for part, download in zip(parts, downloads, strict=True):
+        assert download.status_code == 200
+        assert disposition_name(download.headers["content-disposition"]) == quote(
+            part["output_filename"], safe=""
+        )
+        assert len(download.content) <= packaging.MAX_OUTPUT_BYTES
+        pupils.extend(zip_names(download.content))
+    assert len(pupils) == len(set(pupils)) == 5
+
+    # Parts carry the request's access: another teacher cannot read them.
+    async with api(world.main) as client:
+        for part in parts:
+            assert (await client.get(f"/api/jobs/{part['id']}/download")).status_code == 403
+
+    # A part past its expiry is gone like any other output.
+    async with TestSession() as db:
+        first = await db.get(m.JobRun, parts[0]["id"])
+        assert first is not None
+        first.output_expires_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(seconds=1)
+        await db.commit()
+    async with api(coordinator) as client:
+        expired = await client.get(f"/api/jobs/{parts[0]['id']}/download")
+    assert expired.status_code == 410

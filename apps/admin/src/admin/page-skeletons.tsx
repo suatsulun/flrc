@@ -149,7 +149,7 @@ export function ClassesBoardSkeleton() {
           <Skeleton className="h-4 w-40 rounded-md" />
           <Skeleton className="ml-auto h-3 w-16 rounded-md" />
         </div>
-        <SkeletonStudentCards cards={4} columns={4} controls />
+        <SkeletonStudentCards cards={4} columns={0} controls />
       </div>
     </>
   );

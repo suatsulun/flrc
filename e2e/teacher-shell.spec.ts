@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import type {
   ClassCatalogOut,
   ClassSheetOut,
@@ -235,11 +235,23 @@ test("class report reads as a card per student on a phone and pins number and na
   }
 
   // The student being discussed stays marked; the arrow keys walk the class.
+  // Every card has a drop shadow; the mark is the inset edge plus the active-row background.
+  const mark = (card: Locator) =>
+    card.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { background: style.backgroundColor, edge: style.boxShadow.includes("inset") };
+    });
+  const unmarked = await mark(cards.nth(1));
   await first.click();
   await expect(first).toBeFocused();
-  expect(await first.evaluate((card) => getComputedStyle(card).boxShadow)).not.toBe("none");
+  const marked = await mark(first);
+  expect(marked.edge).toBe(true);
+  expect(unmarked.edge).toBe(false);
+  expect(marked.background).not.toBe(unmarked.background);
   await page.keyboard.press("ArrowDown");
   await expect(cards.nth(1)).toBeFocused();
+  expect(await mark(cards.nth(1))).toEqual(marked);
+  expect(await mark(first)).toEqual(unmarked);
   await page.keyboard.press("ArrowUp");
   await expect(first).toBeFocused();
 

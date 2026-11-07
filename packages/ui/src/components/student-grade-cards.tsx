@@ -210,7 +210,12 @@ export function StudentGradeCards({
               aria-label={interactiveRowMarks ? student.fullName : undefined}
               onKeyDown={interactiveRowMarks ? moveMark : undefined}
             >
-              <header className="space-y-2.5 border-b border-border bg-muted/40 px-4 py-3">
+              <header
+                className={cn(
+                  "space-y-2.5 bg-muted/40 px-4 py-3",
+                  (columns.length > 0 || emptyColumnsLabel) && "border-b border-border",
+                )}
+              >
                 <div className="flex items-center gap-3">
                   {student.leadingControl ? (
                     <span className="flex shrink-0 items-center">{student.leadingControl}</span>

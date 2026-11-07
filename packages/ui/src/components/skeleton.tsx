@@ -306,7 +306,7 @@ function SkeletonStudentCards({
     <div aria-hidden className={cn("space-y-3", className)}>
       {times(cards).map((card) => (
         <Card key={card} className="overflow-hidden">
-          <div className="space-y-2.5 border-b border-border bg-muted/40 px-4 py-3">
+          <div className="space-y-2.5 bg-muted/40 px-4 py-3">
             <div className="flex items-center gap-3">
               {/* With controls, the checkbox leads and the school number is a field below. */}
               <Skeleton
@@ -323,14 +323,16 @@ function SkeletonStudentCards({
               </div>
             ) : null}
           </div>
-          <div className="divide-y divide-border">
-            {times(columns).map((column) => (
-              <div key={column} className="flex items-center justify-between gap-4 px-4 py-3">
-                <Skeleton className={cn("h-4 rounded-md", width(card + column))} />
-                <Skeleton className="h-4 w-8 shrink-0 rounded-md" />
-              </div>
-            ))}
-          </div>
+          {columns > 0 ? (
+            <div className="divide-y divide-border border-t border-border">
+              {times(columns).map((column) => (
+                <div key={column} className="flex items-center justify-between gap-4 px-4 py-3">
+                  <Skeleton className={cn("h-4 rounded-md", width(card + column))} />
+                  <Skeleton className="h-4 w-8 shrink-0 rounded-md" />
+                </div>
+              ))}
+            </div>
+          ) : null}
         </Card>
       ))}
     </div>

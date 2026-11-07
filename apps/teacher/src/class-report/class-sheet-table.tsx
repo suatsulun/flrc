@@ -66,7 +66,10 @@ export function ClassSheetTable({ sheet }: { sheet: ClassSheetOut }) {
   const nameWidth = isPhone ? PHONE_NAME_WIDTH : NAME_WIDTH;
   // The name column's offset is the number column's width.
   const nameLeft = isPhone ? "left-12" : "left-16";
-  // On phones the pinned name column draws its own edge against the scrolling grades.
+  // Only phones pin number and name while the grades scroll sideways under them; wider screens
+  // keep the sheet as it was. The pinned name column draws its own edge.
+  const pinHead = isPhone ? "sticky z-20" : "";
+  const pinCell = isPhone ? "sticky z-10" : "";
   const pinnedEdge = isPhone ? "border-r" : "";
   const minWidth = numberWidth + nameWidth + FIELD_MIN_WIDTH * sheet.columns.length;
   // A table that fits keeps its heading pinned below the page header; a wider one
@@ -107,7 +110,7 @@ export function ClassSheetTable({ sheet }: { sheet: ClassSheetOut }) {
               <tr>
                 <th
                   colSpan={2}
-                  className={`sticky left-0 z-20 border-border bg-card ${pinnedEdge}`}
+                  className={`${pinHead} left-0 border-border bg-card ${pinnedEdge}`}
                   aria-hidden="true"
                 />
                 {spans.map((item) => (
@@ -125,13 +128,13 @@ export function ClassSheetTable({ sheet }: { sheet: ClassSheetOut }) {
             <tr>
               <th
                 scope="col"
-                className="sticky left-0 z-20 border-b border-border bg-muted px-2 py-2 text-left text-xs font-semibold"
+                className={`${pinHead} left-0 border-b border-border bg-muted px-2 py-2 text-left text-xs font-semibold`}
               >
                 {t("classReport.number")}
               </th>
               <th
                 scope="col"
-                className={`sticky ${nameLeft} z-20 border-b border-border bg-muted px-2 py-2 text-left text-xs font-semibold ${pinnedEdge}`}
+                className={`${pinHead} ${nameLeft} border-b border-border bg-muted px-2 py-2 text-left text-xs font-semibold ${pinnedEdge}`}
               >
                 {t("grid.student")}
               </th>
@@ -156,11 +159,13 @@ export function ClassSheetTable({ sheet }: { sheet: ClassSheetOut }) {
                 className={`class-sheet-row cursor-pointer outline-none ${index % 2 ? "bg-muted" : "bg-card"}`}
               >
                 {/* The pinned cells take the row's shade so the scrolling grades pass under them. */}
-                <td className="tabular sticky left-0 z-10 border-t border-border bg-inherit px-2 py-2 text-muted-foreground">
+                <td
+                  className={`tabular ${pinCell} left-0 border-t border-border bg-inherit px-2 py-2 text-muted-foreground`}
+                >
                   {student.school_number ?? "—"}
                 </td>
                 <td
-                  className={`sticky ${nameLeft} z-10 truncate border-t border-border bg-inherit px-2 py-2 font-semibold ${pinnedEdge}`}
+                  className={`${pinCell} ${nameLeft} truncate border-t border-border bg-inherit px-2 py-2 font-semibold ${pinnedEdge}`}
                 >
                   {student.full_name}
                 </td>

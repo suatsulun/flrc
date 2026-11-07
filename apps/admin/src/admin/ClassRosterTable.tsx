@@ -415,20 +415,17 @@ export function ClassRosterTable({
           </div>
           {bulkToolbar}
           {rosterPending ? (
-            <SkeletonStudentCards cards={4} columns={4} controls />
+            <SkeletonStudentCards cards={4} columns={0} controls />
           ) : roster.length === 0 ? (
             <Card>
               <p className="p-8 text-center text-sm text-muted-foreground">{t("roster.empty")}</p>
             </Card>
           ) : (
+            // Grades are entered in the teacher app, so a roster card holds only what can be
+            // changed here; the sütun list is shown once under Tablo sütunları.
             <StudentGradeCards
               ariaLabel={t("classWorkspace.tableLabel")}
-              emptyColumnsLabel={t("columns.empty")}
-              columns={visibleColumns.map((column) => ({
-                id: column.id,
-                label: column.name,
-                meta: t(`roles.${column.owner_role}`),
-              }))}
+              columns={[]}
               students={roster.map((student) => ({
                 id: student.student_id,
                 fullName: student.full_name,
@@ -439,17 +436,7 @@ export function ClassRosterTable({
                     {languageSelect(student, "flex-1")}
                   </>
                 ),
-                values: visibleColumns.map((column) => ({
-                  columnId: column.id,
-                  value: (
-                    <span
-                      className="text-muted-foreground"
-                      title={t("classWorkspace.gradeEntryInTeacher")}
-                    >
-                      —
-                    </span>
-                  ),
-                })),
+                values: [],
               }))}
             />
           )}

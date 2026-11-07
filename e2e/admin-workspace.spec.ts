@@ -186,14 +186,8 @@ test("admin manages a class from student cards on a phone", async ({ browser }) 
     await expect(card.getByRole("checkbox", { name: "Select E2E Synthetic One" })).toBeVisible();
     await expect(card.getByLabel("E2E Synthetic One — School number")).toHaveValue("99001");
     await expect(card.getByLabel("E2E Synthetic One — School number")).toBeEditable();
-    // Each active column is listed with the role that grades it.
-    await expect(card.getByRole("term").filter({ hasText: /^Exam/ })).toContainText("Main teacher");
-    const language = card.getByLabel("E2E Synthetic One — Second language", { exact: true });
-    for (const option of ["german", ""]) {
-      await language.selectOption(option);
-      await expect(language).toHaveValue(option);
-      await expect(language).toBeEnabled();
-    }
+    // Grades are entered in the teacher app, so cards carry no sütun rows.
+    await expect(card.getByRole("term")).toHaveCount(0);
     // Dragging needs a mouse, so phones move students by ticking them instead.
     await expect(page.getByRole("button", { name: /to another class$/ })).toHaveCount(0);
     await expect(
@@ -209,6 +203,10 @@ test("admin manages a class from student cards on a phone", async ({ browser }) 
     await page.getByRole("button", { name: "Add student", exact: true }).click();
     const addedCard = cards.filter({ hasText: added });
     await expect(addedCard).toBeVisible();
+    const language = addedCard.getByLabel(`${added} — Second language`, { exact: true });
+    await language.selectOption("german");
+    await expect(language).toHaveValue("german");
+    await expect(language).toBeEnabled();
     await addedCard.getByRole("checkbox", { name: `Select ${added}`, exact: true }).click();
     const bulkActions = page.getByRole("toolbar", { name: "Actions for the selected students" });
     await bulkActions.getByLabel("Move to class…").selectOption({ label: "5/B" });

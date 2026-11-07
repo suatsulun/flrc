@@ -393,8 +393,13 @@ async def upsert_assignment(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> AssignmentWriteOut:
-    # The account first (ADR-080): a concurrent deactivation or deletion is waited for and seen.
-    teacher = (await lock_accounts(db, [body.user_id])).get(body.user_id)
+    # The acting administrator and the account first, in id order (ADR-080): a concurrent
+    # deactivation or deletion of either is waited for and seen, and the recorded action never
+    # waits behind a deletion of the actor that waits for the actor's own slot.
+    accounts = await lock_accounts(db, {body.user_id, actor.id})
+    if not assignable(accounts.get(actor.id)):
+        raise HTTPException(401, {"code": "not_registered"})
+    teacher = accounts.get(body.user_id)
     if not assignable(teacher):
         raise HTTPException(422, {"code": "unknown_user"})
     school_class = await db.get(SchoolClass, class_id)

@@ -31,7 +31,8 @@ import os
 from concurrent.futures import Executor, ProcessPoolExecutor
 from contextlib import closing
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import lru_cache, partial
+from hashlib import md5
 from io import BytesIO
 from multiprocessing import get_context
 from pathlib import Path
@@ -682,49 +683,89 @@ class ReportAssetFetcher(URLFetcher):
     make the renderer read a local file (``file:``) or reach an internal
     address (``http:``) on behalf of whoever asked for the report.
 
-    Decoded asset bytes are memoised, so a set rendered as several documents
-    decodes each watermark once per process instead of once per document.
+    Decoded asset bytes are memoised per process, so a set rendered as several
+    documents decodes each watermark once per process instead of once per
+    document. ``private_assets`` are fetched but never memoised.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, private_assets: frozenset[str] = frozenset()) -> None:
         super().__init__(allowed_protocols=ALLOWED_ASSET_SCHEMES, allow_redirects=False)
-        self._assets: dict[str, tuple[bytes, str]] = {}
+        self._private_assets = private_assets
 
     def fetch(self, url: str, headers: dict[str, str] | None = None) -> URLFetcherResponse:
-        cached = self._assets.get(url)
+        cached = _fetched_assets.get(url)
         if cached is None:
             with closing(super().fetch(url, headers)) as response:
                 cached = (response.read(), response.headers.get("Content-Type", ""))
             # Only this module's own fixed set of assets is ever cached; the
             # bound keeps a template that one day interpolates caller data
             # into a data URI from growing the map without limit.
-            if len(self._assets) < MAX_CACHED_ASSETS:
-                self._assets[url] = cached
+            if url not in self._private_assets and len(_fetched_assets) < MAX_CACHED_ASSETS:
+                _fetched_assets[url] = cached
         body, content_type = cached
         return URLFetcherResponse(url, body=body, headers={"Content-Type": content_type})
 
 
-@lru_cache(maxsize=1)
-def _asset_fetcher() -> ReportAssetFetcher:
-    return ReportAssetFetcher()
-
-
-# WeasyPrint's documented in-memory image cache. Held per process so the
-# watermarks and faces are parsed once rather than once per document.
+# Process-wide memos of the fixed artwork — logo, faces, watermarks, overlay
+# assets — so each is decoded and parsed once per process rather than once per
+# document. A teacher's signature never enters them: permanent deletion erases
+# it (ADR-080), so it lives only as long as the render that prints it.
+_fetched_assets: dict[str, tuple[bytes, str]] = {}
+# WeasyPrint's documented in-memory image cache.
 _image_cache: dict[str, object] = {}
 
 
-def render_pdf_document(html: str) -> bytes:
+class _RenderImageCache(dict[str, object]):
+    """WeasyPrint's image cache for one document, over the process-wide one.
+
+    Entries for ``private_assets`` and the decoded data WeasyPrint files under
+    their image ids stay in this dict and go with it; every other entry is read
+    from and written to ``_image_cache``.
+    """
+
+    def __init__(self, private_assets: frozenset[str]) -> None:
+        super().__init__()
+        self._private_assets = private_assets
+        # WeasyPrint keys a raster's data "<md5 of its URL>-<slot>-<dpi>".
+        self._private_ids = tuple(
+            md5(url.encode(), usedforsecurity=False).hexdigest() + "-" for url in private_assets
+        )
+
+    def __contains__(self, key: object) -> bool:
+        return super().__contains__(key) or key in _image_cache
+
+    def __getitem__(self, key: str) -> object:
+        if super().__contains__(key):
+            return super().__getitem__(key)
+        return _image_cache[key]
+
+    def __setitem__(self, key: str, value: object) -> None:
+        if key in self._private_assets or key.startswith(self._private_ids):
+            super().__setitem__(key, value)
+        else:
+            _image_cache[key] = value
+
+
+def _signature_assets(cards: list[ReportCard]) -> frozenset[str]:
+    """The teachers' signature data URIs the cards print, which no process cache may keep."""
+    return frozenset(
+        teacher.signature for card in cards for teacher in card.teachers if teacher.signature
+    )
+
+
+def render_pdf_document(html: str, private_assets: frozenset[str] = frozenset()) -> bytes:
     """Render one already-rendered HTML document to PDF bytes.
 
     Runs in the request thread or in a renderer subprocess, so it takes a
     string rather than report data: a worker never needs the database, the
     settings for a card, or anything else the parent already resolved.
+    ``private_assets`` — the teachers' signatures — are cached for this
+    document only, never in the process-wide caches.
     """
     try:
-        return HTML(string=html, base_url=str(HERE), url_fetcher=_asset_fetcher()).write_pdf(
-            cache=_image_cache
-        )
+        return HTML(
+            string=html, base_url=str(HERE), url_fetcher=ReportAssetFetcher(private_assets)
+        ).write_pdf(cache=_RenderImageCache(private_assets))
     finally:
         # WeasyPrint page trees contain cycles; release each batch before the next.
         gc.collect()
@@ -871,6 +912,7 @@ def render_report_pdf(
     """
     template, context, units_key, units = _document_plan(cards, one_card_per_sheet)
     jinja_template = _template_environment().get_template(template)
+    render = partial(render_pdf_document, private_assets=_signature_assets(cards))
 
     def document(sheets: list[object]) -> str:
         return jinja_template.render(**context, **{units_key: sheets})
@@ -881,11 +923,11 @@ def render_report_pdf(
     chunks = _chunk(units, max(batch_count, min(workers, len(units)) if parallel else 1))
 
     def serial() -> bytes:
-        parts = [render_pdf_document(document(chunk)) for chunk in chunks]
+        parts = [render(document(chunk)) for chunk in chunks]
         return parts[0] if len(parts) == 1 else _merge_pdf_parts(parts)
 
     if not parallel and len(chunks) == 1:
-        return _finish_report(render_pdf_document(document(units)), cards, watermark, back_cover)
+        return _finish_report(render(document(units)), cards, watermark, back_cover)
 
     pool = _render_pool(workers) if parallel else None
     if pool is None:
@@ -895,7 +937,7 @@ def render_report_pdf(
         # Submit only one wave at a time; queued HTML also holds embedded images.
         for start in range(0, len(chunks), workers):
             documents = [document(chunk) for chunk in chunks[start : start + workers]]
-            parts.extend(pool.map(render_pdf_document, documents))
+            parts.extend(pool.map(render, documents))
     except Exception:
         # Deliberately broad: a pool can fail for reasons that have nothing to
         # do with this report — a killed worker, a host that forbids child
@@ -932,12 +974,13 @@ def render_cards_to_file(
     """
     template, context, units_key, units = _document_plan(cards, one_card_per_sheet)
     jinja_template = _template_environment().get_template(template)
+    signatures = _signature_assets(cards)
     batches = _chunk(units, max(1, -(-len(units) // JOB_RENDER_UNITS)))
     files: list[Path] = []
     for index, batch in enumerate(batches):
         path = output.with_name(f"{output.stem}-batch-{index:03d}.pdf")
         path.write_bytes(
-            render_pdf_document(jinja_template.render(**context, **{units_key: batch}))
+            render_pdf_document(jinja_template.render(**context, **{units_key: batch}), signatures)
         )
         files.append(path)
     if len(files) == 1:

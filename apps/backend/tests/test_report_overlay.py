@@ -1,3 +1,4 @@
+import base64
 import json
 import zipfile
 from io import BytesIO
@@ -5,11 +6,12 @@ from pathlib import Path
 
 import pytest
 from jinja2.exceptions import SecurityError
+from PIL import Image
 from pypdf import PdfReader, PdfWriter
 
 from flrc.config import settings
 from flrc.modules.reports import packaging, render
-from flrc.modules.reports.branding import contained_file, report_branding
+from flrc.modules.reports.branding import asset_data_uri, contained_file, report_branding
 from flrc.modules.reports.builder import ReportEntry
 from flrc.modules.reports.models import ReportCard, ReportSigner
 
@@ -40,7 +42,8 @@ def overlay(tmp_path, monkeypatch):
 <section class="sheet"><p>{{ sheet.card.student_name }}</p>
 {% set p = report_branding.principals['primary' if sheet.card.grade_level <= 4 else 'middle'] %}
 <p>{{ p.name }}</p><img src="{{ p.signature }}" />
-{% for teacher in sheet.card.teachers %}<p>{{ teacher.name }}</p>{% endfor %}</section>
+{% for teacher in sheet.card.teachers %}<p>{{ teacher.name }}</p>
+{% if teacher.signature %}<img src="{{ teacher.signature }}" />{% endif %}{% endfor %}</section>
 <section class="sheet"><p>HTML cover placeholder</p></section>
 {% endfor %}{% endblock %}
 """)
@@ -144,6 +147,45 @@ def test_no_overlay_preserves_generic_templates(monkeypatch):
     html = render.render_report_html([card()])
     assert "Synthetic Elementary Principal" not in html
     assert 'class="cover-frame"' in html
+
+
+@pytest.mark.parametrize("path", ["direct", "pool", "job"])
+def test_teacher_signatures_never_outlive_the_render_that_prints_them(
+    overlay, tmp_path, monkeypatch, path
+):
+    """A deleted teacher's signature must not stay in a process-wide cache (ADR-080).
+
+    The principal's signature is the school's fixed artwork and stays cached.
+    """
+    reports, _ = overlay
+    image = BytesIO()
+    Image.new("RGB", (60, 20), "navy").save(image, format="PNG")
+    png = image.getvalue()
+    signature = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+    signed = card()
+    signed.teachers[0].signature = signature
+
+    if path == "job":
+        render.render_cards_to_file([signed], tmp_path / "class.pdf")
+        pdf = PdfReader(tmp_path / "class.pdf")
+    else:
+        if path == "pool":
+
+            class InlinePool:
+                def map(self, function, documents):
+                    return list(map(function, documents))
+
+            monkeypatch.setattr(settings, "report_render_workers", 2)
+            monkeypatch.setattr(render, "MIN_PARALLEL_UNITS", 2)
+            monkeypatch.setattr(render, "_render_pool", lambda workers: InlinePool())
+        pdf = PdfReader(BytesIO(render.render_report_pdf([signed, signed])))
+
+    assert len(pdf.pages[0].images) == 1, "the teacher's signature is printed"
+    assert asset_data_uri(reports / "principal.svg") in render._image_cache
+    assert signature not in render._image_cache
+    assert png not in render._image_cache.values()
+    assert signature not in render._fetched_assets
+    assert png not in [body for body, _ in render._fetched_assets.values()]
 
 
 def cover_overlay(reports, config) -> None:

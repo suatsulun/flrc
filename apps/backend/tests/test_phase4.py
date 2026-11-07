@@ -304,8 +304,8 @@ def test_report_batches_bound_layout_size_even_when_parallel_render_fails(monkey
     rendered_pages = []
     original = render_module.render_pdf_document
 
-    def bounded_render(html):
-        pdf = original(html)
+    def bounded_render(html, private_assets=frozenset()):
+        pdf = original(html, private_assets)
         page_count = len(PdfReader(BytesIO(pdf)).pages)
         assert page_count <= 2, "A render or fallback exceeded the batch size"
         rendered_pages.append(page_count)

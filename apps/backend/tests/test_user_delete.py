@@ -12,6 +12,7 @@ from sqlalchemy import delete, func, select, update
 
 from flrc.config import settings
 from flrc.db import models as m
+from flrc.modules.administration.account_locks import lock_accounts
 from flrc.modules.administration.lifecycle import _create_rollover_year
 from flrc.modules.administration.users import ERASED_USER_NAME
 from flrc.modules.auth import demo, sessions
@@ -369,6 +370,62 @@ async def test_assignment_waits_for_a_concurrent_deletion_and_refuses(api, world
             is None
         )
         kinds = list(await db.scalars(select(m.AdminAction.kind)))
+    assert "assignments.replace" not in kinds
+
+
+@pytest.mark.parametrize("endpoint", ["matrix", "slot"])
+async def test_assignment_by_an_administrator_being_deleted_waits_and_refuses(api, world, endpoint):
+    """The acting account is locked with the destination accounts, before any assignment row.
+
+    Otherwise the write holds the actor's own slot while the actor's deletion holds the
+    account row and waits for that slot, and recording the action then waits for the account
+    row: PostgreSQL aborts one of them as a deadlock.
+    """
+    actor = world.admin.id
+    async with TestSession() as db:
+        await db.execute(
+            update(m.TeachingAssignment)
+            .where(m.TeachingAssignment.class_id == world.cls, m.TeachingAssignment.role == "main")
+            .values(user_id=actor)
+        )
+        await db.commit()
+
+    async with api(world.admin) as client:
+
+        def request():
+            if endpoint == "matrix":
+                # Clear-only: names no account at all.
+                return client.put(
+                    f"/api/admin/years/{world.year}/assignments",
+                    json={"changes": [{"class_id": world.cls, "role": "main", "user_id": None}]},
+                )
+            return client.put(
+                f"/api/classes/{world.cls}/assignments/main", json={"user_id": world.main.id}
+            )
+
+        # Another administrator deletes the deactivated actor: the account row exclusively,
+        # then the account's assignments.
+        async with TestSession() as db:
+            await lock_accounts(db, [actor], exclusive=True)
+            await mark_deleted(actor)(db)
+            await db.flush()
+            pending = asyncio.create_task(request())
+            await asyncio.sleep(0.5)
+            await db.execute(
+                delete(m.TeachingAssignment).where(m.TeachingAssignment.user_id == actor)
+            )
+            await db.commit()
+        response = await pending
+    assert response.status_code == 401, response.text
+    assert detail_code(response) == "not_registered"
+    async with TestSession() as db:
+        holder = await db.scalar(
+            select(m.TeachingAssignment.user_id).where(
+                m.TeachingAssignment.class_id == world.cls, m.TeachingAssignment.role == "main"
+            )
+        )
+        kinds = list(await db.scalars(select(m.AdminAction.kind)))
+    assert holder is None
     assert "assignments.replace" not in kinds
 
 

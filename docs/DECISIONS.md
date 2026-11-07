@@ -3670,14 +3670,21 @@ points at the account.
   name changes; `assignments.replace` entries show the erased name for the account's slots.
 - One lock order per account: whatever writes or records something about an account locks the
   account row first: account edits and signature changes exclusively, assignment writers
-  (single slot and matrix), the year rollover, grid saves and grant requests (on the caller's own
-  account) shared, and undo before it locks the action row (exclusive for account actions, shared
-  on every teacher an assignment change names). The deletion holds the row exclusively, then
-  deletes assignments, then scrubs actions. So no action naming the account is recorded after the
-  scrub, assignment writers revalidate the account after waiting and refuse an inactive or deleted
-  one, the rollover leaves a deleted teacher's slots empty, a save or grant request that raced the
-  deactivation and deletion answers `401 not_registered` instead of saving through a removed
-  grant or recording a new one, and nothing deadlocks with the deletion.
+  (single slot and matrix, on the acting administrator and the destination teachers together in
+  id order, even for a clear-only change), the year rollover, grid saves and grant requests (on
+  the caller's own account) shared, and undo before it locks the action row (exclusive for
+  account actions, shared on every teacher an assignment change names). The deletion holds the
+  row exclusively, then deletes assignments, then scrubs actions. So no action naming the account
+  is recorded after the scrub, assignment writers revalidate the accounts after waiting and
+  refuse an inactive or deleted teacher, the rollover leaves a deleted teacher's slots empty, an
+  assignment change, save or grant request whose own account raced the deactivation and deletion
+  answers `401 not_registered` instead of saving through a removed grant or recording a new
+  action, and nothing deadlocks with the deletion.
+- Report rendering keeps teachers' signatures out of every process-wide cache: the renderer's
+  asset and image memos hold only the fixed artwork (logo, faces, watermarks, overlay assets), and
+  a signature lives only as long as the render that prints it, in the API process and in render
+  processes alike. A deleted teacher's signature cannot be printed again or read back from a
+  running process.
 - No undo can bring the account back: undo handlers refuse a deleted account with
   `target_missing`.
 - Deleted accounts are left out of `/api/admin/users` and the `/api/users` teacher picker; editing

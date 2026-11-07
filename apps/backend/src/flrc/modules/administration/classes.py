@@ -491,8 +491,13 @@ async def replace_assignment_matrix(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> AssignmentMatrixWriteOut:
     user_ids = {change.user_id for change in body.changes if change.user_id is not None}
-    # The accounts first (ADR-080): a concurrent deactivation or deletion is waited for and seen.
-    users = await lock_accounts(db, user_ids)
+    # The acting administrator and the destination accounts first, in id order (ADR-080): a
+    # concurrent deactivation or deletion of any of them is waited for and seen. The actor is
+    # locked even for a clear-only change, or its recorded action could wait behind a deletion
+    # of the actor that waits for the actor's own slot.
+    users = await lock_accounts(db, user_ids | {actor.id})
+    if not assignable(users.get(actor.id)):
+        raise HTTPException(401, {"code": "not_registered"})
     await writable_class_year(db, year_id)
     class_ids = {change.class_id for change in body.changes}
     classes = {
@@ -501,7 +506,7 @@ async def replace_assignment_matrix(
     }
     if any(item.year_id != year_id for item in classes.values()) or len(classes) != len(class_ids):
         raise HTTPException(422, {"code": "invalid_class"})
-    if len(users) != len(user_ids) or not all(assignable(item) for item in users.values()):
+    if not all(assignable(users.get(user_id)) for user_id in user_ids):
         raise HTTPException(422, {"code": "invalid_user"})
     # Validate every input before reducing repeated slots to their final value.
     slots: dict[tuple[int, str], int | None] = {}

@@ -83,6 +83,7 @@ async def test_oauth_sustained_limit_survives_short_window_resets(rate_store):
     ("dependency", "allowance"),
     [
         (rate_limit.report_rate_limit, 5),
+        (rate_limit.report_single_rate_limit, 30),
         (rate_limit.export_rate_limit, 3),
         (rate_limit.import_rate_limit, 3),
         (rate_limit.import_preview_rate_limit, 30),

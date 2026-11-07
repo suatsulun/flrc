@@ -39,7 +39,7 @@ from flrc.modules.academics.class_names import class_label
 from flrc.modules.auth.dependencies import current_user
 from flrc.modules.grades.router import grid_semester
 from flrc.modules.reports.branding import ReportKind
-from flrc.modules.reports.builder import REPORT_SETS, SECOND_LANGUAGES, build_report_set
+from flrc.modules.reports.builder import REPORT_SETS, SECOND_LANGUAGES, build_report_entries
 from flrc.modules.reports.render import render_report_pdf
 
 router = APIRouter(tags=["report-preview"])
@@ -290,32 +290,38 @@ async def get_report_preview(
             raise HTTPException(403, {"code": "forbidden"})
 
     roster = await _roster(db, year_id=semester.year_id, class_ids=[placement.id])
-    students = _card_students(roster.get(placement.id, []), kind)
-    position = next(
-        (index for index, student in enumerate(students) if student.student_id == student_id),
-        None,
+    eligible = any(
+        student.student_id == student_id
+        for student in _card_students(roster.get(placement.id, []), kind)
     )
     spec = REPORT_SETS[kind]
-    if position is None or not spec.first_grade <= placement.grade_level <= spec.last_grade:
+    if not eligible or not spec.first_grade <= placement.grade_level <= spec.last_grade:
         # A teacher's own card kind always fits the grade, so only the language can miss.
         if not user.is_admin:
             raise HTTPException(403, {"code": "forbidden"})
         raise HTTPException(409, {"code": "report_preview_not_eligible"})
 
-    cards = await db.run_sync(
-        lambda session: build_report_set(
-            session, semester_id=semester.id, kind=kind, locale="tr", class_id=placement.id
+    entries = await db.run_sync(
+        lambda session: build_report_entries(
+            session,
+            semester_id=semester.id,
+            kind=kind,
+            locale="tr",
+            class_ids=[placement.id],
+            student_ids=[student_id],
         )
     )
-    # The builder lists the class in the same order as the roster above. A roster
-    # change between the two reads shows up as a mismatch, never as another pupil.
-    student = students[position]
-    card = cards[position] if len(cards) == len(students) else None
-    if (
-        card is None
-        or card.student_name != student.full_name
-        or card.school_number != (student.school_number or 0)
-    ):
+    # The card is chosen by the requested id, never by name or roster position. It can
+    # only be missing if the pupil moved or changed language since the checks above.
+    card = next(
+        (
+            entry.card
+            for entry in entries
+            if entry.student_id == student_id and entry.class_id == placement.id
+        ),
+        None,
+    )
+    if card is None:
         raise HTTPException(409, {"code": "report_preview_roster_changed"})
 
     pdf = await run_in_threadpool(render_report_pdf, [card], watermark=PREVIEW_WATERMARK)

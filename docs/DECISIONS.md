@@ -917,7 +917,7 @@ unassigned roles.
 
 # ADR-028: Four school-wide report sets use one HTML-to-PDF pass each
 
-**Status:** Accepted
+**Status:** Partially superseded by ADR-077 (sets larger than one class are background jobs with polling and ZIP formats)
 **Date:** 2026-08-17
 **Phase:** 4.2-4.4 maintenance
 
@@ -1723,7 +1723,7 @@ Supersedes ADR-039.
 
 # ADR-046: Parallel class rendering with ordered PDF assembly
 
-**Status:** Accepted
+**Status:** Accepted; extended by ADR-077 (report jobs render each class through this pool)
 
 **Date:** 2026-09-04
 **Phase:** 4.2-4.4 maintenance
@@ -3158,7 +3158,7 @@ Extends ADR-043.
 
 # ADR-074: Middle-school English teachers print one-page class sheets for parent meetings
 
-**Status:** Accepted  
+**Status:** Accepted; amended by ADR-077 (class sheets use the 30/min single-report limit and named files)  
 **Date:** 2026-11-06  
 **Phase:** 4.x (reports)
 
@@ -3261,11 +3261,17 @@ undo (Step 2.8); administrative writes had none.
   `school_number_taken` with the number, the pupil holding it and their class, and nothing changes.
   Other answers: `404 unknown_action`, `409 action_already_undone`, `410 action_expired`.
 - Undoing an add removes what was added unless it is in use: a new field with grades
-  (`field_has_grades`), a class with pupils (`class_in_use`), an account that signed in or has
-  work (`user_in_use`). An added pupil who already has grades follows ordinary roster removal: the
-  enrollment goes, the person and grades stay; a pupil with nothing attached is deleted again.
+  (`field_has_grades`) or with grade history whose grades were undone (`field_has_history`; the
+  audit trail is never touched), a class with pupils (`class_in_use`), an account that signed in
+  or has work (`user_in_use`). An added pupil who already has grades follows ordinary roster
+  removal: the enrollment goes, the person and grades stay; a pupil with nothing attached is
+  deleted again. Deleting a field that only has such history hides it, like a graded field.
 - Deleted rows return with their original ids (classes, fields), so later actions that refer to
   them still apply. A hidden field with grades is shown again with its grades.
+- Every recorded write locks the rows it changes before reading their previous values and holds
+  the lock until it commits with its action; undo handlers take the same locks before checking.
+  A pupil's number, class and second language are guarded by their enrollment row, so language
+  writes and their undo cannot interleave.
 - The backup sidecar deletes expired rows and their images each night before the dump
   (`flrc purge-admin-actions` does the same by hand). Until then an expired row is listed as
   `expired` and cannot be undone.
@@ -3335,6 +3341,89 @@ for type changes and copies remain.
 
 ---
 
+# ADR-077: Report sets larger than one class are background jobs with a chosen format
+
+**Status:** Accepted  
+**Date:** 2026-11-07  
+**Phase:** 4.x (reports)
+
+## Context
+
+Whole-school report sets were rendered on the request thread (ADR-028, ADR-046). The admin had to
+keep the tab open for minutes, sets queued one behind another in the browser, a finished PDF was
+reachable only through a five-minute blob link, and files were named `english_middle-s7.pdf`. The
+school wants any selection (one pupil to the whole school), a choice of one PDF, a ZIP with one
+PDF per class, or a ZIP with one PDF per pupil, readable Turkish file names, and to leave the
+page while a set is prepared.
+
+## Decision
+
+- **Direct downloads** stay instant: `GET /api/reports/pdf` with `class_id`, or with one or more
+  `student_id` of a single class (coordinators/admins). A request without a scope is refused
+  (`report_scope_required`, `report_scope_conflict`, `report_students_span_classes`,
+  `student_not_in_report_set`).
+- **Report jobs:** `POST /api/reports/jobs` with `{semester_id, kind, locale, format, class_ids,
+student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists empty means every
+  eligible class) returns 202 and a `report_set` job. The API validates the selection against the
+  roster (`unknown_class`, `class_not_in_semester`, `class_not_in_report_set`,
+  `student_not_in_report_set`, `empty_report_set`) and stores the output name and class count at
+  creation, so the downloads list can name a job while it waits. The demo refuses jobs.
+- **Worker** (`reports.set`): builds the set with the fixed-query builder, renders each class once
+  through the bounded pool of ADR-046 (progress counts classes), then packages it. A combined PDF
+  merges classes incrementally and folds repeated fonts and covers. A per-pupil ZIP never renders
+  a pupil alone: the class is rendered once — middle-school cards one per sheet instead of two-up —
+  and cut by page range (two pages per duplex card, one per middle-school card). Every class's
+  page count is checked against that mapping; a mismatch fails the job (`report_page_mapping`).
+- **Output budget:** a job stops early when its output, projected from the pupils done, would pass
+  192 MiB (`report_output_too_large`, shown with advice to choose one PDF or fewer pupils); ZIP
+  entries spool to a temporary file. Outputs keep full quality: each file carries its own copy of
+  what its pages use, including the school's 15–18 MB German/French back-cover PDF, so a
+  per-pupil karne ZIP fits about 12 pupils.
+- **Storage and download:** the 24-hour `job_runs` blob of ADR-024, downloaded through
+  `/api/jobs/{id}/download`. `job_runs.kind` allows `report_set` and `year_export`; the retired
+  per-card kinds become `report_set`, and any of them still waiting is marked failed.
+- **Picker data:** `GET /api/reports/roster?semester_id&kind` lists the set's classes in print
+  order with the pupils who get the card (second-language cards: only that language's pupils),
+  in two queries for the whole school.
+- **File names:** `{scope} {card} {year} {N}. Dönem.{pdf|zip}`, scope `8-A`, `8-A 123 Ali Yılmaz`,
+  `8-A Seçili Öğrenciler`, `Seçili Öğrenciler`, `Seçili Sınıflar` or `Tüm Okul`; class sheets
+  `8-A Sınıf Raporu …` / `Sınıf Raporları …`. `/` becomes `-`, characters Windows refuses are
+  dropped, and `Content-Disposition` carries an ASCII `filename` plus RFC 6266 `filename*`.
+- **Rate limits are per route:** jobs 5/min (`report_pdf`); direct PDFs and class sheets 30/min
+  (`report_single`); the year export keeps the 3/min export budget.
+- **Report centre:** per card kind, View/Download one class, prepare the whole school in a chosen
+  format, or pick pupils across classes; a downloads list (report and export jobs, polled while one
+  runs) replaces the browser queue and blob-link toasts. The leave guard covers only a direct
+  download in flight.
+
+## Alternatives considered
+
+- Rendering each pupil separately for per-pupil ZIPs: the per-document cost ADR-028 removed.
+- Cropping the two-up middle-school sheet per pupil: the other pupil's card stays in the page's
+  content stream.
+- Keeping whole-school sets synchronous: the tab must stay open and the request outlives proxies.
+- Object storage for outputs: deferred; the budget keeps ADR-024's blob store adequate.
+
+## Consequences
+
+- A worker holds one class PDF at a time plus the output. Measured on the 1,210-pupil local school
+  with the private overlay (peak PSS of the worker and its render processes): whole-school primary
+  English, 638 pupils in 29 classes, combined 6.7 MB in 41 s at 800 MiB with four render processes
+  and 6.0 MB in 58 s at 647 MiB with two; per-pupil ZIP 72 MB in 49 s at 714 MiB (four) and 70 s
+  at 565 MiB (two). Two German classes (28 pupils) with four processes peaked at 826 MiB as a
+  per-class ZIP (31 MB) and 874 MiB combined (21 MB); one German class of 14 pupils as a per-pupil
+  ZIP was 219 MB at 1,517 MiB before this budget. The school template therefore runs the 1 GiB
+  worker with two render processes; ~500 MiB of rendering plus the finished file held twice while
+  it is saved sets the 192 MiB budget.
+- Coordinators see report jobs in the downloads list, as `may_read_job` already allowed.
+
+## Supersedes / Superseded by
+
+Supersedes ADR-028's "no report jobs, ZIPs or polling" and ADR-074's shared 5/min limit for class
+sheets. Extends ADR-024 and ADR-046.
+
+---
+
 # ADR-078: Teachers preview their own students' report cards on screen, watermarked
 
 **Status:** Accepted  
@@ -3367,8 +3456,9 @@ to hand out an unofficial copy.
   middle), german or french give that karne and only for students taking the language.
   Administrators may preview any card that exists; everyone else, coordinators included, gets 403.
   A pupil outside the teacher's classes is a 403, never a 404, so the endpoint reveals nothing.
-- The preview is the real card: the official builder builds the student's class set and the one
-  student's card is rendered by the same templates, overlays and back covers. `render_report_pdf`
+- The preview is the real card: the official builder builds just that student's card, picked by
+  student id (never by name or roster position, which two unnumbered pupils of a setup year can
+  share), and the same templates, overlays and back covers render it. `render_report_pdf`
   takes an optional keyword-only `watermark`; with it, a diagonal "ÖNİZLEME" is stamped over every
   finished page (each card of a two-up sheet, back covers included) as a PDF overlay, so private
   template overlays need no change. Official sets never pass it and render exactly as before. The
@@ -3444,7 +3534,9 @@ date filters.
     teacher and fields once it has a pupil taking that language; the overview's
     `missing_assignments` uses the same rule instead of four roles per class.
   - **Report readiness** per card kind: classes in the card's grades with at least one pupil on
-    that card, how many are complete, and the share of their grades entered.
+    that card, how many are complete, and the share of the printed fields entered. The
+    middle-school English card counts each pupil's own German or French score fields too, since it
+    prints them.
   - **Downloads**: recent background report and export jobs with progress, expiry and a download
     link.
 - The coordinator page is merged into the dashboard and `/coordinator` redirects to `/`. The
@@ -3481,7 +3573,7 @@ Supersedes ADR-037's decision that the admin panel opens on a table.
 # ADR template for future decisions
 
 ```md
-# ADR-075: Title
+# ADR-080: Title
 
 **Status:** Proposed | Accepted | Superseded  
 **Date:** YYYY-MM-DD  

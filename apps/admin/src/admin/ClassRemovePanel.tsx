@@ -3,7 +3,6 @@ import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { PREP_GRADE } from "@flrc/i18n";
 import { Trash2Icon } from "lucide-react";
-import { toast } from "sonner";
 import {
   deleteColumnMutation,
   removeAdminRosterStudentMutation,
@@ -15,6 +14,7 @@ import { Button } from "@flrc/ui/components/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@flrc/ui/components/card";
 import { ConfirmDialog } from "@flrc/ui/components/dialog";
 import { Input } from "@flrc/ui/components/input";
+import { useNotifyDone } from "./undo-toast";
 
 type Target = { kind: "student" | "column"; id: number; label: string };
 
@@ -44,6 +44,7 @@ export function ClassRemovePanel({
   onColumnsChanged: () => Promise<unknown>;
 }) {
   const { t } = useTranslation();
+  const notifyDone = useNotifyDone();
   const subjectLabel = t(`subjects.${subject}`);
   const columnScope =
     grade === PREP_GRADE
@@ -53,17 +54,24 @@ export function ClassRemovePanel({
   const [search, setSearch] = useState("");
   const removeStudent = useMutation({
     ...removeAdminRosterStudentMutation(),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      notifyDone(
+        t("classWorkspace.studentRemoved", { name: target?.label ?? "", className }),
+        result.action_id,
+      );
       setTarget(undefined);
-      toast.success(t("classWorkspace.studentRemoved"));
       await onRosterChanged();
     },
   });
   const removeColumn = useMutation({
     ...deleteColumnMutation(),
     onSuccess: async (result) => {
+      const name = target?.label ?? "";
+      notifyDone(
+        result.disabled ? t("columns.disabledKept", { name }) : t("columns.deleted", { name }),
+        result.action_id,
+      );
       setTarget(undefined);
-      toast.success(result.disabled ? t("columns.disabledInfo") : t("columns.deletedInfo"));
       await onColumnsChanged();
     },
   });

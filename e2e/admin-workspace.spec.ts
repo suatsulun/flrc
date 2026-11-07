@@ -15,6 +15,11 @@ test("admin manages the school from the class table", async ({ browser }) => {
   await expect(page.getByRole("button", { name: /^5\/A/ })).toHaveAttribute("aria-current", "page");
   await expect(page.getByText("E2E Synthetic One", { exact: true })).toBeVisible();
   await expect(page.getByLabel("E2E Synthetic One — School number")).toHaveValue("99001");
+  // The active year keeps its classes; deleting is offered in a setup year only.
+  await expect(page.getByRole("button", { name: "Delete class", exact: true })).toBeDisabled();
+  await expect(
+    page.getByText("Classes can be deleted only while their academic year is in setup."),
+  ).toBeVisible();
 
   const rosterSurface = page.getByTestId("class-roster-surface");
   await expectContainedTable(rosterSurface);
@@ -51,10 +56,31 @@ test("admin manages the school from the class table", async ({ browser }) => {
     name: "Move E2E Added Student to another class",
   });
   await moveHandle.scrollIntoViewIfNeeded();
+  // Every move is confirmed first; cancelling leaves the student where they were.
   await moveHandle.dragTo(targetTab, { steps: 10, scroll: "none" });
+  const moveDialog = page.getByRole("dialog");
+  await expect(moveDialog).toContainText("E2E Added Student will move from 5/A to 5/B.");
+  await moveDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(moveDialog).toBeHidden();
+  await expect(addedRow).toBeVisible();
+  await moveHandle.dragTo(targetTab, { steps: 10, scroll: "none" });
+  await moveDialog.getByRole("checkbox", { name: "Don’t ask again this session" }).click();
+  await moveDialog.getByRole("button", { name: "Move", exact: true }).click();
   await expect(addedRow).toBeHidden();
+  await expect(page.getByText("E2E Added Student was moved to 5/B.")).toBeVisible();
   await targetTab.click();
   await expect(page.getByText("E2E Added Student", { exact: true })).toBeVisible();
+
+  // A bulk move uses the same confirmation, which this session now skips.
+  await page.getByRole("checkbox", { name: "Select E2E Added Student", exact: true }).click();
+  const bulkActions = page.getByRole("toolbar", { name: "Actions for the selected students" });
+  await bulkActions.getByLabel("Move to class…").selectOption({ label: "5/A" });
+  await bulkActions.getByRole("button", { name: "Move", exact: true }).click();
+  await expect(page.getByText("E2E Added Student was moved to 5/A.")).toBeVisible();
+  await expect(moveDialog).toHaveCount(0);
+  await expect(addedRow).toBeHidden();
+  await page.getByRole("button", { name: /^5\/A/ }).click();
+  await expect(addedRow).toBeVisible();
 
   await page.getByRole("button", { name: "Add column" }).click();
   await page.getByLabel("Column title").fill("Participation");
@@ -67,5 +93,36 @@ test("admin manages the school from the class table", async ({ browser }) => {
   await page.getByRole("radio", { name: "Light" }).click();
   await expect(page.locator("html")).not.toHaveClass(/dark/);
 
+  await context.close();
+});
+
+test("admin edits and deletes an unused class of a setup year", async ({ browser }) => {
+  const context = await authenticatedContext(browser, "admin@example-school.k12.tr");
+  const page = await context.newPage();
+  await page.goto(`${adminOrigin}/admin/classes`);
+  await page.getByLabel("Academic year", { exact: true }).selectOption({ label: "2027-2028" });
+  await page.getByRole("button", { name: "Add class", exact: true }).click();
+  await page.getByRole("textbox", { name: "Section", exact: true }).fill("C");
+  await page.getByRole("button", { name: "Add class", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^5\/C/ })).toHaveAttribute("aria-current", "page");
+
+  await page.getByRole("button", { name: "Edit class", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  const section = dialog.getByRole("textbox", { name: "Section", exact: true });
+  await expect(section).toHaveValue("C");
+  await section.fill("D");
+  await section.press("Enter");
+  await expect(page.getByText("5/C is now 5/D.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^5\/D/ })).toHaveAttribute("aria-current", "page");
+
+  const remove = page.getByRole("button", { name: "Delete class", exact: true });
+  await expect(remove).toBeEnabled();
+  await remove.click();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^5\/D/ })).toBeVisible();
+  await remove.click();
+  await dialog.getByRole("button", { name: "Delete class", exact: true }).click();
+  await expect(page.getByText("5/D was deleted.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^5\/D/ })).toHaveCount(0);
   await context.close();
 });

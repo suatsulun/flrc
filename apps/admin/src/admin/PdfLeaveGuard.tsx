@@ -1,9 +1,6 @@
-import { useEffect, useState } from "react";
 import { useBlocker, type ShouldBlockFn } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ConfirmDialog } from "@flrc/ui/components/dialog";
-
-const LEAVE_DELAY_SECONDS = 4;
+import { LeaveGuardDialog } from "@flrc/ui/components/leave-guard-dialog";
 
 // Only a different page leaves this one; search-param changes and following the link to the
 // page already open stay. Document exits ask through `allowDocumentExit` with their destination.
@@ -25,43 +22,23 @@ export function PdfLeaveGuard({ active, onLeave }: { active: boolean; onLeave: (
     disabled: !active,
     withResolver: true,
   });
-  const blocked = blocker.status === "blocked";
-
-  // Leave stays disabled for a few seconds every time the dialog opens.
-  const [secondsLeft, setSecondsLeft] = useState(LEAVE_DELAY_SECONDS);
-  const [wasBlocked, setWasBlocked] = useState(blocked);
-  if (wasBlocked !== blocked) {
-    setWasBlocked(blocked);
-    if (blocked) setSecondsLeft(LEAVE_DELAY_SECONDS);
-  }
-  useEffect(() => {
-    if (!blocked) return;
-    const timer = window.setInterval(
-      () => setSecondsLeft((seconds) => Math.max(seconds - 1, 0)),
-      1000,
-    );
-    return () => window.clearInterval(timer);
-  }, [blocked]);
 
   return (
-    <ConfirmDialog
-      open={blocked}
-      onOpenChange={(open) => {
-        if (!open && blocker.status === "blocked") blocker.reset();
+    <LeaveGuardDialog
+      open={blocker.status === "blocked"}
+      onStay={() => {
+        if (blocker.status === "blocked") blocker.reset();
       }}
-      title={t("reports.leaveTitle")}
-      description={t("reports.leaveDescription")}
-      cancelLabel={t("forms.cancel")}
-      confirmLabel={
-        secondsLeft > 0 ? t("reports.leaveCountdown", { seconds: secondsLeft }) : t("reports.leave")
-      }
-      confirmDisabled={secondsLeft > 0}
-      destructive
-      onConfirm={() => {
+      onLeave={() => {
         if (blocker.status !== "blocked") return;
         onLeave();
         blocker.proceed();
       }}
+      title={t("reports.leaveTitle")}
+      description={t("reports.leaveDescription")}
+      stayLabel={t("forms.cancel")}
+      leaveLabel={t("reports.leave")}
+      countdownLabel={(seconds) => t("reports.leaveCountdown", { seconds })}
     />
   );
 }

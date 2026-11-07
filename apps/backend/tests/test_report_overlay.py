@@ -211,7 +211,7 @@ def test_teacher_signatures_never_outlive_the_render_that_prints_them(
         if path == "pool":
 
             class InlinePool(Executor):
-                def map(self, function, documents):
+                def map(self, function, documents, timeout=None):
                     return list(map(function, documents))
 
             monkeypatch.setattr(settings, "report_render_workers", 2)

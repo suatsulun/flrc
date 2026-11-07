@@ -594,6 +594,31 @@ async def test_undo_field_edit_restores_name_and_attributes(api, world):
     assert (column.counts_in_average, column.owner_role) == (False, "skills")
 
 
+async def test_undo_whose_action_is_purged_while_it_waits_restores_nothing(api, world):
+    """The expiry purge takes no lock; an undo that finds its action gone answers expired."""
+    async with api(world.admin) as client:
+        edited = await client.patch(
+            f"/api/columns/{world.main_column}",
+            params={"semester_id": world.semester},
+            json={"name": "Synthetic Renamed"},
+        )
+        assert edited.status_code == 200, edited.text
+        action_id = edited.json()["action_id"]
+
+        async def purge_while_the_field_is_held(db):
+            await db.execute(
+                select(m.ColumnDefinition.id)
+                .where(m.ColumnDefinition.id == world.main_column)
+                .with_for_update()
+            )
+            await db.execute(delete(m.AdminAction).where(m.AdminAction.id == action_id))
+
+        response = await while_held(purge_while_the_field_is_held, lambda: undo(client, action_id))
+    assert response.status_code == 410, response.text
+    assert response.json()["detail"]["code"] == "action_expired"
+    assert (await column_row(world.main_column)).labels["en"] == "Synthetic Renamed"
+
+
 async def test_undo_reorder_and_refusal_after_a_later_reorder(api, world):
     async with api(world.admin) as client:
         swapped = await client.post(

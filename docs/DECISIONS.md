@@ -3694,7 +3694,9 @@ points at the account.
 
   Undos of one action also take a transaction-scoped advisory lock on the action's id before any
   row lock, so a second undo waits and then answers `409 action_already_undone` instead of
-  restoring the same rows twice; nothing else takes that key. A holder assigned while a year close
+  restoring the same rows twice; nothing else takes that key. The expiry purge takes no lock, so an
+  undo that waited past its action's expiry may find the action row gone when it locks it last;
+  it then rolls back and answers `410 action_expired`. A holder assigned while a year close
   waited for the holders is locked after the year; nothing that locks an account exclusively goes
   on to lock a year, so that cannot deadlock. So no action naming an account is recorded after its
   scrub, assignment writers refuse an inactive or deleted teacher, the rollover leaves a deleted
@@ -3711,8 +3713,11 @@ points at the account.
   the renderer, so a fresh pool costs a fork, not a WeasyPrint import. Concurrent renders share
   one budget of `render_worker_limit()` processes per OS process: a render reserves its workers
   before starting its pool and releases them after the shutdown, so a second download waits
-  rather than starting more processes. A deleted teacher's signature cannot be printed again or
-  read back from a running process.
+  rather than starting more processes. A parallel render that has not finished after ten minutes
+  (`RENDER_DEADLINE_SECONDS`) has a stuck worker: its workers are terminated (then killed), the
+  pool is abandoned, the budget is given back and the render fails, so one stuck worker cannot hold
+  the budget for good. A deleted teacher's signature cannot be printed again or read back from a
+  running process.
 - No undo can bring the account back: undo handlers refuse a deleted account with
   `target_missing`.
 - Deleted accounts are left out of `/api/admin/users` and the `/api/users` teacher picker; editing

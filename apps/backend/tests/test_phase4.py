@@ -1,3 +1,4 @@
+import multiprocessing
 import threading
 import time
 from collections.abc import Callable
@@ -314,7 +315,7 @@ def test_report_batches_bound_layout_size_even_when_parallel_render_fails(monkey
         return pdf
 
     class SamplePool(Executor):
-        def map(self, function, documents):
+        def map(self, function, documents, timeout=None):
             assert len(documents) <= 2, "All batch HTML was queued at once"
             if mode == "broken_pool":
                 raise OSError("synthetic pool failure")
@@ -351,7 +352,7 @@ def test_concurrent_parallel_renders_share_one_process_budget(monkeypatch) -> No
                 alive[0] += workers
                 peak[0] = max(peak[0], alive[0])
 
-        def map(self, function, documents):
+        def map(self, function, documents, timeout=None):
             time.sleep(0.3)  # Long enough for the other render to try to start its pool.
             return [function(document) for document in documents]
 
@@ -371,6 +372,36 @@ def test_concurrent_parallel_renders_share_one_process_budget(monkeypatch) -> No
     assert peak[0] == 2, "the second render waits for the first pool to shut down"
     expected = _page_shapes(PdfReader(BytesIO(render_pdf_document(render_report_html(cards)))))
     assert [_page_shapes(PdfReader(BytesIO(pdf))) for pdf in pdfs] == [expected, expected]
+
+
+def stuck_render(html: str, private_assets: frozenset[str] = frozenset()) -> bytes:
+    """A renderer worker that stops making progress (module level, so a worker imports it)."""
+    time.sleep(5)
+    return b""
+
+
+def test_a_stuck_render_worker_fails_the_render_and_frees_the_budget(monkeypatch) -> None:
+    cards = _performance_cards((3, 2))
+    expected = _page_shapes(PdfReader(BytesIO(render_pdf_document(render_report_html(cards)))))
+    before = {child.pid for child in multiprocessing.active_children()}
+    monkeypatch.setattr(render_module.settings, "report_render_workers", 2)
+    monkeypatch.setattr(render_module, "MIN_PARALLEL_UNITS", 2)
+    monkeypatch.setattr(render_module, "RENDER_DEADLINE_SECONDS", 1)
+    monkeypatch.setattr(render_module, "render_pdf_document", stuck_render)
+
+    started = time.monotonic()
+    with pytest.raises(TimeoutError, match="report_render_timed_out"):
+        render_report_pdf(cards)
+    assert time.monotonic() - started < 4, "the render stopped at its deadline"
+    stuck = {child.pid for child in multiprocessing.active_children()} - before
+    assert stuck == set(), "the stuck workers were stopped"
+    assert render_module._render_processes._alive == 0, "the budget was given back"
+
+    # A healthy download right after renders through a pool of its own.
+    monkeypatch.undo()
+    monkeypatch.setattr(render_module.settings, "report_render_workers", 2)
+    monkeypatch.setattr(render_module, "MIN_PARALLEL_UNITS", 2)
+    assert _page_shapes(PdfReader(BytesIO(render_report_pdf(cards)))) == expected
 
 
 async def test_report_builder_covers_every_class_in_the_requested_school_set(world) -> None:

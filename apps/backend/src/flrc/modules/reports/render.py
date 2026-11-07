@@ -28,6 +28,7 @@ import logging
 import math
 import mimetypes
 import os
+import time
 from collections.abc import Iterator
 from concurrent.futures import Executor, ProcessPoolExecutor
 from contextlib import closing, contextmanager
@@ -77,6 +78,12 @@ MAX_RENDER_UNITS = 16
 # A report job renders a class inside one render process; smaller batches keep each process's
 # peak down when every card carries artwork (ADR-077 measurements).
 JOB_RENDER_UNITS = 8
+# A parallel render that has not finished by then has a stuck worker: its pool is stopped
+# and the render fails, so the shared process budget is never held for good. Generous:
+# a whole class renders in seconds on the deployment-sized host.
+RENDER_DEADLINE_SECONDS = 10 * 60
+# How long a stopped worker gets to exit after SIGTERM, and again after SIGKILL.
+STOPPED_WORKER_GRACE_SECONDS = 5
 # Everything the cards reference is a data URI built in this module. Anything
 # else — a local file, an internal HTTP address — is refused outright.
 ALLOWED_ASSET_SCHEMES = frozenset({"data"})
@@ -825,6 +832,21 @@ def _render_pool(workers: int) -> Executor | None:
         return None
 
 
+def _stop_pool(pool: Executor) -> None:
+    """Stop a pool whose render passed its deadline, without waiting on a stuck worker."""
+    processes = (
+        list((pool._processes or {}).values()) if isinstance(pool, ProcessPoolExecutor) else []
+    )
+    for process in processes:
+        process.terminate()
+    for process in processes:
+        process.join(timeout=STOPPED_WORKER_GRACE_SECONDS)
+        if process.is_alive():
+            process.kill()
+            process.join(timeout=STOPPED_WORKER_GRACE_SECONDS)
+    pool.shutdown(wait=False, cancel_futures=True)
+
+
 class _ProcessBudget:
     """How many renderer processes this process may have alive at once, across renders.
 
@@ -919,20 +941,23 @@ def render_report_pdf(
     if not parallel:
         return _finish_report(serial(), cards, watermark, back_cover)
     parts: list[bytes] | None = None
-    # Held until the pool has shut down, so concurrent renders together never have more
-    # renderer processes alive than one render may use.
+    timed_out = False
+    # Held until the pool has shut down or been stopped, so concurrent renders together
+    # never have more renderer processes alive than one render may use.
     with _render_processes.reserve(workers):
         pool = _render_pool(workers)
         if pool is not None:
+            deadline = time.monotonic() + RENDER_DEADLINE_SECONDS
             try:
-                # Leaving the block shuts the pool down and waits for its processes and threads.
-                with pool:
-                    rendered: list[bytes] = []
-                    # Submit only one wave at a time; queued HTML also holds embedded images.
-                    for start in range(0, len(chunks), workers):
-                        documents = [document(chunk) for chunk in chunks[start : start + workers]]
-                        rendered.extend(pool.map(render, documents))
+                rendered: list[bytes] = []
+                # Submit only one wave at a time; queued HTML also holds embedded images.
+                for start in range(0, len(chunks), workers):
+                    documents = [document(chunk) for chunk in chunks[start : start + workers]]
+                    remaining = max(0.0, deadline - time.monotonic())
+                    rendered.extend(pool.map(render, documents, timeout=remaining))
                 parts = rendered
+            except TimeoutError:
+                timed_out = True
             except Exception:
                 # Deliberately broad: a pool can fail for reasons that have nothing to
                 # do with this report — a killed worker, a host that forbids child
@@ -942,6 +967,15 @@ def render_report_pdf(
                 logger.warning(
                     "parallel report render failed, falling back to serial", exc_info=True
                 )
+            finally:
+                if timed_out:
+                    _stop_pool(pool)
+                else:
+                    # Waits for its processes and threads, which release the documents.
+                    pool.shutdown(wait=True)
+    if timed_out:
+        logger.error("parallel report render passed its deadline; its workers were stopped")
+        raise TimeoutError("report_render_timed_out")
     if parts is None:
         return _finish_report(serial(), cards, watermark, back_cover)
     return _finish_report(_merge_pdf_parts(parts), cards, watermark, back_cover)

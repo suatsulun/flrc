@@ -153,9 +153,18 @@ async def undo_admin_action(
         if is_duplicate_school_number(exc):
             raise _blocked("school_number_taken", {}) from exc
         raise
-    # The handler has locked and changed what it restores; a concurrent undo of the same
-    # action that got here first is seen now and this one changes nothing.
-    await db.refresh(action, with_for_update=True)
+    # The action row last. A concurrent undo of the same action waited on the advisory
+    # lock above; the expiry purge takes no lock, so past its expiry the row may have been
+    # deleted while the handler waited for its locks, and then nothing is restored.
+    action = await db.scalar(
+        select(AdminAction)
+        .where(AdminAction.id == action_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if action is None:
+        await db.rollback()
+        raise HTTPException(410, {"code": "action_expired"})
     if action.undone_at is not None:
         await db.rollback()
         raise HTTPException(409, {"code": "action_already_undone"})

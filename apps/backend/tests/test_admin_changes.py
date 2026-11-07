@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 from PIL import Image
-from sqlalchemy import create_engine, func, select, text, update
+from sqlalchemy import create_engine, delete, func, select, text, update
 from sqlalchemy.orm import Session
 
 from flrc.config import settings
@@ -592,6 +592,25 @@ async def test_undo_reorder_and_refusal_after_a_later_reorder(api, world):
         assert (await undo(client, swapped.json()["action_id"])).status_code == 200
     assert (await column_row(world.main_column)).position == 1
     assert (await column_row(world.skills_column)).position == 2
+
+
+async def test_undo_reorder_refuses_a_field_deleted_while_it_waited(api, world):
+    async with api(world.admin) as client:
+        swapped = await client.post(
+            "/api/columns/reorder",
+            params={"semester_id": world.semester},
+            json={"ordered_ids": [world.skills_column, world.main_column]},
+        )
+        # The undo reads the field set before this deletion commits, then waits on its row.
+        async with TestSession() as db:
+            await db.execute(
+                delete(m.ColumnDefinition).where(m.ColumnDefinition.id == world.skills_column)
+            )
+            pending = asyncio.create_task(undo(client, swapped.json()["action_id"]))
+            await asyncio.sleep(0.5)
+            await db.commit()
+        assert_blocked(await pending, "order_changed", grade_level=5, subject="english")
+    assert (await column_row(world.main_column)).position == 2
 
 
 async def test_undo_copy_removes_copies_unless_graded(api, world):

@@ -497,7 +497,10 @@ async def _undo_field_reorder(ctx: UndoContext) -> None:
             select(ColumnDefinition).where(ColumnDefinition.id.in_(after)).with_for_update()
         )
     }
-    if any(columns[column_id].position != position for column_id, position in after.items()):
+    # A field deleted after the scope was read is missing from the locked rows.
+    if columns.keys() != after.keys() or any(
+        columns[column_id].position != position for column_id, position in after.items()
+    ):
         raise UndoBlocked("order_changed", **params)
     for column_id, position in data["before"]:
         columns[int(column_id)].position = position

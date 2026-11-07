@@ -1,4 +1,5 @@
 import json
+import zipfile
 from io import BytesIO
 from pathlib import Path
 
@@ -197,6 +198,26 @@ def test_combined_set_takes_the_back_cover_once_and_class_files_keep_theirs(over
             assert f"Synthetic Pupil {grade}-{pupil}" in text
 
     opened.clear()
-    packaging.package_report_set(karne_classes(), "per_class")
-    # Class files are separate documents: each carries its own full-quality cover.
-    assert opened == ["cover.pdf"] * 3
+    per_class = packaging.package_report_set(karne_classes(), "per_class").data
+    # The set opens the cover once; every class file still carries its own copy of it.
+    assert opened == ["cover.pdf"]
+    with zipfile.ZipFile(BytesIO(per_class)) as bundle:
+        assert len(bundle.namelist()) == 3
+        for name in bundle.namelist():
+            pages = PdfReader(BytesIO(bundle.read(name))).pages
+            assert len(pages) == 4
+            for index, page in enumerate(pages):
+                text = page.extract_text()
+                assert ("SYNTHETIC ORIGINAL COVER" in text) == bool(index % 2)
+
+    per_pupil = packaging.package_report_set(karne_classes(), "per_student").data
+    with zipfile.ZipFile(BytesIO(per_pupil)) as bundle:
+        names = bundle.namelist()
+        assert len(names) == 6
+        for name, (grade, pupil) in zip(
+            names, [(g, p) for g in (4, 5, 6) for p in (1, 2)], strict=True
+        ):
+            face, back = PdfReader(BytesIO(bundle.read(name))).pages
+            assert f"Synthetic Pupil {grade}-{pupil}" in face.extract_text()
+            assert "SYNTHETIC ORIGINAL COVER" not in face.extract_text()
+            assert "SYNTHETIC ORIGINAL COVER" in back.extract_text()

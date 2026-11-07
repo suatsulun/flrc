@@ -3414,20 +3414,23 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
 
 ## Consequences
 
-- A worker holds one class PDF at a time plus one part. A combined set renders its classes
-  without the school's back cover (`render_report_pdf(..., back_cover=False)`), releases each
-  class PDF as soon as its pages are copied (pypdf otherwise keeps every merged source alive),
-  and applies the cover once to the merged document; per-class and per-pupil files keep their
-  own cover. A whole-school German combined set (448 pupils, 32 classes, two render processes)
-  peaked at 3,192 MiB in 1,048 s before this and at 2,465 MiB in 798 s (19.6 MB file) after it:
-  still above the 1 GiB worker, and whole-school middle-school English per-pupil ZIPs pass
-  1 GiB too; both remain open. Measured on
-  the 1,210-pupil local school with the private overlay (peak PSS of the worker and its render
-  processes): whole-school primary English, 638 pupils in 29 classes, combined 6.7 MB in 41 s at
-  800 MiB with four render processes and 6.0 MB in 58 s at 647 MiB with two; per-pupil ZIP 72 MB
-  in 49 s at 714 MiB (four) and 70 s at 565 MiB (two). The school template runs the 1 GiB worker
-  with two render processes; ~500 MiB of rendering plus the finished part held twice while it is
-  saved sets the 192 MiB budget.
+- Packaging uses pikepdf (qpdf, bundled in its wheels) rather than pypdf. Each class is rendered
+  once without the school's back cover (`render_report_pdf(..., back_cover=False)`); a combined
+  set writes the class PDFs to a temporary folder, qpdf joins them from disk, and the cover goes
+  on once, its objects shared by every back page; class and pupil files are cut from the class
+  PDF and get their own copy of the cover. `render.py` applies covers to direct downloads with
+  the same pikepdf helper. A ZIP part is built in a disk-spooled file and saved when it closes.
+- Memory is not yet within the 1 GiB worker. Measured on the 1,210-pupil local school with the
+  private overlay and two render processes (peak PSS of the worker and its render processes):
+  whole-school German combined (448 pupils, 32 classes) 381 s, 60.5 MB, 1,736 MiB; middle-school
+  English per-pupil ZIP (572 pupils, 26 classes) 334 s, three parts of 166/166/99 MB, 1,731 MiB;
+  German per-class ZIP 392 s, three parts of 179/187/170 MB, 1,799 MiB. Rendering the German
+  classes alone, without any packaging, peaks at 1,720 MiB with the worker process itself at
+  1,204 MiB, so the remaining cost sits in the per-class render path of `render.py`, not in
+  packaging. Smaller sets stay within it: whole-school primary English, 638 pupils in 29 classes,
+  combined 6.0 MB in 58 s at 647 MiB and per-pupil ZIP 72 MB in 70 s at 565 MiB (two processes,
+  before pikepdf). The 192 MiB part size assumes ~500 MiB of rendering plus the part held twice
+  while it is saved.
 - A middle-school English pupil file is about 840 KB, almost all of it the principal's signature:
   `principals/middle.svg` embeds a 3072 × 4608 RGBA PNG that becomes a 642 KiB image plus an
   86 KiB alpha mask in every file; the school logo's 2036 × 556 JPEG adds 80 KiB; fonts and page

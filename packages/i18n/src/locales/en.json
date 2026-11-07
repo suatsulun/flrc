@@ -115,7 +115,8 @@
       "description": "Report and export files prepared in the background are kept for 24 hours.",
       "empty": "No background files yet.",
       "expires": "Available until {{time}}",
-      "expired": "Expired"
+      "expired": "Expired",
+      "more": "All in the report centre ({{count}})"
     }
   },
   "auth": {

@@ -12,17 +12,19 @@ output budget is cut into numbered parts between whole files, one part in memory
 """
 
 from collections.abc import Callable, Iterator
+from contextlib import ExitStack
 from dataclasses import dataclass
 from io import BytesIO
-from tempfile import SpooledTemporaryFile
-from typing import Literal
+from pathlib import Path
+from tempfile import SpooledTemporaryFile, TemporaryDirectory
+from typing import Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from pypdf import PdfReader, PdfWriter
+import pikepdf
 
 from flrc.modules.reports.builder import ReportEntry
 from flrc.modules.reports.filenames import report_filename, student_scope
-from flrc.modules.reports.render import apply_back_cover, render_report_pdf
+from flrc.modules.reports.render import back_cover_file, cover_duplex_backs, render_report_pdf
 
 ReportFormat = Literal["combined", "per_class", "per_student"]
 PDF_MIME = "application/pdf"
@@ -76,49 +78,58 @@ def render_class(
     """Render one class and check its pages against the card mapping."""
     cards = [entry.card for entry in class_set.entries]
     pdf = render_report_pdf(cards, one_card_per_sheet=one_card_per_sheet, back_cover=back_cover)
-    pages = len(PdfReader(BytesIO(pdf)).pages)
+    with pikepdf.open(BytesIO(pdf)) as document:
+        pages = len(document.pages)
     if pages != expected_pages(cards[0].kind, len(cards), one_card_per_sheet=one_card_per_sheet):
         raise ReportPackagingError("report_page_mapping")
     return pdf
 
 
-def _metadata(reader: PdfReader) -> dict[str, str]:
-    return {
-        key: str(value)
-        for key, value in (reader.metadata or {}).items()
-        if isinstance(key, str) and value is not None
-    }
+def split_pdf(
+    pdf: bytes, pages_each: int, parts: int, cover: pikepdf.Pdf | None = None
+) -> Iterator[bytes]:
+    """Cut a PDF into ``parts`` consecutive files of ``pages_each`` pages, one at a time.
 
-
-def split_pdf(pdf: bytes, pages_each: int, parts: int) -> Iterator[bytes]:
-    """Cut a PDF into ``parts`` consecutive files of ``pages_each`` pages, one at a time."""
-    reader = PdfReader(BytesIO(pdf))
-    if len(reader.pages) != pages_each * parts:
-        raise ReportPackagingError("report_page_mapping")
-    metadata = _metadata(reader)
-    for start in range(0, len(reader.pages), pages_each):
-        # A fresh writer receives only these pages and what they reference, so no other
-        # student's page travels in the file.
-        writer = PdfWriter()
-        for page in reader.pages[start : start + pages_each]:
-            writer.add_page(page)
-        if metadata:
-            writer.add_metadata(metadata)
-        writer.compress_identical_objects()
-        output = BytesIO()
-        writer.write(output)
-        yield output.getvalue()
-
-
-def _release_source(writer: PdfWriter, reader: PdfReader) -> None:
-    """Let a merged class PDF be freed: its pages are already copied into the writer.
-
-    pypdf keeps every source reader reachable from the writer (to translate references and
-    to merge outlines later), so a whole-school set would hold every class PDF in memory.
-    Nothing is merged from a source after its pages are copied, so both maps can drop it.
+    Each file receives only its own pages and what they reference, so no other pupil's page
+    travels in it. With ``cover``, each file's duplex backs become the school's cover.
     """
-    writer._id_translated.pop(id(reader), None)
-    writer._merged_in_pages.clear()
+    with pikepdf.open(BytesIO(pdf)) as source:
+        if len(source.pages) != pages_each * parts:
+            raise ReportPackagingError("report_page_mapping")
+        for start in range(0, len(source.pages), pages_each):
+            with pikepdf.new() as part:
+                part.pages.extend(source.pages[start : start + pages_each])
+                if "/Info" in source.trailer:
+                    part.docinfo = cast(pikepdf.Dictionary, part.copy_foreign(source.docinfo))
+                if cover is not None:
+                    cover_duplex_backs(part, cover)
+                output = BytesIO()
+                part.save(output)
+            yield output.getvalue()
+
+
+def _with_cover(pdf: bytes, cover: pikepdf.Pdf | None) -> bytes:
+    """One class's PDF with the school's cover on its duplex backs."""
+    if cover is None:
+        return pdf
+    with pikepdf.open(BytesIO(pdf)) as document:
+        cover_duplex_backs(document, cover)
+        output = BytesIO()
+        document.save(output)
+    return output.getvalue()
+
+
+def _concatenate(files: list[Path], output: Path) -> None:
+    """Join class PDFs page by page with qpdf, reading each from disk (ADR-077).
+
+    The first file is the primary input so the set keeps its title and metadata.
+    """
+    job = pikepdf.Job(
+        ["qpdf", str(files[0]), "--pages", *(str(path) for path in files), "--", str(output)]
+    )
+    job.run()
+    if job.exit_code != 0:
+        raise RuntimeError(f"qpdf could not join the class PDFs (exit {job.exit_code})")
 
 
 def _unique(name: str, taken: set[str]) -> str:
@@ -230,42 +241,63 @@ def package_report_set(
     """
     if not classes:
         raise ReportPackagingError("empty_report_set")
+    # The school's cover is opened once per set and shared by every file that needs it.
+    with ExitStack() as stack:
+        cover_path = back_cover_file(classes[0].entries[0].card.kind)
+        cover = stack.enter_context(pikepdf.open(cover_path)) if cover_path else None
+        if report_format == "combined":
+            return _package_combined(classes, on_class_done, max_bytes, cover)
+        return _package_zip(classes, report_format, on_class_done, max_bytes, on_part, cover)
+
+
+def _package_combined(
+    classes: list[ClassSet],
+    on_class_done: Callable[[int], None],
+    max_bytes: int,
+    cover: pikepdf.Pdf | None,
+) -> PackagedSet:
+    """Classes rendered without the cover go to disk; qpdf joins them; the cover goes on once."""
+    with TemporaryDirectory(prefix="flrc-report-") as directory:
+        folder = Path(directory)
+        files: list[Path] = []
+        for done, class_set in enumerate(classes, start=1):
+            path = folder / f"class-{done:04d}.pdf"
+            path.write_bytes(render_class(class_set, back_cover=False))
+            files.append(path)
+            on_class_done(done)
+        merged = folder / "merged.pdf"
+        _concatenate(files, merged)
+        if cover is not None:
+            covered = folder / "covered.pdf"
+            with pikepdf.open(merged) as document:
+                cover_duplex_backs(document, cover)
+                document.save(covered)
+            merged = covered
+        if merged.stat().st_size > max_bytes:
+            raise ReportPackagingError("report_output_too_large")
+        return PackagedSet(data=merged.read_bytes(), mime=PDF_MIME, parts=1)
+
+
+def _package_zip(
+    classes: list[ClassSet],
+    report_format: ReportFormat,
+    on_class_done: Callable[[int], None],
+    max_bytes: int,
+    on_part: Callable[[int, bytes], None],
+    cover: pikepdf.Pdf | None,
+) -> PackagedSet:
     first = classes[0].entries[0].card
     kind, year_label, semester = first.kind, first.year_label, first.semester_number
-
-    if report_format == "combined":
-        writer = PdfWriter()
-        for done, class_set in enumerate(classes, start=1):
-            # The school's back cover goes on once, to the merged document, below.
-            pdf = render_class(class_set, back_cover=False)
-            reader = PdfReader(BytesIO(pdf))
-            if done == 1 and reader.metadata:
-                writer.add_metadata(_metadata(reader))
-            for page in reader.pages:
-                writer.add_page(page)
-            _release_source(writer, reader)
-            on_class_done(done)
-        # Classes repeat font subsets and artwork; fold them once the set is complete.
-        writer.compress_identical_objects()
-        merged = BytesIO()
-        writer.write(merged)
-        del writer
-        cards = [entry.card for class_set in classes for entry in class_set.entries]
-        data = apply_back_cover(merged.getvalue(), cards)
-        if len(data) > max_bytes:
-            raise ReportPackagingError("report_output_too_large")
-        return PackagedSet(data=data, mime=PDF_MIME, parts=1)
-
     zip_parts = _ZipParts(max_bytes, on_part)
     try:
         for done, class_set in enumerate(classes, start=1):
             if report_format == "per_class":
                 name = report_filename(class_set.class_name, kind, year_label, semester, "pdf")
-                zip_parts.add(name, render_class(class_set))
+                zip_parts.add(name, _with_cover(render_class(class_set, back_cover=False), cover))
             else:
-                pdf = render_class(class_set, one_card_per_sheet=True)
+                pdf = render_class(class_set, one_card_per_sheet=True, back_cover=False)
                 pages_each = expected_pages(kind, 1, one_card_per_sheet=True)
-                students = split_pdf(pdf, pages_each, len(class_set.entries))
+                students = split_pdf(pdf, pages_each, len(class_set.entries), cover)
                 for index, (entry, student_pdf) in enumerate(
                     zip(class_set.entries, students, strict=True)
                 ):

@@ -115,7 +115,8 @@
       "description": "Arka planda hazırlanan karne ve aktarım dosyaları 24 saat saklanır.",
       "empty": "Henüz arka planda hazırlanan dosya yok.",
       "expires": "{{time}} tarihine kadar indirilebilir",
-      "expired": "Süresi doldu"
+      "expired": "Süresi doldu",
+      "more": "Tümü karne merkezinde ({{count}})"
     }
   },
   "auth": {

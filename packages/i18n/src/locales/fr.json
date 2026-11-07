@@ -115,7 +115,8 @@
       "description": "Les fichiers de bulletins et d’export préparés en arrière-plan sont conservés 24 heures.",
       "empty": "Aucun fichier en arrière-plan pour l’instant.",
       "expires": "Disponible jusqu’au {{time}}",
-      "expired": "Expiré"
+      "expired": "Expiré",
+      "more": "Tout dans le Centre des bulletins ({{count}})"
     }
   },
   "auth": {

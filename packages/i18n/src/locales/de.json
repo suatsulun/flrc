@@ -115,7 +115,8 @@
       "description": "Im Hintergrund erstellte Zeugnis- und Exportdateien werden 24 Stunden aufbewahrt.",
       "empty": "Noch keine Hintergrunddateien.",
       "expires": "Verfügbar bis {{time}}",
-      "expired": "Abgelaufen"
+      "expired": "Abgelaufen",
+      "more": "Alle in der Zeugniszentrale ({{count}})"
     }
   },
   "auth": {

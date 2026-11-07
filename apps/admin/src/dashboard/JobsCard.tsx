@@ -3,7 +3,8 @@ import { Badge } from "@flrc/ui/components/badge";
 import { buttonVariants } from "@flrc/ui/components/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@flrc/ui/components/card";
 import { useQuery } from "@tanstack/react-query";
-import { DownloadIcon, Loader2Icon } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ArrowRightIcon, DownloadIcon, Loader2Icon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { JobPartsList } from "../reports/JobPartsList";
 import { groupJobParts } from "../reports/report-requests";
@@ -33,8 +34,10 @@ export function JobsCard() {
         ? POLL_MS
         : false,
   });
-  // A set split into numbered parts shows once, with its parts under it (ADR-077).
+  // A set split into numbered parts shows once, with its parts under it (ADR-077). The list
+  // also returns every kept download, so the card shows only the newest requests itself.
   const { requests, partsOf } = groupJobParts(jobs);
+  const shown = requests.slice(0, JOB_LIMIT);
 
   return (
     <Card>
@@ -43,6 +46,15 @@ export function JobsCard() {
           <CardTitle>{t("adminDashboard.jobs.title")}</CardTitle>
           <CardDescription>{t("adminDashboard.jobs.description")}</CardDescription>
         </div>
+        <Link
+          to="/reports"
+          className="inline-flex items-center gap-1 text-xs font-medium text-primary-strong hover:underline"
+        >
+          {requests.length > JOB_LIMIT
+            ? t("adminDashboard.jobs.more", { count: requests.length })
+            : t("reports.title")}
+          <ArrowRightIcon className="size-3.5" />
+        </Link>
       </CardHeader>
       {isError ? (
         <p className="border-t border-border px-5 py-6 text-sm text-muted-foreground">
@@ -54,7 +66,7 @@ export function JobsCard() {
         </p>
       ) : (
         <ul className="divide-y divide-border border-t border-border">
-          {requests.map((job) => {
+          {shown.map((job) => {
             const active = job.status === "queued" || job.status === "running";
             const expiresAt = job.output_expires_at ? parseUtc(job.output_expires_at) : undefined;
             const downloadable =

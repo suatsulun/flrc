@@ -1394,10 +1394,12 @@ export const getPreviewScopeQueryKey = (options?: Options<GetPreviewScopeData>) 
 /**
  * Get Preview Scope
  *
- * The cards the signed-in user's own assignments produce in a semester's year.
+ * The cards the signed-in user may preview in a semester's year.
  *
- * Without ``semester_id`` the current term is used. Lists only classes where the
- * user holds a teaching assignment, administrators included.
+ * Without ``semester_id`` the current term is used. Teachers get the classes where
+ * they hold a teaching assignment. Administrators and coordinators get every class
+ * of the year with every card it has: the English card of its grade, and the German
+ * or French karne when some of its pupils take that language.
  */
 export const getPreviewScopeOptions = (options?: Options<GetPreviewScopeData>) => queryOptions<GetPreviewScopeResponse, GetPreviewScopeError, GetPreviewScopeResponse, ReturnType<typeof getPreviewScopeQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -1420,7 +1422,8 @@ export const getReportPreviewQueryKey = (options: Options<GetReportPreviewData>)
  * One student's card as an inline PDF marked "ÖNİZLEME" on every page.
  *
  * Teachers may preview only the card their own assignment in the student's
- * class produces; administrators may preview any card. Everyone else gets 403.
+ * class produces; administrators and coordinators may preview any card.
+ * Everyone else gets 403.
  */
 export const getReportPreviewOptions = (options: Options<GetReportPreviewData>) => queryOptions<GetReportPreviewResponse, GetReportPreviewError, GetReportPreviewResponse, ReturnType<typeof getReportPreviewQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

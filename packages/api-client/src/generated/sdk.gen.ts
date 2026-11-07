@@ -564,10 +564,12 @@ export const downloadJob = <ThrowOnError extends boolean = false>(options: Optio
 /**
  * Get Preview Scope
  *
- * The cards the signed-in user's own assignments produce in a semester's year.
+ * The cards the signed-in user may preview in a semester's year.
  *
- * Without ``semester_id`` the current term is used. Lists only classes where the
- * user holds a teaching assignment, administrators included.
+ * Without ``semester_id`` the current term is used. Teachers get the classes where
+ * they hold a teaching assignment. Administrators and coordinators get every class
+ * of the year with every card it has: the English card of its grade, and the German
+ * or French karne when some of its pupils take that language.
  */
 export const getPreviewScope = <ThrowOnError extends boolean = false>(options?: Options<GetPreviewScopeData, ThrowOnError>): RequestResult<GetPreviewScopeResponses, GetPreviewScopeErrors, ThrowOnError> => (options?.client ?? client).get<GetPreviewScopeResponses, GetPreviewScopeErrors, ThrowOnError>({ url: '/api/reports/preview/scope', ...options });
 
@@ -577,7 +579,8 @@ export const getPreviewScope = <ThrowOnError extends boolean = false>(options?: 
  * One student's card as an inline PDF marked "ÖNİZLEME" on every page.
  *
  * Teachers may preview only the card their own assignment in the student's
- * class produces; administrators may preview any card. Everyone else gets 403.
+ * class produces; administrators and coordinators may preview any card.
+ * Everyone else gets 403.
  */
 export const getReportPreview = <ThrowOnError extends boolean = false>(options: Options<GetReportPreviewData, ThrowOnError>): RequestResult<GetReportPreviewResponses, GetReportPreviewErrors, ThrowOnError> => (options.client ?? client).get<GetReportPreviewResponses, GetReportPreviewErrors, ThrowOnError>({ url: '/api/reports/preview', ...options });
 

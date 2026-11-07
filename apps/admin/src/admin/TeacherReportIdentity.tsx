@@ -18,6 +18,7 @@ import {
 } from "@flrc/ui/components/dialog";
 import { Field } from "@flrc/ui/components/field";
 import { Input } from "@flrc/ui/components/input";
+import { FilePicker } from "@flrc/ui/components/file-picker";
 import { Skeleton } from "@flrc/ui/components/skeleton";
 import { errorMessage } from "./feedback";
 import { useNotifyDone } from "./undo-toast";
@@ -136,10 +137,11 @@ export function TeacherReportIdentity({
           )}
           <Field label={t("users.signatureUpload")}>
             {(id) => (
-              <Input
+              <FilePicker
                 id={id}
-                type="file"
                 accept="image/png,.png"
+                chooseLabel={t("forms.chooseFile")}
+                emptyLabel={t("forms.noFileChosen")}
                 disabled={pending}
                 onChange={(event) => {
                   const file = event.target.files?.[0];

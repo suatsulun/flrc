@@ -16,7 +16,6 @@ import {
 } from "@flrc/ui/components/card";
 import { EmptyState } from "@flrc/ui/components/empty-state";
 import { PageHeader } from "@flrc/ui/components/page-header";
-import { Skeleton, SkeletonRows } from "@flrc/ui/components/skeleton";
 import {
   Table,
   TableBody,
@@ -28,6 +27,7 @@ import {
   TableScroll,
   TableText,
 } from "@flrc/ui/components/table";
+import { StudentHistorySkeleton } from "../../admin/page-skeletons";
 
 /** The year and semester on screen; absent values fall back to the latest recorded term. */
 type HistorySearch = { year?: number; semester?: 1 | 2 };
@@ -68,7 +68,7 @@ function StudentHistoryPage() {
     getStudentHistoryOptions({ path: { student_id: Number(studentId) } }),
   );
 
-  if (isPending) return <HistorySkeleton />;
+  if (isPending) return <StudentHistorySkeleton />;
   if (isError || !data) return <EmptyState title={t("errors.load")} />;
 
   // Years arrive oldest first; without a choice the most recent year with grades is shown.
@@ -217,26 +217,5 @@ function StudentHistoryPage() {
         </>
       )}
     </>
-  );
-}
-
-/** Loading shape of the page: back link and header, the year/semester bar, one term card. */
-function HistorySkeleton() {
-  return (
-    <div className="space-y-4" aria-hidden>
-      <div className="space-y-2">
-        <Skeleton className="h-3.5 w-24" />
-        <Skeleton className="h-7 w-64 max-w-2/3" />
-        <Skeleton className="h-4 w-96 max-w-full" />
-      </div>
-      <Skeleton className="h-12 w-full rounded-xl" />
-      <div className="rounded-xl border border-border bg-card shadow-card">
-        <div className="space-y-2 border-b border-border px-5 py-4">
-          <Skeleton className="h-5 w-48 max-w-2/3" />
-          <Skeleton className="h-4 w-36" />
-        </div>
-        <SkeletonRows rows={8} />
-      </div>
-    </div>
   );
 }

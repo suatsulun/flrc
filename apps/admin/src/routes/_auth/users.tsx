@@ -25,7 +25,6 @@ import { NativeSelect } from "@flrc/ui/components/native-select";
 import { CountdownConfirmDialog } from "@flrc/ui/components/countdown-confirm-dialog";
 import { ConfirmDialog } from "@flrc/ui/components/dialog";
 import { EmptyState } from "@flrc/ui/components/empty-state";
-import { Skeleton } from "@flrc/ui/components/skeleton";
 import {
   Table,
   TableBody,
@@ -39,6 +38,7 @@ import {
   TableText,
 } from "@flrc/ui/components/table";
 import { AdminPage } from "../../admin/AdminPage";
+import { USERS_ADD_FORM_GRID, UsersSkeleton } from "../../admin/page-skeletons";
 import { TeacherReportIdentity } from "../../admin/TeacherReportIdentity";
 import { useNotifyDone } from "../../admin/undo-toast";
 
@@ -54,10 +54,6 @@ type UserConfirmation = {
 
 /** Seconds the permanent-delete button stays locked each time its dialog opens (ADR-080). */
 const DELETE_DELAY_SECONDS = 5;
-
-/** Classes shared by the add form and its skeleton, so loading does not shift the layout. */
-const ADD_FORM_GRID =
-  "grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto_auto]";
 
 /** Two row actions per line: a deactivated teacher's four actions wrap onto two lines. */
 const ACTIONS_WIDTH = "w-[20rem]";
@@ -168,7 +164,7 @@ function UsersPage() {
           <CardTitle>{t("users.allow")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form className={ADD_FORM_GRID} onSubmit={submit}>
+          <form className={USERS_ADD_FORM_GRID} onSubmit={submit}>
             <Field label={t("users.email")}>
               {(id) => (
                 <Input
@@ -503,65 +499,6 @@ function UsersPage() {
           </section>
         </div>
       </CountdownConfirmDialog>
-    </AdminPage>
-  );
-}
-
-/** The page's own shape while the account list loads: add form, then the table. */
-function UsersSkeleton() {
-  const { t } = useTranslation();
-  return (
-    <AdminPage title={t("users.title")} description={t("users.description")}>
-      <Card aria-hidden>
-        <CardHeader>
-          <Skeleton className="h-5 w-36" />
-        </CardHeader>
-        <CardContent>
-          <div className={ADD_FORM_GRID}>
-            {["w-full", "w-full", "w-36", "w-36"].map((width, index) => (
-              <div key={index} className="grid gap-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className={`h-9 ${width}`} />
-              </div>
-            ))}
-            <Skeleton className="h-10 w-36 self-end" />
-          </div>
-        </CardContent>
-      </Card>
-      <Card aria-hidden>
-        <CardHeader>
-          <Skeleton className="h-5 w-44" />
-          <Skeleton className="h-9 w-full sm:w-72" />
-        </CardHeader>
-        <CardBody className="overflow-hidden">
-          <div className="flex items-center gap-6 border-b bg-muted/85 px-3 py-3">
-            <Skeleton className="h-3 w-40 flex-1" />
-            <Skeleton className="hidden h-3 w-24 md:block" />
-            <Skeleton className="hidden h-3 w-24 md:block" />
-            <Skeleton className="hidden h-3 w-16 lg:block" />
-            <Skeleton className="hidden h-3 w-20 lg:block" />
-            <Skeleton className="hidden h-3 w-14 lg:block" />
-            <Skeleton className="h-3 w-16" />
-          </div>
-          {Array.from({ length: 6 }, (_, index) => (
-            <div
-              key={index}
-              className="flex items-center gap-6 border-b border-border/70 px-3 py-2.5"
-            >
-              <div className="grid flex-1 gap-1.5">
-                <Skeleton className="h-4 w-36" />
-                <Skeleton className="h-3 w-48 max-w-full" />
-              </div>
-              <Skeleton className="hidden h-9 w-28 md:block" />
-              <Skeleton className="hidden h-9 w-28 md:block" />
-              <Skeleton className="hidden size-4 rounded-sm lg:mx-6 lg:block" />
-              <Skeleton className="hidden size-4 rounded-sm lg:mx-8 lg:block" />
-              <Skeleton className="hidden h-6 w-14 rounded-full lg:block" />
-              <Skeleton className="h-9 w-40 sm:w-56" />
-            </div>
-          ))}
-        </CardBody>
-      </Card>
     </AdminPage>
   );
 }

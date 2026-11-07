@@ -3745,8 +3745,7 @@ or a lone spinner.
   status: the shell's `PageActivity` is now visually hidden and always mounted (announced reliably),
   and a route pending view or a modal dialog with no listening status renders `LoadingStatus`.
 - Spinners remain only on buttons (ADR-042's `pending` contract) and on running background jobs.
-- `FullScreenLoading` is removed. The generic `PageSkeleton` goes once its last callers are moved
-  to page-shaped skeletons.
+- `FullScreenLoading` and the generic `PageSkeleton` are removed.
 
 ## Alternatives considered
 

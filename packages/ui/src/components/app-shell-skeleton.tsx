@@ -1,20 +1,23 @@
 import type { CSSProperties, ReactNode } from "react";
 
+import { HEADER_KEY, readCollapsed, SIDEBAR_KEY } from "#components/app-shell";
 import { LoadingStatus } from "#components/page-activity";
 import { SchoolLogo } from "#components/school-logo";
 import { Skeleton } from "#components/skeleton";
 import { cn } from "#lib/utils";
 
-// The layout choices `AppShell` stores; read here so the first paint matches the shell.
-const SIDEBAR_KEY = "flrc-shell-sidebar-collapsed";
-const HEADER_KEY = "flrc-shell-header-collapsed";
-
-function readCollapsed(key: string): boolean {
-  try {
-    return window.localStorage.getItem(key) === "true";
-  } catch {
-    return false;
-  }
+/** Sidebar links as placeholders, shaped like `sidebarItemClass` rows. */
+export function SkeletonNavItems({ count }: { count: number }) {
+  return (
+    <div aria-hidden className="space-y-1.5">
+      {Array.from({ length: count }, (_, link) => (
+        <div key={link} className="flex items-center gap-2.5 px-2.5 py-1.5">
+          <Skeleton className="size-4 shrink-0 rounded" />
+          <Skeleton className={cn("h-3.5 rounded-md", link % 2 ? "w-24" : "w-32")} />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -115,14 +118,9 @@ export function AppShellSkeleton({
         >
           <div className="min-h-0 flex-1 space-y-5 overflow-hidden px-2.5 py-4">
             {navGroups.map((links, group) => (
-              <div key={group} className="space-y-1.5">
+              <div key={group}>
                 {group > 0 ? <Skeleton className="mx-2.5 mb-2.5 h-2.5 w-20 rounded-md" /> : null}
-                {Array.from({ length: links }, (_, link) => (
-                  <div key={link} className="flex items-center gap-2.5 px-2.5 py-1.5">
-                    <Skeleton className="size-4 shrink-0 rounded" />
-                    <Skeleton className={cn("h-3.5 rounded-md", link % 2 ? "w-24" : "w-32")} />
-                  </div>
-                ))}
+                <SkeletonNavItems count={links} />
               </div>
             ))}
           </div>

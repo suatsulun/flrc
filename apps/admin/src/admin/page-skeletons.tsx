@@ -375,34 +375,77 @@ export function ReportsSkeleton() {
   );
 }
 
-/** Teachers & access: the invite form above the teacher table. */
+/** Classes shared by the teacher add form and its skeleton, so loading does not shift the layout. */
+export const USERS_ADD_FORM_GRID =
+  "grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto_auto]";
+
+/**
+ * Teachers & access: the add form above the teacher table, whose person column (name over
+ * e-mail) takes the spare width while the selects, checkboxes, status and actions hug their
+ * content.
+ */
 export function UsersSkeleton() {
   return (
     <>
       <SkeletonPageHeader />
-      <SkeletonCard>
-        <div aria-hidden className="p-5">
-          <SkeletonFields count={4} className="sm:grid-cols-2 xl:grid-cols-4" />
+      <SkeletonCard description={false}>
+        <div aria-hidden className={`${USERS_ADD_FORM_GRID} p-5`}>
+          {["w-full", "w-full", "w-36", "w-36"].map((width, index) => (
+            <div key={index} className="grid gap-1.5">
+              <Skeleton className="h-3.5 w-24 rounded-md" />
+              <Skeleton className={`h-9 ${width}`} />
+            </div>
+          ))}
+          <Skeleton className="h-9 w-36 self-end" />
         </div>
       </SkeletonCard>
-      <SkeletonCard action>
-        <SkeletonTable columns={7} rows={8} />
-      </SkeletonCard>
+      <Card aria-hidden>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+          <Skeleton className="h-4 w-40 rounded-md" />
+          <Skeleton className="h-9 w-full sm:w-72" />
+        </div>
+        <div className="flex items-center gap-6 border-b border-border bg-muted/85 px-3 py-3">
+          <Skeleton className="h-3 w-40 flex-1 rounded-md bg-muted-foreground/15" />
+          <Skeleton className="hidden h-3 w-24 rounded-md bg-muted-foreground/15 md:block" />
+          <Skeleton className="hidden h-3 w-24 rounded-md bg-muted-foreground/15 md:block" />
+          <Skeleton className="hidden h-3 w-16 rounded-md bg-muted-foreground/15 lg:block" />
+          <Skeleton className="hidden h-3 w-20 rounded-md bg-muted-foreground/15 lg:block" />
+          <Skeleton className="hidden h-3 w-14 rounded-md bg-muted-foreground/15 lg:block" />
+          <Skeleton className="h-3 w-16 rounded-md bg-muted-foreground/15" />
+        </div>
+        {Array.from({ length: 6 }, (_, index) => (
+          <div
+            key={index}
+            className="flex items-center gap-6 border-b border-border/70 px-3 py-2.5 last:border-b-0"
+          >
+            <div className="grid flex-1 gap-1.5">
+              <Skeleton className="h-4 w-36 rounded-md" />
+              <Skeleton className="h-3 w-48 max-w-full rounded-md" />
+            </div>
+            <Skeleton className="hidden h-9 w-28 md:block" />
+            <Skeleton className="hidden h-9 w-28 md:block" />
+            <Skeleton className="hidden size-4 rounded-sm lg:mx-6 lg:block" />
+            <Skeleton className="hidden size-4 rounded-sm lg:mx-8 lg:block" />
+            <Skeleton className="hidden h-6 w-14 rounded-full lg:block" />
+            <Skeleton className="h-9 w-40 sm:w-56" />
+          </div>
+        ))}
+      </Card>
     </>
   );
 }
 
-/** A pupil's history: the year and semester bar above a card of grade tables. */
+/** A pupil's history: back link and header, the year/semester bar, one semester's card. */
 export function StudentHistorySkeleton() {
   return (
     <>
-      <SkeletonPageHeader />
-      <SkeletonToolbar controls={2} />
+      <div aria-hidden className="space-y-1.5">
+        <Skeleton className="h-3.5 w-24 rounded-md" />
+        <SkeletonPageHeader meta />
+      </div>
+      <SkeletonToolbar controls={3} />
       <SkeletonCard action>
-        <div aria-hidden className="grid gap-4 p-5 lg:grid-cols-2">
-          <SkeletonTable columns={3} rows={6} className="rounded-lg border border-border" />
-          <SkeletonTable columns={3} rows={6} className="rounded-lg border border-border" />
-        </div>
+        <SkeletonTable columns={2} rows={8} />
       </SkeletonCard>
     </>
   );

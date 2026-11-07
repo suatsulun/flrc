@@ -3,7 +3,6 @@ import { Button } from "@flrc/ui/components/button";
 import { EmptyState } from "@flrc/ui/components/empty-state";
 import { Field } from "@flrc/ui/components/field";
 import { NativeSelect } from "@flrc/ui/components/native-select";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { Segmented } from "@flrc/ui/components/segmented";
 import { FileRequestError } from "@flrc/ui/lib/file-delivery";
 import { cn } from "@flrc/ui/lib/utils";
@@ -24,6 +23,7 @@ import { useCardPreviewPdf, type CardKind } from "../../class-report/card-previe
 import { usePdfErrorMessage } from "../../class-report/class-sheet-pdf";
 import { ReportModeSwitch } from "../../class-report/report-mode-switch";
 import { REPORT_GRADES } from "../../class-report/scope";
+import { CardPreviewSkeleton } from "../../page-skeletons";
 
 const CARD_KINDS: readonly CardKind[] = [
   "english_elementary",
@@ -198,7 +198,7 @@ function CardPreviewPage() {
     </>
   );
 
-  if (scopeQuery.isPending) return <PageSkeleton />;
+  if (scopeQuery.isPending) return <CardPreviewSkeleton />;
   if (scopeQuery.isError || !scope) {
     const code = errorCode(scopeQuery.error);
     return (

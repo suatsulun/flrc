@@ -34,10 +34,11 @@ export type AppShellLabels = {
   theme: Record<ThemePreference, string>;
 };
 
-const SIDEBAR_KEY = "flrc-shell-sidebar-collapsed";
-const HEADER_KEY = "flrc-shell-header-collapsed";
+/** The layout choices the shell stores per browser; its skeleton reads them too. */
+export const SIDEBAR_KEY = "flrc-shell-sidebar-collapsed";
+export const HEADER_KEY = "flrc-shell-header-collapsed";
 
-function readCollapsed(key: string): boolean {
+export function readCollapsed(key: string): boolean {
   try {
     return window.localStorage.getItem(key) === "true";
   } catch {

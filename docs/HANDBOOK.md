@@ -2799,6 +2799,16 @@ rules in Step 2.1 apply first. Every write (create, patch, delete, reorder, copy
 `action_id` for the admin undo (ADR-075): `ColumnWriteOut`, `DeleteResult`, `ReorderOut`,
 `CopyOut`.
 
+**Admin screens (ADR-075, ADR-076):** a field is renamed from a pencil button on each Fields page
+row and in each class-table column header. The dialog holds one box, prefilled and labelled with
+the subject's language; a blank or unchanged name cannot be saved, Enter saves and Escape cancels.
+Without an editable semester the Fields page explains why and offers no edits, and the class
+table hides its column controls behind the same explanation. **Copy to another grade or subject**
+on the Fields page picks a target grade and a subject of the same family (English to English,
+German and French to each other), shows whether the target already has fields (it must be empty),
+how many fields will be copied or skipped, and any missing name or Turkish wording, then opens the
+target. Every field write answers with a specific success toast that offers Undo.
+
 **What we're building:** admin-only CRUD plus two operations CRUD doesn't have: **reorder** (the up/down arrows) and **copy** (September's sanity: duplicating a column set to another grade or the twin language).
 
 **Why the delete branch has two outcomes:** a column with grades is _history_; the minus button hides it (`is_active=false`) instead of destroying data, and tells the admin which case happened. Cascade-deleting grades from a UI button is a résumé-ending feature (ARCH §3.3).
@@ -6376,6 +6386,15 @@ For language upsert, preload existing rows into `{student_id: row}`. For each st
 
 **Class-table removal and column placement (ADR-048):** a Remove tab lists students and all assessment columns for the selected grade, subject, and semester. Student removal confirms the current class/year, removes only that enrollment and its year-scoped L2 choice, and preserves the student, other years, saved grades, and grade audit rows. Archived years reject it. Column removal uses the existing delete-or-disable API and states that columns are shared across the grade. Column-header handles support drag placement; arrow controls remain available for keyboard/touch. Reorder sends the complete column set for one grade/subject/semester, including inactive definitions except programme-ineligible middle-English text fields under
 ADR-063, and rejects duplicate, partial, or mixed-scope lists.
+
+**Confirmations and feedback (ADR-075):** every move, dragged onto a class tab or sent from the
+selection toolbar, first opens a confirmation naming the students (five, then "+N more"), the
+class they leave and the target. Its "do not ask again this session" box is kept in
+`sessionStorage`, and Cancel changes nothing. Each roster, class, field and teacher write shows a
+success toast naming what changed, with Undo when the API returned an `action_id`; failures use
+the global per-code error toast, never a second inline message. **Edit class** changes grade and
+section; **Delete class** is enabled only in a setup year for a class without students or
+teachers and otherwise shows why (the API still refuses one that holds saved grades).
 
 **Check (prove the invariant):** enter three grades for a student in 5/A. Move them to 5/B. Open 5/B's same subject grid: the grades are there. Move back: still there. Switch German → French: the English grades remain; German grid drops the student; French grid gains them.
 

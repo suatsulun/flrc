@@ -35,15 +35,35 @@ test("class tables clear languages, drag new notes, and remove columns and stude
   await page.reload();
   await expect(headers.first()).toContainText("Synthetic Dragged Note");
   await expect(language).toHaveValue("");
+  // Renaming keeps the field (and its grades); Escape leaves the name untouched.
+  const rename = page.getByRole("button", {
+    name: "Rename column Synthetic Dragged Note",
+    exact: true,
+  });
+  await rename.click();
+  const renameBox = page.getByRole("dialog").getByLabel("Column name (English)");
+  await expect(renameBox).toHaveValue("Synthetic Dragged Note");
+  await renameBox.fill("Discarded name");
+  await renameBox.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(rename).toBeFocused();
+  await rename.click();
+  await expect(renameBox).toHaveValue("Synthetic Dragged Note");
+  await renameBox.fill("Synthetic Renamed Note");
+  await renameBox.press("Enter");
+  await expect(
+    page.getByText("Column “Synthetic Dragged Note” was renamed to “Synthetic Renamed Note”."),
+  ).toBeVisible();
+  await expect(headers.first()).toContainText("Synthetic Renamed Note");
   await page.getByRole("radio", { name: "Remove", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Remove assessment columns" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Remove students", exact: true })).toBeVisible();
   await page
-    .getByRole("button", { name: "Remove column Synthetic Dragged Note", exact: true })
+    .getByRole("button", { name: "Remove column Synthetic Renamed Note", exact: true })
     .click();
   await page.getByRole("dialog").getByRole("button", { name: "Remove", exact: true }).click();
   await expect(
-    page.getByTestId("remove-column-row").filter({ hasText: "Synthetic Dragged Note" }),
+    page.getByTestId("remove-column-row").filter({ hasText: "Synthetic Renamed Note" }),
   ).toHaveCount(0);
   for (const subject of ["German", "French"]) {
     await page.getByRole("radio", { name: subject, exact: true }).click();

@@ -6445,9 +6445,12 @@ saved and undone, and the audit trail still refers to it), `order_changed`, `use
 **Locks:** every recorded write locks the rows it changes before reading their previous values
 and keeps the lock until it commits with the action, so two concurrent edits each record what
 they actually replaced. Locks are taken year first: a pupil's yearly data (number, class, second
-language) is guarded by the year (`writable_class_year`), then their enrollment row
-(`lock_enrollments`, id order); class writes lock the year, then the class (`lock_class`). Undo
-handlers and roster removal take the same locks in the same order before checking.
+language), including a new pupil from either the roster or the students page, is guarded by the
+year (`writable_class_year`), then their enrollment row (`lock_enrollments`, id order); class
+writes lock the year, then the class (`lock_class`). Undo handlers and roster removal take the
+same locks in the same order before checking. A field reorder and its undo change only
+positions, so they lock the fields `FOR NO KEY UPDATE`: grade saves inserting into those fields
+(whose foreign keys take `KEY SHARE`) neither wait for them nor deadlock with them.
 
 **Retention:** the backup sidecar deletes expired rows and their kept signature images every night
 before the dump; `flrc purge-admin-actions` does it by hand.

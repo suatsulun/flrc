@@ -1284,6 +1284,99 @@ async def test_language_writes_lock_the_year_before_the_enrollment(api, world, w
     assert language == "german"
 
 
+async def test_student_create_locks_the_year_before_reserving_its_number(api, world):
+    """A new pupil and a renumbering racing for one free number: one gets it, the other a 409.
+
+    The other transaction does what a renumbering does: it locks the year, then (once the
+    create is waiting) takes the number. A create that inserted its enrollment first would
+    hold that number while its year foreign key waited for the lock, and the two would
+    deadlock instead.
+    """
+    async with api(world.admin) as client:
+        async with TestSession() as renumber:
+            await renumber.execute(
+                select(m.AcademicYear).where(m.AcademicYear.id == world.year).with_for_update()
+            )
+            pending = asyncio.create_task(
+                client.post(
+                    "/api/admin/students",
+                    json={
+                        "school_number": 51099,
+                        "full_name": "Synthetic Racing Pupil",
+                        "year_id": world.year,
+                        "class_id": world.cls,
+                    },
+                )
+            )
+            await wait_for_a_lock_wait()
+            await renumber.execute(
+                update(m.Enrollment)
+                .where(m.Enrollment.student_id == world.student_two)
+                .values(school_number=51099)
+            )
+            await renumber.commit()
+        created = await pending
+    assert created.status_code == 409, created.text
+    assert created.json()["detail"]["code"] == "duplicate_school_number"
+
+
+async def until_waiting_or_done(task: asyncio.Task) -> None:
+    """Return once ``task`` has finished or some session is waiting for a lock."""
+    lock_wait = asyncio.create_task(wait_for_a_lock_wait())
+    await asyncio.wait({task, lock_wait}, return_when=asyncio.FIRST_COMPLETED)
+    lock_wait.cancel()
+
+
+@pytest.mark.parametrize("write", ["reorder", "undo_reorder"])
+async def test_field_reorder_does_not_block_grades_saved_meanwhile(api, world, write):
+    """Reordering changes no key, so it must not wait for a grade save's foreign-key locks.
+
+    The other transaction saves grades the way a grid save does, one cell after another: a
+    grade for the higher-id field, then (once the reorder has had its turn) one for the
+    lower-id field. A reorder that locked both fields FOR UPDATE would hold the first and
+    wait for the second, and the two would deadlock.
+    """
+    reorder_path = "/api/columns/reorder"
+    params = {"semester_id": world.semester}
+    swapped = [world.skills_column, world.main_column]
+    async with api(world.admin) as client:
+        if write == "undo_reorder":
+            done = await client.post(reorder_path, params=params, json={"ordered_ids": swapped})
+            assert done.status_code == 200, done.text
+
+            def request():
+                return undo(client, done.json()["action_id"])
+        else:
+
+            def request():
+                return client.post(reorder_path, params=params, json={"ordered_ids": swapped})
+
+        async with TestSession() as save:
+            for column_id in (world.skills_column, world.main_column):
+                save.add(
+                    m.GradeValue(
+                        student_id=world.student_one,
+                        column_definition_id=column_id,
+                        score=70,
+                        updated_by=world.main.id,
+                    )
+                )
+                await save.flush()
+                if column_id == world.skills_column:
+                    pending = asyncio.create_task(request())
+                    await until_waiting_or_done(pending)
+            await save.commit()
+        response = await pending
+    assert response.status_code == 200, response.text
+    async with TestSession() as db:
+        saved = await db.scalar(
+            select(func.count())
+            .select_from(m.GradeValue)
+            .where(m.GradeValue.student_id == world.student_one)
+        )
+    assert saved == 2
+
+
 async def test_class_edit_records_the_section_a_concurrent_edit_committed(api, world):
     async def hold(db):
         await db.execute(

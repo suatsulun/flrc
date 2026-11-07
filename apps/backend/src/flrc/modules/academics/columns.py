@@ -439,7 +439,10 @@ async def reorder_columns(
             ColumnDefinition.semester_id == semester.id,
         )
         .order_by(ColumnDefinition.id)
-        .with_for_update()
+        # FOR NO KEY UPDATE: only positions change, so grade saves inserting into these fields
+        # (their foreign keys take KEY SHARE) neither wait for the reorder nor deadlock with it,
+        # while reorders, edits and deletions of the same fields still queue behind each other.
+        .with_for_update(key_share=True)
         .execution_options(populate_existing=True)
     )
     columns = {c.id: c for c in result.scalars()}

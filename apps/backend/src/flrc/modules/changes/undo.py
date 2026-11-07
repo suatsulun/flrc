@@ -513,7 +513,8 @@ async def _undo_field_reorder(ctx: UndoContext) -> None:
             select(ColumnDefinition)
             .where(ColumnDefinition.id.in_(after))
             .order_by(ColumnDefinition.id)
-            .with_for_update()
+            # Positions only, as in the reorder itself: no wait on grade saves' key-share locks.
+            .with_for_update(key_share=True)
             .execution_options(populate_existing=True)
         )
     }

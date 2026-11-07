@@ -18,6 +18,7 @@ export function CountdownConfirmDialog({
   countdownLabel,
   onConfirm,
   destructive = true,
+  danger = false,
   pending,
   pendingLabel,
   finalFocus,
@@ -35,6 +36,8 @@ export function CountdownConfirmDialog({
   countdownLabel: (secondsLeft: number) => string;
   onConfirm: () => void;
   destructive?: boolean;
+  /** Solid danger confirm button once unlocked (dimmed while counting down). */
+  danger?: boolean;
   pending?: boolean;
   pendingLabel?: string;
   finalFocus?: ComponentProps<typeof ConfirmDialog>["finalFocus"];
@@ -68,6 +71,7 @@ export function CountdownConfirmDialog({
       confirmLabel={locked ? countdownLabel(secondsLeft) : confirmLabel}
       confirmDisabled={locked}
       destructive={destructive}
+      danger={danger}
       pending={pending}
       pendingLabel={pendingLabel}
       finalFocus={finalFocus}

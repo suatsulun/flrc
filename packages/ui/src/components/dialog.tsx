@@ -133,6 +133,7 @@ function ConfirmDialog({
   pending = false,
   pendingLabel,
   destructive = false,
+  danger = false,
   children,
   confirmDisabled = false,
   finalFocus,
@@ -147,6 +148,8 @@ function ConfirmDialog({
   pending?: boolean;
   pendingLabel?: string;
   destructive?: boolean;
+  /** Solid danger confirm button, for actions that cannot be undone. */
+  danger?: boolean;
   children?: React.ReactNode;
   confirmDisabled?: boolean;
   /** Where focus goes on close; needed when no `DialogTrigger` opened the dialog. */
@@ -165,7 +168,7 @@ function ConfirmDialog({
             {cancelLabel}
           </Button>
           <Button
-            variant={destructive ? "destructive" : "default"}
+            variant={danger ? "danger" : destructive ? "destructive" : "default"}
             pending={pending}
             pendingLabel={pendingLabel}
             disabled={confirmDisabled}

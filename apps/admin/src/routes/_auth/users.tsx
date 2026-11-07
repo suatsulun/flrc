@@ -470,6 +470,7 @@ function UsersPage() {
         open={Boolean(deletion)}
         onOpenChange={(open) => !open && setDeletion(undefined)}
         seconds={DELETE_DELAY_SECONDS}
+        danger
         title={t("users.deleteTitle", { name: deletion?.name })}
         description={t("users.deleteDescription")}
         cancelLabel={t("forms.cancel")}

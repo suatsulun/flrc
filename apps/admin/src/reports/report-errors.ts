@@ -35,6 +35,8 @@ export function jobFailureMessage(t: TFunction, code: string | null): string {
   switch (code) {
     case "empty_report_set":
       return t("reports.errors.empty");
+    case "student_not_in_report_set":
+      return t("reports.errors.selectionChanged");
     case "report_page_mapping":
       return t("reports.errors.pageMapping");
     case "report_output_too_large":

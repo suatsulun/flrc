@@ -3378,6 +3378,9 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
   a pupil alone: the class is rendered once — middle-school cards one per sheet instead of two-up —
   and cut by page range (two pages per duplex card, one per middle-school card). Every class's
   page count is checked against that mapping; a mismatch fails the job (`report_page_mapping`).
+  A chosen pupil who left the set before the job ran (moved, removed, another language) fails it
+  too (`student_not_in_report_set`, shown as an out-of-date selection), rather than a file
+  silently missing them.
 - **Output budget and numbered parts:** no stored file may pass 192 MiB. A per-class or per-pupil
   ZIP that would is cut into numbered parts, `… 1. Dönem (Bölüm 1).zip`, `(Bölüm 2)` …, breaking
   only between whole files; a pupil ZIP breaks at a class boundary when the class no longer fits

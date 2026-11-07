@@ -671,6 +671,32 @@ async def test_selected_students_job_prints_only_them(api, world, queued) -> Non
     assert "Synthetic Student One" not in text and "Pupil Alpha" not in text
 
 
+async def test_a_selected_pupil_who_left_the_set_fails_the_job(api, world, queued) -> None:
+    await add_german(world, world.student_one, world.student_two)
+    body = {
+        "semester_id": world.semester,
+        "kind": "german_karne",
+        "format": "combined",
+        "student_ids": [world.student_one, world.student_two],
+    }
+    async with api(world.admin) as client:
+        created = await client.post("/api/reports/jobs", json=body)
+        assert created.status_code == 202, created.text
+        # Before the worker starts, one of the two changes to French.
+        async with TestSession() as db:
+            language = await db.scalar(
+                select(m.StudentLanguage).where(m.StudentLanguage.student_id == world.student_two)
+            )
+            assert language is not None
+            language.language = "french"
+            await db.commit()
+        report_tasks.report_set_job(created.json()["id"])
+        job = (await client.get(f"/api/jobs/{created.json()['id']}")).json()
+    # The file would silently miss a pupil the admin chose, so none is made.
+    assert (job["status"], job["error_code"]) == ("failed", "student_not_in_report_set")
+    assert job["output_size"] is None
+
+
 async def test_a_page_mapping_mismatch_fails_the_job_instead_of_misfiling(
     api, world, queued, monkeypatch
 ) -> None:

@@ -3528,7 +3528,9 @@ date filters.
     teacher and fields once it has a pupil taking that language; the overview's
     `missing_assignments` uses the same rule instead of four roles per class.
   - **Report readiness** per card kind: classes in the card's grades with at least one pupil on
-    that card, how many are complete, and the share of their grades entered.
+    that card, how many are complete, and the share of the printed fields entered. The
+    middle-school English card counts each pupil's own German or French score fields too, since it
+    prints them.
   - **Downloads**: recent background report and export jobs with progress, expiry and a download
     link.
 - The coordinator page is merged into the dashboard and `/coordinator` redirects to `/`. The

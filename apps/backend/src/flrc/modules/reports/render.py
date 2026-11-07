@@ -32,7 +32,6 @@ from concurrent.futures import Executor, ProcessPoolExecutor
 from contextlib import closing
 from dataclasses import dataclass
 from functools import lru_cache, partial
-from hashlib import md5
 from io import BytesIO
 from multiprocessing import get_context
 from pathlib import Path
@@ -706,44 +705,13 @@ class ReportAssetFetcher(URLFetcher):
         return URLFetcherResponse(url, body=body, headers={"Content-Type": content_type})
 
 
-# Process-wide memos of the fixed artwork — logo, faces, watermarks, overlay
-# assets — so each is decoded and parsed once per process rather than once per
-# document. A teacher's signature never enters them: permanent deletion erases
-# it (ADR-080), so it lives only as long as the render that prints it.
+# The only process-wide memo: the fixed artwork's bytes — logo, faces, watermarks,
+# overlay assets — so each is decoded once per process rather than once per document.
+# A teacher's signature never enters it: permanent deletion erases it (ADR-080). Parsed
+# images stay in WeasyPrint's per-document cache, because they keep the fetcher and that
+# cache, and with them the document's signatures; reusing them measured neutral anyway
+# (ADR-046).
 _fetched_assets: dict[str, tuple[bytes, str]] = {}
-# WeasyPrint's documented in-memory image cache.
-_image_cache: dict[str, object] = {}
-
-
-class _RenderImageCache(dict[str, object]):
-    """WeasyPrint's image cache for one document, over the process-wide one.
-
-    Entries for ``private_assets`` and the decoded data WeasyPrint files under
-    their image ids stay in this dict and go with it; every other entry is read
-    from and written to ``_image_cache``.
-    """
-
-    def __init__(self, private_assets: frozenset[str]) -> None:
-        super().__init__()
-        self._private_assets = private_assets
-        # WeasyPrint keys a raster's data "<md5 of its URL>-<slot>-<dpi>".
-        self._private_ids = tuple(
-            md5(url.encode(), usedforsecurity=False).hexdigest() + "-" for url in private_assets
-        )
-
-    def __contains__(self, key: object) -> bool:
-        return super().__contains__(key) or key in _image_cache
-
-    def __getitem__(self, key: str) -> object:
-        if super().__contains__(key):
-            return super().__getitem__(key)
-        return _image_cache[key]
-
-    def __setitem__(self, key: str, value: object) -> None:
-        if key in self._private_assets or key.startswith(self._private_ids):
-            super().__setitem__(key, value)
-        else:
-            _image_cache[key] = value
 
 
 def _signature_assets(cards: list[ReportCard]) -> frozenset[str]:
@@ -759,13 +727,13 @@ def render_pdf_document(html: str, private_assets: frozenset[str] = frozenset())
     Runs in the request thread or in a renderer subprocess, so it takes a
     string rather than report data: a worker never needs the database, the
     settings for a card, or anything else the parent already resolved.
-    ``private_assets`` — the teachers' signatures — are cached for this
-    document only, never in the process-wide caches.
+    ``private_assets`` — the teachers' signatures — are never memoised; like
+    every parsed image, they go with the document.
     """
     try:
         return HTML(
             string=html, base_url=str(HERE), url_fetcher=ReportAssetFetcher(private_assets)
-        ).write_pdf(cache=_RenderImageCache(private_assets))
+        ).write_pdf()
     finally:
         # WeasyPrint page trees contain cycles; release each batch before the next.
         gc.collect()

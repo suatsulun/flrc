@@ -3673,18 +3673,19 @@ points at the account.
   (single slot and matrix, on the acting administrator and the destination teachers together in
   id order, even for a clear-only change), the year rollover, grid saves and grant requests (on
   the caller's own account) shared, and undo before it locks the action row (exclusive for
-  account actions, shared on every teacher an assignment change names). The deletion holds the
-  row exclusively, then deletes assignments, then scrubs actions. So no action naming the account
-  is recorded after the scrub, assignment writers revalidate the accounts after waiting and
-  refuse an inactive or deleted teacher, the rollover leaves a deleted teacher's slots empty, an
-  assignment change, save or grant request whose own account raced the deactivation and deletion
-  answers `401 not_registered` instead of saving through a removed grant or recording a new
+  account actions, shared on every teacher an assignment change names, and shared on the undoing
+  administrator, all in id order). The deletion holds the row exclusively, then deletes
+  assignments, then scrubs actions. So no action naming the account is recorded after the scrub,
+  assignment writers revalidate the accounts after waiting and refuse an inactive or deleted
+  teacher, the rollover leaves a deleted teacher's slots empty, an assignment change, undo, save
+  or grant request whose own account raced the deactivation and deletion answers
+  `401 not_registered` instead of saving through a removed grant or recording or undoing an
   action, and nothing deadlocks with the deletion.
-- Report rendering keeps teachers' signatures out of every process-wide cache: the renderer's
-  asset and image memos hold only the fixed artwork (logo, faces, watermarks, overlay assets), and
-  a signature lives only as long as the render that prints it, in the API process and in render
-  processes alike. A deleted teacher's signature cannot be printed again or read back from a
-  running process.
+- Report rendering keeps teachers' signatures out of every process-wide state: the renderer's
+  only process-wide memo holds the fixed artwork's bytes (logo, faces, watermarks, overlay
+  assets), and WeasyPrint's parsed images, the asset fetcher and the signatures live only as long
+  as the document being rendered, in the API process and in render processes alike. A deleted
+  teacher's signature cannot be printed again or read back from a running process.
 - No undo can bring the account back: undo handlers refuse a deleted account with
   `target_missing`.
 - Deleted accounts are left out of `/api/admin/users` and the `/api/users` teacher picker; editing

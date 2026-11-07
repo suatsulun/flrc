@@ -1,8 +1,10 @@
 import base64
+import gc
 import json
 import zipfile
 from io import BytesIO
 from pathlib import Path
+from types import FunctionType, ModuleType
 
 import pytest
 from jinja2.exceptions import SecurityError
@@ -11,7 +13,7 @@ from pypdf import PdfReader, PdfWriter
 
 from flrc.config import settings
 from flrc.modules.reports import packaging, render
-from flrc.modules.reports.branding import asset_data_uri, contained_file, report_branding
+from flrc.modules.reports.branding import contained_file, report_branding
 from flrc.modules.reports.builder import ReportEntry
 from flrc.modules.reports.models import ReportCard, ReportSigner
 
@@ -43,7 +45,9 @@ def overlay(tmp_path, monkeypatch):
 {% set p = report_branding.principals['primary' if sheet.card.grade_level <= 4 else 'middle'] %}
 <p>{{ p.name }}</p><img src="{{ p.signature }}" />
 {% for teacher in sheet.card.teachers %}<p>{{ teacher.name }}</p>
-{% if teacher.signature %}<img src="{{ teacher.signature }}" />{% endif %}{% endfor %}</section>
+{% if teacher.signature %}<img src="{{ teacher.signature }}" />{% endif %}{% endfor %}
+{% if 'stamp' in report_branding.assets %}<img src="{{ report_branding.assets.stamp }}" />
+{% endif %}</section>
 <section class="sheet"><p>HTML cover placeholder</p></section>
 {% endfor %}{% endblock %}
 """)
@@ -149,18 +153,50 @@ def test_no_overlay_preserves_generic_templates(monkeypatch):
     assert 'class="cover-frame"' in html
 
 
-@pytest.mark.parametrize("path", ["direct", "pool", "job"])
-def test_teacher_signatures_never_outlive_the_render_that_prints_them(
-    overlay, tmp_path, monkeypatch, path
-):
-    """A deleted teacher's signature must not stay in a process-wide cache (ADR-080).
-
-    The principal's signature is the school's fixed artwork and stays cached.
-    """
-    reports, _ = overlay
+def png_bytes(color: str) -> bytes:
     image = BytesIO()
-    Image.new("RGB", (60, 20), "navy").save(image, format="PNG")
-    png = image.getvalue()
+    Image.new("RGB", (60, 20), color).save(image, format="PNG")
+    return image.getvalue()
+
+
+def reachable(roots: list[object]) -> list[object]:
+    """Every object reachable from ``roots``, short of modules, functions and classes."""
+    seen: set[int] = set()
+    found: list[object] = []
+    stack = list(roots)
+    while stack:
+        item = stack.pop()
+        if id(item) in seen or isinstance(item, ModuleType | FunctionType | type):
+            continue
+        seen.add(id(item))
+        found.append(item)
+        stack.extend(gc.get_referents(item))
+    return found
+
+
+# Colours unique to each case, so the artwork is new to the process every time.
+@pytest.mark.parametrize(
+    ("path", "signature_color", "stamp_color"),
+    [("direct", "navy", "silver"), ("pool", "teal", "gold"), ("job", "maroon", "olive")],
+)
+def test_teacher_signatures_never_outlive_the_render_that_prints_them(
+    overlay, tmp_path, monkeypatch, path, signature_color, stamp_color
+):
+    """Nothing a process keeps after a render leads to a teacher's signature (ADR-080).
+
+    The school's fixed artwork — an SVG principal signature and a raster stamp, both new to
+    this process — is still memoised, as bytes.
+    """
+    reports, config = overlay
+    (reports / "principal.svg").write_text(
+        f'<svg xmlns="http://www.w3.org/2000/svg"><desc>{path}</desc></svg>'
+    )
+    stamp = png_bytes(stamp_color)
+    (reports / "stamp.png").write_bytes(stamp)
+    config["assets"] = {"stamp": "stamp.png"}
+    (reports / "config.json").write_text(json.dumps(config))
+    monkeypatch.setattr(render, "_fetched_assets", {})
+    png = png_bytes(signature_color)
     signature = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
     signed = card()
     signed.teachers[0].signature = signature
@@ -179,13 +215,20 @@ def test_teacher_signatures_never_outlive_the_render_that_prints_them(
             monkeypatch.setattr(render, "MIN_PARALLEL_UNITS", 2)
             monkeypatch.setattr(render, "_render_pool", lambda workers: InlinePool())
         pdf = PdfReader(BytesIO(render.render_report_pdf([signed, signed])))
+    gc.collect()
 
-    assert len(pdf.pages[0].images) == 1, "the teacher's signature is printed"
-    assert asset_data_uri(reports / "principal.svg") in render._image_cache
-    assert signature not in render._image_cache
-    assert png not in render._image_cache.values()
-    assert signature not in render._fetched_assets
-    assert png not in [body for body, _ in render._fetched_assets.values()]
+    assert len(pdf.pages[0].images) == 2, "the stamp and the teacher's signature are printed"
+    kept = reachable(
+        [
+            value
+            for name, value in vars(render).items()
+            if isinstance(value, dict) and not name.startswith("__")
+        ]
+    )
+    assert stamp in kept
+    assert (reports / "principal.svg").read_bytes() in kept
+    assert not [item for item in kept if isinstance(item, str) and item == signature]
+    assert not [item for item in kept if isinstance(item, bytes) and item == png]
 
 
 def cover_overlay(reports, config) -> None:

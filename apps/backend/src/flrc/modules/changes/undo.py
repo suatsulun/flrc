@@ -102,25 +102,33 @@ def handles(*kinds: ActionKind) -> Callable[[Handler], Handler]:
     return register
 
 
-async def lock_action_accounts(db: AsyncSession, kind: str, data: dict[str, Any]) -> None:
-    """Lock the accounts an action names, before the action row itself (ADR-080).
+async def lock_action_accounts(
+    db: AsyncSession, kind: str, data: dict[str, Any], actor: User
+) -> dict[int, User]:
+    """Lock the undoing administrator and the accounts an action names, in id order,
+    before the action row itself (ADR-080); returns their current rows.
 
     Every write about an account and a permanent deletion lock the account first, so an
     undo does too: account actions lock their account exclusively, as the handler does;
-    assignment changes take shared locks on every teacher their slots name.
+    assignment changes take shared locks on every teacher their slots name. The
+    administrator is locked shared, as every recorded write locks its actor: marking the
+    action undone refers to that account, which its own deletion holds.
     """
     if kind in ACCOUNT_ACTION_KINDS:
-        await lock_accounts(db, [int(data["user_id"])], exclusive=True)
-    elif kind == "assignments.replace":
-        await lock_accounts(
-            db,
-            {
-                slot[key]
-                for slot in data["slots"]
-                for key in ("before", "after")
-                if slot[key] is not None
-            },
-        )
+        target = int(data["user_id"])
+        accounts: dict[int, User] = {}
+        for user_id in sorted({target, actor.id}):
+            accounts |= await lock_accounts(db, [user_id], exclusive=user_id == target)
+        return accounts
+    named: set[int] = set()
+    if kind == "assignments.replace":
+        named = {
+            slot[key]
+            for slot in data["slots"]
+            for key in ("before", "after")
+            if slot[key] is not None
+        }
+    return await lock_accounts(db, named | {actor.id})
 
 
 def _class_name(school_class: SchoolClass) -> str:

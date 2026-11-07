@@ -342,6 +342,25 @@ def mark_deleted(user_id: int):
     return hold
 
 
+async def while_deleting(user_id: int, request):
+    """Run ``request`` while another administrator permanently deletes the account.
+
+    The deletion holds the account row exclusively, then deletes the account's slots once
+    the request has had time to take its own locks, then commits.
+    """
+    async with TestSession() as db:
+        await lock_accounts(db, [user_id], exclusive=True)
+        await mark_deleted(user_id)(db)
+        await db.flush()
+        pending = asyncio.create_task(request())
+        await asyncio.sleep(0.5)
+        await db.execute(
+            delete(m.TeachingAssignment).where(m.TeachingAssignment.user_id == user_id)
+        )
+        await db.commit()
+    return await pending
+
+
 @pytest.mark.parametrize("endpoint", ["matrix", "slot"])
 async def test_assignment_waits_for_a_concurrent_deletion_and_refuses(api, world, endpoint):
     async with api(world.admin) as client:
@@ -403,19 +422,7 @@ async def test_assignment_by_an_administrator_being_deleted_waits_and_refuses(ap
                 f"/api/classes/{world.cls}/assignments/main", json={"user_id": world.main.id}
             )
 
-        # Another administrator deletes the deactivated actor: the account row exclusively,
-        # then the account's assignments.
-        async with TestSession() as db:
-            await lock_accounts(db, [actor], exclusive=True)
-            await mark_deleted(actor)(db)
-            await db.flush()
-            pending = asyncio.create_task(request())
-            await asyncio.sleep(0.5)
-            await db.execute(
-                delete(m.TeachingAssignment).where(m.TeachingAssignment.user_id == actor)
-            )
-            await db.commit()
-        response = await pending
+        response = await while_deleting(actor, request)
     assert response.status_code == 401, response.text
     assert detail_code(response) == "not_registered"
     async with TestSession() as db:
@@ -427,6 +434,51 @@ async def test_assignment_by_an_administrator_being_deleted_waits_and_refuses(ap
         kinds = list(await db.scalars(select(m.AdminAction.kind)))
     assert holder is None
     assert "assignments.replace" not in kinds
+
+
+async def test_undo_by_an_administrator_being_deleted_waits_and_refuses(api, world):
+    """The undoing account is locked with the named accounts, before the action and slots.
+
+    Undoing a change to another teacher's slot locks every slot of the class, the undoing
+    administrator's untouched one too, and marking the action undone refers to the
+    administrator's account, which the administrator's deletion holds while it waits for
+    that slot: PostgreSQL would abort one of them as a deadlock.
+    """
+    actor = world.admin.id
+    async with TestSession() as db:
+        await db.execute(
+            update(m.TeachingAssignment)
+            .where(
+                m.TeachingAssignment.class_id == world.cls, m.TeachingAssignment.role == "skills"
+            )
+            .values(user_id=actor)
+        )
+        await db.commit()
+
+    async with api(world.admin) as client:
+        substitute = int((await create_teacher(client, "substitute"))["id"])
+        replaced = await client.put(
+            f"/api/admin/years/{world.year}/assignments",
+            json={"changes": [{"class_id": world.cls, "role": "main", "user_id": substitute}]},
+        )
+        assert replaced.status_code == 200, replaced.text
+        action_id = replaced.json()["action_id"]
+        response = await while_deleting(actor, lambda: undo(client, action_id))
+    assert response.status_code == 401, response.text
+    assert detail_code(response) == "not_registered"
+    async with TestSession() as db:
+        action = await db.get(m.AdminAction, action_id)
+        slots = dict(
+            (
+                await db.execute(
+                    select(m.TeachingAssignment.role, m.TeachingAssignment.user_id).where(
+                        m.TeachingAssignment.class_id == world.cls
+                    )
+                )
+            ).all()
+        )
+    assert action is not None and action.undone_at is None
+    assert slots == {"main": substitute}
 
 
 async def test_rollover_does_not_copy_a_deleted_teacher(world):

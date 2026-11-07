@@ -6220,11 +6220,12 @@ Google subject, report name, signature and role flags are cleared and `deleted_a
 Assignments and the account's own `report_identity_audits` rows are deleted; override grants are
 deleted unless a save went through one (`audit_entries.via_grant_id`), which then only expires.
 The account's name, e-mail and kept images are scrubbed from `admin_actions`. Lock order
-(`administration/account_locks.py`): every account write, assignment writer and undo (the last two
-on the acting administrator too, in one id order) and the year rollover lock the account row before
-actions or assignments, and the deletion holds it exclusively, so writers revalidate
-after waiting and nothing deadlocks. Report renders keep teachers' signatures out of all
-process-wide renderer state. Lists and the teacher picker skip
+(`administration/account_locks.py`, table in ADR-080): accounts by id, then year, class,
+assignment rows by id and action rows. Every administrator's write locks the administrator with the
+accounts it names and refuses one deactivated, deleted (401) or demoted (403) meanwhile; the
+deletion holds the account exclusively, so writers revalidate after waiting and nothing
+deadlocks. Report renders keep teachers' signatures out of all process-wide renderer state, and a
+render's worker pool ends with the render. Lists and the teacher picker skip
 deleted accounts; PATCH and signature routes answer 404 for them. In `/users` a
 deactivated row offers **Kalıcı olarak sil** (destructive outline) next to **Yeniden
 etkinleştir**; the `CountdownConfirmDialog` lists what is erased and kept, keeps the delete button

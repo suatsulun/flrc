@@ -536,6 +536,147 @@ async def test_grant_request_and_save_wait_for_a_concurrent_deletion_and_refuse(
         )
 
 
+async def test_grid_undo_waits_for_a_concurrent_deletion_and_refuses(api, world):
+    saved = await save_grid(
+        api, world.skills, world.cls, [cell(world.student_one, world.skills_column, 70)]
+    )
+    assert saved.status_code == 200, saved.text
+
+    async def audit_rows() -> int:
+        async with TestSession() as db:
+            return int(
+                await db.scalar(
+                    select(func.count())
+                    .select_from(m.AuditEntry)
+                    .where(m.AuditEntry.actor_id == world.skills.id)
+                )
+                or 0
+            )
+
+    before = await audit_rows()
+
+    async def request():
+        async with api(world.skills) as client:
+            return await client.post(f"/api/classes/{world.cls}/grid/undo")
+
+    response = await while_held(mark_deleted(world.skills.id), request)
+    assert response.status_code == 401, response.text
+    assert detail_code(response) == "not_registered"
+    assert await audit_rows() == before
+
+
+ADMIN_WRITES = ["create", "edit", "signature", "delete", "matrix", "slot", "undo"]
+
+
+@pytest.mark.parametrize("change", ["erased", "demoted"])
+@pytest.mark.parametrize("endpoint", ADMIN_WRITES)
+async def test_an_administrator_erased_or_demoted_meanwhile_changes_nothing(
+    api, world, endpoint, change
+):
+    """Every administrator's write locks the administrator and checks the account again.
+
+    Authentication read the account before the request waited; an administrator another
+    one deactivated and erased, or demoted, in the meantime is refused, and nothing is
+    written or erased.
+    """
+    actor = world.admin.id
+    async with api(world.admin) as client:
+        leaver = int((await create_teacher(client, "leaver"))["id"])
+        await deactivate(client, leaver)
+        created = int((await create_teacher(client, "created"))["id"])
+        uploaded = await client.put(
+            f"/api/admin/users/{created}/signature",
+            files={"file": ("s.png", png("black"), "image/png")},
+        )
+        assert uploaded.status_code == 200, uploaded.text
+        undoable = uploaded.json()["action_id"]
+    async with TestSession() as db:
+        actions = await db.scalar(select(func.count()).select_from(m.AdminAction))
+
+    async def hold(db) -> None:
+        if change == "erased":
+            await mark_deleted(actor)(db)
+        else:
+            await db.execute(update(m.User).where(m.User.id == actor).values(is_admin=False))
+
+    async with api(world.admin) as client:
+        requests = {
+            "create": lambda: client.post(
+                "/api/admin/users",
+                json={"email": f"new@{SCHOOL_DOMAIN}", "full_name": "Synthetic New"},
+            ),
+            "edit": lambda: client.patch(
+                f"/api/admin/users/{world.main.id}", json={"full_name": "Synthetic Renamed"}
+            ),
+            "signature": lambda: client.delete(f"/api/admin/users/{created}/signature"),
+            "delete": lambda: erase(client, leaver),
+            "matrix": lambda: client.put(
+                f"/api/admin/years/{world.year}/assignments",
+                json={"changes": [{"class_id": world.cls, "role": "main", "user_id": None}]},
+            ),
+            "slot": lambda: client.put(
+                f"/api/classes/{world.cls}/assignments/main", json={"user_id": world.main.id}
+            ),
+            "undo": lambda: undo(client, undoable),
+        }
+        response = await while_held(hold, requests[endpoint])
+    if change == "erased":
+        assert response.status_code == 401, response.text
+        assert detail_code(response) == "not_registered"
+    else:
+        assert response.status_code == 403, response.text
+        assert detail_code(response) == "forbidden"
+    async with TestSession() as db:
+        assert await db.scalar(select(func.count()).select_from(m.AdminAction)) == actions
+        assert (await db.get(m.User, leaver)).deleted_at is None
+
+
+async def test_deletion_locks_the_slots_in_id_order(api, world):
+    """A deletion and an assignment writer lock a teacher's slots in the same (id) order.
+
+    Updating the lower slot last puts its row after the higher one, so a deletion that
+    deleted in row order would hold the higher slot while a writer holding the lower one
+    waits for it: PostgreSQL would abort one of them as a deadlock.
+    """
+    async with api(world.admin) as client:
+        leaver = int((await create_teacher(client, "leaver"))["id"])
+        await deactivate(client, leaver)
+    async with TestSession() as db:
+        low, high = await db.scalars(
+            select(m.TeachingAssignment.id)
+            .where(m.TeachingAssignment.class_id == world.cls)
+            .order_by(m.TeachingAssignment.id)
+        )
+        for slot in (high, low):
+            await db.execute(
+                update(m.TeachingAssignment)
+                .where(m.TeachingAssignment.id == slot)
+                .values(user_id=leaver)
+            )
+        await db.commit()
+
+    async with api(world.admin) as client, TestSession() as writer:
+        # An assignment writer locks the class's slots in id order: the lower one first.
+        await writer.execute(
+            select(m.TeachingAssignment.id).where(m.TeachingAssignment.id == low).with_for_update()
+        )
+        pending = asyncio.create_task(erase(client, leaver))
+        await asyncio.sleep(0.5)
+        await writer.execute(
+            select(m.TeachingAssignment.id).where(m.TeachingAssignment.id == high).with_for_update()
+        )
+        await writer.commit()
+        response = await pending
+    assert response.status_code == 200, response.text
+    async with TestSession() as db:
+        assert (
+            await db.scalar(
+                select(m.TeachingAssignment.id).where(m.TeachingAssignment.user_id == leaver)
+            )
+            is None
+        )
+
+
 @pytest.mark.parametrize("kind", ["user.edit", "assignments.replace"])
 async def test_undo_and_a_concurrent_deletion_lock_the_account_first(api, world, kind):
     async with api(world.admin) as client:

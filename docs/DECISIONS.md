@@ -1776,6 +1776,7 @@ are not moved back into job payloads or temporary artifact storage.
 ## Supersedes / Superseded by
 
 Extends ADR-028; the endpoint and the four school-wide report-set contract are unchanged.
+ADR-080 replaces the warm pool with one pool per render, shut down before the render returns.
 
 ---
 
@@ -3668,24 +3669,39 @@ points at the account.
   `user.create`, `user.edit`, `signature.upload` and `signature.delete` for the account keep only
   `{"user_id"}` as their snapshot, drop the kept image and show the erased name without e-mail or
   name changes; `assignments.replace` entries show the erased name for the account's slots.
-- One lock order per account: whatever writes or records something about an account locks the
-  account row first: account edits and signature changes exclusively, assignment writers
-  (single slot and matrix, on the acting administrator and the destination teachers together in
-  id order, even for a clear-only change), the year rollover, grid saves and grant requests (on
-  the caller's own account) shared, and undo before it locks the action row (exclusive for
-  account actions, shared on every teacher an assignment change names, and shared on the undoing
-  administrator, all in id order). The deletion holds the row exclusively, then deletes
-  assignments, then scrubs actions. So no action naming the account is recorded after the scrub,
-  assignment writers revalidate the accounts after waiting and refuse an inactive or deleted
-  teacher, the rollover leaves a deleted teacher's slots empty, an assignment change, undo, save
-  or grant request whose own account raced the deactivation and deletion answers
-  `401 not_registered` instead of saving through a removed grant or recording or undoing an
-  action, and nothing deadlocks with the deletion.
+- One lock order for every write that touches accounts, assignments, grants, recorded actions or
+  report identity: **accounts by id → year → class → assignment rows by id → action rows**. The
+  accounts are the acting administrator (or, for a teacher's own grid write, the teacher) and the
+  accounts the write names, locked together in id order: shared, except the one account whose row
+  the write changes, which is locked exclusively. After waiting, the actor is checked again: one
+  deactivated or deleted meanwhile is refused with `401 not_registered`, an administrator demoted
+  meanwhile with `403 forbidden`, before anything is written or erased.
+
+  | Write                                         | Locks, in order                                                                                                                                                                                                    |
+  | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+  | Account create                                | administrator (shared) → the new action                                                                                                                                                                            |
+  | Account edit; signature view, upload, removal | administrator (shared) and account (exclusive), by id → its identity audit → the new action                                                                                                                        |
+  | Permanent deletion                            | administrator (shared) and account (exclusive), by id → the account's slots by id → its grants → its identity audits → the actions naming it, by id                                                                |
+  | Assignment matrix and single slot             | administrator and destination teachers (shared), by id → year → the classes' slots by id → the new action                                                                                                          |
+  | Year close and rollover                       | the year's slot holders (shared) → year → the new year's rows                                                                                                                                                      |
+  | Grid save, grid undo, grant request           | the teacher's own account (shared) → grants → save batch and grade values → grade audit                                                                                                                            |
+  | Undo of a recorded action                     | administrator (shared) and the accounts it names (exclusive for an account action, shared for an assignment change), by id → what the handler restores (year, class, roster, fields, slots by id) → the action row |
+
+  A holder assigned while a year close waited for the holders is locked after the year; nothing
+  that locks an account exclusively goes on to lock a year, so that cannot deadlock. So no action
+  naming an account is recorded after its scrub, assignment writers refuse an inactive or deleted
+  teacher, the rollover leaves a deleted teacher's slots empty, a write whose own account raced
+  the deactivation and deletion is refused instead of saving through a removed grant or
+  recording, undoing or erasing anything, and nothing deadlocks with the deletion.
+
 - Report rendering keeps teachers' signatures out of every process-wide state: the renderer's
   only process-wide memo holds the fixed artwork's bytes (logo, faces, watermarks, overlay
   assets), and WeasyPrint's parsed images, the asset fetcher and the signatures live only as long
-  as the document being rendered, in the API process and in render processes alike. A deleted
-  teacher's signature cannot be printed again or read back from a running process.
+  as the document being rendered, in the API process and in render processes alike. A render that
+  uses worker processes starts a pool for itself and shuts it down before it returns, because a
+  pool's queue thread and workers keep the last document they were sent; the forkserver preloads
+  the renderer, so a fresh pool costs a fork, not a WeasyPrint import. A deleted teacher's
+  signature cannot be printed again or read back from a running process.
 - No undo can bring the account back: undo handlers refuse a deleted account with
   `target_missing`.
 - Deleted accounts are left out of `/api/admin/users` and the `/api/users` teacher picker; editing
@@ -3717,7 +3733,8 @@ points at the account.
 
 ## Supersedes / Superseded by
 
-Extends ADR-075 (undo records) and Step 3.2's deactivation; supersedes nothing.
+Extends ADR-075 (undo records) and Step 3.2's deactivation. Supersedes ADR-046's warm renderer
+pool: each parallel render now starts and shuts down its own pool.
 
 ---
 

@@ -1,7 +1,10 @@
 import base64
 import gc
 import json
+import sys
+import threading
 import zipfile
+from concurrent.futures import Executor, ProcessPoolExecutor
 from io import BytesIO
 from pathlib import Path
 from types import FunctionType, ModuleType
@@ -207,7 +210,7 @@ def test_teacher_signatures_never_outlive_the_render_that_prints_them(
     else:
         if path == "pool":
 
-            class InlinePool:
+            class InlinePool(Executor):
                 def map(self, function, documents):
                     return list(map(function, documents))
 
@@ -229,6 +232,62 @@ def test_teacher_signatures_never_outlive_the_render_that_prints_them(
     assert (reports / "principal.svg").read_bytes() in kept
     assert not [item for item in kept if isinstance(item, str) and item == signature]
     assert not [item for item in kept if isinstance(item, bytes) and item == png]
+
+
+def holders_of(needle: bytes) -> list[str]:
+    """What, in this process, still holds ``needle``: objects, and other threads' frames."""
+    text = needle.decode()
+
+    def holds(value: object) -> bool:
+        if isinstance(value, memoryview):
+            value = value.tobytes()
+        if isinstance(value, bytes | bytearray):
+            return value is not needle and needle in value
+        return isinstance(value, str) and value is not text and text in value
+
+    found = [
+        type(item).__name__
+        for item in gc.get_objects()
+        if any(holds(referent) for referent in gc.get_referents(item))
+    ]
+    for ident, frame in sys._current_frames().items():
+        if ident == threading.get_ident():
+            continue
+        while frame is not None:
+            if any(holds(value) for value in frame.f_locals.values()):
+                found.append(f"{frame.f_code.co_name} frame")
+            frame = frame.f_back
+    return found
+
+
+def test_a_real_render_pool_keeps_no_signature_after_the_render(overlay, monkeypatch, caplog):
+    """Nothing in the process holds a signature after a render through a real pool.
+
+    A process pool's queue thread keeps the last document it sent for as long as the pool
+    lives, so the pool ends with the render (ADR-080).
+    """
+    needle = base64.b64encode(png_bytes("purple"))
+    signed = card()
+    signed.teachers[0].signature = "data:image/png;base64," + needle.decode()
+    pools: list[Executor | None] = []
+    original = render._render_pool
+
+    def recorded(workers: int) -> Executor | None:
+        pools.append(original(workers))
+        return pools[-1]
+
+    monkeypatch.setattr(settings, "report_render_workers", 2)
+    monkeypatch.setattr(render, "MIN_PARALLEL_UNITS", 2)
+    monkeypatch.setattr(render, "_render_pool", recorded)
+    pdf = PdfReader(BytesIO(render.render_report_pdf([signed, signed])))
+    assert isinstance(pools[0], ProcessPoolExecutor)
+    assert "falling back to serial" not in caplog.text
+    assert len(pdf.pages[0].images) == 1, "the teacher's signature is printed"
+
+    del signed
+    pools.clear()
+    gc.collect()
+    assert holders_of(needle) == []
 
 
 def cover_overlay(reports, config) -> None:

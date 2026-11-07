@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from concurrent.futures import Executor
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 
@@ -272,12 +273,11 @@ def test_render_falls_back_to_one_document_when_the_pool_is_unusable(
     monkeypatch.setattr(render_module, "_render_pool", lambda workers: None)
     assert _page_shapes(PdfReader(BytesIO(render_report_pdf(cards)))) == expected
 
-    class ExplodingPool:
+    class ExplodingPool(Executor):
         def map(self, *_args: object, **_kwargs: object) -> object:
             raise OSError("no children here")
 
     monkeypatch.setattr(render_module, "_render_pool", lambda workers: ExplodingPool())
-    monkeypatch.setattr(render_module, "_discard_pool", lambda: None)
     assert _page_shapes(PdfReader(BytesIO(render_report_pdf(cards)))) == expected
 
 
@@ -311,7 +311,7 @@ def test_report_batches_bound_layout_size_even_when_parallel_render_fails(monkey
         rendered_pages.append(page_count)
         return pdf
 
-    class SamplePool:
+    class SamplePool(Executor):
         def map(self, function, documents):
             assert len(documents) <= 2, "All batch HTML was queued at once"
             if mode == "broken_pool":
@@ -329,7 +329,6 @@ def test_report_batches_bound_layout_size_even_when_parallel_render_fails(monkey
         "_render_pool",
         lambda workers: None if mode == "missing_pool" else SamplePool(),
     )
-    monkeypatch.setattr(render_module, "_discard_pool", lambda: None)
     actual = PdfReader(BytesIO(render_report_pdf(cards)))
     assert rendered_pages == [2, 2, 1]
     assert _page_shapes(actual) == expected

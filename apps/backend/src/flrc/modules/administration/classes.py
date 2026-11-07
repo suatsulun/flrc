@@ -28,7 +28,7 @@ from flrc.modules.academics.class_names import (
     normalize_section,
 )
 from flrc.modules.academics.programme import stage_for_grade
-from flrc.modules.administration.account_locks import assignable, lock_accounts
+from flrc.modules.administration.account_locks import assignable, lock_for_admin
 from flrc.modules.administration.roster_service import (
     NumberHolder,
     is_duplicate_school_number,
@@ -495,9 +495,7 @@ async def replace_assignment_matrix(
     # concurrent deactivation or deletion of any of them is waited for and seen. The actor is
     # locked even for a clear-only change, or its recorded action could wait behind a deletion
     # of the actor that waits for the actor's own slot.
-    users = await lock_accounts(db, user_ids | {actor.id})
-    if not assignable(users.get(actor.id)):
-        raise HTTPException(401, {"code": "not_registered"})
+    users = await lock_for_admin(db, actor, shared=user_ids)
     await writable_class_year(db, year_id)
     class_ids = {change.class_id for change in body.changes}
     classes = {

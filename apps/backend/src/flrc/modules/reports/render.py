@@ -34,8 +34,8 @@ from dataclasses import dataclass
 from functools import lru_cache, partial
 from io import BytesIO
 from multiprocessing import get_context
+from multiprocessing.context import BaseContext
 from pathlib import Path
-from threading import Lock
 from typing import Literal, cast
 from urllib.parse import quote
 
@@ -795,45 +795,32 @@ def render_worker_limit() -> int:
     return max(1, min(MAX_RENDER_WORKERS, int(available)))
 
 
-_pool_lock = Lock()
-_pool: tuple[int, Executor] | None = None
+def render_process_context() -> BaseContext:
+    """How report renders start their processes.
+
+    forkserver, not fork: the API process is multi-threaded, and a child forked
+    from it can inherit a held lock and deadlock. The server preloads this
+    module, so each render's fresh processes start with WeasyPrint imported.
+    """
+    context = get_context("forkserver")
+    context.set_forkserver_preload([__name__])
+    return context
 
 
 def _render_pool(workers: int) -> Executor | None:
-    """A warm renderer pool for this process, or ``None`` if none can exist.
+    """A renderer pool for one render, or ``None`` if none can exist.
 
-    Keyed on the pid so a server that forks its workers after a render never
-    hands a child an executor whose processes belong to the parent. A pool is
-    not always possible — a daemonic worker process may not have children —
-    so callers must be able to fall back to rendering serially.
+    Never kept between renders: a pool's queue thread and processes hold on to
+    the last document they were sent, whose HTML carries pupils' grades and
+    teachers' signatures, and shutting the pool down is what releases them
+    (ADR-080). A pool is not always possible — a daemonic worker process may
+    not have children — so callers must be able to fall back to rendering
+    serially.
     """
-    global _pool
-    with _pool_lock:
-        if _pool is not None:
-            owner, pool = _pool
-            if owner == os.getpid():
-                return pool
-            _pool = None
-        try:
-            # forkserver, not fork: the API process is multi-threaded, and a
-            # child forked from it can inherit a held lock and deadlock. Not
-            # spawn either, which re-imports WeasyPrint for every worker.
-            pool = ProcessPoolExecutor(max_workers=workers, mp_context=get_context("forkserver"))
-        except (OSError, ValueError, AssertionError, NotImplementedError):
-            return None
-        _pool = (os.getpid(), pool)
-        return pool
-
-
-def _discard_pool() -> None:
-    """Drop a pool that broke so the next request builds a fresh one."""
-    global _pool
-    with _pool_lock:
-        if _pool is None:
-            return
-        _, pool = _pool
-        _pool = None
-    pool.shutdown(wait=False)
+    try:
+        return ProcessPoolExecutor(max_workers=workers, mp_context=render_process_context())
+    except (OSError, ValueError, AssertionError, NotImplementedError):
+        return None
 
 
 def _chunk(units: list[object], count: int) -> list[list[object]]:
@@ -901,11 +888,13 @@ def render_report_pdf(
     if pool is None:
         return _finish_report(serial(), cards, watermark, back_cover)
     try:
-        parts: list[bytes] = []
-        # Submit only one wave at a time; queued HTML also holds embedded images.
-        for start in range(0, len(chunks), workers):
-            documents = [document(chunk) for chunk in chunks[start : start + workers]]
-            parts.extend(pool.map(render, documents))
+        # Leaving the block shuts the pool down and waits for its processes and threads.
+        with pool:
+            parts: list[bytes] = []
+            # Submit only one wave at a time; queued HTML also holds embedded images.
+            for start in range(0, len(chunks), workers):
+                documents = [document(chunk) for chunk in chunks[start : start + workers]]
+                parts.extend(pool.map(render, documents))
     except Exception:
         # Deliberately broad: a pool can fail for reasons that have nothing to
         # do with this report — a killed worker, a host that forbids child
@@ -913,7 +902,6 @@ def render_report_pdf(
         # does not arrive. A fault in the document itself still surfaces,
         # because the serial retry below renders the very same HTML.
         logger.warning("parallel report render failed, falling back to serial", exc_info=True)
-        _discard_pool()
         return _finish_report(serial(), cards, watermark, back_cover)
     return _finish_report(_merge_pdf_parts(parts), cards, watermark, back_cover)
 

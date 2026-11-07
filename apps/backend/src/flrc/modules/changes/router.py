@@ -10,7 +10,6 @@ from sqlalchemy.orm import aliased
 
 from flrc.db.models import AdminAction, User
 from flrc.db.session import get_session
-from flrc.modules.administration.account_locks import assignable
 from flrc.modules.administration.roster_service import is_duplicate_school_number
 from flrc.modules.auth.dependencies import require_admin
 from flrc.modules.auth.sessions import revoke_user_sessions
@@ -106,16 +105,15 @@ async def undo_admin_action(
     ).first()
     if named is None:
         raise HTTPException(404, {"code": "unknown_action"})
-    # The undoing administrator and the named accounts before the action row: the order
-    # every account write and a permanent deletion use (ADR-080), so neither can deadlock
-    # with this undo. An administrator deactivated or deleted meanwhile is refused.
-    accounts = await lock_action_accounts(db, named.kind, named.undo_data, actor)
-    if not assignable(accounts.get(actor.id)):
-        raise HTTPException(401, {"code": "not_registered"})
+    # The undoing administrator and the named accounts first, the action row last: the
+    # order every recorded write and a permanent deletion use (ADR-080), so none of them
+    # can deadlock with this undo. An administrator deactivated or deleted meanwhile is
+    # refused.
+    await lock_action_accounts(db, named.kind, named.undo_data, actor)
+    # Read again after any wait; a deletion that held a named account has scrubbed it.
     action = await db.scalar(
         select(AdminAction)
         .where(AdminAction.id == action_id)
-        .with_for_update()
         .execution_options(populate_existing=True)
     )
     if action is None:
@@ -128,8 +126,6 @@ async def undo_admin_action(
     context = UndoContext(db=db, action=action, actor=actor)
     try:
         await HANDLERS[action.kind](context)
-        action.undone_at = now
-        action.undone_by = actor.id
         await db.flush()
     except UndoBlocked as exc:
         await db.rollback()
@@ -150,6 +146,14 @@ async def undo_admin_action(
         if is_duplicate_school_number(exc):
             raise _blocked("school_number_taken", {}) from exc
         raise
+    # The handler has locked and changed what it restores; a concurrent undo of the same
+    # action that got here first is seen now and this one changes nothing.
+    await db.refresh(action, with_for_update=True)
+    if action.undone_at is not None:
+        await db.rollback()
+        raise HTTPException(409, {"code": "action_already_undone"})
+    action.undone_at = now
+    action.undone_by = actor.id
     await db.commit()
     for user_id in context.revoke_user_ids:
         await revoke_user_sessions(user_id)

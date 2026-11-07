@@ -171,9 +171,10 @@ async def _hold_own_account(db: AsyncSession, user: User) -> None:
     """Hold the caller's account row (shared) until the request commits (ADR-080).
 
     Authentication read the account once, without a lock. A deactivation and permanent
-    deletion that raced the request either waits for this save or grant request, or has
-    already committed, and then the request is refused here instead of recording a grant
-    after the deletion ended them, or saving through a grant the deletion removed.
+    deletion that raced the request either waits for this save, grid undo or grant request,
+    or has already committed, and then the request is refused here instead of recording a
+    grant after the deletion ended them, saving through a grant the deletion removed, or
+    recording grade history for an erased account.
     """
     if not assignable((await lock_accounts(db, [user.id])).get(user.id)):
         raise HTTPException(401, {"code": "not_registered"})
@@ -736,6 +737,7 @@ async def undo_grid(
     semester: Annotated[Semester, Depends(writable_semester)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> SaveResponse:
+    await _hold_own_account(db, user)
     cls = await _writable_class(db, class_id, semester)
     batch = (
         await db.execute(

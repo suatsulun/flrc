@@ -394,8 +394,11 @@ async def _create_rollover_year(
                 select(TeachingAssignment).where(TeachingAssignment.class_id.in_(class_by_id))
             )
         )
-        # Shared locks on the holders (ADR-080): a concurrent deletion is waited for, and a
-        # deleted account's slot starts the new year empty.
+        # Shared locks on the holders (ADR-080), which closing the year has taken before
+        # the year: a concurrent deletion is waited for, and a deleted account's slot starts
+        # the new year empty. A holder assigned while closing waited is locked only here;
+        # nothing that locks an account exclusively goes on to lock a year, so that cannot
+        # deadlock.
         holders = await lock_accounts(db, {item.user_id for item in assignments})
         for assignment in assignments:
             holder = holders.get(assignment.user_id)
@@ -528,6 +531,15 @@ async def close_year(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> YearOut:
+    # The teachers whose slots the rollover copies, before the year (ADR-080).
+    await lock_accounts(
+        db,
+        await db.scalars(
+            select(TeachingAssignment.user_id)
+            .join(SchoolClass, SchoolClass.id == TeachingAssignment.class_id)
+            .where(SchoolClass.year_id == year_id)
+        ),
+    )
     year = await _lock_year(db, year_id)
     semesters = await _semesters(db, year_id)
     if year.status != "active" or any(item.status != "locked" for item in semesters):

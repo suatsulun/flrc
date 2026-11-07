@@ -169,7 +169,9 @@ def test_parallel_render_reproduces_the_single_document_exactly(
     cards = _performance_cards(class_sizes, kind=kind)
 
     reference = PdfReader(BytesIO(render_pdf_document(render_report_html(cards))))
-    parallel = PdfReader(BytesIO(render_report_pdf(cards)))
+    # The reference is one raw WeasyPrint document; a school overlay's back cover replaces
+    # backs after rendering, so the comparison is between the uncovered renders.
+    parallel = PdfReader(BytesIO(render_report_pdf(cards, back_cover=False)))
 
     assert forced_parallel_render() == 1, "the parallel path did not run"
     assert len(reference.pages) == len(parallel.pages) == expected_pages

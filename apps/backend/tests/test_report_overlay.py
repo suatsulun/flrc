@@ -221,3 +221,39 @@ def test_combined_set_takes_the_back_cover_once_and_class_files_keep_theirs(over
             assert f"Synthetic Pupil {grade}-{pupil}" in face.extract_text()
             assert "SYNTHETIC ORIGINAL COVER" not in face.extract_text()
             assert "SYNTHETIC ORIGINAL COVER" in back.extract_text()
+
+
+def test_every_path_keeps_the_card_and_cover_page_geometry(overlay):
+    """Faces keep the card's A4 box and backs keep the school cover's own box, as before.
+
+    The cover here is 841.92 x 595.2 pt, a few hundredths off the card's 841.89 x 595.28 pt and
+    within the size tolerance: direct downloads and every job format must agree page for page.
+    """
+    reports, config = overlay
+    cover = PdfWriter()
+    cover.add_blank_page(841.92, 595.2)
+    cover.write(reports / "cover.pdf")
+    config["covers"] = {"german_karne": "cover.pdf"}
+    (reports / "config.json").write_text(json.dumps(config))
+    face_box = (0.0, 0.0, 841.889764, 595.275591)
+    back_box = (0.0, 0.0, 841.92, 595.2)
+
+    def boxes(data: bytes) -> list[tuple[float, ...]]:
+        return [
+            tuple(round(float(value), 6) for value in page.mediabox)
+            for page in PdfReader(BytesIO(data)).pages
+        ]
+
+    def zipped(data: bytes) -> list[bytes]:
+        with zipfile.ZipFile(BytesIO(data)) as bundle:
+            return [bundle.read(name) for name in bundle.namelist()]
+
+    classes = karne_classes()
+    direct = render.render_report_pdf([entry.card for entry in classes[0].entries])
+    combined = packaging.package_report_set(classes, "combined").data
+    per_class = zipped(packaging.package_report_set(karne_classes(), "per_class").data)
+    per_pupil = zipped(packaging.package_report_set(karne_classes(), "per_student").data)
+    for document in [direct, combined, *per_class, *per_pupil]:
+        pages = boxes(document)
+        assert pages[0::2] == [face_box] * (len(pages) // 2)
+        assert pages[1::2] == [back_box] * (len(pages) // 2)

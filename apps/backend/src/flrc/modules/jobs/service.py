@@ -164,21 +164,32 @@ def purge_job_outputs(db: Session) -> int:
     many outputs were reclaimed.
     """
     now = datetime.now(UTC).replace(tzinfo=None)
-    stalled = select(JobRun.parent_id).where(
+    expired_parents = select(JobRun.parent_id).where(
         JobRun.parent_id.is_not(None),
         JobRun.status != "succeeded",
         JobRun.output_expires_at < now,
     )
-    db.execute(
-        update(JobRun)
-        .where(JobRun.id.in_(stalled), JobRun.status.in_(("queued", "running")))
-        .values(
-            status="failed",
-            error_code="report_set_failed",
-            error_detail=FAILED_DETAIL,
-            finished_at=now,
+    # Lock the candidate requests first, as the job's own heartbeat and publication do. A
+    # statement that waited for a lock still judges the parts by its starting snapshot, so
+    # the expiry is read again only once the locks are held: a request whose heartbeat
+    # renewed its parts meanwhile is left alone.
+    candidates = db.scalars(
+        select(JobRun.id)
+        .where(JobRun.id.in_(expired_parents), JobRun.status.in_(("queued", "running")))
+        .order_by(JobRun.id)
+        .with_for_update()
+    ).all()
+    if candidates:
+        db.execute(
+            update(JobRun)
+            .where(JobRun.id.in_(candidates), JobRun.id.in_(expired_parents))
+            .values(
+                status="failed",
+                error_code="report_set_failed",
+                error_detail=FAILED_DETAIL,
+                finished_at=now,
+            )
         )
-    )
     failed_requests = select(JobRun.id).where(JobRun.status == "failed")
     aborted = db.execute(
         delete(JobRun).where(

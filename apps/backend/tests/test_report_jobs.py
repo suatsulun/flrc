@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+import threading
 import time
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
@@ -16,7 +17,7 @@ import pikepdf
 import pytest
 from pypdf import PdfReader
 from redis.asyncio import Redis
-from sqlalchemy import create_engine, select, update
+from sqlalchemy import create_engine, select, text, update
 from sqlalchemy.orm import Session
 
 from flrc.config import settings
@@ -1051,6 +1052,49 @@ async def test_purge_fails_a_stalled_split_job_instead_of_it_publishing_a_partia
         assert (
             await db.scalars(select(m.JobRun.id).where(m.JobRun.parent_id == job_id))
         ).all() == []
+
+
+async def test_purge_spares_parts_a_job_renews_while_the_purge_waits(world, monkeypatch) -> None:
+    async with TestSession() as db:
+        request = m.JobRun(
+            kind="report_set", status="running", requested_by=world.admin.id, payload={}
+        )
+        db.add(request)
+        await db.commit()
+        request_id = request.id
+    engine = create_engine(TEST_URL_SYNC)
+    with Session(engine) as worker, Session(engine) as observer:
+        job = worker.get(m.JobRun, request_id)
+        assert job is not None
+        jobs_service.store_part(worker, job, number=1, filename="part 1.zip", data=b"zip")
+        age_part(request_id, 1)
+        # The job finishes a class at the six-hour boundary: its heartbeat has written the
+        # request and renewed the part, but has not committed when the nightly purge starts.
+        with monkeypatch.context() as patch:
+            patch.setattr(worker, "commit", worker.flush)
+            jobs_service.record_progress(worker, job, 1)
+        purge = threading.Thread(target=nightly_purge)
+        purge.start()
+        deadline = time.monotonic() + 10
+        while not observer.scalar(
+            text(
+                "SELECT count(*) FROM pg_stat_activity"
+                " WHERE datname = current_database() AND wait_event_type = 'Lock'"
+            )
+        ):
+            observer.rollback()
+            assert time.monotonic() < deadline, "the purge never waited for the request row"
+            time.sleep(0.05)
+        worker.commit()
+        purge.join(timeout=10)
+        assert not purge.is_alive()
+
+    with Session(engine) as db:
+        # The purge waited for the heartbeat and saw the renewed part: nothing was reclaimed.
+        assert db.get_one(m.JobRun, request_id).status == "running"
+        part = db.scalar(select(m.JobRun).where(m.JobRun.parent_id == request_id))
+        assert part is not None
+        assert part.output_expires_at is not None and part.output_expires_at > now()
 
 
 async def test_a_split_set_missing_a_part_is_never_published(world) -> None:

@@ -455,6 +455,7 @@
     "classCount": "{{count}} Klassen",
     "noClassesAssigned": "Noch keine Klasse zugewiesen",
     "pickerDescription": "Markieren Sie die Klassen für diese Rolle. Änderungen werden sofort gespeichert.",
+    "assignedLabel": "Zugewiesen",
     "dropHere": "Klasse hier ablegen",
     "classTray": "Klassen",
     "classTrayHint": "Eine Klasse in ein Lehrkräftefeld ziehen.",

@@ -36,9 +36,87 @@
     }
   },
   "adminDashboard": {
-    "subtitle": "Personnes, classes, processus scolaires, bulletins et journal d’audit au même endroit.",
-    "chooseWorkspace": "Aller à",
-    "coordinatorDescription": "Suivre l’avancement dans toute l’école et repérer les notes manquantes."
+    "subtitle": "Où en est l’année scolaire et ce qui demande votre attention.",
+    "term": {
+      "title": "État du semestre",
+      "noYear": "Aucune année scolaire en cours",
+      "semesters": "Semestres",
+      "nextStep": "Prochaine étape",
+      "openLifecycle": "Ouvrir le cycle de l’année"
+    },
+    "steps": {
+      "createYear": {
+        "title": "Créer la prochaine année scolaire",
+        "body": "Aucune année n’est active ni en configuration. Créez-la dans le cycle de l’année scolaire."
+      },
+      "activateYear": {
+        "title": "Activer {{year}}",
+        "ready": "L’année est prête. L’activation ouvre le semestre 1 à la saisie des notes."
+      },
+      "collectGrades": {
+        "title": "Compléter les notes du semestre {{number}}",
+        "body": "{{percent}} des notes sont saisies ; cellules vides : {{missing}}. Verrouillez le semestre une fois toutes les notes saisies.",
+        "noFields": "Aucun champ n’est encore configuré pour ce semestre."
+      },
+      "advanceSemester": {
+        "title": "Passer au semestre 2",
+        "body": "Toutes les notes du semestre 1 sont saisies. Le passage verrouille le semestre 1 et ouvre le semestre 2."
+      },
+      "lockSemester": {
+        "title": "Verrouiller le semestre 2",
+        "body": "Toutes les notes du semestre 2 sont saisies. Une fois le semestre verrouillé, l’année peut être archivée."
+      },
+      "closeYear": {
+        "title": "Archiver {{year}}",
+        "body": "Les deux semestres sont verrouillés. Téléchargez le fichier d’audit et archivez l’année ; l’année suivante est préparée automatiquement."
+      }
+    },
+    "completion": {
+      "title": "Avancement des notes",
+      "overall": "Semestre {{number}} · {{percent}} saisi · cellules vides : {{missing}}",
+      "noFields": "Semestre {{number}} · aucun champ configuré",
+      "filter": "Lignes affichées",
+      "incomplete": "Incomplètes",
+      "all": "Toutes",
+      "details": "Notes manquantes",
+      "allComplete": "Toutes les classes sont complètes."
+    },
+    "missing": {
+      "title": "{{class}} · {{subject}} : notes manquantes",
+      "description": "Semestre {{number}} · cellules vides : {{count}}",
+      "tableLabel": "Notes manquantes",
+      "field": "Champ",
+      "teacher": "Enseignant",
+      "unassigned": "Non affecté",
+      "none": "Aucune note ne manque.",
+      "openClass": "Ouvrir le tableau de la classe"
+    },
+    "problems": {
+      "title": "Problèmes de configuration",
+      "description": "À corriger avant d’imprimer les bulletins.",
+      "none": "Aucun problème de configuration.",
+      "fix": "Corriger",
+      "more": "+{{count}} de plus",
+      "unassignedRoles": "Classes sans enseignant",
+      "classesWithoutFields": "Classes sans champs",
+      "teachersWithoutReportName": "Enseignants sans nom de bulletin",
+      "teachersWithoutSignature": "Enseignants sans signature",
+      "studentsWithoutNumber": "Élèves sans numéro scolaire",
+      "studentsWithoutLanguage": "Élèves sans seconde langue"
+    },
+    "readiness": {
+      "title": "Préparation des bulletins",
+      "description": "Avancement des notes du semestre {{number}} derrière chaque bulletin.",
+      "classes": "{{complete}} classes complètes sur {{eligible}} · {{students}} élèves",
+      "noStudents": "Aucun élève ne reçoit ce bulletin."
+    },
+    "jobs": {
+      "title": "Téléchargements",
+      "description": "Les fichiers de bulletins et d’export préparés en arrière-plan sont conservés 24 heures.",
+      "empty": "Aucun fichier en arrière-plan pour l’instant.",
+      "expires": "Disponible jusqu’au {{time}}",
+      "expired": "Expiré"
+    }
   },
   "auth": {
     "signIn": "Se connecter avec Google",
@@ -184,6 +262,15 @@
     "edit": "Modifier",
     "empty": "Aucun élève ne correspond à cette recherche.",
     "noHistory": "Aucune année enregistrée pour cet élève."
+  },
+  "studentSearch": {
+    "description": "Trouvez tout élève d’une année par son nom ou son numéro scolaire.",
+    "noYear": "Aucune année scolaire pour l’instant.",
+    "searchLabel": "Nom ou numéro scolaire",
+    "placeholder": "Saisissez un nom ou un numéro",
+    "tableLabel": "Résultats de la recherche d’élèves",
+    "class": "Classe",
+    "openClass": "Ouvrir la classe"
   },
   "users": {
     "tableLabel": "Tableau des enseignants et des accès",
@@ -486,12 +573,19 @@
     "forced": "Écrasement forcé",
     "viaGrant": "Autorisation temporaire",
     "loadMore": "Charger plus",
-    "empty": "Aucune modification de note enregistrée."
+    "empty": "Aucune modification de note enregistrée.",
+    "noMatches": "Aucune modification de note pour ces filtres.",
+    "allTeachers": "Tous les enseignants",
+    "studentFilter": "Élève",
+    "studentPlaceholder": "Nom ou numéro",
+    "clearStudent": "Retirer le filtre élève",
+    "noStudentMatches": "Aucun élève correspondant.",
+    "dateFrom": "Du",
+    "dateTo": "Au",
+    "clearFilters": "Effacer les filtres"
   },
   "coordinator": {
     "tableLabel": "Aperçu de l’avancement des classes",
-    "title": "Vue du coordinateur",
-    "description": "{{year}}, semestre {{semester}}",
     "students": "Élèves",
     "classes": "Classes",
     "teachers": "Enseignants actifs",

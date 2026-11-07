@@ -9,9 +9,23 @@ OUTPUT_TTL = timedelta(hours=24)
 
 
 async def create_job(
-    db: AsyncSession, *, kind: str, requested_by: int, payload: dict[str, object]
+    db: AsyncSession,
+    *,
+    kind: str,
+    requested_by: int,
+    payload: dict[str, object],
+    filename: str | None = None,
+    total: int = 0,
 ) -> JobRun:
-    job = JobRun(kind=kind, status="queued", requested_by=requested_by, payload=payload)
+    """Queue a job. A known output name and step count let the downloads list show it waiting."""
+    job = JobRun(
+        kind=kind,
+        status="queued",
+        requested_by=requested_by,
+        payload=payload,
+        output_filename=filename,
+        total=total,
+    )
     db.add(job)
     await db.commit()
     await db.refresh(job)

@@ -164,7 +164,7 @@ async def test_teacher_cannot_probe_privileged_object_routes(
 async def test_teacher_cannot_read_another_teachers_job(api, world) -> None:
     async with TestSession() as db:
         job = m.JobRun(
-            kind="progress_pdf",
+            kind="report_set",
             status="queued",
             requested_by=world.skills.id,
             payload={"semester_id": world.semester},

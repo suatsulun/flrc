@@ -10,7 +10,8 @@ from sqlalchemy.exc import IntegrityError
 TEST_URL = "postgresql+asyncpg://flrc:flrc@localhost:5432/flrc_test"
 
 
-def _head(cfg: Config) -> str | None:
+def head_revision(cfg: Config) -> str | None:
+    """The newest revision; a refused downgrade must leave the database there."""
     return ScriptDirectory.from_config(cfg).get_current_head()
 
 
@@ -63,7 +64,7 @@ def test_prep_downgrade_refuses_data_loss(prep_table: str) -> None:
             command.downgrade(cfg, "82a91f4c6d30")
         with engine.begin() as db:
             # One transaction covers every downgrade step, so nothing was applied.
-            assert db.scalar(text("SELECT version_num FROM alembic_version")) == _head(cfg)
+            assert db.scalar(text("SELECT version_num FROM alembic_version")) == head_revision(cfg)
             # Both names are test-owned constants, never workbook/user input.
             assert db.scalar(text(f"SELECT count(*) FROM {prep_table} WHERE grade_level = 0")) == 1
             db.execute(text(f"DELETE FROM {prep_table} WHERE grade_level = 0"))
@@ -223,7 +224,7 @@ def test_stage_scoped_numbers_backfill_derive_stage_and_guard_downgrade() -> Non
         with pytest.raises(IntegrityError):
             command.downgrade(cfg, "3c7f1a9d2b64")
         with engine.begin() as db:
-            assert db.scalar(text("SELECT version_num FROM alembic_version")) == _head(cfg)
+            assert db.scalar(text("SELECT version_num FROM alembic_version")) == head_revision(cfg)
             assert db.scalar(text("SELECT count(*) FROM enrollments")) == 3
             db.execute(
                 text("DELETE FROM enrollments WHERE student_id = :student"),
@@ -237,5 +238,64 @@ def test_stage_scoped_numbers_backfill_derive_stage_and_guard_downgrade() -> Non
             assert "uq_enrollments_year_id_school_number" in constraints
             assert "uq_enrollments_year_id_stage_school_number" not in constraints
     finally:
+        engine.dispose()
+        command.upgrade(cfg, "head")
+
+
+def test_report_job_kinds_keep_retired_history_and_fail_stranded_jobs() -> None:
+    os.environ["FLRC_MIGRATIONS_URL"] = TEST_URL
+    cfg = Config("alembic.ini")
+    command.downgrade(cfg, "c41d7e9a2b58")
+    engine = create_engine(TEST_URL.replace("+asyncpg", "+psycopg"))
+    try:
+        with engine.begin() as db:
+            user_id = db.scalar(
+                text(
+                    "INSERT INTO users (email, full_name, is_admin, is_coordinator, is_active, "
+                    "teaching_field, teaching_stage) VALUES ('jobs@school.example', "
+                    "'Synthetic Jobs', TRUE, FALSE, TRUE, 'english', 'middle') "
+                    "RETURNING id"
+                )
+            )
+            for kind, status in (
+                ("progress_pdf", "succeeded"),
+                ("german_karne", "queued"),
+                ("french_karne", "running"),
+                ("year_export", "queued"),
+            ):
+                db.execute(
+                    text(
+                        "INSERT INTO job_runs (kind, status, requested_by, payload, progress, "
+                        "total) VALUES (:kind, :status, :user, '{}', 0, 0)"
+                    ),
+                    {"kind": kind, "status": status, "user": user_id},
+                )
+        command.upgrade(cfg, "c4e7a2d9f318")
+        with engine.connect() as db:
+            rows = db.execute(
+                text("SELECT kind, status, error_code FROM job_runs ORDER BY id")
+            ).all()
+        assert [tuple(row) for row in rows] == [
+            ("report_set", "succeeded", None),
+            ("report_set", "failed", "report_job_retired"),
+            ("report_set", "failed", "report_job_retired"),
+            ("year_export", "queued", None),
+        ]
+        with pytest.raises(IntegrityError), engine.begin() as db:
+            db.execute(
+                text(
+                    "INSERT INTO job_runs (kind, status, requested_by, payload, progress, total) "
+                    "VALUES ('german_karne', 'queued', :user, '{}', 0, 0)"
+                ),
+                {"user": user_id},
+            )
+        command.downgrade(cfg, "c41d7e9a2b58")
+        with engine.connect() as db:
+            kinds = db.scalars(text("SELECT kind FROM job_runs ORDER BY id")).all()
+        assert kinds == ["progress_pdf", "progress_pdf", "progress_pdf", "year_export"]
+    finally:
+        with engine.begin() as db:
+            db.execute(text("DELETE FROM job_runs"))
+            db.execute(text("DELETE FROM users WHERE email = 'jobs@school.example'"))
         engine.dispose()
         command.upgrade(cfg, "head")

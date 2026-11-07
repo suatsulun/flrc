@@ -562,7 +562,7 @@ async def test_report_builder_covers_every_class_in_the_requested_school_set(wor
 async def test_job_download_and_expiry(api, world) -> None:
     async with TestSession() as db:
         job = m.JobRun(
-            kind="progress_pdf",
+            kind="report_set",
             status="succeeded",
             requested_by=world.admin.id,
             payload={"class_id": world.cls},
@@ -593,7 +593,7 @@ async def test_job_download_and_expiry(api, world) -> None:
         assert response.status_code == 410
 
 
-async def test_report_endpoint_returns_one_real_pdf_for_the_school_set(api, world) -> None:
+async def test_report_endpoint_returns_one_real_pdf_for_a_class(api, world) -> None:
     async with api(world.admin) as client:
         response = await client.get(
             "/api/reports/pdf",
@@ -601,6 +601,7 @@ async def test_report_endpoint_returns_one_real_pdf_for_the_school_set(api, worl
                 "semester_id": world.semester,
                 "kind": "english_middle",
                 "locale": "tr",
+                "class_id": world.cls,
             },
         )
     assert response.status_code == 200
@@ -608,7 +609,7 @@ async def test_report_endpoint_returns_one_real_pdf_for_the_school_set(api, worl
     assert response.headers["cache-control"] == "no-store, private, max-age=0"
     assert response.headers["content-disposition"].startswith("inline")
     assert response.content.startswith(b"%PDF-")
-    assert response.headers["content-disposition"].endswith('.pdf"')
+    assert response.headers["content-disposition"].endswith(".pdf")
     # Two students in one class share a single two-up A5 sheet.
     reader = PdfReader(BytesIO(response.content))
     assert len(reader.pages) == 1
@@ -669,15 +670,12 @@ async def test_class_report_does_not_include_another_class_or_year(world) -> Non
         assert archived[0].school_number == 100
 
 
-async def test_demo_report_requires_class_and_keeps_role_guards(api, world, monkeypatch) -> None:
-    from flrc.config import settings
-
-    monkeypatch.setattr(settings, "env", "demo")
+async def test_report_pdf_requires_a_class_or_students_and_keeps_role_guards(api, world) -> None:
     query = {"semester_id": world.semester, "kind": "english_middle"}
     async with api(world.admin) as client:
         missing = await client.get("/api/reports/pdf", params=query)
         assert missing.status_code == 422
-        assert missing.json()["detail"]["code"] == "demo_report_class_required"
+        assert missing.json()["detail"]["code"] == "report_scope_required"
         selected = await client.get("/api/reports/pdf", params=query | {"class_id": world.cls})
         assert selected.status_code == 200
         assert len(PdfReader(BytesIO(selected.content)).pages) == 1

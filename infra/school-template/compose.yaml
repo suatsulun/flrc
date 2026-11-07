@@ -82,6 +82,13 @@ services:
   worker:
     <<: *backend
     command: ["./bin/start-worker-web.sh"]
+    environment:
+      ENV: school
+      SCHOOL_BRANDING_DIR: /srv/branding
+      WORKER_HEALTH_URL: http://worker:10000/health
+      # Report jobs (ADR-077): two render processes leave room in the 1 GiB limit
+      # for a finished file of up to 192 MiB to be held while it is saved.
+      REPORT_RENDER_WORKERS: "2"
     depends_on:
       migrate:
         condition: service_completed_successfully

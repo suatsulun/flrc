@@ -7,7 +7,8 @@ import { LeaveGuardDialog } from "@flrc/ui/components/leave-guard-dialog";
 const leavesPage: ShouldBlockFn = ({ current, next }) => current.pathname !== next.pathname;
 
 /**
- * Asks before leaving the page while PDF sets are generating or queued.
+ * Asks before leaving the page while a direct PDF download is in flight. Background report
+ * jobs need no guard: they keep running and wait in the downloads list (ADR-077).
  *
  * Router navigations and document exits that ask through `allowDocumentExit` get this dialog;
  * tab close, reload and typed URLs can only get the browser's own prompt.

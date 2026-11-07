@@ -504,7 +504,9 @@ def school_brand() -> SchoolBrand:
     )
 
 
-def _document_plan(cards: list[ReportCard]) -> tuple[str, dict[str, object], str, list[object]]:
+def _document_plan(
+    cards: list[ReportCard], one_card_per_sheet: bool = False
+) -> tuple[str, dict[str, object], str, list[object]]:
     """Everything a document needs, with the repeated sheets kept separate.
 
     The context a report set shares (title, branding, scale order, watermark)
@@ -530,6 +532,14 @@ def _document_plan(cards: list[ReportCard]) -> tuple[str, dict[str, object], str
         template = branding.config.templates.get(cast(ReportKind, first.kind), template)
         context["report_branding"] = branding.context()
     if first.kind == "english_middle":
+        # One card per sheet lets a set be split into exactly one student per page.
+        if one_card_per_sheet:
+            return (
+                template,
+                context,
+                "pages",
+                [{"top": middle_sheet(card), "bottom": None} for card in cards],
+            )
         return template, context, "pages", list(cut_stack_pages(cards))
     if first.kind == "english_elementary":
         context["faces"] = FACES
@@ -806,7 +816,9 @@ def _chunk(units: list[object], count: int) -> list[list[object]]:
     return chunks
 
 
-def render_report_pdf(cards: list[ReportCard], *, watermark: str | None = None) -> bytes:
+def render_report_pdf(
+    cards: list[ReportCard], *, one_card_per_sheet: bool = False, watermark: str | None = None
+) -> bytes:
     """Render a report set, laying its sheets out in parallel when that helps.
 
     Every ``.sheet`` in these templates is a self-contained, fixed-height page
@@ -823,8 +835,10 @@ def render_report_pdf(cards: list[ReportCard], *, watermark: str | None = None) 
     ``watermark`` stamps that text diagonally over every finished page, back
     covers included, for on-screen previews (ADR-078). Official sets leave it
     unset and are rendered exactly as before.
+    ``one_card_per_sheet`` prints each middle-school card alone on its sheet
+    instead of the guillotine imposition; other card kinds ignore it.
     """
-    template, context, units_key, units = _document_plan(cards)
+    template, context, units_key, units = _document_plan(cards, one_card_per_sheet)
     jinja_template = _template_environment().get_template(template)
 
     def document(sheets: list[object]) -> str:

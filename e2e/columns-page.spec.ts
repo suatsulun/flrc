@@ -23,6 +23,14 @@ test("the column page renames and copies columns, each with Undo", async ({ brow
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page.getByText("Change undone.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Rename column Exam", exact: true })).toBeVisible();
+  // Row actions name the field they act on, and the add dialog has a visible Cancel.
+  await expect(
+    page.getByRole("button", { name: "Move column Exam down", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Delete column Exam", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Add column", exact: true }).click();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
 
   await page.getByRole("button", { name: "Copy to another grade or subject", exact: true }).click();
   // English columns copy to English only.

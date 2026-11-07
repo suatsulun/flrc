@@ -90,8 +90,9 @@ function ArchivePage() {
               </option>
             ))}
           </NativeSelect>
+          {/* Sized by its longest option, so long prep class names never clip. */}
           <NativeSelect
-            className="w-28"
+            className="w-auto min-w-28"
             aria-label={t("classes.title")}
             value={selectedClassId ?? ""}
             onChange={(event) => setClassId(Number(event.target.value))}

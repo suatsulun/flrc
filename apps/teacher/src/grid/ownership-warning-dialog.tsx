@@ -13,13 +13,11 @@ import {
 
 export function OwnershipWarningDialog({
   columns,
-  isAdmin,
   pending,
   onAccept,
   onClose,
 }: {
   columns: GridColumnOut[];
-  isAdmin: boolean;
   pending: boolean;
   onAccept: () => void;
   onClose: () => void;
@@ -33,9 +31,7 @@ export function OwnershipWarningDialog({
             <TriangleAlertIcon className="size-4.5" />
           </div>
           <DialogTitle className="text-base">{t("grid.ownershipWarningTitle")}</DialogTitle>
-          <DialogDescription>
-            {isAdmin ? t("grid.adminOwnershipWarningBody") : t("grid.ownershipWarningBody")}
-          </DialogDescription>
+          <DialogDescription>{t("grid.ownershipWarningBody")}</DialogDescription>
         </DialogHeader>
 
         <ul className="divide-y divide-border rounded-lg border border-border">
@@ -64,7 +60,7 @@ export function OwnershipWarningDialog({
             pendingLabel={t("grid.saving")}
             onClick={onAccept}
           >
-            {isAdmin ? t("grid.adminSave") : t("grid.confirmAndSave")}
+            {t("grid.confirmAndSave")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -108,14 +108,19 @@ async def test_teacher_can_browse_a_year_without_their_assignments(api, world):
     assert catalog.json()[0]["subjects"][0]["can_write"] is False
 
 
-async def test_admin_is_warned_as_unassigned_but_save_authority_is_preserved(api, world):
+async def test_admin_is_not_warned_because_saves_need_no_confirmation(api, world):
     async with api(world.admin) as client:
         grid = await client.get(
             f"/api/classes/{world.cls}/grid",
             params={"subject": "english"},
         )
     assert grid.status_code == 200
-    assert grid.json()["columns"][0]["owned_by_you"] is False
+    # The grid warns exactly where a save asks for confirmation; an admin's never does.
+    assert [column["owned_by_you"] for column in grid.json()["columns"]] == [True, True]
+    assert [column["owner_name"] for column in grid.json()["columns"]] == [
+        "Main Teacher",
+        "Skills Teacher",
+    ]
 
     saved = await save_grid(
         api,

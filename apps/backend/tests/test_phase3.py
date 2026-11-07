@@ -163,6 +163,74 @@ async def test_backfilled_years_sort_chronologically_and_keep_current_school_num
     assert history.json()["school_number"] == 51001
 
 
+async def test_student_history_lists_both_semesters_of_every_enrolled_year(api, world):
+    async with TestSession() as db:
+        db.add(m.Semester(year_id=world.year, number=2, status="locked"))
+        archived = m.AcademicYear(label="Synthetic archived year", status="archived")
+        db.add(archived)
+        await db.flush()
+        old_terms = [
+            m.Semester(year_id=archived.id, number=number, status="locked") for number in (1, 2)
+        ]
+        old_class = m.SchoolClass(year_id=archived.id, grade_level=4, section="B")
+        db.add_all([*old_terms, old_class])
+        await db.flush()
+        old_column = m.ColumnDefinition(
+            semester_id=old_terms[1].id,
+            grade_level=4,
+            subject="english",
+            value_type="score",
+            owner_role="main",
+            labels={"tr": "Old score", "en": "Old score", "de": "", "fr": ""},
+            position=1,
+        )
+        db.add_all(
+            [
+                old_column,
+                m.Enrollment(
+                    year_id=archived.id,
+                    class_id=old_class.id,
+                    student_id=world.student_one,
+                    school_number=41001,
+                ),
+            ]
+        )
+        await db.flush()
+        db.add_all(
+            [
+                m.GradeValue(
+                    student_id=world.student_one,
+                    column_definition_id=old_column.id,
+                    score=77,
+                    updated_by=world.admin.id,
+                ),
+                m.GradeValue(
+                    student_id=world.student_one,
+                    column_definition_id=world.main_column,
+                    score=91,
+                    updated_by=world.admin.id,
+                ),
+            ]
+        )
+        await db.commit()
+    async with api(world.admin) as client:
+        history = await client.get(f"/api/archive/students/{world.student_one}/history")
+    assert history.status_code == 200
+    years = {year["label"]: year for year in history.json()["years"]}
+    old, current = years["Synthetic archived year"], years["Synthetic year"]
+    assert (old["class_name"], old["school_number"]) == ("4/B", 41001)
+    assert [(term["number"], [c["value"] for c in term["cells"]]) for term in old["semesters"]] == [
+        (1, []),
+        (2, [77]),
+    ]
+    assert [(term["number"], term["status"]) for term in current["semesters"]] == [
+        (1, "open"),
+        (2, "locked"),
+    ]
+    assert [c["value"] for c in current["semesters"][0]["cells"]] == [91]
+    assert current["semesters"][1]["cells"] == []
+
+
 def test_import_parser_reports_conflicting_duplicate() -> None:
     data = workbook_bytes(
         [

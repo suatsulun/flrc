@@ -24,7 +24,12 @@ export const Route = createFileRoute("/_auth/")({ component: Dashboard });
 function Dashboard() {
   const { user } = Route.useRouteContext();
   const { t } = useTranslation();
-  const { data, isPending, isError } = useQuery(getDashboardOptions());
+  // The dashboard sums up every other page, whose changes do not invalidate it: reload it on
+  // every visit so the next step follows an action taken elsewhere.
+  const { data, isPending, isError } = useQuery({
+    ...getDashboardOptions(),
+    refetchOnMount: "always",
+  });
   const term = data?.term;
 
   return (

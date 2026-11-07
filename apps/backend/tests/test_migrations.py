@@ -289,10 +289,33 @@ def test_report_job_kinds_keep_retired_history_and_fail_stranded_jobs() -> None:
                 ),
                 {"user": user_id},
             )
+        # Report-set jobs created since cannot run on the old schema, which has no such task:
+        # waiting ones fail on downgrade instead of staying listed as active forever.
+        with engine.begin() as db:
+            for status in ("queued", "running"):
+                db.execute(
+                    text(
+                        "INSERT INTO job_runs (kind, status, requested_by, payload, progress, "
+                        "total) VALUES ('report_set', :status, :user, '{}', 0, 0)"
+                    ),
+                    {"status": status, "user": user_id},
+                )
         command.downgrade(cfg, "c41d7e9a2b58")
         with engine.connect() as db:
-            kinds = db.scalars(text("SELECT kind FROM job_runs ORDER BY id")).all()
-        assert kinds == ["progress_pdf", "progress_pdf", "progress_pdf", "year_export"]
+            rows = db.execute(
+                text(
+                    "SELECT kind, status, error_code, finished_at IS NOT NULL "
+                    "FROM job_runs ORDER BY id"
+                )
+            ).all()
+        assert [tuple(row) for row in rows] == [
+            ("progress_pdf", "succeeded", None, False),
+            ("progress_pdf", "failed", "report_job_retired", True),
+            ("progress_pdf", "failed", "report_job_retired", True),
+            ("year_export", "queued", None, False),
+            ("progress_pdf", "failed", "report_job_retired", True),
+            ("progress_pdf", "failed", "report_job_retired", True),
+        ]
     finally:
         with engine.begin() as db:
             db.execute(text("DELETE FROM job_runs"))

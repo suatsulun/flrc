@@ -145,3 +145,38 @@ test("class form drafts survive switching between table and removal panels", asy
   await expect(page.getByLabel("Column type")).toHaveValue("scale3");
   await context.close();
 });
+
+test("an undone school number shows again and is not re-sent from the input", async ({
+  browser,
+}) => {
+  const context = await authenticatedContext(browser, "admin@example-school.k12.tr");
+  await context.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+  const page = await context.newPage();
+  const saves: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "PATCH" && /\/roster\/\d+$/.test(new URL(request.url()).pathname)) {
+      saves.push(request.postData() ?? "");
+    }
+  });
+  await page.goto(`${adminUrl}/admin/classes`);
+  const input = page.getByLabel("E2E Synthetic One — School number", { exact: true });
+  await expect(input).toHaveValue(/^\d+$/);
+  const before = await input.inputValue();
+  const edited = String(Number(before) + 10);
+  await input.fill(edited);
+  await input.blur();
+  await expect(page.getByText(`E2E Synthetic One’s school number is now ${edited}.`)).toBeVisible();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.getByText("Change undone.")).toBeVisible();
+  // The input follows the restored number instead of keeping the undone one.
+  await expect(input).toHaveValue(before);
+  await expect(input).toBeEnabled();
+  // Leaving the input again sends nothing, so the undo stays undone.
+  await input.focus();
+  await input.blur();
+  await page.waitForLoadState("networkidle");
+  expect(saves).toHaveLength(1);
+  await page.reload();
+  await expect(input).toHaveValue(before);
+  await context.close();
+});

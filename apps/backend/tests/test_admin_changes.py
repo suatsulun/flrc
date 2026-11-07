@@ -4,10 +4,11 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from io import BytesIO
+from typing import Any
 
 import pytest
 from PIL import Image
-from sqlalchemy import create_engine, delete, func, select, update
+from sqlalchemy import create_engine, delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -594,6 +595,25 @@ async def test_undo_reorder_and_refusal_after_a_later_reorder(api, world):
     assert (await column_row(world.skills_column)).position == 2
 
 
+async def test_undo_reorder_refuses_a_field_deleted_while_it_waited(api, world):
+    async with api(world.admin) as client:
+        swapped = await client.post(
+            "/api/columns/reorder",
+            params={"semester_id": world.semester},
+            json={"ordered_ids": [world.skills_column, world.main_column]},
+        )
+        # The undo reads the field set before this deletion commits, then waits on its row.
+        async with TestSession() as db:
+            await db.execute(
+                delete(m.ColumnDefinition).where(m.ColumnDefinition.id == world.skills_column)
+            )
+            pending = asyncio.create_task(undo(client, swapped.json()["action_id"]))
+            await asyncio.sleep(0.5)
+            await db.commit()
+        assert_blocked(await pending, "order_changed", grade_level=5, subject="english")
+    assert (await column_row(world.main_column)).position == 2
+
+
 async def test_undo_copy_removes_copies_unless_graded(api, world):
     copy = {
         "source_grade_level": 5,
@@ -846,6 +866,75 @@ async def test_undo_signature_upload_and_delete_keep_the_images(api, world):
         assert (await client.get(path)).content == first_image
         assert (await undo(client, first.json()["action_id"])).status_code == 200
         assert (await client.get(path)).status_code == 404
+
+
+async def crossed(*requests: Callable[[], Awaitable[Any]]) -> list[Any]:
+    """Run requests at once, each held at its first admin-action write until all arrive.
+
+    A share lock on ``admin_actions`` lets every request take the row locks it takes before
+    recording, then releases them together, the worst interleaving of simultaneous requests.
+    """
+    async with TestSession() as db:
+        await db.execute(text("LOCK TABLE admin_actions IN SHARE MODE"))
+        pending = [asyncio.create_task(request()) for request in requests]
+        await asyncio.sleep(0.5)
+        await db.commit()
+    return await asyncio.gather(*pending)
+
+
+@pytest.mark.parametrize("write", ["edit", "signature", "undo"])
+async def test_two_admins_changing_each_others_accounts_do_not_deadlock(api, world, write):
+    async with TestSession() as db:
+        deputy = m.User(
+            email=f"deputy@{SCHOOL_DOMAIN}",
+            full_name="Synthetic Deputy",
+            is_admin=True,
+            teaching_stage="middle",
+        )
+        db.add(deputy)
+        await db.commit()
+    pairs = [(world.admin, deputy), (deputy, world.admin)]
+    renames: list[int] = []
+    if write == "undo":
+        for index, (actor, target) in enumerate(pairs):
+            async with api(actor) as client:
+                renamed = await client.patch(
+                    f"/api/admin/users/{target.id}",
+                    json={"full_name": f"Synthetic Renamed {index}"},
+                )
+            renames.append(renamed.json()["action_id"])
+
+    def change(index: int) -> Callable[[], Awaitable[Any]]:
+        actor, target = pairs[index]
+
+        async def request():
+            async with api(actor) as client:
+                if write == "edit":
+                    return await client.patch(
+                        f"/api/admin/users/{target.id}",
+                        json={"full_name": f"Synthetic Renamed {index}"},
+                    )
+                if write == "signature":
+                    return await client.put(
+                        f"/api/admin/users/{target.id}/signature",
+                        files={"file": ("s.png", png("black"), "image/png")},
+                    )
+                return await undo(client, renames[index])
+
+        return request
+
+    responses = await crossed(change(0), change(1))
+    assert [response.status_code for response in responses] == [200, 200]
+    async with TestSession() as db:
+        targets = [await db.get(m.User, target.id) for _, target in pairs]
+    if write == "signature":
+        assert all(target.signature_digest for target in targets)
+    else:
+        expected = {
+            "edit": ["Synthetic Renamed 0", "Synthetic Renamed 1"],
+            "undo": ["Synthetic Deputy", "Synthetic Admin"],
+        }[write]
+        assert [target.full_name for target in targets] == expected
 
 
 # Assignments ----------------------------------------------------------------
@@ -1119,6 +1208,80 @@ async def test_student_edit_records_the_name_a_concurrent_edit_committed(api, wo
     async with TestSession() as db:
         student = await db.get(m.Student, world.student_one)
         assert student.full_name == "Synthetic Concurrent Name"
+
+
+async def wait_for_a_lock_wait() -> None:
+    """Return once some session of the test database is waiting for a lock."""
+    async with TestSession() as probe:
+        for _ in range(200):
+            waiting = await probe.scalar(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE datname = current_database() AND wait_event_type = 'Lock'"
+                )
+            )
+            if waiting:
+                return
+            await asyncio.sleep(0.02)
+    raise AssertionError("the request never waited for a lock")
+
+
+@pytest.mark.parametrize("write", ["year_language", "roster_language", "undo_language"])
+async def test_language_writes_lock_the_year_before_the_enrollment(api, world, write):
+    """A language write and a roster removal take the year, then the enrollment.
+
+    The other transaction does what removing the pupil does: it locks the year, then (once
+    the write is waiting) the pupil's enrollment. A write that locked the enrollment first
+    would then wait for the year (the new language row's foreign key) while the removal
+    waits for the enrollment, and PostgreSQL would abort one of them as a deadlock.
+    """
+    language_path = f"/api/admin/years/{world.year}/student-language"
+    async with api(world.admin) as client:
+        if write == "undo_language":
+            for language in ("german", None):
+                cleared = await client.put(
+                    language_path, json={"student_ids": [world.student_one], "language": language}
+                )
+                assert cleared.status_code == 200, cleared.text
+
+            def request():
+                return undo(client, cleared.json()["action_id"])
+        elif write == "roster_language":
+
+            def request():
+                return client.patch(
+                    f"/api/admin/classes/{world.cls}/roster/{world.student_one}",
+                    json={"language": "german"},
+                )
+        else:
+
+            def request():
+                return client.put(
+                    language_path, json={"student_ids": [world.student_one], "language": "german"}
+                )
+
+        async with TestSession() as remover:
+            await remover.execute(
+                select(m.AcademicYear).where(m.AcademicYear.id == world.year).with_for_update()
+            )
+            pending = asyncio.create_task(request())
+            await wait_for_a_lock_wait()
+            await remover.execute(
+                select(m.Enrollment)
+                .where(m.Enrollment.student_id == world.student_one)
+                .with_for_update()
+            )
+            await remover.commit()
+        response = await pending
+    assert response.status_code == 200, response.text
+    async with TestSession() as db:
+        language = await db.scalar(
+            select(m.StudentLanguage.language).where(
+                m.StudentLanguage.student_id == world.student_one,
+                m.StudentLanguage.year_id == world.year,
+            )
+        )
+    assert language == "german"
 
 
 async def test_class_edit_records_the_section_a_concurrent_edit_committed(api, world):

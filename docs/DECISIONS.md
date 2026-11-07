@@ -3372,13 +3372,20 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
   eligible class) returns 202 and a `report_set` job. The API validates the selection against the
   roster (`unknown_class`, `class_not_in_semester`, `class_not_in_report_set`,
   `student_not_in_report_set`, `empty_report_set`) and stores the output name and class count at
-  creation, so the downloads list can name a job while it waits. The demo refuses jobs.
+  creation, so the downloads list can name a job while it waits. The demo refuses jobs. An account
+  may have three report jobs waiting or running at once; a fourth is refused
+  (`report_jobs_pending`) under a lock on the account row, so simultaneous requests cannot pass
+  together. A job the queue refuses is stored as failed (`job_queue_unavailable`, 503), not left
+  waiting for a message that never comes.
 - **Worker** (`reports.set`): builds the set with the fixed-query builder, renders each class once
   through the bounded pool of ADR-046 (progress counts classes), then packages it. A combined PDF
   merges classes incrementally and folds repeated fonts and covers. A per-pupil ZIP never renders
   a pupil alone: the class is rendered once — middle-school cards one per sheet instead of two-up —
   and cut by page range (two pages per duplex card, one per middle-school card). Every class's
   page count is checked against that mapping; a mismatch fails the job (`report_page_mapping`).
+  A chosen class or pupil who left the set before the job ran (moved, removed, another language)
+  fails it too (`class_not_in_report_set`, `student_not_in_report_set`, shown as an out-of-date
+  selection), rather than a file silently missing them.
 - **Output budget and numbered parts:** no stored file may pass 192 MiB. A per-class or per-pupil
   ZIP that would is cut into numbered parts, `… 1. Dönem (Bölüm 1).zip`, `(Bölüm 2)` …, breaking
   only between whole files; a pupil ZIP breaks at a class boundary when the class no longer fits
@@ -3401,13 +3408,14 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
 - **File names:** `{scope} {card} {year} {N}. Dönem.{pdf|zip}`, scope `8-A`, `8-A 123 Ali Yılmaz`,
   `8-A Seçili Öğrenciler`, `Seçili Öğrenciler`, `Seçili Sınıflar` or `Tüm Okul`; class sheets
   `8-A Sınıf Raporu …` / `Sınıf Raporları …`. `/` becomes `-`, characters Windows refuses are
-  dropped, and `Content-Disposition` carries an ASCII `filename` plus RFC 6266 `filename*`.
+  dropped, and `Content-Disposition` carries an ASCII `filename` plus RFC 6266 `filename*`; the
+  ASCII name is cleaned again after folding, since folding turns fullwidth quotes into ASCII ones.
 - **Rate limits are per route:** jobs 5/min (`report_pdf`); direct PDFs and class sheets 30/min
   (`report_single`); the year export keeps the 3/min export budget.
 - **Report centre:** per card kind, View/Download one class, prepare the whole school in a chosen
   format, or pick pupils across classes; a downloads list (report and export jobs, polled while one
-  runs) replaces the browser queue and blob-link toasts. The leave guard covers only a direct
-  download in flight.
+  runs, each poll waking the worker while a job is queued) replaces the browser queue and
+  blob-link toasts. The leave guard covers only a direct download in flight.
 
 ## Alternatives considered
 
@@ -3450,15 +3458,19 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
   their own year exports; the list and the download use the same rule.
 - A job freezes its classes and their pupils in one read when it starts and builds each class
   from that list. Before anything is published, every frozen pupil must appear exactly once; a
-  pupil moved or removed during the job fails it with `report_roster_changed` instead of being
-  printed twice or dropped.
+  pupil moved or removed during the job fails it with `report_roster_changed`, shown as an
+  out-of-date selection, instead of being printed twice or dropped.
 - Each job renders in its own temporary folder, `flrc-report-<job id>-…`. A worker reclaims
   folders of jobs that are no longer queued or running, and any folder untouched for six hours,
-  when it starts and before each job, so a forced stop cannot leave pupils' PDFs on disk.
+  when it starts and after each job, so a forced stop cannot leave pupils' PDFs on disk: the
+  attempt that finishes an interrupted job also removes the folder the killed attempt left.
 - A staged part carries its own six-hour expiry until the set succeeds and replaces it with the
-  shared one. `purge_job_outputs` (nightly in the backup sidecar, or `flrc purge-job-outputs`)
-  deletes parts of failed requests and staged parts past that bound, even when the job's own
-  cleanup never ran.
+  shared one; every class the job finishes extends it, so only a job that stopped advancing
+  loses its parts. `purge_job_outputs` (nightly in the backup sidecar, or
+  `flrc purge-job-outputs`) deletes parts of failed requests and staged parts past that bound,
+  even when the job's own cleanup never ran, and marks a request still queued or running whose
+  parts it reclaims as failed in the same transaction. A split set is published only while its
+  request is still running and holds every part from 1 to the last; otherwise it fails.
 
 ## Supersedes / Superseded by
 
@@ -3586,9 +3598,10 @@ date filters.
   the newest year in setup, else nothing:
   - **Term status and next step.** One code with the facts behind it: `create_year`;
     `activate_year` with blockers (pupils without a school number, the only activation guard);
-    `collect_grades` while the open semester is incomplete, with its completion percentage;
-    `advance_semester` / `lock_semester` once it is complete; `close_year` when both semesters are
-    locked. A semester without any field is not complete.
+    `collect_grades` while the open semester is incomplete, with its completion percentage and a
+    blocker counting grids with pupils but no fields; `advance_semester` / `lock_semester` once it
+    is complete; `close_year` when both semesters are locked. A semester without any field is not
+    complete, and neither is one where a grid with pupils has no fields.
   - **Completion** of the open semester (else the last one) per class and subject, with a
     drill-down dialog listing each empty cell's pupil, field, owner role and assigned teacher
     (`/api/coordinator/classes/{id}/missing` now returns those names), linked to the class table.
@@ -3601,7 +3614,7 @@ date filters.
   - **Report readiness** per card kind: classes in the card's grades with at least one pupil on
     that card, how many are complete, and the share of the printed fields entered. The
     middle-school English card counts each pupil's own German or French score fields too, since it
-    prints them.
+    prints them; a class without English fields stays incomplete however many of those are filled.
   - **Downloads**: recent background report and export jobs with progress, expiry and a download
     link.
 - The coordinator page is merged into the dashboard and `/coordinator` redirects to `/`. The

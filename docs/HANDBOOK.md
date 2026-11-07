@@ -6446,9 +6446,10 @@ saved and undone, and the audit trail still refers to it), `order_changed`, `use
 
 **Locks:** every recorded write locks the rows it changes before reading their previous values
 and keeps the lock until it commits with the action, so two concurrent edits each record what
-they actually replaced. A pupil's yearly data (number, class, second language) is guarded by
-their enrollment row (`lock_enrollments`, id order); class writes lock the year, then the class
-(`lock_class`). Undo handlers take the same locks before checking.
+they actually replaced. Locks are taken year first: a pupil's yearly data (number, class, second
+language) is guarded by the year (`writable_class_year`), then their enrollment row
+(`lock_enrollments`, id order); class writes lock the year, then the class (`lock_class`). Undo
+handlers and roster removal take the same locks in the same order before checking.
 
 **Retention:** the backup sidecar deletes expired rows and their kept signature images every night
 before the dump; `flrc purge-admin-actions` does it by hand.

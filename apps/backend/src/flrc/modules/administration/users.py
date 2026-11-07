@@ -88,6 +88,27 @@ def account_state(user: User) -> dict[str, object]:
     return {name: getattr(user, name) for name in EDITABLE_ATTRIBUTES}
 
 
+async def lock_account_for_edit(db: AsyncSession, user_id: int, actor: User) -> User | None:
+    """Lock an account an administrator changes, together with the administrator's own.
+
+    Recording the change refers to the administrator's account (``actor_id``), which
+    another administrator changing it holds. Both rows are locked in id order, the
+    administrator's only shared, so two administrators changing each other's accounts
+    wait for one another instead of deadlocking.
+    """
+    target: User | None = None
+    for locked_id in sorted({user_id, actor.id}):
+        row = await db.get(
+            User,
+            locked_id,
+            with_for_update={"read": locked_id != user_id},
+            populate_existing=True,
+        )
+        if locked_id == user_id:
+            target = row
+    return target
+
+
 async def ensure_admin_remains(
     db: AsyncSession, target: User, *, is_admin: bool, is_active: bool
 ) -> None:
@@ -217,7 +238,7 @@ async def patch_managed_user(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ManagedUserWriteOut:
-    target = await db.get(User, user_id, with_for_update=True, populate_existing=True)
+    target = await lock_account_for_edit(db, user_id, actor)
     if target is None:
         raise HTTPException(404, {"code": "unknown_user"})
     if target.id != actor.id and await demo.is_visitor(db, target.id):
@@ -276,7 +297,7 @@ async def patch_managed_user(
 
 
 async def signature_user(db: AsyncSession, user_id: int, actor: User) -> User:
-    target = await db.get(User, user_id, with_for_update=True, populate_existing=True)
+    target = await lock_account_for_edit(db, user_id, actor)
     if target is None:
         raise HTTPException(404, {"code": "unknown_user"})
     if await demo.is_visitor(db, target.id):

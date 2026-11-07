@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Annotated, Literal
+from typing import Annotated, Literal, NamedTuple
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -153,7 +153,7 @@ def unassigned_roles(
     ]
 
 
-async def _filled_cell_ids(
+async def filled_cell_ids(
     db: AsyncSession, column_ids: list[int], student_ids: list[int] | None = None
 ) -> set[tuple[int, int]]:
     if not column_ids or student_ids == []:
@@ -170,28 +170,47 @@ async def _filled_cell_ids(
     return {(student_id, column_id) for student_id, column_id in await db.execute(statement)}
 
 
-async def active_columns_by_scope(
-    db: AsyncSession, semester_id: int
-) -> dict[tuple[int, str], list[int]]:
-    columns_by_scope: dict[tuple[int, str], list[int]] = {}
-    for column_id, grade_level, subject in await db.execute(
-        select(ColumnDefinition.id, ColumnDefinition.grade_level, ColumnDefinition.subject).where(
+class ScopeColumn(NamedTuple):
+    id: int
+    value_type: str
+
+
+ColumnsByScope = dict[tuple[int, str], list[ScopeColumn]]
+
+
+async def active_columns_by_scope(db: AsyncSession, semester_id: int) -> ColumnsByScope:
+    """A semester's active fields per (grade level, subject)."""
+    columns_by_scope: ColumnsByScope = {}
+    for column_id, grade_level, subject, value_type in await db.execute(
+        select(
+            ColumnDefinition.id,
+            ColumnDefinition.grade_level,
+            ColumnDefinition.subject,
+            ColumnDefinition.value_type,
+        ).where(
             ColumnDefinition.semester_id == semester_id,
             ColumnDefinition.is_active.is_(True),
         )
     ):
-        columns_by_scope.setdefault((grade_level, subject), []).append(column_id)
+        columns_by_scope.setdefault((grade_level, subject), []).append(
+            ScopeColumn(column_id, value_type)
+        )
     return columns_by_scope
 
 
-async def completeness_rows(
-    db: AsyncSession,
-    rosters: list[ClassRoster],
-    columns_by_scope: dict[tuple[int, str], list[int]],
-) -> list[CompletenessRow]:
-    filled_cells = await _filled_cell_ids(
-        db, [column_id for ids in columns_by_scope.values() for column_id in ids]
+async def scope_filled_cells(
+    db: AsyncSession, columns_by_scope: ColumnsByScope
+) -> set[tuple[int, int]]:
+    return await filled_cell_ids(
+        db, [column.id for columns in columns_by_scope.values() for column in columns]
     )
+
+
+def completeness_rows(
+    rosters: list[ClassRoster],
+    columns_by_scope: ColumnsByScope,
+    filled_cells: set[tuple[int, int]],
+) -> list[CompletenessRow]:
     result: list[CompletenessRow] = []
     for roster in rosters:
         school_class = roster.school_class
@@ -200,9 +219,9 @@ async def completeness_rows(
             subject_columns = columns_by_scope.get((school_class.grade_level, subject), [])
             expected = len(students) * len(subject_columns)
             filled = sum(
-                (student_id, column_id) in filled_cells
+                (student_id, column.id) in filled_cells
                 for student_id in students
-                for column_id in subject_columns
+                for column in subject_columns
             )
             result.append(
                 CompletenessRow(
@@ -287,7 +306,10 @@ async def coordinator_completeness(
     if term is None:
         raise HTTPException(404, {"code": "unknown_semester"})
     rosters = await year_rosters(db, term.year_id)
-    return await completeness_rows(db, rosters, await active_columns_by_scope(db, term.id))
+    columns_by_scope = await active_columns_by_scope(db, term.id)
+    return completeness_rows(
+        rosters, columns_by_scope, await scope_filled_cells(db, columns_by_scope)
+    )
 
 
 @router.get("/classes/{class_id}/missing")
@@ -339,7 +361,7 @@ async def coordinator_missing_cells(
             .where(TeachingAssignment.class_id == class_id)
         )
     }
-    filled = await _filled_cell_ids(
+    filled = await filled_cell_ids(
         db, [column.id for column in columns], [student.id for student in students]
     )
     result: list[MissingCell] = []

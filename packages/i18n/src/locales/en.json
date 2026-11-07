@@ -669,7 +669,9 @@
       "expires": "until {{time}}",
       "expired": "Expired",
       "ready": "{{name}} is ready.",
-      "failedNamed": "{{name}} could not be prepared: {{reason}}"
+      "failedNamed": "{{name}} could not be prepared: {{reason}}",
+      "parts": "{{count}} parts",
+      "partsOf": "Parts of {{name}}"
     },
     "picker": {
       "title": "{{kind}} · Choose students",
@@ -693,7 +695,7 @@
       "demoJobs": "The demo only downloads one class or one student at a time.",
       "expired": "This file has expired; prepare it again.",
       "pageMapping": "The pages could not be matched to students safely, so no file was made. Please tell your administrator.",
-      "tooLarge": "The file for this selection would be too large. Choose one PDF, or fewer students or classes.",
+      "tooLarge": "A single file in this selection is larger than allowed. Choose fewer students or classes, or try a ZIP format.",
       "retired": "This old job can no longer run; prepare it again.",
       "jobFailed": "Something went wrong while preparing the file. Please try again."
     }

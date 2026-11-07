@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -60,4 +61,53 @@ def mark_failed(db: Session, job: JobRun, code: str) -> None:
     job.error_code = code
     job.error_detail = "The job failed. See server logs with this job id."
     job.finished_at = datetime.now(UTC).replace(tzinfo=None)
+    db.commit()
+
+
+def store_part(db: Session, job: JobRun, *, number: int, filename: str, data: bytes) -> None:
+    """Save one finished part of a split output and release its bytes from the session.
+
+    A part is a ``job_runs`` row under its request, so it keeps the blob store, the download
+    route and the request's authorization. It stays hidden as ``running`` until the whole set
+    is finished, so a failed set never leaves half a download behind.
+    """
+    part = JobRun(
+        kind=job.kind,
+        status="running",
+        requested_by=job.requested_by,
+        payload={},
+        parent_id=job.id,
+        part=number,
+        output_filename=filename,
+        output_mime="application/zip",
+        output_size=len(data),
+        output_blob=data,
+    )
+    db.add(part)
+    db.commit()
+    db.expunge(part)
+
+
+def mark_parts_succeeded(db: Session, job: JobRun) -> None:
+    """Finish a split request: every part and the request share one 24-hour expiry."""
+    now = datetime.now(UTC).replace(tzinfo=None)
+    expires = now + OUTPUT_TTL
+    db.execute(
+        update(JobRun)
+        .where(JobRun.parent_id == job.id)
+        .values(status="succeeded", output_expires_at=expires, finished_at=now)
+    )
+    job.status = "succeeded"
+    job.progress = job.total
+    job.output_mime = "application/zip"
+    job.output_size = db.scalar(
+        select(func.sum(JobRun.output_size)).where(JobRun.parent_id == job.id)
+    )
+    job.output_expires_at = expires
+    job.finished_at = now
+    db.commit()
+
+
+def discard_parts(db: Session, job_id: int) -> None:
+    db.execute(delete(JobRun).where(JobRun.parent_id == job_id))
     db.commit()

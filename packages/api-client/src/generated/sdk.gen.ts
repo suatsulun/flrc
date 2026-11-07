@@ -543,6 +543,11 @@ export const getDashboard = <ThrowOnError extends boolean = false>(options?: Opt
 
 /**
  * List Jobs
+ *
+ * The newest ``limit`` requests plus every job still running or still downloadable.
+ *
+ * Outputs are kept for 24 hours (ADR-024), so a downloads list must reach each of them,
+ * including every part of a split request, however many jobs ran since.
  */
 export const listJobs = <ThrowOnError extends boolean = false>(options?: Options<ListJobsData, ThrowOnError>): RequestResult<ListJobsResponses, ListJobsErrors, ThrowOnError> => (options?.client ?? client).get<ListJobsResponses, ListJobsErrors, ThrowOnError>({ url: '/api/jobs', ...options });
 

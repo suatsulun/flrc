@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 
@@ -26,6 +26,9 @@ class JobOut(BaseModel):
     output_expires_at: datetime | None
     error_code: str | None
     created_at: datetime
+    # Set on the numbered parts of a request too large for one file (ADR-077).
+    parent_id: int | None
+    part: int | None
 
     @classmethod
     def from_model(cls, job: JobRun) -> "JobOut":
@@ -40,6 +43,8 @@ class JobOut(BaseModel):
             output_expires_at=job.output_expires_at,
             error_code=job.error_code,
             created_at=job.created_at,
+            parent_id=job.parent_id,
+            part=job.part,
         )
 
 
@@ -55,13 +60,28 @@ async def list_jobs(
     db: Annotated[AsyncSession, Depends(get_session)],
     limit: int = Query(default=25, ge=1, le=100),
 ) -> list[JobOut]:
-    statement = select(JobRun).order_by(JobRun.id.desc()).limit(limit)
+    """The newest ``limit`` requests plus every job still running or still downloadable.
+
+    Outputs are kept for 24 hours (ADR-024), so a downloads list must reach each of them,
+    including every part of a split request, however many jobs ran since.
+    """
+    visible = select(JobRun.id)
     if not user.is_admin:
-        statement = (
-            statement.where(JobRun.kind != "year_export")
+        visible = (
+            visible.where(JobRun.kind != "year_export")
             if user.is_coordinator
-            else statement.where(JobRun.requested_by == user.id)
+            else visible.where(JobRun.requested_by == user.id)
         )
+    newest = visible.where(JobRun.parent_id.is_(None)).order_by(JobRun.id.desc()).limit(limit)
+    now = datetime.now(UTC).replace(tzinfo=None)
+    retained = visible.where(
+        or_(JobRun.output_expires_at > now, JobRun.status.in_(("queued", "running")))
+    )
+    statement = (
+        select(JobRun)
+        .where(or_(JobRun.id.in_(newest.scalar_subquery()), JobRun.id.in_(retained)))
+        .order_by(JobRun.id.desc())
+    )
     jobs = list(await db.scalars(statement))
     return [JobOut.from_model(job) for job in jobs]
 
@@ -101,6 +121,10 @@ async def download_job(
     if job.status != "succeeded":
         raise HTTPException(409, {"code": "job_not_ready", "status": job.status})
     now = datetime.now(UTC).replace(tzinfo=None)
+    if job.output_blob is None and await db.scalar(
+        select(exists().where(JobRun.parent_id == job.id))
+    ):
+        raise HTTPException(409, {"code": "job_output_in_parts"})
     if job.output_blob is None or job.output_expires_at is None or job.output_expires_at <= now:
         raise HTTPException(410, {"code": "output_expired"})
     return Response(

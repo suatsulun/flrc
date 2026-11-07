@@ -3368,14 +3368,22 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
   a pupil alone: the class is rendered once — middle-school cards one per sheet instead of two-up —
   and cut by page range (two pages per duplex card, one per middle-school card). Every class's
   page count is checked against that mapping; a mismatch fails the job (`report_page_mapping`).
-- **Output budget:** a job stops early when its output, projected from the pupils done, would pass
-  192 MiB (`report_output_too_large`, shown with advice to choose one PDF or fewer pupils); ZIP
-  entries spool to a temporary file. Outputs keep full quality: each file carries its own copy of
-  what its pages use, including the school's 15–18 MB German/French back-cover PDF, so a
-  per-pupil karne ZIP fits about 12 pupils.
+- **Output budget and numbered parts:** no stored file may pass 192 MiB. A per-class or per-pupil
+  ZIP that would is cut into numbered parts, `… 1. Dönem (Bölüm 1).zip`, `(Bölüm 2)` …, breaking
+  only between whole files; a pupil ZIP breaks at a class boundary when the class no longer fits
+  and at most a quarter of the part would stay empty. A set that fits keeps its plain name.
+  Only a single file larger than the budget, or a combined PDF (which cannot be split), fails
+  with `report_output_too_large`. One part is open at a time, spooled to disk, and saved as soon
+  as it closes. Outputs keep full quality: each file carries its own copy of what its pages use,
+  including the school's 15–18 MB German/French back-cover PDF.
 - **Storage and download:** the 24-hour `job_runs` blob of ADR-024, downloaded through
-  `/api/jobs/{id}/download`. `job_runs.kind` allows `report_set` and `year_export`; the retired
-  per-card kinds become `report_set`, and any of them still waiting is marked failed.
+  `/api/jobs/{id}/download`. Each part is a `job_runs` row under its request (`parent_id`,
+  `part`; deleted with it), so it keeps the download route and the request's authorization; parts
+  stay hidden until the whole set has succeeded, then the request and every part share one
+  expiry, and a failed or redelivered set discards its parts. The request of a split set has no
+  blob of its own (`job_output_in_parts`). `GET /api/jobs` lists the newest 25 requests plus every
+  job still running or still downloadable. `job_runs.kind` allows `report_set` and
+  `year_export`; the retired per-card kinds become `report_set`, and any still waiting is failed.
 - **Picker data:** `GET /api/reports/roster?semester_id&kind` lists the set's classes in print
   order with the pupils who get the card (second-language cards: only that language's pupils),
   in two queries for the whole school.
@@ -3400,15 +3408,18 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
 
 ## Consequences
 
-- A worker holds one class PDF at a time plus the output. Measured on the 1,210-pupil local school
-  with the private overlay (peak PSS of the worker and its render processes): whole-school primary
-  English, 638 pupils in 29 classes, combined 6.7 MB in 41 s at 800 MiB with four render processes
-  and 6.0 MB in 58 s at 647 MiB with two; per-pupil ZIP 72 MB in 49 s at 714 MiB (four) and 70 s
-  at 565 MiB (two). Two German classes (28 pupils) with four processes peaked at 826 MiB as a
-  per-class ZIP (31 MB) and 874 MiB combined (21 MB); one German class of 14 pupils as a per-pupil
-  ZIP was 219 MB at 1,517 MiB before this budget. The school template therefore runs the 1 GiB
-  worker with two render processes; ~500 MiB of rendering plus the finished file held twice while
-  it is saved sets the 192 MiB budget.
+- A worker holds one class PDF at a time plus one part. A combined PDF releases each class PDF
+  as soon as its pages are copied (pypdf otherwise keeps every merged source alive). Measured on
+  the 1,210-pupil local school with the private overlay (peak PSS of the worker and its render
+  processes): whole-school primary English, 638 pupils in 29 classes, combined 6.7 MB in 41 s at
+  800 MiB with four render processes and 6.0 MB in 58 s at 647 MiB with two; per-pupil ZIP 72 MB
+  in 49 s at 714 MiB (four) and 70 s at 565 MiB (two). The school template runs the 1 GiB worker
+  with two render processes; ~500 MiB of rendering plus the finished part held twice while it is
+  saved sets the 192 MiB budget.
+- A middle-school English pupil file is about 840 KB, almost all of it the principal's signature:
+  `principals/middle.svg` embeds a 3072 × 4608 RGBA PNG that becomes a 642 KiB image plus an
+  86 KiB alpha mask in every file; the school logo's 2036 × 556 JPEG adds 80 KiB; fonts and page
+  content are about 15 KiB. A class PDF shares them once (22 pupils: 893 KB).
 - Coordinators see report jobs in the downloads list, as `may_read_job` already allowed.
 
 ## Supersedes / Superseded by

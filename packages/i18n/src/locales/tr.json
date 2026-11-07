@@ -669,7 +669,9 @@
       "expires": "{{time}} tarihine kadar",
       "expired": "Süresi doldu",
       "ready": "{{name}} hazır.",
-      "failedNamed": "{{name}} hazırlanamadı: {{reason}}"
+      "failedNamed": "{{name}} hazırlanamadı: {{reason}}",
+      "parts": "{{count}} bölüm",
+      "partsOf": "{{name}} bölümleri"
     },
     "picker": {
       "title": "{{kind}} · Öğrenci seç",
@@ -693,7 +695,7 @@
       "demoJobs": "Tanıtım sürümünde yalnızca tek sınıf veya tek öğrenci indirilebilir.",
       "expired": "Dosyanın süresi doldu; yeniden hazırlayın.",
       "pageMapping": "Sayfalar öğrencilere güvenle ayrılamadı, dosya oluşturulmadı. Lütfen yöneticiye bildirin.",
-      "tooLarge": "Bu seçimle oluşacak dosya çok büyük. Tek PDF seçin ya da daha az öğrenci veya sınıf seçin.",
+      "tooLarge": "Seçimdeki tek bir dosya izin verilen boyuttan büyük. Daha az öğrenci veya sınıf seçin, ya da ZIP biçimini deneyin.",
       "retired": "Bu eski iş artık çalıştırılamıyor; yeniden hazırlayın.",
       "jobFailed": "Dosya hazırlanırken bir hata oluştu. Yeniden deneyin."
     }

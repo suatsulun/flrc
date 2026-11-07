@@ -72,6 +72,9 @@ MAX_RENDER_WORKERS = 4
 MIN_PARALLEL_UNITS = 12
 # Bound layout memory even when a school has hundreds of duplex report cards.
 MAX_RENDER_UNITS = 16
+# A report job renders a class inside one render process; smaller batches keep each process's
+# peak down when every card carries artwork (ADR-077 measurements).
+JOB_RENDER_UNITS = 8
 # Everything the cards reference is a data URI built in this module. Anything
 # else — a local file, an internal HTTP address — is refused outright.
 ALLOWED_ASSET_SCHEMES = frozenset({"data"})
@@ -903,3 +906,45 @@ def render_report_pdf(
         _discard_pool()
         return _finish_report(serial(), cards, watermark, back_cover)
     return _finish_report(_merge_pdf_parts(parts), cards, watermark, back_cover)
+
+
+def concatenate_pdfs(files: list[Path], output: Path) -> None:
+    """Join PDFs page by page with qpdf, reading each from disk.
+
+    The first file is the primary input, so the result keeps its title and metadata.
+    """
+    job = pikepdf.Job(
+        ["qpdf", str(files[0]), "--pages", *(str(path) for path in files), "--", str(output)]
+    )
+    job.run()
+    if job.exit_code != 0:
+        raise RuntimeError(f"qpdf could not join the PDFs (exit {job.exit_code})")
+
+
+def render_cards_to_file(
+    cards: list[ReportCard], output: Path, *, one_card_per_sheet: bool = False
+) -> int:
+    """Render a set to ``output`` within this process, in bounded batches; returns its pages.
+
+    The report-job path (ADR-077): one class runs entirely inside a render process, batch by
+    batch, and each batch goes to disk before qpdf joins them, so neither this process nor the
+    job's worker holds the set's PDF or HTML at once. The school's back cover is not applied.
+    """
+    template, context, units_key, units = _document_plan(cards, one_card_per_sheet)
+    jinja_template = _template_environment().get_template(template)
+    batches = _chunk(units, max(1, -(-len(units) // JOB_RENDER_UNITS)))
+    files: list[Path] = []
+    for index, batch in enumerate(batches):
+        path = output.with_name(f"{output.stem}-batch-{index:03d}.pdf")
+        path.write_bytes(
+            render_pdf_document(jinja_template.render(**context, **{units_key: batch}))
+        )
+        files.append(path)
+    if len(files) == 1:
+        files[0].replace(output)
+    else:
+        concatenate_pdfs(files, output)
+        for path in files:
+            path.unlink()
+    with pikepdf.open(output) as document:
+        return len(document.pages)

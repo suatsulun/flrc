@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterator
 from typing import Literal
 
 from pydantic import BaseModel
@@ -16,12 +17,12 @@ from flrc.modules.jobs.service import (
 )
 from flrc.modules.reports import packaging
 from flrc.modules.reports.branding import ReportKind
-from flrc.modules.reports.builder import build_report_entries
+from flrc.modules.reports.builder import build_report_entries, eligible_roster
 from flrc.modules.reports.filenames import part_filename
 from flrc.modules.reports.packaging import (
+    ClassSet,
     ReportFormat,
     ReportPackagingError,
-    group_by_class,
     package_report_set,
 )
 from flrc.workers.celery import celery_app
@@ -42,20 +43,39 @@ class ReportJobPayload(BaseModel):
 
 def run_report_job(db: Session, job: m.JobRun) -> None:
     payload = ReportJobPayload.model_validate(job.payload)
-    entries = build_report_entries(
-        db,
-        semester_id=payload.semester_id,
-        kind=payload.kind,
-        locale=payload.locale,
-        class_ids=payload.class_ids or None,
-        student_ids=payload.student_ids or None,
-    )
-    classes = group_by_class(entries)
+    semester = db.get(m.Semester, payload.semester_id)
+    if semester is None:
+        raise ValueError("unknown_semester")
+    # Only ids and names for the whole set; each class's cards are built when it is rendered.
+    wanted_classes = set(payload.class_ids)
+    wanted_students = set(payload.student_ids)
+    classes = [
+        (item.id, [s.id for s in item.students if s.id in wanted_students] or None)
+        if wanted_students
+        else (item.id, None)
+        for item in eligible_roster(db, year_id=semester.year_id, kind=payload.kind)
+        if (not wanted_classes or item.id in wanted_classes)
+        and (not wanted_students or any(s.id in wanted_students for s in item.students))
+    ]
     if not classes:
         raise ReportPackagingError("empty_report_set")
     # A redelivered job starts over; parts of an interrupted attempt are not this set's.
     discard_parts(db, job.id)
     mark_running(db, job, total=len(classes))
+
+    def class_sets() -> Iterator[ClassSet]:
+        for class_id, student_ids in classes:
+            entries = build_report_entries(
+                db,
+                semester_id=payload.semester_id,
+                kind=payload.kind,
+                locale=payload.locale,
+                class_ids=[class_id],
+                student_ids=student_ids,
+            )
+            if entries:
+                yield ClassSet(class_id=class_id, entries=entries)
+
     filename = job.output_filename or "report"
 
     def advance(done: int) -> None:
@@ -66,7 +86,7 @@ def run_report_job(db: Session, job: m.JobRun) -> None:
         store_part(db, job, number=number, filename=part_filename(filename, number), data=data)
 
     result = package_report_set(
-        classes, payload.format, advance, packaging.MAX_OUTPUT_BYTES, save_part
+        class_sets(), payload.format, advance, packaging.MAX_OUTPUT_BYTES, save_part
     )
     if result.parts == 1:
         mark_succeeded(db, job, data=result.data, filename=filename, mime=result.mime)

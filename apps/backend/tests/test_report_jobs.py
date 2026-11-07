@@ -2,11 +2,14 @@
 
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from urllib.parse import quote
 from uuid import uuid4
 from zipfile import ZipFile
 
+import pikepdf
 import pytest
 from pypdf import PdfReader
 from redis.asyncio import Redis
@@ -535,14 +538,19 @@ async def test_selected_students_job_prints_only_them(api, world, queued) -> Non
 async def test_a_page_mapping_mismatch_fails_the_job_instead_of_misfiling(
     api, world, queued, monkeypatch
 ) -> None:
-    original = packaging.render_report_pdf
+    original = packaging.render_cards_to_file
 
-    def one_page_short(cards, **options):
-        pdf = original(cards, **options)
+    def one_page_short(cards, output, **options):
+        original(cards, output, **options)
         # Every karne is two pages; keep only the first, as a layout overflow bug might.
-        return next(packaging.split_pdf(pdf, 1, 2 * len(cards)))
+        with pikepdf.open(output, allow_overwriting_input=True) as document:
+            del document.pages[1:]
+            document.save(output)
+        return 1
 
-    monkeypatch.setattr(packaging, "render_report_pdf", one_page_short)
+    # The double must run in this process, not in a render process.
+    monkeypatch.setattr(settings, "report_render_workers", 1)
+    monkeypatch.setattr(packaging, "render_cards_to_file", one_page_short)
     await add_german(world, world.student_one)
     async with api(world.admin) as client:
         created = await client.post(
@@ -561,19 +569,35 @@ async def test_a_page_mapping_mismatch_fails_the_job_instead_of_misfiling(
 async def test_only_a_single_file_larger_than_a_part_fails_the_set(world, monkeypatch) -> None:
     await three_pupil_class(world)
     classes = middle_classes(world.semester)
+    one_card = min(pupil_file_sizes(classes[0]))
     rendered: list[int] = []
-    original = packaging.render_report_pdf
+    original = packaging.render_cards_to_file
 
-    def counting(cards, **options):
+    def counting(cards, output, **options):
         rendered.append(len(cards))
-        return original(cards, **options)
+        return original(cards, output, **options)
 
-    monkeypatch.setattr(packaging, "render_report_pdf", counting)
-    one_card = len(original([classes[0].entries[0].card], one_card_per_sheet=True))
+    monkeypatch.setattr(settings, "report_render_workers", 1)
+    monkeypatch.setattr(packaging, "render_cards_to_file", counting)
     with pytest.raises(packaging.ReportPackagingError, match="report_output_too_large"):
         packaging.package_report_set(classes, "per_student", max_bytes=one_card // 2)
     # The first pupil's file already cannot fit any part: nothing else is rendered.
     assert rendered == [2]
+
+
+def pupil_file_sizes(class_set: packaging.ClassSet) -> list[int]:
+    """The sizes of a class's pupil files, rendered exactly as a per-pupil job renders them."""
+    with TemporaryDirectory() as folder:
+        cards = [entry.card for entry in class_set.entries]
+        paths = packaging.render_class_files(cards, folder, 0, "per_student", None)
+        return [Path(path).stat().st_size for path in paths]
+
+
+def class_file_size(class_set: packaging.ClassSet) -> int:
+    with TemporaryDirectory() as folder:
+        cards = [entry.card for entry in class_set.entries]
+        (path,) = packaging.render_class_files(cards, folder, 0, "per_class", None)
+        return Path(path).stat().st_size
 
 
 def zip_names(data: bytes) -> list[str]:
@@ -584,8 +608,7 @@ def zip_names(data: bytes) -> list[str]:
 async def test_an_oversized_pupil_zip_splits_into_parts_between_whole_files(world) -> None:
     await three_pupil_class(world)
     classes = middle_classes(world.semester)
-    class_pdf = packaging.render_class(classes[0], one_card_per_sheet=True)
-    largest = max(len(part) for part in packaging.split_pdf(class_pdf, 1, 2))
+    largest = max(pupil_file_sizes(classes[0]))
     # Room for two pupil files per part, never three.
     overhead = packaging.ARCHIVE_OVERHEAD + 2 * (packaging.ENTRY_OVERHEAD + 300)
     budget = int(largest * 2.1) + overhead
@@ -657,14 +680,14 @@ async def test_combined_set_is_joined_from_class_files_on_disk(world, monkeypatc
     await three_pupil_class(world)
     await add_class(world, 7, "A", [("Seventh One", 7001), ("Seventh Two", 7002)])
     joined: list[list[int]] = []
-    original = packaging._concatenate
+    original = packaging.concatenate_pdfs
 
     def recording(files, output):
         # Each class is on disk, not in memory, by the time qpdf joins them.
         joined.append([path.stat().st_size for path in files])
         original(files, output)
 
-    monkeypatch.setattr(packaging, "_concatenate", recording)
+    monkeypatch.setattr(packaging, "concatenate_pdfs", recording)
     result = packaging.package_report_set(middle_classes(world.semester), "combined")
     assert len(joined) == 1 and len(joined[0]) == 3 and all(joined[0])
     pages = pdf_text(result.data)
@@ -681,7 +704,7 @@ async def test_class_zip_parts_hold_whole_class_files(world) -> None:
     # One pupil from 5/A, then all three of 6/A: two class files, four pupils.
     classes = middle_classes(world.semester, [world.student_one, *pupils.students])
     assert [len(item.entries) for item in classes] == [1, 3]
-    largest = max(len(packaging.render_class(item)) for item in classes)
+    largest = max(class_file_size(item) for item in classes)
     budget = int(largest * 1.5) + packaging.ARCHIVE_OVERHEAD + packaging.ENTRY_OVERHEAD + 300
     parts: dict[int, bytes] = {}
     result = packaging.package_report_set(
@@ -743,12 +766,7 @@ async def test_a_split_job_lists_numbered_parts_with_one_expiry_and_its_access(
     await three_pupil_class(world)
     coordinator = await add_coordinator()
     classes = middle_classes(world.semester)
-    largest = max(
-        len(part)
-        for part in packaging.split_pdf(
-            packaging.render_class(classes[1], one_card_per_sheet=True), 1, 3
-        )
-    )
+    largest = max(pupil_file_sizes(classes[1]))
     overhead = packaging.ARCHIVE_OVERHEAD + 2 * (packaging.ENTRY_OVERHEAD + 300)
     monkeypatch.setattr(packaging, "MAX_OUTPUT_BYTES", int(largest * 2.1) + overhead)
     body = {"semester_id": world.semester, "kind": "english_middle", "format": "per_student"}
@@ -800,3 +818,25 @@ async def test_a_split_job_lists_numbered_parts_with_one_expiry_and_its_access(
     async with api(coordinator) as client:
         expired = await client.get(f"/api/jobs/{parts[0]['id']}/download")
     assert expired.status_code == 410
+
+
+async def test_classes_are_built_only_as_render_processes_take_them(world, monkeypatch) -> None:
+    await three_pupil_class(world)
+    await add_class(world, 7, "A", [("Seventh One", 7001), ("Seventh Two", 7002)])
+    classes = middle_classes(world.semester)
+    monkeypatch.setattr(settings, "report_render_workers", 2)
+    taken: list[int] = []
+
+    def lazily():
+        for class_set in classes:
+            taken.append(class_set.class_id)
+            yield class_set
+
+    taken_when_done: list[int] = []
+    result = packaging.package_report_set(
+        lazily(), "per_class", lambda _done: taken_when_done.append(len(taken))
+    )
+    # Two render processes: a class is taken only when one of them can start on it, so the
+    # job never holds more than two classes' cards (and never any class's PDF bytes).
+    assert taken_when_done == [2, 3, 3]
+    assert len(zip_names(result.data)) == 3

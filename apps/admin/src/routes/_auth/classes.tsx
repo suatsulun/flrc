@@ -7,7 +7,7 @@ import {
   listAdminClassesOptions,
   listColumnsOptions,
   listYearsOptions,
-  moveAdminRosterMutation,
+  moveAdminRoster,
 } from "@flrc/api-client";
 import { AcademicContextBar } from "@flrc/ui/components/academic-context-bar";
 import { Button } from "@flrc/ui/components/button";
@@ -33,6 +33,7 @@ import { MoveStudentsDialog, type MoveRequest } from "../../admin/MoveStudentsDi
 import { moveConfirmationSkipped } from "../../admin/move-confirmation";
 import { useNotifyDone } from "../../admin/undo-toast";
 import { useRefreshQueries } from "../../admin/use-refresh-queries";
+import { useReturnFocus } from "../../admin/use-return-focus";
 
 const SUBJECTS = ["english", "german", "french"] as const;
 type Subject = (typeof SUBJECTS)[number];
@@ -157,41 +158,40 @@ function ClassesPage() {
     );
 
   const [moveRequest, setMoveRequest] = useState<MoveRequest>();
+  const moveFocus = useReturnFocus();
   const move = useMutation({
-    ...moveAdminRosterMutation(),
+    // The variables are the confirmed request, so the toast names exactly who moved where.
+    mutationFn: async (request: MoveRequest) =>
+      (
+        await moveAdminRoster({
+          body: {
+            student_ids: request.studentIds,
+            target_class_id: request.targetClassId,
+            allow_grade_change: false,
+          },
+          throwOnError: true,
+        })
+      ).data,
     onMutate: () => toast.loading(t("classWorkspace.movingStudent"), { id: "move-student" }),
-    onSuccess: () => void refreshRoster(),
+    onSuccess: (result, request) => {
+      const target = request.targetClass;
+      notifyDone(
+        result.changed === 0
+          ? t("classWorkspace.studentsAlreadyThere", { target })
+          : request.names.length === 1
+            ? t("classWorkspace.studentMoved", { name: request.names[0], target })
+            : t("classWorkspace.studentsMoved", { count: result.changed, target }),
+        result.action_id,
+      );
+      void refreshRoster();
+    },
     onSettled: () => {
       toast.dismiss("move-student");
       setMoveRequest(undefined);
     },
   });
-  function performMove(request: MoveRequest) {
-    move.mutate(
-      {
-        body: {
-          student_ids: request.studentIds,
-          target_class_id: request.targetClassId,
-          allow_grade_change: false,
-        },
-      },
-      {
-        onSuccess: (result) => {
-          const target = request.targetClass;
-          notifyDone(
-            result.changed === 0
-              ? t("classWorkspace.studentsAlreadyThere", { target })
-              : request.names.length === 1
-                ? t("classWorkspace.studentMoved", { name: request.names[0], target })
-                : t("classWorkspace.studentsMoved", { count: result.changed, target }),
-            result.action_id,
-          );
-        },
-      },
-    );
-  }
   /** Every move is confirmed first, unless the admin opted out for this browser session. */
-  function requestMove(studentIds: number[], targetClassId: number) {
+  function requestMove(studentIds: number[], targetClassId: number, opener: EventTarget | null) {
     const target = gradeClasses.find((item) => item.id === targetClassId);
     if (!selectedClass || !target || move.isPending || studentIds.length === 0) return;
     const request: MoveRequest = {
@@ -203,8 +203,12 @@ function ClassesPage() {
       targetClassId,
       targetClass: target.name,
     };
-    if (moveConfirmationSkipped()) performMove(request);
-    else setMoveRequest(request);
+    if (moveConfirmationSkipped()) {
+      move.mutate(request);
+      return;
+    }
+    moveFocus.remember(opener);
+    setMoveRequest(request);
   }
   const [addingClass, setAddingClass] = useState(false);
   const [newSection, setNewSection] = useState("");
@@ -245,7 +249,7 @@ function ClassesPage() {
     );
     const studentId = transferredStudentId || draggedStudentId;
     if (!studentId || targetClassId === selectedClass?.id) return;
-    requestMove([studentId], targetClassId);
+    requestMove([studentId], targetClassId, event.currentTarget);
     setDraggedStudentId(undefined);
   }
 
@@ -467,8 +471,9 @@ function ClassesPage() {
       <MoveStudentsDialog
         request={moveRequest}
         pending={move.isPending}
+        finalFocus={moveFocus.finalFocus}
         onCancel={() => setMoveRequest(undefined)}
-        onConfirm={performMove}
+        onConfirm={(request) => move.mutate(request)}
       />
     </AdminPage>
   );

@@ -22,11 +22,14 @@ export type MoveRequest = {
 export function MoveStudentsDialog({
   request,
   pending,
+  finalFocus,
   onCancel,
   onConfirm,
 }: {
   request?: MoveRequest;
   pending: boolean;
+  /** The class tab or button the move came from gets focus back when the dialog closes. */
+  finalFocus: () => HTMLElement | boolean;
   onCancel: () => void;
   onConfirm: (request: MoveRequest) => void;
 }) {
@@ -41,6 +44,7 @@ export function MoveStudentsDialog({
   return (
     <ConfirmDialog
       open={Boolean(request)}
+      finalFocus={finalFocus}
       onOpenChange={(open) => {
         if (open) return;
         setSkipAgain(false);

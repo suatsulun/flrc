@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import { ClassColumnHeaders } from "./ClassColumnHeaders";
 import { RenameFieldDialog } from "./RenameFieldDialog";
 import { useNotifyDone } from "./undo-toast";
+import { useReturnFocus } from "./use-return-focus";
 type Subject = ColumnCreate["subject"];
 type Language = "german" | "french";
 /**
@@ -66,7 +67,7 @@ export function ClassRosterTable({
   columnsWritable: boolean;
   hidden: boolean;
   setDraggedStudentId: (id: number | undefined) => void;
-  onMoveRequest: (studentIds: number[], targetClassId: number) => void;
+  onMoveRequest: (studentIds: number[], targetClassId: number, opener: EventTarget | null) => void;
   onRosterChanged: () => Promise<unknown>;
   onColumnsChanged: () => Promise<unknown>;
 }) {
@@ -77,6 +78,16 @@ export function ClassRosterTable({
   const [studentName, setStudentName] = useState("");
   const [studentLanguage, setStudentLanguage] = useState<Language | "">("");
   const [renaming, setRenaming] = useState<ColumnOut>();
+  const renameFocus = useReturnFocus();
+  // A typed school number shows until its save settles; then the stored value shows again,
+  // so an Undo or a refused save is never hidden behind (or re-sent from) a stale draft.
+  const [numberDrafts, setNumberDrafts] = useState<Record<number, string>>({});
+  const dropNumberDraft = (studentId: number) =>
+    setNumberDrafts((drafts) => {
+      const next = { ...drafts };
+      delete next[studentId];
+      return next;
+    });
   // Selection belongs to one class; students who left the roster drop out of it.
   const [selection, setSelection] = useState<{ classId: number; ids: number[] }>();
   const selectedIds =
@@ -91,11 +102,16 @@ export function ClassRosterTable({
 
   const addStudent = useMutation({
     ...addAdminRosterStudentMutation(),
-    onSuccess: (added) => {
+    // The toast names the class the student was added to, even after a tab switch.
+    onMutate: () => ({ className }),
+    onSuccess: (added, _variables, submitted) => {
       setStudentNumber("");
       setStudentName("");
       notifyDone(
-        t("classWorkspace.studentAdded", { name: added.full_name, className }),
+        t("classWorkspace.studentAdded", {
+          name: added.full_name,
+          className: submitted.className,
+        }),
         added.action_id,
       );
       void onRosterChanged();
@@ -103,7 +119,7 @@ export function ClassRosterTable({
   });
   const patchStudent = useMutation({
     ...patchAdminRosterStudentMutation(),
-    onSuccess: (saved, { body }) => {
+    onSuccess: async (saved, { body }) => {
       const name = saved.full_name;
       const message =
         "language" in body
@@ -114,8 +130,9 @@ export function ClassRosterTable({
             ? t("roster.numberSaved", { name, number: saved.school_number })
             : t("roster.numberCleared", { name });
       notifyDone(message, saved.action_id);
-      void onRosterChanged();
+      await onRosterChanged();
     },
+    onSettled: (_saved, _error, { path }) => dropNumberDraft(path.student_id),
   });
   const setLanguages = useMutation({
     ...setStudentLanguageMutation(),
@@ -166,7 +183,11 @@ export function ClassRosterTable({
             onSubmit={(event) => {
               event.preventDefault();
               if (!moveTarget) return;
-              onMoveRequest(selectedIds, Number(moveTarget));
+              onMoveRequest(
+                selectedIds,
+                Number(moveTarget),
+                (event.nativeEvent as SubmitEvent).submitter,
+              );
             }}
           >
             <NativeSelect
@@ -297,7 +318,10 @@ export function ClassRosterTable({
                 semesterId={semesterId}
                 writable={columnsWritable}
                 onChanged={onColumnsChanged}
-                onRename={setRenaming}
+                onRename={(column, opener) => {
+                  renameFocus.remember(opener);
+                  setRenaming(column);
+                }}
               />
               <th
                 aria-hidden="true"
@@ -364,12 +388,20 @@ export function ClassRosterTable({
                       className="h-8 w-full min-w-0 rounded-md px-2 text-center tabular"
                       inputMode="numeric"
                       aria-label={`${student.full_name} — ${t("students.schoolNumber")}`}
-                      defaultValue={student.school_number ?? ""}
+                      value={numberDrafts[student.student_id] ?? student.school_number ?? ""}
                       disabled={!yearWritable || patchStudent.isPending}
-                      onBlur={(event) => {
-                        const value = event.currentTarget.value.trim();
-                        const next = value ? Number(value) : null;
-                        if (next === student.school_number) return;
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setNumberDrafts((drafts) => ({ ...drafts, [student.student_id]: value }));
+                      }}
+                      onBlur={() => {
+                        const draft = numberDrafts[student.student_id];
+                        if (draft === undefined) return;
+                        const next = draft.trim() ? Number(draft.trim()) : null;
+                        if (next === student.school_number) {
+                          dropNumberDraft(student.student_id);
+                          return;
+                        }
                         patchStudent.mutate({
                           path: {
                             class_id: classId,
@@ -482,6 +514,7 @@ export function ClassRosterTable({
       <RenameFieldDialog
         column={renaming}
         semesterId={semesterId}
+        finalFocus={renameFocus.finalFocus}
         onClose={() => setRenaming(undefined)}
         onRenamed={onColumnsChanged}
       />

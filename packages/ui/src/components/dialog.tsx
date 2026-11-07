@@ -135,6 +135,7 @@ function ConfirmDialog({
   destructive = false,
   children,
   confirmDisabled = false,
+  finalFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -148,10 +149,12 @@ function ConfirmDialog({
   destructive?: boolean;
   children?: React.ReactNode;
   confirmDisabled?: boolean;
+  /** Where focus goes on close; needed when no `DialogTrigger` opened the dialog. */
+  finalFocus?: DialogPrimitive.Popup.Props["finalFocus"];
 }) {
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
-      <DialogContent showCloseButton={!pending}>
+      <DialogContent showCloseButton={!pending} finalFocus={finalFocus}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}

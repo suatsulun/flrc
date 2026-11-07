@@ -87,10 +87,10 @@ export function CopyFieldsDialog({
     lacksTurkish;
   const copy = useMutation({
     ...copyColumnsMutation(),
-    onSuccess: async (result) => {
+    onSuccess: async (result, { body }) => {
       notifyDone(t("columns.copied", { count: result.copied }), result.action_id);
       setOpen(false);
-      await onCopied({ grade: targetGrade, subject: targetSubject });
+      await onCopied({ grade: body.target_grade_level, subject: body.target_subject });
     },
   });
   const targetLabel = `${gradeLabel(t, targetGrade)} · ${t(`subjects.${targetSubject}`)}`;

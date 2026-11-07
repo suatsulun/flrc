@@ -11,7 +11,7 @@ import {
   createColumnMutation,
   deleteColumnMutation,
   listColumnsOptions,
-  reorderColumnsMutation,
+  reorderColumns,
   type ColumnOut,
 } from "@flrc/api-client";
 import { Badge } from "@flrc/ui/components/badge";
@@ -37,6 +37,7 @@ import { apiError } from "../../admin/feedback";
 import { RenameFieldDialog } from "../../admin/RenameFieldDialog";
 import { useNotifyDone } from "../../admin/undo-toast";
 import { useRefreshQueries } from "../../admin/use-refresh-queries";
+import { useReturnFocus } from "../../admin/use-return-focus";
 
 const SUBJECTS = ["english", "german", "french"] as const;
 type Subject = (typeof SUBJECTS)[number];
@@ -70,6 +71,7 @@ function ColumnsPage() {
   const [pendingColumnId, setPendingColumnId] = useState<number>();
   const [deleteTarget, setDeleteTarget] = useState<ColumnOut>();
   const [renaming, setRenaming] = useState<ColumnOut>();
+  const dialogFocus = useReturnFocus();
   const {
     data: columns = [],
     isPending: columnsPending,
@@ -80,20 +82,22 @@ function ColumnsPage() {
   const invalidate = () => refresh("listColumns", "getGrid", "listClassCatalog");
 
   const reorder = useMutation({
-    ...reorderColumnsMutation(),
-    onSuccess: (result) => {
-      const moved = columns.find((column) => column.id === pendingColumnId);
-      notifyDone(t("columns.reordered", { name: moved?.name ?? "" }), result.action_id);
+    // The variables carry the moved field's name, so the toast names what was sent.
+    mutationFn: async ({ ids }: { ids: number[]; name: string }) =>
+      (await reorderColumns({ body: { ordered_ids: ids }, throwOnError: true })).data,
+    onSuccess: (result, { name }) => {
+      notifyDone(t("columns.reordered", { name }), result.action_id);
       void invalidate();
     },
     onSettled: () => setPendingColumnId(undefined),
   });
   const remove = useMutation({
     ...deleteColumnMutation(),
-    onSuccess: (result) => {
-      const name = deleteTarget?.name ?? "";
+    // The toast names the field that was confirmed, captured when the delete is sent.
+    onMutate: () => ({ name: deleteTarget?.name ?? "" }),
+    onSuccess: (result, _variables, submitted) => {
       notifyDone(
-        result.disabled ? t("columns.disabledKept", { name }) : t("columns.deleted", { name }),
+        result.disabled ? t("columns.disabledKept", submitted) : t("columns.deleted", submitted),
         result.action_id,
       );
       setDeleteTarget(undefined);
@@ -107,7 +111,7 @@ function ColumnsPage() {
     if (target < 0 || target >= ids.length) return;
     [ids[index], ids[target]] = [ids[target], ids[index]];
     setPendingColumnId(columns[index]?.id);
-    reorder.mutate({ body: { ordered_ids: ids } });
+    reorder.mutate({ ids, name: columns[index].name });
   };
 
   if (columnsPending) return <PageSkeleton />;
@@ -228,7 +232,10 @@ function ColumnsPage() {
                       variant="ghost"
                       aria-label={t("columns.renameColumn", { name: column.name })}
                       title={t("columns.rename")}
-                      onClick={() => setRenaming(column)}
+                      onClick={(event) => {
+                        dialogFocus.remember(event.currentTarget);
+                        setRenaming(column);
+                      }}
                     >
                       <PencilIcon />
                     </Button>
@@ -237,7 +244,10 @@ function ColumnsPage() {
                       variant="destructive"
                       aria-label={t("columns.delete")}
                       disabled={remove.isPending}
-                      onClick={() => setDeleteTarget(column)}
+                      onClick={(event) => {
+                        dialogFocus.remember(event.currentTarget);
+                        setDeleteTarget(column);
+                      }}
                     >
                       <Trash2Icon />
                     </Button>
@@ -249,6 +259,7 @@ function ColumnsPage() {
         </Card>
       )}
       <ConfirmDialog
+        finalFocus={dialogFocus.finalFocus}
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(undefined)}
         title={t("columns.delete")}
@@ -262,6 +273,7 @@ function ColumnsPage() {
       />
       <RenameFieldDialog
         column={renaming}
+        finalFocus={dialogFocus.finalFocus}
         onClose={() => setRenaming(undefined)}
         onRenamed={invalidate}
       />

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import type { AdminClassOut } from "../packages/api-client/src/index";
 import { authenticatedContext } from "./helpers/auth";
 import { adminOrigin } from "./helpers/origins";
 import { expectContainedTable } from "./helpers/table";
@@ -100,29 +101,55 @@ test("admin edits and deletes an unused class of a setup year", async ({ browser
   const context = await authenticatedContext(browser, "admin@example-school.k12.tr");
   const page = await context.newPage();
   await page.goto(`${adminOrigin}/admin/classes`);
-  await page.getByLabel("Academic year", { exact: true }).selectOption({ label: "2027-2028" });
-  await page.getByRole("button", { name: "Add class", exact: true }).click();
-  await page.getByRole("textbox", { name: "Section", exact: true }).fill("C");
-  await page.getByRole("button", { name: "Add class", exact: true }).click();
-  await expect(page.getByRole("button", { name: /^5\/C/ })).toHaveAttribute("aria-current", "page");
+  const year = page.getByLabel("Academic year", { exact: true });
+  await year.selectOption({ label: "2027-2028" });
+  const yearId = await year.inputValue();
+  try {
+    await page.getByRole("button", { name: "Add class", exact: true }).click();
+    await page.getByRole("textbox", { name: "Section", exact: true }).fill("C");
+    await page.getByRole("button", { name: "Add class", exact: true }).click();
+    await expect(page.getByRole("button", { name: /^5\/C/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
 
-  await page.getByRole("button", { name: "Edit class", exact: true }).click();
-  const dialog = page.getByRole("dialog");
-  const section = dialog.getByRole("textbox", { name: "Section", exact: true });
-  await expect(section).toHaveValue("C");
-  await section.fill("D");
-  await section.press("Enter");
-  await expect(page.getByText("5/C is now 5/D.")).toBeVisible();
-  await expect(page.getByRole("button", { name: /^5\/D/ })).toHaveAttribute("aria-current", "page");
+    // The page's own buttons; the dialogs render outside the main landmark.
+    const main = page.locator("#main");
+    const edit = main.getByRole("button", { name: "Edit class", exact: true });
+    await edit.click();
+    const dialog = page.getByRole("dialog");
+    const section = dialog.getByRole("textbox", { name: "Section", exact: true });
+    await expect(section).toHaveValue("C");
+    await section.fill("D");
+    await section.press("Enter");
+    await expect(page.getByText("5/C is now 5/D.")).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+    await expect(edit).toBeFocused();
+    await expect(page.getByRole("button", { name: /^5\/D/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
 
-  const remove = page.getByRole("button", { name: "Delete class", exact: true });
-  await expect(remove).toBeEnabled();
-  await remove.click();
-  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(page.getByRole("button", { name: /^5\/D/ })).toBeVisible();
-  await remove.click();
-  await dialog.getByRole("button", { name: "Delete class", exact: true }).click();
-  await expect(page.getByText("5/D was deleted.")).toBeVisible();
-  await expect(page.getByRole("button", { name: /^5\/D/ })).toHaveCount(0);
-  await context.close();
+    const remove = main.getByRole("button", { name: "Delete class", exact: true });
+    await expect(remove).toBeEnabled();
+    await remove.click();
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(remove).toBeFocused();
+    await expect(page.getByRole("button", { name: /^5\/D/ })).toBeVisible();
+    await remove.click();
+    await dialog.getByRole("button", { name: "Delete class", exact: true }).click();
+    await expect(page.getByText("5/D was deleted.")).toBeVisible();
+    await expect(page.getByRole("button", { name: /^5\/D/ })).toHaveCount(0);
+  } finally {
+    // Later specs import into this year and count its classes; never leave one behind.
+    const listed = await page.request.get(`${adminOrigin}/api/admin/years/${yearId}/classes`);
+    for (const leftover of (await listed.json()) as AdminClassOut[]) {
+      if (leftover.name !== "5/C" && leftover.name !== "5/D") continue;
+      await page.request.delete(`${adminOrigin}/api/admin/classes/${leftover.id}`, {
+        headers: { Origin: adminOrigin },
+      });
+    }
+    await context.close();
+  }
 });

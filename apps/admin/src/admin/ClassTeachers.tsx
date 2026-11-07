@@ -32,14 +32,20 @@ export function ClassTeachers({
   const { data: users = [] } = useQuery(listManagedUsersOptions({ query: { active: true } }));
   const assign = useMutation({
     ...replaceAssignmentMatrixMutation(),
-    onSuccess: (result, { body }) => {
+    // The toast names the class, role and teacher as they were when the change was sent.
+    onMutate: ({ body }) => {
       const [change] = body.changes;
-      const role = t(`roles.${change.role}`);
-      const teacher = users.find((user) => user.id === change.user_id)?.full_name;
+      return {
+        className,
+        role: t(`roles.${change.role}`),
+        teacher: users.find((user) => user.id === change.user_id)?.full_name,
+      };
+    },
+    onSuccess: (result, _variables, submitted) => {
       notifyDone(
-        teacher
-          ? t("classWorkspace.teacherAssigned", { teacher, className, role })
-          : t("classWorkspace.teacherUnassigned", { className, role }),
+        submitted.teacher
+          ? t("classWorkspace.teacherAssigned", submitted)
+          : t("classWorkspace.teacherUnassigned", submitted),
         result.action_id,
       );
       void invalidate("listAssignmentMatrix", "getAssignments", "getGrid");

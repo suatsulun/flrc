@@ -22,6 +22,7 @@ import { useNotifyDone } from "./undo-toast";
 export function RenameFieldDialog({
   column,
   semesterId,
+  finalFocus,
   onClose,
   onRenamed,
 }: {
@@ -29,6 +30,8 @@ export function RenameFieldDialog({
   column?: ColumnOut;
   /** The semester the field belongs to; omitted on the Fields page (the open semester). */
   semesterId?: number;
+  /** The control that opened the dialog gets focus back when it closes. */
+  finalFocus: () => HTMLElement | boolean;
   onClose: () => void;
   onRenamed: () => Promise<unknown>;
 }) {
@@ -46,9 +49,11 @@ export function RenameFieldDialog({
   };
   const rename = useMutation({
     ...updateColumnMutation(),
-    onSuccess: async (updated, variables) => {
+    // The toast names the field as it was when the rename was sent.
+    onMutate: () => ({ previous: column?.name ?? "" }),
+    onSuccess: async (updated, variables, submitted) => {
       notifyDone(
-        t("columns.renamed", { previous: column?.name ?? "", name: variables.body.name }),
+        t("columns.renamed", { previous: submitted.previous, name: variables.body.name }),
         updated.action_id,
       );
       close();
@@ -63,7 +68,7 @@ export function RenameFieldDialog({
         if (!open && !rename.isPending) close();
       }}
     >
-      <DialogContent showCloseButton={!rename.isPending}>
+      <DialogContent showCloseButton={!rename.isPending} finalFocus={finalFocus}>
         <form
           className="grid gap-5"
           onSubmit={(event) => {

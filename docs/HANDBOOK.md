@@ -6395,7 +6395,9 @@ class they leave and the target. Its "do not ask again this session" box is kept
 success toast naming what changed, with Undo when the API returned an `action_id`; failures use
 the global per-code error toast, never a second inline message. **Edit class** changes grade and
 section; **Delete class** is enabled only in a setup year for a class without students or
-teachers and otherwise shows why (the API still refuses one that holds saved grades).
+teachers and otherwise shows why (the API still refuses one that holds saved grades). Dialogs
+opened from page state return focus to the control that opened them (`useReturnFocus` with Base
+UI's `finalFocus`), and toasts name what was submitted, captured when the write is sent.
 
 **Check (prove the invariant):** enter three grades for a student in 5/A. Move them to 5/B. Open 5/B's same subject grid: the grades are there. Move back: still there. Switch German → French: the English grades remain; German grid drops the student; French grid gains them.
 

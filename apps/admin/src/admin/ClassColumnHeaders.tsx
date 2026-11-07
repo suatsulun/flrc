@@ -1,6 +1,6 @@
 import { useDragPageAutoScroll } from "@flrc/ui/hooks/use-drag-page-auto-scroll";
 import type { ColumnCreate } from "@flrc/api-client";
-import { reorderColumnsMutation, updateColumnMutation, type ColumnOut } from "@flrc/api-client";
+import { reorderColumns, updateColumnMutation, type ColumnOut } from "@flrc/api-client";
 import { Button } from "@flrc/ui/components/button";
 import { NativeSelect } from "@flrc/ui/components/native-select";
 import { useMutation } from "@tanstack/react-query";
@@ -24,7 +24,7 @@ export function ClassColumnHeaders({
   semesterId?: number;
   writable: boolean;
   onChanged: () => Promise<unknown>;
-  onRename: (column: ColumnOut) => void;
+  onRename: (column: ColumnOut, opener: HTMLElement) => void;
 }) {
   const { t } = useTranslation();
   const notifyDone = useNotifyDone();
@@ -48,10 +48,17 @@ export function ClassColumnHeaders({
   });
   const [reorderingColumnId, setReorderingColumnId] = useState<number>();
   const reorder = useMutation({
-    ...reorderColumnsMutation(),
-    onSuccess: async (result) => {
-      const moved = columns.find((column) => column.id === reorderingColumnId);
-      notifyDone(t("columns.reordered", { name: moved?.name ?? "" }), result.action_id);
+    // The variables carry the moved field's name, so the toast names what was sent.
+    mutationFn: async ({ ids, semester }: { ids: number[]; semester: number; name: string }) =>
+      (
+        await reorderColumns({
+          query: { semester_id: semester },
+          body: { ordered_ids: ids },
+          throwOnError: true,
+        })
+      ).data,
+    onSuccess: async (result, { name }) => {
+      notifyDone(t("columns.reordered", { name }), result.action_id);
       await onChanged();
     },
     onError: () => {
@@ -68,8 +75,9 @@ export function ClassColumnHeaders({
     ordered.splice(to, 0, columnId);
     setReorderingColumnId(columnId);
     reorder.mutate({
-      query: { semester_id: semesterId },
-      body: { ordered_ids: [...ordered, ...columns.filter((c) => !c.is_active).map((c) => c.id)] },
+      semester: semesterId,
+      ids: [...ordered, ...columns.filter((c) => !c.is_active).map((c) => c.id)],
+      name: visibleColumns[from].name,
     });
   }
 
@@ -152,7 +160,7 @@ export function ClassColumnHeaders({
                   className="h-5 w-full min-w-0 rounded"
                   aria-label={t("columns.renameColumn", { name: column.name })}
                   title={t("columns.rename")}
-                  onClick={() => onRename(column)}
+                  onClick={(event) => onRename(column, event.currentTarget)}
                 >
                   <PencilIcon className="size-3" />
                 </Button>

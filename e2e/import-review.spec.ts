@@ -55,7 +55,8 @@ test("import scrolls through the full roster, filters all rows, and commits revi
   // A filtered preview still commits all students, including unloaded pages.
   await page.getByRole("button", { name: "Commit import", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Student import completed." })).toBeVisible();
-  await expect(page.getByText(/205 students processed for/)).toBeVisible();
+  // The success toast repeats the summary; assert the page's own copy.
+  await expect(page.locator("#main").getByText(/205 students processed for/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Commit import", exact: true })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Preview changes", exact: true }).click();
@@ -159,7 +160,7 @@ test("grade browsing filters the roster and additions, exclusions and language c
   await expect(rows).toHaveCount(60);
   await page.getByRole("button", { name: "Commit import", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Student import completed." })).toBeVisible();
-  await expect(page.getByText(/205 students processed for/)).toBeVisible();
+  await expect(page.locator("#main").getByText(/205 students processed for/)).toBeVisible();
   const yearId = await page.getByLabel("Academic year", { exact: true }).inputValue();
   const classesResponse = await page.request.get(`${adminUrl}/api/admin/years/${yearId}/classes`);
   expect(classesResponse.ok()).toBe(true);
@@ -233,7 +234,7 @@ test("equal numbers in primary and middle school stay independent through edits 
 
   await page.getByRole("button", { name: "Commit import", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Student import completed." })).toBeVisible();
-  await expect(page.getByText(/\b5 students processed for/)).toBeVisible();
+  await expect(page.locator("#main").getByText(/\b5 students processed for/)).toBeVisible();
   const yearId = await page.getByLabel("Academic year", { exact: true }).inputValue();
   const classesResponse = await page.request.get(`${adminUrl}/api/admin/years/${yearId}/classes`);
   expect(classesResponse.ok()).toBe(true);

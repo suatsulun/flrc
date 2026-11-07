@@ -24,6 +24,7 @@ import { PencilIcon, Trash2Icon } from "lucide-react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNotifyDone } from "./undo-toast";
+import { useReturnFocus } from "./use-return-focus";
 
 /**
  * Edit a class's grade and section, or delete it. Deleting is offered only in a setup year for a
@@ -46,6 +47,7 @@ export function ClassActions({
   const reasonId = useId();
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const dialogFocus = useReturnFocus();
   const { data: matrix = [] } = useQuery(
     listAssignmentMatrixOptions({ path: { year_id: schoolClass.year_id } }),
   );
@@ -60,9 +62,11 @@ export function ClassActions({
           : undefined;
   const remove = useMutation({
     ...deleteAdminClassMutation(),
-    onSuccess: async (result) => {
+    // The toast names the class that was confirmed, captured when the delete is sent.
+    onMutate: () => ({ className: schoolClass.name }),
+    onSuccess: async (result, _variables, submitted) => {
       setDeleting(false);
-      notifyDone(t("classes.deleted", { className: schoolClass.name }), result.action_id);
+      notifyDone(t("classes.deleted", submitted), result.action_id);
       await onDeleted();
     },
   });
@@ -74,7 +78,14 @@ export function ClassActions({
           {deleteBlocked}
         </p>
       ) : null}
-      <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={(event) => {
+          dialogFocus.remember(event.currentTarget);
+          setEditing(true);
+        }}
+      >
         <PencilIcon />
         {t("classes.edit")}
       </Button>
@@ -83,19 +94,22 @@ export function ClassActions({
         size="sm"
         disabled={Boolean(deleteBlocked)}
         aria-describedby={deleteBlocked ? reasonId : undefined}
-        onClick={() => setDeleting(true)}
+        onClick={(event) => {
+          dialogFocus.remember(event.currentTarget);
+          setDeleting(true);
+        }}
       >
         <Trash2Icon />
         {t("classes.delete")}
       </Button>
       <ClassEditDialog
-        key={`${schoolClass.id}-${schoolClass.grade_level}-${schoolClass.section}`}
         schoolClass={schoolClass}
         open={editing}
+        finalFocus={dialogFocus.finalFocus}
         onClose={() => setEditing(false)}
-        onEdited={async (updated) => {
+        onEdited={async (updated, previous) => {
           notifyDone(
-            t("classes.updated", { previous: schoolClass.name, className: updated.name }),
+            t("classes.updated", { previous, className: updated.name }),
             updated.action_id,
           );
           setEditing(false);
@@ -103,6 +117,7 @@ export function ClassActions({
         }}
       />
       <ConfirmDialog
+        finalFocus={dialogFocus.finalFocus}
         open={deleting}
         onOpenChange={(open) => !open && setDeleting(false)}
         title={t("classes.deleteTitle", { className: schoolClass.name })}
@@ -121,25 +136,39 @@ export function ClassActions({
 function ClassEditDialog({
   schoolClass,
   open,
+  finalFocus,
   onClose,
   onEdited,
 }: {
   schoolClass: AdminClassOut;
   open: boolean;
+  finalFocus: () => HTMLElement | boolean;
   onClose: () => void;
-  onEdited: (updated: AdminClassWriteOut) => Promise<unknown>;
+  /** Receives the saved class and the name it had when the edit was sent. */
+  onEdited: (updated: AdminClassWriteOut, previous: string) => Promise<unknown>;
 }) {
   const { t } = useTranslation();
-  const [grade, setGrade] = useState(schoolClass.grade_level);
-  const [section, setSection] = useState(schoolClass.section);
-  const edit = useMutation({ ...patchAdminClassMutation(), onSuccess: onEdited });
-  const trimmed = section.trim();
-  const unchanged = grade === schoolClass.grade_level && trimmed === schoolClass.section;
+  // Until the admin changes them, the fields show the class as stored.
+  const [draftGrade, setGrade] = useState<number>();
+  const [draftSection, setSection] = useState<string>();
+  const grade = draftGrade ?? schoolClass.grade_level;
+  const section = draftSection ?? schoolClass.section;
   const close = () => {
-    setGrade(schoolClass.grade_level);
-    setSection(schoolClass.section);
+    setGrade(undefined);
+    setSection(undefined);
     onClose();
   };
+  const edit = useMutation({
+    ...patchAdminClassMutation(),
+    onMutate: () => ({ previous: schoolClass.name }),
+    onSuccess: async (updated, _variables, submitted) => {
+      setGrade(undefined);
+      setSection(undefined);
+      await onEdited(updated, submitted.previous);
+    },
+  });
+  const trimmed = section.trim();
+  const unchanged = grade === schoolClass.grade_level && trimmed === schoolClass.section;
 
   return (
     <Dialog
@@ -148,7 +177,7 @@ function ClassEditDialog({
         if (!next && !edit.isPending) close();
       }}
     >
-      <DialogContent showCloseButton={!edit.isPending}>
+      <DialogContent showCloseButton={!edit.isPending} finalFocus={finalFocus}>
         <form
           className="grid gap-5"
           onSubmit={(event) => {

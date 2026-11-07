@@ -3378,6 +3378,9 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
   a pupil alone: the class is rendered once — middle-school cards one per sheet instead of two-up —
   and cut by page range (two pages per duplex card, one per middle-school card). Every class's
   page count is checked against that mapping; a mismatch fails the job (`report_page_mapping`).
+  A chosen pupil who left the set before the job ran (moved, removed, another language) fails it
+  too (`student_not_in_report_set`, shown as an out-of-date selection), rather than a file
+  silently missing them.
 - **Output budget:** a job stops early when its output, projected from the pupils done, would pass
   192 MiB (`report_output_too_large`, shown with advice to choose one PDF or fewer pupils); ZIP
   entries spool to a temporary file. Outputs keep full quality: each file carries its own copy of

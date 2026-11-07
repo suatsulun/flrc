@@ -41,6 +41,10 @@ def run_report_job(db: Session, job: m.JobRun) -> None:
         class_ids=payload.class_ids or None,
         student_ids=payload.student_ids or None,
     )
+    # A chosen pupil who has since left the set (moved, removed, another language) would be
+    # missing from the file without notice; the request is refused instead, as at enqueue.
+    if payload.student_ids and {entry.student_id for entry in entries} != set(payload.student_ids):
+        raise ReportPackagingError("student_not_in_report_set")
     classes = group_by_class(entries)
     if not classes:
         raise ReportPackagingError("empty_report_set")

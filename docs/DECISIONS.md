@@ -3450,8 +3450,9 @@ to hand out an unofficial copy.
   middle), german or french give that karne and only for students taking the language.
   Administrators may preview any card that exists; everyone else, coordinators included, gets 403.
   A pupil outside the teacher's classes is a 403, never a 404, so the endpoint reveals nothing.
-- The preview is the real card: the official builder builds the student's class set and the one
-  student's card is rendered by the same templates, overlays and back covers. `render_report_pdf`
+- The preview is the real card: the official builder builds just that student's card, picked by
+  student id (never by name or roster position, which two unnumbered pupils of a setup year can
+  share), and the same templates, overlays and back covers render it. `render_report_pdf`
   takes an optional keyword-only `watermark`; with it, a diagonal "ÖNİZLEME" is stamped over every
   finished page (each card of a two-up sheet, back covers included) as a PDF overlay, so private
   template overlays need no change. Official sets never pass it and render exactly as before. The

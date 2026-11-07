@@ -7,6 +7,7 @@ from pypdf import PdfReader
 
 from flrc.core import rate_limit
 from flrc.db import models as m
+from flrc.modules.reports import preview as preview_module
 from tests.conftest import TestSession
 
 WATERMARK = "ÖNİZLEME"
@@ -131,6 +132,53 @@ async def test_admin_previews_any_card_that_exists(api, world, languages) -> Non
     # A teacher learns nothing about pupils outside their classes.
     hidden = await preview(api, world.main, world, 999_999, "english_middle")
     assert hidden.status_code == 403
+
+
+async def test_preview_is_the_requested_pupil_even_when_names_and_numbers_match(
+    api, world, monkeypatch
+) -> None:
+    # A rolled-over setup year has no numbers yet, and two pupils may share a name.
+    async with TestSession() as db:
+        twins = [m.Student(full_name="Twin Pupil", search_name="twin pupil") for _ in range(2)]
+        db.add_all(twins)
+        await db.flush()
+        for twin, score in zip(twins, (37, 93), strict=True):
+            db.add(
+                m.Enrollment(
+                    student_id=twin.id, class_id=world.cls, year_id=world.year, school_number=None
+                )
+            )
+            db.add(
+                m.GradeValue(
+                    student_id=twin.id,
+                    column_definition_id=world.main_column,
+                    score=score,
+                    version=1,
+                    updated_by=world.main.id,
+                )
+            )
+        await db.commit()
+        ids = [twin.id for twin in twins]
+
+    async def check() -> None:
+        for student_id, own, other in ((ids[0], "37", "93"), (ids[1], "93", "37")):
+            response = await preview(api, world.main, world, student_id, "english_middle")
+            assert response.status_code == 200
+            text = pdf_text(response.content)
+            assert "Twin Pupil" in text
+            assert own in text
+            assert other not in text
+
+    await check()
+    # The eligibility read may list the class in another order than the builder
+    # (a roster change between the two reads); the card still follows the id.
+    roster = preview_module._roster
+
+    async def reordered(*args, **kwargs):
+        return {class_id: rows[::-1] for class_id, rows in (await roster(*args, **kwargs)).items()}
+
+    monkeypatch.setattr(preview_module, "_roster", reordered)
+    await check()
 
 
 async def test_official_report_set_carries_no_preview_mark(api, world) -> None:

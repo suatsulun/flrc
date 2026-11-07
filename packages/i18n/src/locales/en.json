@@ -724,5 +724,9 @@
     "noStudentsTitle": "No students for this card",
     "noStudentsBody": "No student in this class receives this report card.",
     "watermarkNote": "Previews carry an ÖNİZLEME (preview) watermark and are view-only; official report cards are printed from the admin panel."
+  },
+  "changes": {
+    "undo": "Undo",
+    "undone": "Change undone."
   }
 }

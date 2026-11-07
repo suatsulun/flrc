@@ -724,5 +724,9 @@
     "noStudentsTitle": "Keine Schüler/innen für dieses Zeugnis",
     "noStudentsBody": "In dieser Klasse erhält niemand dieses Zeugnis.",
     "watermarkNote": "Vorschauen tragen das Wasserzeichen ÖNİZLEME (Vorschau) und dienen nur zur Ansicht; offizielle Zeugnisse werden im Verwaltungsbereich gedruckt."
+  },
+  "changes": {
+    "undo": "Rückgängig",
+    "undone": "Änderung rückgängig gemacht."
   }
 }

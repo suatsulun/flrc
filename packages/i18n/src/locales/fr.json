@@ -724,5 +724,9 @@
     "noStudentsTitle": "Aucun élève pour ce bulletin",
     "noStudentsBody": "Aucun élève de cette classe ne reçoit ce bulletin.",
     "watermarkNote": "Les aperçus portent le filigrane ÖNİZLEME (aperçu) et sont en lecture seule ; les bulletins officiels s’impriment depuis l’espace d’administration."
+  },
+  "changes": {
+    "undo": "Annuler",
+    "undone": "Modification annulée."
   }
 }

@@ -724,5 +724,9 @@
     "noStudentsTitle": "Bu karne için öğrenci yok",
     "noStudentsBody": "Bu sınıfta bu karneyi alan öğrenci bulunmuyor.",
     "watermarkNote": "Önizlemeler ÖNİZLEME filigranı taşır ve yalnızca görüntülenir; resmi karneler yönetim panelinden yazdırılır."
+  },
+  "changes": {
+    "undo": "Geri al",
+    "undone": "Değişiklik geri alındı."
   }
 }

@@ -50,11 +50,19 @@ export function usePdfErrorMessage() {
   };
 }
 
+/** The class-sheet PDF actions of a page and the one request in flight, if any. */
+export type ClassSheetPdf = {
+  pending: PdfAction | null;
+  download: (action: PdfAction, semesterId: number, classIds: number[], fallback: string) => void;
+  print: (semesterId: number, classIds: number[], fallback: string) => void;
+  cancel: () => void;
+};
+
 /**
  * Download or print class sheets. One request runs at a time: the server counts PDFs against a
  * per-teacher budget, so a second click must not start another.
  */
-export function useClassSheetPdf() {
+export function useClassSheetPdf(): ClassSheetPdf {
   const { t, i18n } = useTranslation();
   const errorMessage = usePdfErrorMessage();
   const [pending, setPending] = useState<PdfAction | null>(null);

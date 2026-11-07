@@ -4,9 +4,11 @@ Primary (Hazırlık to grade 4) and middle-school (grades 5-8) pupils may share 
 number. The `world` fixture's middle-school class 5/A holds 51001 and 51002.
 """
 
+import asyncio
 from unittest.mock import ANY
 
-from sqlalchemy import select
+import pytest
+from sqlalchemy import func, select, update
 
 from flrc.db import models as m
 from tests.conftest import TestSession
@@ -186,6 +188,44 @@ async def test_cross_stage_move_keeps_numbers_and_refuses_clashes_atomically(api
     assert await placement(world.year, clashing) == (primary, "primary", 51001)
     assert await placement(world.year, world.student_one) == (world.cls, "middle", 51001)
     assert await placement(world.year, free) == (world.cls, "middle", 40001)
+
+
+@pytest.mark.parametrize("write", ["create", "edit"])
+async def test_a_number_a_concurrent_write_took_is_a_conflict(api, world, write):
+    """Both writes see the number free; the one that loses at the database gets a 409."""
+    async with TestSession() as db, api(world.admin) as client:
+        await db.execute(
+            update(m.Enrollment)
+            .where(m.Enrollment.student_id == world.student_two)
+            .values(school_number=51010)
+        )
+        if write == "create":
+            request = client.post(
+                "/api/admin/students",
+                json={
+                    "school_number": 51010,
+                    "full_name": "Synthetic Concurrent Pupil",
+                    "year_id": world.year,
+                    "class_id": world.cls,
+                },
+            )
+        else:
+            request = client.patch(
+                f"/api/admin/students/{world.student_one}",
+                params={"year_id": world.year},
+                json={"school_number": 51010},
+            )
+        pending = asyncio.create_task(request)
+        await asyncio.sleep(0.5)
+        await db.commit()
+        response = await pending
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"]["code"] == "duplicate_school_number"
+    assert await placement(world.year, world.student_one) == (world.cls, "middle", 51001)
+    assert await placement(world.year, world.student_two) == (world.cls, "middle", 51010)
+    async with TestSession() as db:
+        assert await db.scalar(select(func.count()).select_from(m.Student)) == 2
+        assert await db.scalar(select(func.count()).select_from(m.AdminAction)) == 0
 
 
 async def test_class_grade_edit_crosses_stage_only_when_numbers_are_free(api, world):

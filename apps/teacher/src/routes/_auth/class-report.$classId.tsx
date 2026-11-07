@@ -15,7 +15,11 @@ import {
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { errorCode } from "../../class-report/api-error";
-import { classSheetFileName, useClassSheetPdf } from "../../class-report/class-sheet-pdf";
+import {
+  classSheetFileName,
+  useClassSheetPdf,
+  type ClassSheetPdf,
+} from "../../class-report/class-sheet-pdf";
 import { ClassSheetTable } from "../../class-report/class-sheet-table";
 import { PdfLeaveGuard } from "../../class-report/pdf-leave-guard";
 import { ReportModeSwitch } from "../../class-report/report-mode-switch";
@@ -32,13 +36,26 @@ export const Route = createFileRoute("/_auth/class-report/$classId")({
   component: ClassReportPage,
 });
 
+/**
+ * The leave guard sits above the sheet's loading and error states: choosing another semester
+ * reloads the sheet while a PDF of the previous one may still be on its way.
+ */
 function ClassReportPage() {
+  const pdf = useClassSheetPdf();
+  return (
+    <>
+      <PdfLeaveGuard active={pdf.pending !== null} onLeave={pdf.cancel} />
+      <ClassReport pdf={pdf} />
+    </>
+  );
+}
+
+function ClassReport({ pdf }: { pdf: ClassSheetPdf }) {
   const { classId } = Route.useParams();
   const { semester: requestedSemester } = Route.useSearch();
   const navigate = Route.useNavigate();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const pdf = useClassSheetPdf();
 
   const { data, isPending, isError, error } = useQuery(
     getClassSheetOptions({
@@ -115,7 +132,6 @@ function ClassReportPage() {
 
   return (
     <div className="space-y-4">
-      <PdfLeaveGuard active={busy} onLeave={pdf.cancel} />
       {modeSwitch}
       <BoardSwitcher
         classId={classId}

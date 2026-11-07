@@ -76,7 +76,7 @@ class TermStatus(BaseModel):
 
 
 class StepBlocker(BaseModel):
-    code: Literal["missing_school_numbers"]
+    code: Literal["missing_school_numbers", "classes_without_fields"]
     count: int
 
 
@@ -208,7 +208,11 @@ def _completion(term: Semester, rows: list[CompletenessRow]) -> CompletionSummar
         missing_cells=expected - filled,
         percent=_percent(filled, expected),
         complete_rows=sum(row.expected_cells > 0 and row.missing_cells == 0 for row in rows),
-        incomplete_rows=sum(row.missing_cells > 0 for row in rows),
+        # A grid with pupils but no fields has nothing to fill yet: it is not done either.
+        incomplete_rows=sum(
+            row.roster_count > 0 and (row.expected_cells == 0 or row.missing_cells > 0)
+            for row in rows
+        ),
         rows=rows,
     )
 
@@ -436,7 +440,12 @@ def _next_step(
             missing_cells=None,
             blockers=[],
         )
-    complete = completion.expected_cells > 0 and completion.missing_cells == 0
+    # Every grid with pupils must have fields and all of them filled; zero missing cells in a
+    # grid without fields is not an all-clear.
+    without_fields = sum(
+        row.roster_count > 0 and row.expected_cells == 0 for row in completion.rows
+    )
+    complete = completion.complete_rows > 0 and completion.incomplete_rows == 0
     code: NextStepCode = "collect_grades"
     if complete:
         code = "advance_semester" if open_term.number == 1 else "lock_semester"
@@ -445,7 +454,11 @@ def _next_step(
         semester_number=open_term.number,
         completion_percent=completion.percent,
         missing_cells=completion.missing_cells,
-        blockers=[],
+        blockers=(
+            [StepBlocker(code="classes_without_fields", count=without_fields)]
+            if without_fields
+            else []
+        ),
     )
 
 

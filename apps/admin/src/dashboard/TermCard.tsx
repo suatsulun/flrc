@@ -30,10 +30,14 @@ function stepText(t: TFunction, step: NextStep, term: TermStatus, language: stri
         body:
           step.completion_percent === null
             ? t("adminDashboard.steps.collectGrades.noFields")
-            : t("adminDashboard.steps.collectGrades.body", {
-                percent: formatPercent(step.completion_percent, language),
-                missing: step.missing_cells,
-              }),
+            : step.blockers.length
+              ? t("adminDashboard.steps.collectGrades.withoutFields", {
+                  count: step.blockers[0]!.count,
+                })
+              : t("adminDashboard.steps.collectGrades.body", {
+                  percent: formatPercent(step.completion_percent, language),
+                  missing: step.missing_cells,
+                }),
       };
     case "advance_semester":
       return {

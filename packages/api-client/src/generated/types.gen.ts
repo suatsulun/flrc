@@ -2599,7 +2599,7 @@ export type StepBlocker = {
     /**
      * Code
      */
-    code: 'missing_school_numbers';
+    code: 'missing_school_numbers' | 'classes_without_fields';
     /**
      * Count
      */

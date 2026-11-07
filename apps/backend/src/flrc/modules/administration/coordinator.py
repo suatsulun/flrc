@@ -115,8 +115,11 @@ async def year_rosters(db: AsyncSession, year_id: int) -> list[ClassRoster]:
     )
     rosters = {item.id: ClassRoster(item) for item in classes}
     class_of: dict[int, int] = {}
+    # Only the classes read above: an import may commit a new class and its pupils in between.
     for student_id, class_id in await db.execute(
-        select(Enrollment.student_id, Enrollment.class_id).where(Enrollment.year_id == year_id)
+        select(Enrollment.student_id, Enrollment.class_id).where(
+            Enrollment.year_id == year_id, Enrollment.class_id.in_(list(rosters))
+        )
     ):
         rosters[class_id].students.add(student_id)
         class_of[student_id] = class_id

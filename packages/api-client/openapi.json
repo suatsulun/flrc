@@ -8363,7 +8363,10 @@
         "properties": {
           "code": {
             "type": "string",
-            "const": "missing_school_numbers",
+            "enum": [
+              "missing_school_numbers",
+              "classes_without_fields"
+            ],
             "title": "Code"
           },
           "count": {

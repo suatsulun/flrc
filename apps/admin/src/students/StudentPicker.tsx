@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { listStudentsOptions } from "@flrc/api-client";
 import { Button } from "@flrc/ui/components/button";
 import { Input } from "@flrc/ui/components/input";
@@ -33,8 +33,8 @@ export function StudentPicker({
   const q = useDebouncedValue(text.trim());
   const { data, isFetching } = useQuery({
     ...listStudentsOptions({ query: { q, limit: SUGGESTIONS } }),
+    // No placeholder data: the previous text's suggestions never pose as the new text's matches.
     enabled: !value && q.length > 0,
-    placeholderData: keepPreviousData,
   });
   const matches = q ? (data?.items ?? []) : [];
 

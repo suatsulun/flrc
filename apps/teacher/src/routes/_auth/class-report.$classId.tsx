@@ -1,6 +1,11 @@
 import { getClassSheetOptions, listClassCatalogOptions } from "@flrc/api-client";
 import { Button, buttonVariants } from "@flrc/ui/components/button";
 import { EmptyState } from "@flrc/ui/components/empty-state";
+import {
+  GradeViewSwitch,
+  StudentGradeCards,
+  useGradeTableView,
+} from "@flrc/ui/components/student-grade-cards";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
@@ -15,7 +20,7 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { errorCode } from "../../class-report/api-error";
 import { classSheetFileName, useClassSheetPdf } from "../../class-report/class-sheet-pdf";
-import { ClassSheetTable } from "../../class-report/class-sheet-table";
+import { ClassSheetScaleLegend, ClassSheetTable } from "../../class-report/class-sheet-table";
 import { PdfLeaveGuard } from "../../class-report/pdf-leave-guard";
 import { ReportModeSwitch } from "../../class-report/report-mode-switch";
 import { REPORT_GRADES, reportClasses } from "../../class-report/scope";
@@ -39,6 +44,7 @@ function ClassReportPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const pdf = useClassSheetPdf();
+  const { view, setView, effectiveView } = useGradeTableView();
 
   const { data, isPending, isError, error } = useQuery(
     getClassSheetOptions({
@@ -160,6 +166,17 @@ function ClassReportPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {empty ? null : (
+            <GradeViewSwitch
+              value={view}
+              onChange={setView}
+              labels={{
+                ariaLabel: t("grid.viewLabel"),
+                cards: t("grid.cardsView"),
+                table: t("grid.tableView"),
+              }}
+            />
+          )}
           <Link
             to="/classes/$classId/$subject"
             params={{ classId, subject: "english" }}
@@ -235,7 +252,36 @@ function ClassReportPage() {
       ) : (
         <>
           <p className="text-xs text-muted-foreground">{t("classReport.readingHint")}</p>
-          <ClassSheetTable sheet={data} />
+          {effectiveView === "cards" ? (
+            <div className="space-y-3">
+              <StudentGradeCards
+                interactiveRowMarks
+                ariaLabel={t("classReport.tableLabel")}
+                columns={data.columns.map((column) => ({
+                  id: column.id,
+                  label: column.label,
+                  group: column.group,
+                }))}
+                students={data.students.map((student, index) => ({
+                  id: student.student_id,
+                  schoolNumber: student.school_number,
+                  fullName: student.full_name,
+                  badge: (
+                    <span className="tabular text-xs text-muted-foreground">
+                      {index + 1} / {data.students.length}
+                    </span>
+                  ),
+                  values: data.columns.map((column, position) => ({
+                    columnId: column.id,
+                    value: student.values[position],
+                  })),
+                }))}
+              />
+              <ClassSheetScaleLegend columns={data.columns} />
+            </div>
+          ) : (
+            <ClassSheetTable sheet={data} />
+          )}
           <p className="text-xs text-muted-foreground">{t("classReport.privacyNote")}</p>
         </>
       )}

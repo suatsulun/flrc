@@ -24,7 +24,7 @@ export function ClassTabsSkeleton() {
   return (
     <div aria-hidden className="flex min-w-0 flex-1 flex-wrap items-end gap-1 lg:justify-end">
       {Array.from({ length: 5 }, (_, index) => (
-        <Skeleton key={index} className="h-9 min-w-0 flex-1 basis-16" />
+        <Skeleton key={index} className="h-9 min-w-0 flex-1 basis-16 max-md:h-10" />
       ))}
     </div>
   );

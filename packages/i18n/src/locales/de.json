@@ -452,7 +452,7 @@
     "description": "Klassen aus der Ablage in das zulässige Feld einer Lehrkraft ziehen. Englischlehrkräfte erhalten die Rolle Klassenlehrkraft oder Fachlehrkraft, Deutsch- und Französischlehrkräfte nur ihre Sprache.",
     "phoneDescription": "Tippen Sie auf eine Lehrkraft, um ihre Karte zu öffnen, und wählen Sie dann über Klasse hinzufügen im passenden Rollenbereich die Klassen aus. Englischlehrkräfte erhalten Klassenlehrkraft oder Fachlehrkraft, Deutsch- und Französischlehrkräfte nur ihre Sprache.",
     "addClass": "Klasse hinzufügen",
-    "classCount": "{{count}} Klassen",
+    "classCount": "Klassen: {{count}}",
     "noClassesAssigned": "Noch keine Klasse zugewiesen",
     "pickerDescription": "Markieren Sie die Klassen für diese Rolle. Änderungen werden sofort gespeichert.",
     "assignedLabel": "Zugewiesen",

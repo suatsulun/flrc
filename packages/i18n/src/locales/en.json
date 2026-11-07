@@ -452,7 +452,7 @@
     "description": "Drag classes from the tray to a teacher’s eligible field. English teachers receive Main or Skills; German and French teachers receive only their language.",
     "phoneDescription": "Tap a teacher to expand their card, then use Add class in an eligible role to tick classes. English teachers receive Main or Skills; German and French teachers receive only their language.",
     "addClass": "Add class",
-    "classCount": "{{count}} classes",
+    "classCount": "Classes: {{count}}",
     "noClassesAssigned": "No classes assigned yet",
     "pickerDescription": "Tick the classes for this role. Changes are saved immediately.",
     "assignedLabel": "Assigned",

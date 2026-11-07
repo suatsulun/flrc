@@ -90,7 +90,7 @@ test("phones assign and remove classes by tapping instead of dragging", async ({
   const card = cards.filter({ hasText: "E2E Middle Teacher 01" });
   const toggle = card.locator("button[aria-expanded]");
   await expect(toggle).toHaveAccessibleName(
-    "E2E Middle Teacher 01 English Middle school 0 classes",
+    "E2E Middle Teacher 01 English Middle school Classes: 0",
   );
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
@@ -136,14 +136,14 @@ test("phones assign and remove classes by tapping instead of dragging", async ({
   const removeBox = await remove.boundingBox();
   expect(removeBox?.width).toBeGreaterThanOrEqual(40);
   expect(removeBox?.height).toBeGreaterThanOrEqual(40);
-  await expect(toggle).toContainText("1 class");
+  await expect(toggle).toContainText("Classes: 1");
   await remove.click();
   await expect(
     page.getByText("E2E Middle Teacher 01 removed from 5/A as Skills teacher."),
   ).toBeVisible();
   await expect(remove).toHaveCount(0);
   await expect(card.getByText("No classes assigned yet")).toHaveCount(2);
-  await expect(toggle).toContainText("0 classes");
+  await expect(toggle).toContainText("Classes: 0");
 
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");

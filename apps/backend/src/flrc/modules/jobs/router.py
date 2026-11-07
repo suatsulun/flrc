@@ -51,6 +51,7 @@ def may_read_job(user: User, job: JobRun) -> bool:
 
 @router.get("/jobs")
 async def list_jobs(
+    background: BackgroundTasks,
     user: Annotated[User, Depends(current_user)],
     db: Annotated[AsyncSession, Depends(get_session)],
     limit: int = Query(default=25, ge=1, le=100),
@@ -63,6 +64,12 @@ async def list_jobs(
             else statement.where(JobRun.requested_by == user.id)
         )
     jobs = list(await db.scalars(statement))
+    # The downloads list polls this list, not each job, so it wakes a sleeping worker for a
+    # queued job just as ``get_job`` does.
+    if any(job.status == "queued" for job in jobs):
+        from flrc.modules.reports.router import ping_worker_best_effort
+
+        background.add_task(ping_worker_best_effort)
     return [JobOut.from_model(job) for job in jobs]
 
 

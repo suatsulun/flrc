@@ -776,6 +776,8 @@
       "pageMapping": "Les pages n’ont pas pu être attribuées aux élèves de façon sûre ; aucun fichier n’a été créé. Veuillez prévenir l’administration.",
       "tooLarge": "Le fichier de cette sélection serait trop volumineux. Choisissez un seul PDF, ou moins d’élèves ou de classes.",
       "retired": "Cette ancienne tâche ne peut plus s’exécuter ; préparez-la à nouveau.",
+      "jobsPending": "Plusieurs de vos fichiers sont encore en préparation. Attendez qu’un fichier soit prêt, puis réessayez.",
+      "queueUnavailable": "Le fichier n’a pas pu être mis en file d’attente, car le service de tâches est indisponible. Réessayez dans quelques minutes.",
       "jobFailed": "Une erreur s’est produite pendant la préparation du fichier. Veuillez réessayer."
     }
   },

@@ -776,6 +776,8 @@
       "pageMapping": "Die Seiten konnten den Schülern nicht sicher zugeordnet werden, daher wurde keine Datei erstellt. Bitte informieren Sie die Administration.",
       "tooLarge": "Die Datei für diese Auswahl wäre zu groß. Wählen Sie eine PDF oder weniger Schüler bzw. Klassen.",
       "retired": "Dieser alte Auftrag kann nicht mehr ausgeführt werden; erstellen Sie ihn erneut.",
+      "jobsPending": "Für Sie werden bereits mehrere Dateien erstellt. Warten Sie, bis eine fertig ist, und versuchen Sie es dann erneut.",
+      "queueUnavailable": "Die Datei konnte nicht eingereiht werden, weil der Auftragsdienst nicht verfügbar ist. Versuchen Sie es in einigen Minuten erneut.",
       "jobFailed": "Beim Erstellen der Datei ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut."
     }
   },

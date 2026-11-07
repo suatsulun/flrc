@@ -3367,7 +3367,11 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
   eligible class) returns 202 and a `report_set` job. The API validates the selection against the
   roster (`unknown_class`, `class_not_in_semester`, `class_not_in_report_set`,
   `student_not_in_report_set`, `empty_report_set`) and stores the output name and class count at
-  creation, so the downloads list can name a job while it waits. The demo refuses jobs.
+  creation, so the downloads list can name a job while it waits. The demo refuses jobs. An account
+  may have three report jobs waiting or running at once; a fourth is refused
+  (`report_jobs_pending`) under a lock on the account row, so simultaneous requests cannot pass
+  together. A job the queue refuses is stored as failed (`job_queue_unavailable`, 503), not left
+  waiting for a message that never comes.
 - **Worker** (`reports.set`): builds the set with the fixed-query builder, renders each class once
   through the bounded pool of ADR-046 (progress counts classes), then packages it. A combined PDF
   merges classes incrementally and folds repeated fonts and covers. A per-pupil ZIP never renders
@@ -3388,13 +3392,14 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
 - **File names:** `{scope} {card} {year} {N}. Dönem.{pdf|zip}`, scope `8-A`, `8-A 123 Ali Yılmaz`,
   `8-A Seçili Öğrenciler`, `Seçili Öğrenciler`, `Seçili Sınıflar` or `Tüm Okul`; class sheets
   `8-A Sınıf Raporu …` / `Sınıf Raporları …`. `/` becomes `-`, characters Windows refuses are
-  dropped, and `Content-Disposition` carries an ASCII `filename` plus RFC 6266 `filename*`.
+  dropped, and `Content-Disposition` carries an ASCII `filename` plus RFC 6266 `filename*`; the
+  ASCII name is cleaned again after folding, since folding turns fullwidth quotes into ASCII ones.
 - **Rate limits are per route:** jobs 5/min (`report_pdf`); direct PDFs and class sheets 30/min
   (`report_single`); the year export keeps the 3/min export budget.
 - **Report centre:** per card kind, View/Download one class, prepare the whole school in a chosen
   format, or pick pupils across classes; a downloads list (report and export jobs, polled while one
-  runs) replaces the browser queue and blob-link toasts. The leave guard covers only a direct
-  download in flight.
+  runs, each poll waking the worker while a job is queued) replaces the browser queue and
+  blob-link toasts. The leave guard covers only a direct download in flight.
 
 ## Alternatives considered
 

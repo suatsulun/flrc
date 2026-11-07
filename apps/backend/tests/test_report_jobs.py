@@ -1,5 +1,6 @@
 """Report downloads, background report jobs, the student picker and download names (ADR-077)."""
 
+import asyncio
 from io import BytesIO
 from types import SimpleNamespace
 from urllib.parse import quote
@@ -7,9 +8,10 @@ from uuid import uuid4
 from zipfile import ZipFile
 
 import pytest
+from kombu.exceptions import OperationalError
 from pypdf import PdfReader
 from redis.asyncio import Redis
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from flrc.config import settings
@@ -176,6 +178,18 @@ def test_content_disposition_has_an_ascii_fallback_and_an_encoded_utf8_name() ->
     assert content_disposition(None).startswith('attachment; filename="download"')
 
 
+def test_ascii_fallback_cannot_gain_quotes_from_compatibility_characters() -> None:
+    # NFKD turns fullwidth quotes and backslashes into ASCII ones; the quoted fallback must
+    # still hold exactly one name, not a second parameter taken from a stored pupil name.
+    header = content_disposition("8-A 1 Ali ＂; filename=＂evil＼.pdf")
+    assert header.startswith('attachment; filename="8-A 1 Ali ; filename=evil.pdf"; ')
+    fallback = header.split("; filename*=", 1)[0]
+    assert fallback.count('"') == 2 and "\\" not in fallback
+    assert disposition_name(header) == quote("8-A 1 Ali ＂; filename=＂evil＼.pdf", safe="")
+    # A name made only of such characters still gets a usable fallback.
+    assert content_disposition("＂＂").startswith('attachment; filename="download"')
+
+
 # Picker
 
 
@@ -324,8 +338,10 @@ async def test_direct_download_refuses_sets_that_need_a_job(api, world) -> None:
 
 
 async def test_job_creation_validates_scope_and_names_the_output(
-    api, world, queued, rate_limits
+    api, world, queued, rate_limits, monkeypatch
 ) -> None:
+    # Four scopes are queued here at once; the waiting-job cap has its own test.
+    monkeypatch.setattr(reports_router, "MAX_PENDING_REPORT_JOBS", 10)
     coordinator = await add_coordinator()
     other = await add_class(world, 5, "B", [("Middle Other", 5201)])
     elementary = await add_class(world, 3, "C", [("Primary Pupil", 3001)])
@@ -415,6 +431,97 @@ async def test_demo_refuses_report_jobs(api, world, queued, monkeypatch) -> None
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "demo_report_class_required"
     assert queued == []
+
+
+async def test_each_account_has_a_bounded_number_of_waiting_report_jobs(
+    api, world, queued, rate_limits
+) -> None:
+    coordinator = await add_coordinator()
+    limit = reports_router.MAX_PENDING_REPORT_JOBS
+    body = {"semester_id": world.semester, "kind": "english_middle", "format": "combined"}
+    async with api(coordinator) as client:
+        # Simultaneous requests cannot all pass the check before any of them is recorded.
+        responses = await asyncio.gather(
+            *(client.post("/api/reports/jobs", json=body) for _ in range(limit + 2))
+        )
+    assert sorted(response.status_code for response in responses) == [202] * limit + [409] * 2
+    refused = [response for response in responses if response.status_code == 409]
+    assert {response.json()["detail"]["code"] for response in refused} == {"report_jobs_pending"}
+    assert len(queued) == limit
+    await rate_limits()
+
+    # Another account's waiting work is its own.
+    async with api(world.admin) as client:
+        assert (await client.post("/api/reports/jobs", json=body)).status_code == 202
+    # A finished job frees its place.
+    async with TestSession() as db:
+        finished = await db.get(m.JobRun, queued[0])
+        assert finished is not None
+        finished.status = "failed"
+        await db.commit()
+    async with api(coordinator) as client:
+        assert (await client.post("/api/reports/jobs", json=body)).status_code == 202
+        assert (await client.post("/api/reports/jobs", json=body)).status_code == 409
+
+
+def refuse_publication(_job_id: int) -> None:
+    raise OperationalError("Error 111 connecting to the broker")
+
+
+async def test_a_job_the_queue_refuses_fails_instead_of_waiting_forever(
+    api, world, queued, monkeypatch
+) -> None:
+    monkeypatch.setattr(reports_router.report_set_job, "delay", refuse_publication)
+    monkeypatch.setattr(reports_router.export_year_job, "delay", refuse_publication)
+    pinged: list[bool] = []
+
+    async def ping() -> None:
+        pinged.append(True)
+
+    monkeypatch.setattr(reports_router, "ping_worker_best_effort", ping)
+    async with api(world.admin) as client:
+        report = await client.post(
+            "/api/reports/jobs",
+            json={"semester_id": world.semester, "kind": "english_middle", "format": "combined"},
+        )
+        export = await client.post(f"/api/exports/year/{world.year}")
+        jobs = (await client.get("/api/jobs")).json()
+    for response in (report, export):
+        assert response.status_code == 503
+        assert response.json()["detail"]["code"] == "job_queue_unavailable"
+    assert [(job["kind"], job["status"], job["error_code"]) for job in jobs] == [
+        ("year_export", "failed", "job_queue_unavailable"),
+        ("report_set", "failed", "job_queue_unavailable"),
+    ]
+    assert pinged == []
+    # Both are finished, so neither counts against the account's waiting jobs.
+    async with TestSession() as db:
+        assert all(job.finished_at for job in await db.scalars(select(m.JobRun)))
+
+
+async def test_listing_waiting_jobs_wakes_the_worker(api, world, queued, monkeypatch) -> None:
+    pinged: list[bool] = []
+
+    async def ping() -> None:
+        pinged.append(True)
+
+    monkeypatch.setattr(reports_router, "ping_worker_best_effort", ping)
+    async with api(world.admin) as client:
+        assert (await client.get("/api/jobs")).json() == []
+        assert pinged == []
+        created = await client.post(
+            "/api/reports/jobs",
+            json={"semester_id": world.semester, "kind": "english_middle", "format": "combined"},
+        )
+        assert created.status_code == 202
+        pinged.clear()
+        # The downloads list polls the list, not each job: a lost wake-up is sent again.
+        assert [job["status"] for job in (await client.get("/api/jobs")).json()] == ["queued"]
+        assert pinged == [True]
+        report_tasks.report_set_job(created.json()["id"])
+        pinged.clear()
+        assert [job["status"] for job in (await client.get("/api/jobs")).json()] == ["succeeded"]
+    assert pinged == []
 
 
 # Running jobs and packaging

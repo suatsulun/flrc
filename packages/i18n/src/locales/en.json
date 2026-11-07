@@ -776,6 +776,8 @@
       "pageMapping": "The pages could not be matched to students safely, so no file was made. Please tell your administrator.",
       "tooLarge": "The file for this selection would be too large. Choose one PDF, or fewer students or classes.",
       "retired": "This old job can no longer run; prepare it again.",
+      "jobsPending": "Several of your files are still being prepared. Wait for one to finish, then try again.",
+      "queueUnavailable": "The file could not be queued because the job service is unavailable. Try again in a few minutes.",
       "jobFailed": "Something went wrong while preparing the file. Please try again."
     }
   },

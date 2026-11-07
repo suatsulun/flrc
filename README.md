@@ -1,149 +1,91 @@
 # FL-ReportCard
 
-FL-ReportCard is a school report-card and grade-entry system built for teachers and administrators. It combines a keyboard-friendly teacher workspace with tools for managing school records, generating reports, and keeping important changes auditable.
+FL-ReportCard is a grade-entry and report-card system for schools. Teachers enter grades in a
+keyboard-first grid that also works on a phone; administrators manage years, classes, students,
+teachers and assessment columns, and print report cards. Every grade change is audited.
 
-This project is also a hands-on full-stack learning journey. The repository follows a step-by-step handbook and favors clear, deliberate engineering over hidden magic.
+- **Teacher app:** grade grid per class and subject (desktop table or one-student stepper on a
+  phone), 1-2-3 skill ratings and comments, conflict-safe saving with undo, class reports for
+  parent meetings, report-card previews.
+- **Admin app:** dashboard of term progress and setup issues, class workspaces (rosters, school
+  numbers, second languages, columns, assigned teachers), teaching assignments, academic-year
+  lifecycle and rollover, student import, teachers and access, report-card centre with background
+  PDF jobs, audit history, seven-day undo of admin changes, archive of closed years.
+- **Backend:** FastAPI, Postgres, Redis sessions, Celery worker for PDFs and exports, Google
+  sign-in, nightly encrypted backups for school installations.
 
-## Repositories
+The user interface is Turkish-first and also available in English, German and French.
 
-The active application repository is [suatsulun/flrc](https://github.com/suatsulun/flrc).
+## Try the public demo
 
-- **Application:** `flrc` contains the shared code, generic branding, tests, migrations, and releases.
-- **Deployment overlays:** each installation keeps its branding, private report assets, and
-  deployment configuration in a separate private repository. Production can pin the
-  `flrc-backend` and `flrc-web` images published by `flrc`.
+Open **[flrc.suatsulun.com/demo](https://flrc.suatsulun.com/demo)** and sign in with any Google
+account. You get a temporary administrator account (up to 24 hours) in a fictional school with four
+years of synthetic classes, students and grades, and you can switch between the admin and teacher
+panels. Everyone shares the same fictional school, and it resets to its original state every night
+at 00:00 (Europe/Istanbul). The demo runs on free hosting, so the first request after a quiet
+period can take up to a minute. Use fictional data only.
 
-This public repository contains only generic branding and synthetic examples. Real institution
-names, domains, personnel, signatures, private repository links, and operator notes belong in
-the private deployment repository.
-See handbook [Step 4.9](docs/HANDBOOK.md#step-49-school-production-deployment-with-one-frontend-origin-internal-oauth-api--worker)
-and [ADR-053](docs/DECISIONS.md#adr-053-one-public-application-repository-private-deployment-overlays-released-images).
+What to try and how the demo handles your data:
+[docs/getting-started/using-the-demo.md](docs/getting-started/using-the-demo.md).
 
-## Public demo
+## Run it locally
 
-[Explore the public demo](https://flrc.suatsulun.com/demo) with a Google account. It contains
-four academic years of synthetic classes, students, grades, and comments, with class report-card
-printing and whole-year exports. The shared database returns to its golden baseline every day
-at **00:00 Europe/Istanbul**; visitor changes and sessions are cleared. Use fictional data only.
-
-## Product shape
-
-- The teacher workspace opens directly on the grade table, with keyboard entry and visible year,
-  semester, grade, subject, and class tabs.
-- The admin workspace is also table-first: rosters, yearly school numbers, second languages,
-  assessment columns, and assigned teachers live around the same class table.
-- Students can move between same-grade class tabs without losing grades or notes.
-- Hazırlık classes sit before grade 1, carry names such as Bulut instead of a letter, and
-  receive the same progress report as grades 1 to 4.
-- Archived years stay browsable. School numbers are unique per year and school stage rather than
-  globally: primary (Hazırlık to grade 4) and middle school (grades 5 to 8) number pupils
-  independently, so a grade 4 and a grade 5 pupil may share a number.
-- Pupils entering grade 1 or grade 5 are placed by the school; the roster import matches them to
-  last year's identities by name instead of creating duplicates.
-- Closing a fully completed year prepares the next year automatically, leaves grades behind, and
-  gives promoted students fresh sequential school numbers, counted separately in each stage.
-- Teachers can filter assessment categories and stage 1-2-3 ratings for a pupil or a whole class
-  before saving. Grade 4 German/French use ratings and comments without numeric averages.
-- Middle-school English teachers (grades 5-8) have a class report beside the grade table: the whole
-  class with every field in alternating rows, printed as one landscape page per class, or all of
-  their classes in one PDF, for parent-teacher meetings.
-- Slow actions keep their button disabled with an in-place spinner, page loads have visible
-  progress/skeleton states, and reports announce start, completion, or failure without browser
-  alert boxes. Same-grade class tables are prefetched to make tab switching feel immediate.
-
-## Demo
-
-You can visit the public demo at [flrc.suatsulun.com](https://flrc.suatsulun.com).
-
-With public demo login enabled, sign in with a verified Google account to receive a temporary
-administrator account for up to 24 hours. The app stores a temporary keyed hash of the Google
-subject, plus a synthetic account; it does not persist the Google email, name, picture, or raw
-subject. The fictional school is shared with other visitors and resets nightly at midnight
-(Istanbul time), removing saved demo changes and ending sessions. See the
-[demo identity rules](docs/SECURITY.md#public-demo).
-
-The demo runs on free hosting. During weekday school hours, an automated health check helps keep the backend awake. Outside those hours, the first request may take up to a minute while the service starts. If the login page feels slow at first, please give it a moment and try again.
-
-## Branding it for a school
-
-Use a private runtime branding overlay for each installation, starting from
-`infra/school-template/`. The public application and its released images retain the generic
-FL-ReportCard identity. See the [runtime branding guide](branding/README.md#rebranding-a-deployment-without-a-rebuild)
-for the overlay format. Mount only public branding files into the web service; keep private
-report templates, principal identities, signatures, and covers in the backend-only overlay
-in the private deployment repository.
-
-## Documentation
-
-- [Documentation index](docs/README.md)
-- [Current work and release gates](docs/TODO.md)
-- [AI review handoff prompt](docs/AI-HANDOFF.md)
-- [Builder's Handbook](docs/HANDBOOK.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Decision Log](docs/DECISIONS.md)
-- [Privacy Data Map](docs/PRIVACY-DATA-MAP.md)
-- [Security Model](docs/SECURITY.md)
-- [Operations Runbook](docs/RUNBOOK.md)
-- [Branding](branding/README.md)
-
-The handbook explains how the project is built one step at a time. The architecture document covers the reasoning behind the system, while the decision log records important project choices.
-
-## Local development
-
-Use Node from `.node-version` (26.8.1), pnpm from `package.json` (11.25.0), Python 3.13,
-uv, and Docker Compose. From the repository root:
+You need Node (version in [`.node-version`](.node-version)), pnpm (version in `package.json`'s
+`packageManager`), Python 3.13 with [uv](https://docs.astral.sh/uv/), and Docker with Compose.
 
 ```bash
 pnpm install --frozen-lockfile
-cd apps/backend
-uv sync --frozen
+(cd apps/backend && uv sync --frozen && { [ -f .env ] || cp .env.example .env; })
+pnpm dev:services                      # Postgres and Redis in Docker
+(cd apps/backend && uv run alembic upgrade head && uv run flrc seed --my-email you@yourschool.k12.tr)
+pnpm dev                               # teacher, admin and API with live reload
 ```
 
-If `apps/backend/.env` does not exist, copy `.env.example` to `.env`. Configure the local OAuth
-client and origins using handbook Steps 0.3 and 1.7-1.10. Run `pnpm dev:services` from the root.
-On a new local synthetic database, run `uv run alembic upgrade head` and `uv run flrc seed` from
-`apps/backend`, then `pnpm dev` from the root. The teacher app uses `http://localhost:5173`,
-admin uses `http://localhost:5174/admin/`, and the API uses port 8000. Worker-backed exports require
-a separate worker; see [the backend README](apps/backend/README.md).
+Then open the teacher app at <http://localhost:5173> and the admin app at
+<http://localhost:5174/admin/> (the API runs on port 8000). Signing in needs either a Google OAuth
+client for local development, or the test sign-in that works without Google. PDF and export jobs
+need the Celery worker as well. All of this, including environment variables, the worker and
+common problems, is in
+**[docs/getting-started/local-development.md](docs/getting-started/local-development.md)**.
 
-Validation commands and test database requirements are documented in the app READMEs and
-[AI handoff](docs/AI-HANDOFF.md). The frontend packages currently have no standalone `test` script;
-their browser behavior is exercised by the root Playwright suite.
+Checks before you push: [docs/development/testing.md](docs/development/testing.md).
 
-## Repository snapshot: 2026-09-11
+## Running it for a school
 
-The local `v1.2.0` tag is older than the current source; manifests still say `1.2.0`.
-Post-tag work includes restored comments, assessment page density, and bounded bulk reads/exports.
-The current working tree also contains pending changes that retire grades 5-8 English comments,
-order years by their labels, and bound PDF layout batches. These changes are not evidence of a
-published release or an applied production migration. See [the release checklist](docs/TODO.md).
+Each school runs its own installation from the released `flrc-backend` and `flrc-web` images or
+from source, with its name, logo, report templates and signatures in a private deployment
+repository. Nothing school-specific lives in this public repository. Start with
+[docs/operations/self-hosting.md](docs/operations/self-hosting.md) and
+[docs/operations/deployment.md](docs/operations/deployment.md).
 
-## Data privacy
+## Documentation
 
-FL-ReportCard is designed for school data, so privacy is treated as part of correctness. This repository, its tests, screenshots, and public demo use synthetic data only. Real student or school data must never be committed to the project.
+Everything is in **[docs/](docs/README.md)**: getting started, architecture, design system,
+development conventions and testing, operations, security, reference material and the
+[architecture decision records](docs/adr/README.md). Coding agents start at
+[AGENTS.md](AGENTS.md); contributors at [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Releases and deployments
+## Repository layout
 
-Application code changes only in this repository. A version tag publishes the `flrc-backend`
-and `flrc-web` images; a school's private deployment repository pins those tags, mounts its own
-branding, and never carries a copy of the code. See [docs/RELEASING.md](docs/RELEASING.md).
+```text
+apps/teacher     React app for teachers
+apps/admin       React app for administrators (served under /admin/)
+apps/backend     FastAPI API, Celery worker, CLI, migrations and tests
+packages/ui      Shared design system and components
+packages/api-client  TypeScript client generated from the API's OpenAPI document
+packages/i18n    Translations (tr, en, de, fr)
+e2e              Playwright browser tests
+branding         Generic application branding and the rebranding tool
+infra            Compose, web server and hosting definitions
+docs             Documentation
+```
+
+## Privacy
+
+FL-ReportCard handles children's school records. This repository, its tests, screenshots and the
+public demo contain synthetic data only; real student or school data must never be committed. See
+[docs/security/privacy-data-map.md](docs/security/privacy-data-map.md).
 
 ## License
 
 [MIT](LICENSE).
-
-## Optional scheduled operations
-
-CI and security checks run automatically. Operational schedules are opt-in:
-set the repository variable `DEMO_KEEPALIVE_ENABLED=true` only on the repository that
-owns the hosted demo. Set `DEMO_RESET_ENABLED=true` after adding `DEMO_OPS_TOKEN`
-with the demo API's configured operations token. Manual runs still validate the
-required secrets and report missing configuration as a failure. An unset flag
-means the scheduled job is skipped, not that a reset or backup succeeded.
-`DEPENDABOT_MERGE_ENABLED=true` lets the `dependabot merge` workflow merge Dependabot's minor,
-patch and security pull requests once their checks pass (ADR-073).
-
-Legacy copies with `backup.yml` must configure `PG_DUMP_URL`,
-`GDRIVE_SERVICE_ACCOUNT_JSON`, and `GDRIVE_BACKUP_FOLDER_ID` before setting
-`BACKUP_ENABLED=true`. A copied repository should not duplicate another
-repository's demo reset, keepalive, or backup schedule.

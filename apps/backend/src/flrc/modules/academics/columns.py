@@ -5,7 +5,14 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, computed_f
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flrc.db.models import AcademicYear, ColumnDefinition, GradeValue, Semester, User
+from flrc.db.models import (
+    AcademicYear,
+    AuditEntry,
+    ColumnDefinition,
+    GradeValue,
+    Semester,
+    User,
+)
 from flrc.db.session import get_session
 from flrc.modules.academics.class_names import MAX_GRADE, MIN_GRADE
 from flrc.modules.academics.fields import SUBJECT_LOCALE, field_name
@@ -237,6 +244,14 @@ async def column_has_grades(db: AsyncSession, column_id: int) -> bool:
     return found is not None
 
 
+async def column_has_history(db: AsyncSession, column_id: int) -> bool:
+    """Whether grade audit rows refer to the field, even after its grades were undone."""
+    found = await db.scalar(
+        select(AuditEntry.id).where(AuditEntry.column_definition_id == column_id).limit(1)
+    )
+    return found is not None
+
+
 def column_state(column: ColumnDefinition) -> dict[str, object]:
     """The patchable attributes, with ``name`` as stored under the subject's language."""
     return {
@@ -338,7 +353,8 @@ async def update_column(
     semester_id: int | None = None,
 ) -> ColumnWriteOut:
     semester = await editable_semester(db, semester_id)
-    column = await db.get(ColumnDefinition, column_id)
+    # Locked until the commit, so the recorded undo snapshot is what this write replaced.
+    column = await db.get(ColumnDefinition, column_id, with_for_update=True, populate_existing=True)
     if column is None or column.semester_id != semester.id:
         raise HTTPException(404, {"code": "unknown_column"})
     before = column_state(column)
@@ -364,11 +380,13 @@ async def delete_column(
     semester_id: int | None = None,
 ) -> DeleteResult:
     semester = await editable_semester(db, semester_id)
-    column = await db.get(ColumnDefinition, column_id)
+    # Locked until the commit, so the recorded undo snapshot is what this write replaced.
+    column = await db.get(ColumnDefinition, column_id, with_for_update=True, populate_existing=True)
     if column is None or column.semester_id != semester.id:
         raise HTTPException(404, {"code": "unknown_column"})
-    # A field with grades is hidden instead, so its grades stay attached and can return.
-    disabled = await column_has_grades(db, column_id)
+    # A field with grades or grade history is hidden instead, so its grades and audit
+    # trail stay attached and can return.
+    disabled = await column_has_grades(db, column_id) or await column_has_history(db, column_id)
     if disabled:
         undo: dict[str, object] = {
             "column_id": column.id,
@@ -415,10 +433,14 @@ async def reorder_columns(
 ) -> ReorderOut:
     semester = await editable_semester(db, semester_id)
     result = await db.execute(
-        select(ColumnDefinition).where(
+        select(ColumnDefinition)
+        .where(
             ColumnDefinition.id.in_(body.ordered_ids),
             ColumnDefinition.semester_id == semester.id,
         )
+        .order_by(ColumnDefinition.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     columns = {c.id: c for c in result.scalars()}
     scopes = {(c.grade_level, c.subject) for c in columns.values()}

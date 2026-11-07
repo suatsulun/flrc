@@ -91,8 +91,12 @@ def account_state(user: User) -> dict[str, object]:
 async def ensure_admin_remains(
     db: AsyncSession, target: User, *, is_admin: bool, is_active: bool
 ) -> None:
-    """Refuse a change that would leave the school without an active administrator."""
-    if target.is_admin and (not is_admin or not is_active):
+    """Refuse a change that would leave the school without an active administrator.
+
+    Only a currently active administrator losing that status can do so; editing an
+    inactive administrator never removes an active one.
+    """
+    if target.is_admin and target.is_active and (not is_admin or not is_active):
         active_admins = await db.scalar(
             select(func.count())
             .select_from(User)
@@ -213,7 +217,7 @@ async def patch_managed_user(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ManagedUserWriteOut:
-    target = await db.get(User, user_id, with_for_update=True)
+    target = await db.get(User, user_id, with_for_update=True, populate_existing=True)
     if target is None:
         raise HTTPException(404, {"code": "unknown_user"})
     if target.id != actor.id and await demo.is_visitor(db, target.id):
@@ -272,7 +276,7 @@ async def patch_managed_user(
 
 
 async def signature_user(db: AsyncSession, user_id: int, actor: User) -> User:
-    target = await db.get(User, user_id, with_for_update=True)
+    target = await db.get(User, user_id, with_for_update=True, populate_existing=True)
     if target is None:
         raise HTTPException(404, {"code": "unknown_user"})
     if await demo.is_visitor(db, target.id):

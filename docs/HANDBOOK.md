@@ -6414,11 +6414,18 @@ Errors: `404 unknown_action`, `409 action_already_undone`, `410 action_expired`,
 `409 {"code": "undo_blocked", "reason", "params"}` when the current data no longer allows the
 previous state. Reasons include `changed_since` (the same attribute, pupil or slot changed again),
 `target_missing`, `school_number_taken` (`number`, `student`, `class`), `enrollment_exists`,
-`duplicate_class`, `class_in_use`, `field_has_grades`, `order_changed`, `user_in_use`,
+`duplicate_class`, `class_in_use`, `field_has_grades`, `field_has_history` (`field`: grades were
+saved and undone, and the audit trail still refers to it), `order_changed`, `user_in_use`,
 `last_admin`, `cannot_deactivate_self`, `teacher_inactive`, `teacher_field_mismatch`,
 `teacher_stage_mismatch`, `teacher_assignments_incompatible`, `language_grade_too_low`,
 `student_number_required`, and the original rules' own codes such as `year_not_writable` and
 `semester_locked`. A refused undo changes nothing.
+
+**Locks:** every recorded write locks the rows it changes before reading their previous values
+and keeps the lock until it commits with the action, so two concurrent edits each record what
+they actually replaced. A pupil's yearly data (number, class, second language) is guarded by
+their enrollment row (`lock_enrollments`, id order); class writes lock the year, then the class
+(`lock_class`). Undo handlers take the same locks before checking.
 
 **Retention:** the backup sidecar deletes expired rows and their kept signature images every night
 before the dump; `flrc purge-admin-actions` does it by hand.

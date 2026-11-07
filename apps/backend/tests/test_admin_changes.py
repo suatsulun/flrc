@@ -1,11 +1,14 @@
 """Undoable admin changes (ADR-075) and field renaming (ADR-076)."""
 
+import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from io import BytesIO
 
 import pytest
 from PIL import Image
-from sqlalchemy import create_engine, func, select, update
+from sqlalchemy import create_engine, delete, func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from flrc.config import settings
@@ -1039,3 +1042,284 @@ async def test_actions_expire_seven_days_after_the_write(api, world):
         action = await db.get(m.AdminAction, created.json()["action_id"])
         assert action.expires_at - action.created_at == ADMIN_ACTION_TTL
         assert action.actor_id == world.admin.id
+
+
+# Concurrent writes (review follow-up) ---------------------------------------
+
+
+async def while_held(
+    hold: Callable[[AsyncSession], Awaitable[None]], request: Callable[[], Awaitable]
+):
+    """Run ``request`` while another transaction has changed and locked rows with ``hold``.
+
+    The other transaction commits only after the request has had time to read, so a
+    request that reads its previous state without waiting for the row lock records a
+    state that no longer exists.
+    """
+    async with TestSession() as db:
+        await hold(db)
+        await db.flush()
+        pending = asyncio.create_task(request())
+        await asyncio.sleep(0.5)
+        await db.commit()
+    return await pending
+
+
+async def test_field_rename_records_the_name_a_concurrent_edit_committed(api, world):
+    async def hold(db):
+        await db.execute(
+            update(m.ColumnDefinition)
+            .where(m.ColumnDefinition.id == world.main_column)
+            .values(labels={"tr": "Main score", "en": "Concurrent name", "de": "", "fr": ""})
+        )
+
+    async with api(world.admin) as client:
+        renamed = await while_held(
+            hold,
+            lambda: client.patch(
+                f"/api/columns/{world.main_column}",
+                params={"semester_id": world.semester},
+                json={"name": "Final name"},
+            ),
+        )
+        assert renamed.status_code == 200, renamed.text
+        assert (await undo(client, renamed.json()["action_id"])).status_code == 200
+    assert (await column_row(world.main_column)).labels["en"] == "Concurrent name"
+
+
+@pytest.mark.parametrize("endpoint", ["roster", "students"])
+async def test_student_edit_records_the_name_a_concurrent_edit_committed(api, world, endpoint):
+    async def hold(db):
+        await db.execute(
+            update(m.Student)
+            .where(m.Student.id == world.student_one)
+            .values(full_name="Synthetic Concurrent Name")
+        )
+
+    async with api(world.admin) as client:
+        if endpoint == "roster":
+
+            def request():
+                return client.patch(
+                    f"/api/admin/classes/{world.cls}/roster/{world.student_one}",
+                    json={"full_name": "Synthetic Final Name"},
+                )
+        else:
+
+            def request():
+                return client.patch(
+                    f"/api/admin/students/{world.student_one}",
+                    params={"year_id": world.year},
+                    json={"full_name": "Synthetic Final Name"},
+                )
+
+        edited = await while_held(hold, request)
+        assert edited.status_code == 200, edited.text
+        assert (await undo(client, edited.json()["action_id"])).status_code == 200
+    async with TestSession() as db:
+        student = await db.get(m.Student, world.student_one)
+        assert student.full_name == "Synthetic Concurrent Name"
+
+
+async def test_class_edit_records_the_section_a_concurrent_edit_committed(api, world):
+    async def hold(db):
+        await db.execute(
+            update(m.SchoolClass).where(m.SchoolClass.id == world.cls).values(section="E")
+        )
+
+    async with api(world.admin) as client:
+        edited = await while_held(
+            hold, lambda: client.patch(f"/api/admin/classes/{world.cls}", json={"section": "D"})
+        )
+        assert edited.status_code == 200, edited.text
+        assert (await undo(client, edited.json()["action_id"])).status_code == 200
+    async with TestSession() as db:
+        assert (await db.get(m.SchoolClass, world.cls)).section == "E"
+
+
+async def test_reorder_records_the_order_a_concurrent_reorder_committed(api, world):
+    async def hold(db):
+        for column_id, position in ((world.main_column, 2), (world.skills_column, 1)):
+            await db.execute(
+                update(m.ColumnDefinition)
+                .where(m.ColumnDefinition.id == column_id)
+                .values(position=position)
+            )
+
+    async with api(world.admin) as client:
+        reordered = await while_held(
+            hold,
+            lambda: client.post(
+                "/api/columns/reorder",
+                params={"semester_id": world.semester},
+                json={"ordered_ids": [world.skills_column, world.main_column]},
+            ),
+        )
+        assert reordered.status_code == 200, reordered.text
+        assert (await undo(client, reordered.json()["action_id"])).status_code == 200
+    assert (await column_row(world.main_column)).position == 2
+    assert (await column_row(world.skills_column)).position == 1
+
+
+async def _lock_enrollment(db: AsyncSession, student_id: int, year_id: int) -> None:
+    await db.execute(
+        select(m.Enrollment.id)
+        .where(m.Enrollment.student_id == student_id, m.Enrollment.year_id == year_id)
+        .with_for_update()
+    )
+
+
+async def test_bulk_language_records_the_language_a_concurrent_write_committed(api, world):
+    async def hold(db):
+        await _lock_enrollment(db, world.student_one, world.year)
+        db.add(
+            m.StudentLanguage(student_id=world.student_one, year_id=world.year, language="french")
+        )
+
+    async with api(world.admin) as client:
+        changed = await while_held(
+            hold,
+            lambda: client.put(
+                f"/api/admin/years/{world.year}/student-language",
+                json={"student_ids": [world.student_one], "language": "german"},
+            ),
+        )
+        assert changed.status_code == 200, changed.text
+        assert (await undo(client, changed.json()["action_id"])).status_code == 200
+    assert await language(world.student_one, world.year) == "french"
+
+
+@pytest.mark.parametrize(
+    ("recorded", "concurrent"),
+    [("german", None), (None, "french")],
+    ids=["cleared-meanwhile", "set-meanwhile"],
+)
+async def test_language_undo_waits_for_and_respects_a_concurrent_language_write(
+    api, world, recorded, concurrent
+):
+    async with api(world.admin) as client:
+        if recorded is None:
+            await client.put(
+                f"/api/admin/years/{world.year}/student-language",
+                json={"student_ids": [world.student_one], "language": "german"},
+            )
+        changed = await client.put(
+            f"/api/admin/years/{world.year}/student-language",
+            json={"student_ids": [world.student_one], "language": recorded},
+        )
+
+    async def hold(db):
+        await _lock_enrollment(db, world.student_one, world.year)
+        await db.execute(
+            delete(m.StudentLanguage).where(
+                m.StudentLanguage.student_id == world.student_one,
+                m.StudentLanguage.year_id == world.year,
+            )
+        )
+        if concurrent is not None:
+            db.add(
+                m.StudentLanguage(
+                    student_id=world.student_one, year_id=world.year, language=concurrent
+                )
+            )
+
+    async with api(world.admin) as client:
+        refused = await while_held(hold, lambda: undo(client, changed.json()["action_id"]))
+    assert_blocked(refused, "changed_since", student="Synthetic Student One")
+    assert await language(world.student_one, world.year) == concurrent
+
+
+# Grade history and inactive admins (review follow-up) ---------------------------
+
+
+async def test_undo_field_create_refuses_a_field_with_grade_history(api, world):
+    async with api(world.admin) as client:
+        created = await client.post(
+            "/api/columns", params={"semester_id": world.semester}, json=_field("Synthetic Quiz")
+        )
+    column_id = created.json()["id"]
+    assert (
+        await save_grid(api, world.main, world.cls, [cell(world.student_one, column_id, 70)])
+    ).status_code == 200
+    async with api(world.main) as client:
+        assert (await client.post(f"/api/classes/{world.cls}/grid/undo")).status_code == 200
+    assert await grade_row(world.student_one, column_id) is None
+    async with api(world.admin) as client:
+        assert_blocked(
+            await undo(client, created.json()["action_id"]),
+            "field_has_history",
+            field="Synthetic Quiz",
+        )
+        # Deleting it hides it instead, keeping the audit trail.
+        removed = await client.delete(
+            f"/api/columns/{column_id}", params={"semester_id": world.semester}
+        )
+        assert removed.json()["disabled"] is True
+    async with TestSession() as db:
+        assert (
+            await db.scalar(
+                select(func.count())
+                .select_from(m.AuditEntry)
+                .where(m.AuditEntry.column_definition_id == column_id)
+            )
+            >= 1
+        )
+
+
+async def test_undo_field_copy_refuses_copies_with_grade_history(api, world):
+    async with api(world.admin) as client:
+        copied = await client.post(
+            "/api/columns/copy",
+            params={"semester_id": world.semester},
+            json={
+                "source_grade_level": 5,
+                "source_subject": "english",
+                "target_grade_level": 6,
+                "target_subject": "english",
+            },
+        )
+    async with TestSession() as db:
+        column_id = await db.scalar(
+            select(m.ColumnDefinition.id).where(m.ColumnDefinition.grade_level == 6).limit(1)
+        )
+        batch = m.SaveBatch(user_id=world.main.id, class_id=world.cls)
+        db.add(batch)
+        await db.flush()
+        db.add(
+            m.AuditEntry(
+                batch_id=batch.id,
+                actor_id=world.main.id,
+                student_id=world.student_one,
+                column_definition_id=column_id,
+                old_existed=False,
+                new_score=40,
+            )
+        )
+        await db.commit()
+    async with api(world.admin) as client:
+        assert_blocked(await undo(client, copied.json()["action_id"]), "field_has_history")
+    assert await column_row(column_id) is not None
+
+
+async def test_undo_edit_of_an_inactive_admin_is_not_a_last_admin_change(api, world):
+    async with TestSession() as db:
+        former = m.User(
+            email=f"former@{SCHOOL_DOMAIN}",
+            full_name="Synthetic Former Admin",
+            is_admin=True,
+            is_active=False,
+            teaching_stage="middle",
+        )
+        db.add(former)
+        await db.commit()
+    async with api(world.admin) as client:
+        renamed = await client.patch(
+            f"/api/admin/users/{former.id}", json={"full_name": "Synthetic Renamed Former"}
+        )
+        assert renamed.status_code == 200, renamed.text
+        assert (await undo(client, renamed.json()["action_id"])).status_code == 200
+        demoted = await client.patch(f"/api/admin/users/{former.id}", json={"is_admin": False})
+        assert demoted.status_code == 200, demoted.text
+    async with TestSession() as db:
+        user = await db.get(m.User, former.id)
+        assert (user.full_name, user.is_admin) == ("Synthetic Former Admin", False)

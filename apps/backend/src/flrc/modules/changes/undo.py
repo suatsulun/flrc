@@ -111,8 +111,9 @@ async def lock_action_accounts(
     Every write about an account and a permanent deletion lock the account first, so an
     undo does too: account actions lock their account exclusively, as the handler does;
     assignment changes take shared locks on every teacher their slots name. The
-    administrator is locked shared and checked again, as every administrator's write does:
-    marking the action undone refers to that account, which its own deletion holds.
+    administrator is locked shared and checked again, as the account and assignment
+    writers do: marking the action undone refers to that account, which its own deletion
+    holds.
     """
     if kind in ACCOUNT_ACTION_KINDS:
         return await lock_for_admin(db, actor, exclusive=int(data["user_id"]))

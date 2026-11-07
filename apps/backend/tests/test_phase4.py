@@ -1,5 +1,7 @@
+import threading
+import time
 from collections.abc import Callable
-from concurrent.futures import Executor
+from concurrent.futures import Executor, ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 
@@ -332,6 +334,43 @@ def test_report_batches_bound_layout_size_even_when_parallel_render_fails(monkey
     actual = PdfReader(BytesIO(render_report_pdf(cards)))
     assert rendered_pages == [2, 2, 1]
     assert _page_shapes(actual) == expected
+
+
+def test_concurrent_parallel_renders_share_one_process_budget(monkeypatch) -> None:
+    """Pools are per render; together they never have more processes than one may use."""
+    cards = _performance_cards((3, 2))
+    guard = threading.Lock()
+    alive = [0]
+    peak = [0]
+    started = threading.Barrier(2)
+
+    class CountingPool(Executor):
+        def __init__(self, workers: int) -> None:
+            self.workers = workers
+            with guard:
+                alive[0] += workers
+                peak[0] = max(peak[0], alive[0])
+
+        def map(self, function, documents):
+            time.sleep(0.3)  # Long enough for the other render to try to start its pool.
+            return [function(document) for document in documents]
+
+        def shutdown(self, wait: bool = True, *, cancel_futures: bool = False) -> None:
+            with guard:
+                alive[0] -= self.workers
+
+    def download(_: int) -> bytes:
+        started.wait()
+        return render_report_pdf(cards)
+
+    monkeypatch.setattr(render_module.settings, "report_render_workers", 2)
+    monkeypatch.setattr(render_module, "MIN_PARALLEL_UNITS", 2)
+    monkeypatch.setattr(render_module, "_render_pool", CountingPool)
+    with ThreadPoolExecutor(max_workers=2) as requests:
+        pdfs = list(requests.map(download, range(2)))
+    assert peak[0] == 2, "the second render waits for the first pool to shut down"
+    expected = _page_shapes(PdfReader(BytesIO(render_pdf_document(render_report_html(cards)))))
+    assert [_page_shapes(PdfReader(BytesIO(pdf))) for pdf in pdfs] == [expected, expected]
 
 
 async def test_report_builder_covers_every_class_in_the_requested_school_set(world) -> None:

@@ -3,7 +3,7 @@ from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -23,6 +23,9 @@ from flrc.modules.changes.service import (
 from flrc.modules.changes.undo import HANDLERS, UndoContext, lock_action_accounts
 
 router = APIRouter(prefix="/admin/actions", tags=["admin-actions"])
+
+# The first key of the transaction-scoped advisory lock that serializes undos of one action.
+UNDO_LOCK_NAMESPACE = 75
 
 
 class AdminActionOut(BaseModel):
@@ -98,6 +101,10 @@ async def undo_admin_action(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> AdminActionOut:
     """Restore the state before an action in one transaction, or change nothing."""
+    # Undos of one action take turns, before any row lock: the second waits for the first
+    # to commit and then finds the action undone. Only undo takes this key, so it adds no
+    # lock cycle with the row-lock order below (ADR-080).
+    await db.execute(select(func.pg_advisory_xact_lock(UNDO_LOCK_NAMESPACE, action_id)))
     named = (
         await db.execute(
             select(AdminAction.kind, AdminAction.undo_data).where(AdminAction.id == action_id)
@@ -106,9 +113,9 @@ async def undo_admin_action(
     if named is None:
         raise HTTPException(404, {"code": "unknown_action"})
     # The undoing administrator and the named accounts first, the action row last: the
-    # order every recorded write and a permanent deletion use (ADR-080), so none of them
-    # can deadlock with this undo. An administrator deactivated or deleted meanwhile is
-    # refused.
+    # order the account and assignment writers and a permanent deletion use (ADR-080), so
+    # none of them can deadlock with this undo. An administrator deactivated, deleted or
+    # demoted meanwhile is refused.
     await lock_action_accounts(db, named.kind, named.undo_data, actor)
     # Read again after any wait; a deletion that held a named account has scrubbed it.
     action = await db.scalar(

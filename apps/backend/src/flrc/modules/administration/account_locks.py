@@ -4,9 +4,14 @@ A transaction that changes or records anything about an account locks the accoun
 first, before years, classes, teaching assignments and admin actions. A permanent deletion
 holds the row exclusively while it erases the account, so an assignment writer, a year
 rollover or an undo that reaches the same account waits for it, then sees the deletion and
-refuses, and no action naming the account can be recorded after its scrub. An
-administrator's write locks the administrator's own row too, in the same id order, because
-the action it records refers to it.
+refuses, and no action naming the account can be recorded after its scrub.
+
+Administrator writes that change accounts or roles, cannot be undone, or touch teaching
+assignments (account create and edit, the signature routes, deletion, both assignment
+writers, undo and year close) lock the administrator's own row too, in the same id order,
+and check it again with ``lock_for_admin``. Other administrator writes (classes, rosters,
+fields, imports) rely on the request's authorization like any request already under way:
+an administrator removed meanwhile finishes at most that one request.
 """
 
 from collections.abc import Iterable

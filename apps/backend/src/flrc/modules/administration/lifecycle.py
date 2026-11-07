@@ -36,7 +36,7 @@ from flrc.modules.academics.programme import (
     stage_for_grade,
     uses_scale_only,
 )
-from flrc.modules.administration.account_locks import lock_accounts
+from flrc.modules.administration.account_locks import lock_accounts, lock_for_admin
 from flrc.modules.auth.dependencies import require_admin
 
 router = APIRouter(prefix="/admin/years", tags=["admin-lifecycle"])
@@ -531,10 +531,13 @@ async def close_year(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> YearOut:
-    # The teachers whose slots the rollover copies, before the year (ADR-080).
-    await lock_accounts(
+    # The administrator and the teachers whose slots the rollover copies, before the year
+    # (ADR-080): closing a year cannot be undone, so an administrator deactivated, erased
+    # or demoted while this waited is refused.
+    await lock_for_admin(
         db,
-        await db.scalars(
+        actor,
+        shared=await db.scalars(
             select(TeachingAssignment.user_id)
             .join(SchoolClass, SchoolClass.id == TeachingAssignment.class_id)
             .where(SchoolClass.year_id == year_id)

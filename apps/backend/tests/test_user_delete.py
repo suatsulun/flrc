@@ -565,7 +565,7 @@ async def test_grid_undo_waits_for_a_concurrent_deletion_and_refuses(api, world)
     assert await audit_rows() == before
 
 
-ADMIN_WRITES = ["create", "edit", "signature", "delete", "matrix", "slot", "undo"]
+ADMIN_WRITES = ["create", "edit", "signature", "delete", "matrix", "slot", "undo", "close"]
 
 
 @pytest.mark.parametrize("change", ["erased", "demoted"])
@@ -573,11 +573,12 @@ ADMIN_WRITES = ["create", "edit", "signature", "delete", "matrix", "slot", "undo
 async def test_an_administrator_erased_or_demoted_meanwhile_changes_nothing(
     api, world, endpoint, change
 ):
-    """Every administrator's write locks the administrator and checks the account again.
+    """Writes that change accounts or roles, cannot be undone, or touch assignments lock the
+    administrator and check the account again (ADR-080).
 
     Authentication read the account before the request waited; an administrator another
     one deactivated and erased, or demoted, in the meantime is refused, and nothing is
-    written or erased.
+    written, erased or archived.
     """
     actor = world.admin.id
     async with api(world.admin) as client:
@@ -590,6 +591,14 @@ async def test_an_administrator_erased_or_demoted_meanwhile_changes_nothing(
         )
         assert uploaded.status_code == 200, uploaded.text
         undoable = uploaded.json()["action_id"]
+        audit_sha256 = "0" * 64
+        if endpoint == "close":
+            async with TestSession() as db:
+                (await db.get(m.AcademicYear, world.year)).label = "2026-2027"
+                (await db.get(m.Semester, world.semester)).status = "locked"
+                await db.commit()
+            exported = await client.get(f"/api/admin/years/{world.year}/audit-export.csv")
+            audit_sha256 = exported.headers["x-audit-sha256"]
     async with TestSession() as db:
         actions = await db.scalar(select(func.count()).select_from(m.AdminAction))
 
@@ -618,6 +627,10 @@ async def test_an_administrator_erased_or_demoted_meanwhile_changes_nothing(
                 f"/api/classes/{world.cls}/assignments/main", json={"user_id": world.main.id}
             ),
             "undo": lambda: undo(client, undoable),
+            "close": lambda: client.post(
+                f"/api/admin/years/{world.year}/close",
+                json={"confirm_label": "2026-2027", "audit_sha256": audit_sha256},
+            ),
         }
         response = await while_held(hold, requests[endpoint])
     if change == "erased":
@@ -629,6 +642,7 @@ async def test_an_administrator_erased_or_demoted_meanwhile_changes_nothing(
     async with TestSession() as db:
         assert await db.scalar(select(func.count()).select_from(m.AdminAction)) == actions
         assert (await db.get(m.User, leaver)).deleted_at is None
+        assert (await db.get(m.AcademicYear, world.year)).status == "active"
 
 
 async def test_deletion_locks_the_slots_in_id_order(api, world):

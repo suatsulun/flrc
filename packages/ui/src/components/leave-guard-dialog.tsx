@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { ConfirmDialog } from "./dialog";
+import { CountdownConfirmDialog } from "./countdown-confirm-dialog";
 
 const LEAVE_DELAY_SECONDS = 4;
 
@@ -27,33 +26,18 @@ export function LeaveGuardDialog({
   leaveLabel: string;
   countdownLabel: (seconds: number) => string;
 }) {
-  const [secondsLeft, setSecondsLeft] = useState(LEAVE_DELAY_SECONDS);
-  const [wasOpen, setWasOpen] = useState(open);
-  if (wasOpen !== open) {
-    setWasOpen(open);
-    if (open) setSecondsLeft(LEAVE_DELAY_SECONDS);
-  }
-  useEffect(() => {
-    if (!open) return;
-    const timer = window.setInterval(
-      () => setSecondsLeft((seconds) => Math.max(seconds - 1, 0)),
-      1000,
-    );
-    return () => window.clearInterval(timer);
-  }, [open]);
-
   return (
-    <ConfirmDialog
+    <CountdownConfirmDialog
       open={open}
       onOpenChange={(next) => {
         if (!next) onStay();
       }}
+      seconds={LEAVE_DELAY_SECONDS}
       title={title}
       description={description}
       cancelLabel={stayLabel}
-      confirmLabel={secondsLeft > 0 ? countdownLabel(secondsLeft) : leaveLabel}
-      confirmDisabled={secondsLeft > 0}
-      destructive
+      confirmLabel={leaveLabel}
+      countdownLabel={countdownLabel}
       onConfirm={onLeave}
     />
   );

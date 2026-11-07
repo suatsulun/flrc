@@ -54,6 +54,9 @@ class User(TimestampMixin, Base):
     report_name: Mapped[str | None]
     signature_png: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
     signature_digest: Mapped[str | None]
+    # Set when an administrator permanently deletes the account (ADR-080): personal data
+    # is erased, the row stays for the grades and history that point at it.
+    deleted_at: Mapped[datetime | None]
 
 
 class ReportIdentityAudit(TimestampMixin, Base):

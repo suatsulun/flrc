@@ -352,7 +352,9 @@ async def list_users(
     _: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[UserOut]:
-    result = await db.execute(select(User).order_by(User.full_name))
+    result = await db.execute(
+        select(User).where(User.deleted_at.is_(None)).order_by(User.full_name)
+    )
     return [UserOut.model_validate(u, from_attributes=True) for u in result.scalars()]
 
 

@@ -306,6 +306,17 @@
     "signatureHelp": "PNG, bis 1 MiB und 4 Millionen Pixel; keine Seite über 4096 px. Transparenter Hintergrund empfohlen. Änderungen gelten für neu erstellte Zeugnisse.",
     "signatureRemove": "Unterschrift entfernen",
     "signatureInvalid": "Wählen Sie ein gültiges PNG mit einem Einzelbild innerhalb der Größenbegrenzung.",
+    "delete": "Endgültig löschen",
+    "deleteCountdown": "Endgültig löschen ({{seconds}})",
+    "deleteTitle": "{{name}} endgültig löschen?",
+    "deleteDescription": "Das kann nicht rückgängig gemacht werden. Das Konto kann sich nie wieder anmelden.",
+    "deleteErased": "Wird gelöscht",
+    "deleteErasedIdentity": "Name, E-Mail und Verknüpfung mit dem Google-Konto",
+    "deleteErasedReport": "Name und Unterschrift im Zeugnis",
+    "deleteErasedAccess": "Unterrichtszuweisungen und vorübergehende Bearbeitungsrechte",
+    "deleteKept": "Bleibt erhalten",
+    "deleteKeptGrades": "Die eingetragenen Noten und der Notenverlauf, angezeigt als „Silinmiş öğretmen“ (gelöschte Lehrkraft).",
+    "deleteKeptEmail": "Dieselbe E-Mail-Adresse kann später als neue Lehrkraft wieder hinzugefügt werden.",
     "done": {
       "created": "{{name}} wurde als Lehrkraft hinzugefügt.",
       "teachingField": "{{name}}: Unterrichtsfach auf {{value}} geändert.",
@@ -320,7 +331,8 @@
       "reportName": "Name im Zeugnis für {{name}} als „{{value}}“ gespeichert.",
       "reportNameCleared": "Name im Zeugnis für {{name}} entfernt; im Zeugnis steht der Kontoname.",
       "signatureUploaded": "Zeugnisunterschrift für {{name}} hochgeladen.",
-      "signatureRemoved": "Zeugnisunterschrift für {{name}} entfernt."
+      "signatureRemoved": "Zeugnisunterschrift für {{name}} entfernt.",
+      "deleted": "{{name}} wurde endgültig gelöscht. Das kann nicht rückgängig gemacht werden."
     }
   },
   "classes": {
@@ -805,6 +817,7 @@
       "bad_session": "Ihre Sitzung ist ungültig. Bitte melden Sie sich erneut an.",
       "bad_xlsx_container": "Die Datei ist keine gültige Excel-Arbeitsmappe.",
       "cannot_deactivate_self": "Sie können Ihr eigenes Konto nicht deaktivieren.",
+      "cannot_delete_self": "Sie können Ihr eigenes Konto nicht löschen.",
       "class_delete_setup_only": "Klassen können nur gelöscht werden, solange das Schuljahr in Einrichtung ist.",
       "class_in_use": "Die Klasse hat Schülerinnen und Schüler, Lehrkraftzuweisungen oder gespeicherte Noten und kann nicht gelöscht werden.",
       "class_not_in_report_set": "Eine der gewählten Klassen erhält dieses Zeugnis nicht. Laden Sie die Seite neu.",
@@ -889,6 +902,7 @@
       "unknown_student": "Die Schülerin bzw. der Schüler wurde nicht gefunden. Laden Sie die Seite neu.",
       "unknown_user": "Die Lehrkraft wurde nicht gefunden oder das Konto ist deaktiviert.",
       "unknown_year": "Das Schuljahr wurde nicht gefunden. Laden Sie die Seite neu.",
+      "user_active": "Nur deaktivierte Lehrkräfte können endgültig gelöscht werden.",
       "visitor_protected": "Demo-Besucherkonten können nicht geändert werden.",
       "wrong_domain": "Nur Google-Workspace-Konten der Schule können sich anmelden.",
       "wrong_school_domain": "Es können nur Konten der E-Mail-Domain der Schule hinzugefügt werden.",

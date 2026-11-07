@@ -1752,6 +1752,47 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "admin-users"
+        ],
+        "summary": "Delete Managed User",
+        "description": "Permanently erase a deactivated account's personal data (ADR-080); not undoable.\n\nThe row stays so grades, grade history, save batches and jobs keep pointing at it;\nevery history view then shows ``ERASED_USER_NAME`` through the stored name.",
+        "operationId": "delete_managed_user",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDeleteOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/admin/users/{user_id}/signature": {
@@ -8891,6 +8932,24 @@
           "full_name"
         ],
         "title": "UserCreate"
+      },
+      "UserDeleteOut": {
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted"
+          },
+          "revoked_sessions": {
+            "type": "integer",
+            "title": "Revoked Sessions",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "title": "UserDeleteOut"
       },
       "UserOut": {
         "properties": {

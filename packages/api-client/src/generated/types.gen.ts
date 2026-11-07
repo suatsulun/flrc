@@ -2893,6 +2893,20 @@ export type UserCreate = {
 };
 
 /**
+ * UserDeleteOut
+ */
+export type UserDeleteOut = {
+    /**
+     * Deleted
+     */
+    deleted: boolean;
+    /**
+     * Revoked Sessions
+     */
+    revoked_sessions?: number;
+};
+
+/**
  * UserOut
  */
 export type UserOut = {
@@ -4078,6 +4092,36 @@ export type CreateManagedUserResponses = {
 };
 
 export type CreateManagedUserResponse = CreateManagedUserResponses[keyof CreateManagedUserResponses];
+
+export type DeleteManagedUserData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/admin/users/{user_id}';
+};
+
+export type DeleteManagedUserErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteManagedUserError = DeleteManagedUserErrors[keyof DeleteManagedUserErrors];
+
+export type DeleteManagedUserResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserDeleteOut;
+};
+
+export type DeleteManagedUserResponse = DeleteManagedUserResponses[keyof DeleteManagedUserResponses];
 
 export type PatchManagedUserData = {
     body: UserPatch;

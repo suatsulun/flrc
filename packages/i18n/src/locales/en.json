@@ -306,6 +306,17 @@
     "signatureHelp": "PNG, up to 1 MiB and 4 million pixels; neither side over 4096 px. A transparent background works best. Changes apply to newly generated reports.",
     "signatureRemove": "Remove signature",
     "signatureInvalid": "Choose a valid, single-frame PNG within the size limits.",
+    "delete": "Delete permanently",
+    "deleteCountdown": "Delete permanently ({{seconds}})",
+    "deleteTitle": "Permanently delete {{name}}?",
+    "deleteDescription": "This cannot be undone. The account can never sign in again.",
+    "deleteErased": "Erased",
+    "deleteErasedIdentity": "Name, email and Google account link",
+    "deleteErasedReport": "Report card name and signature",
+    "deleteErasedAccess": "Teaching assignments and temporary edit permissions",
+    "deleteKept": "Kept",
+    "deleteKeptGrades": "The grades they entered and the grade history, shown as “Silinmiş öğretmen” (deleted teacher).",
+    "deleteKeptEmail": "The same email address can be added again later as a new teacher.",
     "done": {
       "created": "{{name}} was added as a teacher.",
       "teachingField": "{{name}}: teaching field changed to {{value}}.",
@@ -320,7 +331,8 @@
       "reportName": "Report card name for {{name}} saved as “{{value}}”.",
       "reportNameCleared": "Report card name for {{name}} removed; report cards will show the account name.",
       "signatureUploaded": "Report card signature uploaded for {{name}}.",
-      "signatureRemoved": "Report card signature removed for {{name}}."
+      "signatureRemoved": "Report card signature removed for {{name}}.",
+      "deleted": "{{name}} was permanently deleted. This cannot be undone."
     }
   },
   "classes": {
@@ -805,6 +817,7 @@
       "bad_session": "Your session is not valid. Please sign in again.",
       "bad_xlsx_container": "The file is not a valid Excel workbook.",
       "cannot_deactivate_self": "You cannot deactivate your own account.",
+      "cannot_delete_self": "You cannot delete your own account.",
       "class_delete_setup_only": "Classes can only be deleted while the school year is in setup.",
       "class_in_use": "The class has students, teacher assignments or saved grades, so it cannot be deleted.",
       "class_not_in_report_set": "One of the selected classes does not receive this report card. Reload the page.",
@@ -889,6 +902,7 @@
       "unknown_student": "The student was not found. Reload the page.",
       "unknown_user": "The teacher was not found or the account is deactivated.",
       "unknown_year": "The school year was not found. Reload the page.",
+      "user_active": "Only deactivated teachers can be deleted permanently.",
       "visitor_protected": "Demo visitor accounts cannot be changed.",
       "wrong_domain": "Only the school's Google Workspace accounts can sign in.",
       "wrong_school_domain": "Only accounts in the school's email domain can be added.",

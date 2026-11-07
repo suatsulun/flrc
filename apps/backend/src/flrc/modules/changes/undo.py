@@ -549,8 +549,9 @@ async def _undo_field_copy(ctx: UndoContext) -> None:
 
 async def _user(ctx: UndoContext, user_id: int) -> User:
     user = await ctx.db.get(User, user_id, with_for_update=True, populate_existing=True)
-    if user is None:
-        raise UndoBlocked("target_missing", user=ctx.params.get("user"))
+    if user is None or user.deleted_at is not None:
+        # A deleted account's actions keep only its id (ADR-080); nothing is restored.
+        raise UndoBlocked("target_missing", user=user.full_name if user else ctx.params.get("user"))
     if user.id != ctx.actor.id and await demo.is_visitor(ctx.db, user.id):
         raise UndoBlocked("visitor_protected", user=user.full_name)
     return user
@@ -645,20 +646,23 @@ async def _undo_assignments(ctx: UndoContext) -> None:
         item.id: item
         for item in await db.scalars(select(SchoolClass).where(SchoolClass.id.in_(class_ids)))
     }
+    # Shared locks on the previous teachers, taken before the slots like a permanent deletion
+    # (ADR-080) does, wait for a concurrent deletion and then see it.
+    teachers = {
+        item.id: item
+        for item in await db.scalars(
+            select(User)
+            .where(User.id.in_({item["before"] for item in slots if item["before"] is not None}))
+            .with_for_update(read=True)
+            .execution_options(populate_existing=True)
+        )
+    }
     current = {
         (item.class_id, item.role): item.user_id
         for item in await db.scalars(
             select(TeachingAssignment)
             .where(TeachingAssignment.class_id.in_(class_ids))
             .with_for_update()
-        )
-    }
-    teachers = {
-        item.id: item
-        for item in await db.scalars(
-            select(User).where(
-                User.id.in_({item["before"] for item in slots if item["before"] is not None})
-            )
         )
     }
     for item in slots:
@@ -671,7 +675,7 @@ async def _undo_assignments(ctx: UndoContext) -> None:
         if item["before"] is None:
             continue
         teacher = teachers.get(item["before"])
-        if teacher is None:
+        if teacher is None or teacher.deleted_at is not None:
             raise UndoBlocked("target_missing", **where)
         if not teacher.is_active:
             raise UndoBlocked("teacher_inactive", teacher=teacher.full_name, **where)

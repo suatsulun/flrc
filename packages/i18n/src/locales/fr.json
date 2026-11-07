@@ -306,6 +306,17 @@
     "signatureHelp": "PNG, 1 Mio et 4 millions de pixels maximum ; aucun côté au-delà de 4096 px. Fond transparent conseillé. Les changements concernent les nouveaux bulletins.",
     "signatureRemove": "Supprimer la signature",
     "signatureInvalid": "Choisissez un PNG valide à une seule image respectant les limites de taille.",
+    "delete": "Supprimer définitivement",
+    "deleteCountdown": "Supprimer définitivement ({{seconds}})",
+    "deleteTitle": "Supprimer définitivement {{name}} ?",
+    "deleteDescription": "Cette action est irréversible. Le compte ne pourra plus jamais se connecter.",
+    "deleteErased": "Effacé",
+    "deleteErasedIdentity": "Nom, e-mail et lien avec le compte Google",
+    "deleteErasedReport": "Nom et signature sur le bulletin",
+    "deleteErasedAccess": "Affectations d’enseignement et autorisations temporaires de modification",
+    "deleteKept": "Conservé",
+    "deleteKeptGrades": "Les notes saisies et leur historique, affichés sous le nom « Silinmiş öğretmen » (enseignant supprimé).",
+    "deleteKeptEmail": "La même adresse e-mail pourra être ajoutée plus tard pour un nouvel enseignant.",
     "done": {
       "created": "{{name}} a été ajouté comme enseignant.",
       "teachingField": "{{name}} : matière enseignée changée en {{value}}.",
@@ -320,7 +331,8 @@
       "reportName": "Nom sur le bulletin de {{name}} enregistré : « {{value}} ».",
       "reportNameCleared": "Nom sur le bulletin de {{name}} retiré ; le bulletin affichera le nom du compte.",
       "signatureUploaded": "Signature de bulletin téléversée pour {{name}}.",
-      "signatureRemoved": "Signature de bulletin retirée pour {{name}}."
+      "signatureRemoved": "Signature de bulletin retirée pour {{name}}.",
+      "deleted": "{{name}} a été supprimé définitivement. Cette action est irréversible."
     }
   },
   "classes": {
@@ -805,6 +817,7 @@
       "bad_session": "Votre session n’est pas valide. Veuillez vous reconnecter.",
       "bad_xlsx_container": "Le fichier n’est pas un classeur Excel valide.",
       "cannot_deactivate_self": "Vous ne pouvez pas désactiver votre propre compte.",
+      "cannot_delete_self": "Vous ne pouvez pas supprimer votre propre compte.",
       "class_delete_setup_only": "Une classe ne peut être supprimée que lorsque l’année scolaire est en préparation.",
       "class_in_use": "La classe a des élèves, des affectations d’enseignants ou des notes enregistrées ; elle ne peut pas être supprimée.",
       "class_not_in_report_set": "L’une des classes choisies ne reçoit pas ce bulletin. Rechargez la page.",
@@ -889,6 +902,7 @@
       "unknown_student": "L’élève est introuvable. Rechargez la page.",
       "unknown_user": "L’enseignant est introuvable ou son compte est désactivé.",
       "unknown_year": "L’année scolaire est introuvable. Rechargez la page.",
+      "user_active": "Seuls les enseignants désactivés peuvent être supprimés définitivement.",
       "visitor_protected": "Les comptes visiteurs de la démo ne peuvent pas être modifiés.",
       "wrong_domain": "Seuls les comptes Google Workspace de l’établissement peuvent se connecter.",
       "wrong_school_domain": "Seuls les comptes du domaine de messagerie de l’établissement peuvent être ajoutés.",

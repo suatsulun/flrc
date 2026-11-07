@@ -18,6 +18,7 @@ import {
 } from "@flrc/ui/components/dialog";
 import { Field } from "@flrc/ui/components/field";
 import { Input } from "@flrc/ui/components/input";
+import { Skeleton } from "@flrc/ui/components/skeleton";
 import { errorMessage } from "./feedback";
 import { useNotifyDone } from "./undo-toast";
 
@@ -37,6 +38,8 @@ export function TeacherReportIdentity({
   // hides the page (and its toasts) from assistive technology, so a failure is explained here
   // instead of by the global error toast.
   const [failure, setFailure] = useState<unknown>();
+  // The signature image whose bytes have arrived; a skeleton holds its place until then.
+  const [shownSignature, setShownSignature] = useState<string>();
   const inlineErrors = {
     meta: { silentError: true },
     onMutate: () => {
@@ -116,11 +119,18 @@ export function TeacherReportIdentity({
         </form>
         <div className="grid gap-3 border-t pt-4">
           {user.signature_url ? (
-            <img
-              src={user.signature_url}
-              alt={t("users.signaturePreview", { name: user.full_name })}
-              className="h-28 w-full rounded border bg-white object-contain p-2"
-            />
+            <div className="relative">
+              {shownSignature !== user.signature_url ? (
+                <Skeleton className="absolute inset-0 rounded" />
+              ) : null}
+              <img
+                src={user.signature_url}
+                alt={t("users.signaturePreview", { name: user.full_name })}
+                className="h-28 w-full rounded border bg-white object-contain p-2"
+                onLoad={() => setShownSignature(user.signature_url ?? undefined)}
+                onError={() => setShownSignature(user.signature_url ?? undefined)}
+              />
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground">{t("users.noSignature")}</p>
           )}

@@ -20,7 +20,7 @@ from flrc.modules.changes.service import (
     action_status,
     utcnow,
 )
-from flrc.modules.changes.undo import HANDLERS, UndoContext
+from flrc.modules.changes.undo import HANDLERS, UndoContext, lock_action_accounts
 
 router = APIRouter(prefix="/admin/actions", tags=["admin-actions"])
 
@@ -98,8 +98,21 @@ async def undo_admin_action(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> AdminActionOut:
     """Restore the state before an action in one transaction, or change nothing."""
+    named = (
+        await db.execute(
+            select(AdminAction.kind, AdminAction.undo_data).where(AdminAction.id == action_id)
+        )
+    ).first()
+    if named is None:
+        raise HTTPException(404, {"code": "unknown_action"})
+    # Accounts before the action row: the order every account write and a permanent
+    # deletion use (ADR-080), so neither can deadlock with this undo.
+    await lock_action_accounts(db, named.kind, named.undo_data)
     action = await db.scalar(
-        select(AdminAction).where(AdminAction.id == action_id).with_for_update()
+        select(AdminAction)
+        .where(AdminAction.id == action_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if action is None:
         raise HTTPException(404, {"code": "unknown_action"})

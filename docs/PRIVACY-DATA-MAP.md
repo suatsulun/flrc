@@ -33,10 +33,11 @@ Not collected: gender, birthdate, national id, home address, browser tokens, or 
   removal, `admin_actions.blob` keeps the previous image so the change can be undone (ADR-075).
   Older backups/PDFs may preserve old images.
 - Permanently deleting a deactivated teacher (ADR-080) erases the account's name, e-mail, Google
-  subject, report name and signature, its own `report_identity_audits` rows, its assignments and
-  grants, and its name, e-mail and kept images in `admin_actions`. Grades, grade audit, save
-  batches and jobs keep pointing at the row, now named "Silinmiş öğretmen". Older backups and
-  already generated PDFs keep the data until they expire.
+  subject, report name and signature, its own `report_identity_audits` rows, its assignments,
+  its unused grants (a grant a save went through only expires), and its name, e-mail and kept
+  images in `admin_actions`. Grades, grade audit, save batches and jobs keep pointing at the row,
+  now named "Silinmiş öğretmen". Older backups and already generated PDFs keep the data until
+  they expire.
 - Direct PDF responses are not stored as job blobs. Downloaded files and school Drive archive
   bundles have the school's retention policy, independently of the 24-hour job-download expiry.
   Expired job blobs remain in storage until `flrc purge-job-outputs` removes them.

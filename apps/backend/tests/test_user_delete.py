@@ -1,5 +1,6 @@
 """Permanently deleting a deactivated teacher account (ADR-080)."""
 
+import asyncio
 import json
 from datetime import timedelta
 from io import BytesIO
@@ -7,14 +8,16 @@ from unittest.mock import AsyncMock
 
 import pytest
 from PIL import Image
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 
 from flrc.config import settings
 from flrc.db import models as m
+from flrc.modules.administration.lifecycle import _create_rollover_year
 from flrc.modules.administration.users import ERASED_USER_NAME
 from flrc.modules.auth import demo, sessions
 from flrc.modules.changes.service import utcnow
 from tests.conftest import TestSession, cell, save_grid
+from tests.test_admin_changes import while_held
 
 SCHOOL_DOMAIN = "school.example"
 
@@ -295,3 +298,123 @@ async def test_delete_scrubs_recorded_actions_and_no_undo_brings_the_account_bac
             )
             == world.main.id
         )
+
+
+async def test_delete_keeps_grant_backed_saves_and_ends_the_grants(api, world):
+    async with api(world.skills) as client:
+        granted = await client.post(f"/api/classes/{world.cls}/grants", json={"role": "main"})
+    assert granted.status_code == 200, granted.text
+    saved = await save_grid(
+        api, world.skills, world.cls, [cell(world.student_one, world.main_column, 70)]
+    )
+    assert saved.status_code == 200, saved.text
+    async with api(world.admin) as client:
+        await deactivate(client, world.skills.id)
+        deleted = await erase(client, world.skills.id)
+    assert deleted.status_code == 200, deleted.text
+    async with TestSession() as db:
+        entry = (
+            await db.scalars(select(m.AuditEntry).where(m.AuditEntry.actor_id == world.skills.id))
+        ).one()
+        # The audit row still names the grant the save went through.
+        assert entry.via_grant_id is not None
+        assert await db.get(m.OverrideGrant, entry.via_grant_id) is not None
+        live = await db.scalar(
+            select(m.OverrideGrant.id).where(
+                m.OverrideGrant.user_id == world.skills.id,
+                m.OverrideGrant.expires_at > func.now(),
+            )
+        )
+        assert live is None
+
+
+def mark_deleted(user_id: int):
+    """What a permanent deletion holding the account's row lock has written so far."""
+
+    async def hold(db) -> None:
+        await db.execute(
+            update(m.User)
+            .where(m.User.id == user_id)
+            .values(is_active=False, deleted_at=utcnow(), full_name=ERASED_USER_NAME)
+        )
+
+    return hold
+
+
+@pytest.mark.parametrize("endpoint", ["matrix", "slot"])
+async def test_assignment_waits_for_a_concurrent_deletion_and_refuses(api, world, endpoint):
+    async with api(world.admin) as client:
+        teacher = await create_teacher(client, "racing")
+        teacher_id = int(teacher["id"])
+
+        def request():
+            if endpoint == "matrix":
+                return client.put(
+                    f"/api/admin/years/{world.year}/assignments",
+                    json={
+                        "changes": [{"class_id": world.cls, "role": "main", "user_id": teacher_id}]
+                    },
+                )
+            return client.put(
+                f"/api/classes/{world.cls}/assignments/main", json={"user_id": teacher_id}
+            )
+
+        response = await while_held(mark_deleted(teacher_id), request)
+    assert response.status_code == 422, response.text
+    async with TestSession() as db:
+        assert (
+            await db.scalar(
+                select(m.TeachingAssignment.id).where(m.TeachingAssignment.user_id == teacher_id)
+            )
+            is None
+        )
+        kinds = list(await db.scalars(select(m.AdminAction.kind)))
+    assert "assignments.replace" not in kinds
+
+
+async def test_rollover_does_not_copy_a_deleted_teacher(world):
+    async with TestSession() as db:
+        year = await db.get(m.AcademicYear, world.year)
+        year.label = "2026-2027"
+        await mark_deleted(world.skills.id)(db)
+        await db.commit()
+    async with TestSession() as db:
+        target = await _create_rollover_year(db, await db.get(m.AcademicYear, world.year))
+        await db.commit()
+        holders = set(
+            await db.scalars(
+                select(m.TeachingAssignment.user_id)
+                .join(m.SchoolClass, m.SchoolClass.id == m.TeachingAssignment.class_id)
+                .where(m.SchoolClass.year_id == target.id)
+            )
+        )
+    assert holders == {world.main.id}
+
+
+@pytest.mark.parametrize("kind", ["user.edit", "assignments.replace"])
+async def test_undo_and_a_concurrent_deletion_lock_the_account_first(api, world, kind):
+    async with api(world.admin) as client:
+        teacher = await create_teacher(client, "undone")
+        teacher_id = int(teacher["id"])
+        if kind == "assignments.replace":
+            for holder in (teacher_id, world.main.id):
+                handed = await client.put(
+                    f"/api/admin/years/{world.year}/assignments",
+                    json={"changes": [{"class_id": world.cls, "role": "main", "user_id": holder}]},
+                )
+                assert handed.status_code == 200, handed.text
+            action_id = handed.json()["action_id"]
+        else:
+            action_id = (await deactivate(client, teacher_id)).json()["action_id"]
+
+        # A deletion locks the account, then the account's recorded actions to scrub them.
+        async with TestSession() as db:
+            await mark_deleted(teacher_id)(db)
+            await db.flush()
+            pending = asyncio.create_task(undo(client, action_id))
+            await asyncio.sleep(0.5)
+            await db.execute(
+                select(m.AdminAction.id).where(m.AdminAction.id == action_id).with_for_update()
+            )
+            await db.commit()
+        assert_target_missing(await pending)

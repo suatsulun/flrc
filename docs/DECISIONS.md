@@ -3660,16 +3660,24 @@ points at the account.
   the e-mail becomes the unique, non-routable `deleted-<id>@deleted.invalid`, so the real address
   can be added again as a new account; the Google subject, report name, signature and admin and
   coordinator flags are cleared; `users.deleted_at` marks the deletion.
-- The account's teaching assignments, override grants and its own `report_identity_audits` rows
-  are deleted. Remaining sessions are revoked after the commit.
+- The account's teaching assignments and its own `report_identity_audits` rows are deleted. Its
+  override grants are deleted too, except a grant a save went through: `audit_entries.via_grant_id`
+  keeps naming it, so it only expires (a grant holds no personal data). Remaining sessions are
+  revoked after the commit.
 - Recorded admin actions (ADR-075) lose the account's personal data in the same transaction:
   `user.create`, `user.edit`, `signature.upload` and `signature.delete` for the account keep only
   `{"user_id"}` as their snapshot, drop the kept image and show the erased name without e-mail or
   name changes; `assignments.replace` entries show the erased name for the account's slots.
+- One lock order per account: whatever writes or records something about an account locks the
+  account row first: account edits and signature changes exclusively, assignment writers
+  (single slot and matrix) and the year rollover shared, and undo before it locks the action row
+  (exclusive for account actions, shared on every teacher an assignment change names). The
+  deletion holds the row exclusively, then deletes assignments, then scrubs actions. So no action
+  naming the account is recorded after the scrub, assignment writers revalidate the account after
+  waiting and refuse an inactive or deleted one, the rollover leaves a deleted teacher's slots
+  empty, and nothing deadlocks with the deletion.
 - No undo can bring the account back: undo handlers refuse a deleted account with
-  `target_missing`, and assignment undos lock the previous teachers before checking, so they wait
-  for a concurrent deletion and then refuse. The deletion locks the account's recorded actions,
-  then the account, then its assignments: the order an undo takes, so the two never deadlock.
+  `target_missing`.
 - Deleted accounts are left out of `/api/admin/users` and the `/api/users` teacher picker; editing
   or a signature request for one answers `404 unknown_user`. The deletion itself is not recorded
   as an undoable action.

@@ -3,12 +3,13 @@ from typing import Annotated, Any, Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from flrc.db.models import (
     AdminAction,
+    AuditEntry,
     OverrideGrant,
     ReportIdentityAudit,
     SchoolClass,
@@ -17,6 +18,7 @@ from flrc.db.models import (
 )
 from flrc.db.session import get_session
 from flrc.modules.academics.programme import Stage
+from flrc.modules.administration.account_locks import lock_accounts
 from flrc.modules.administration.classes import assignment_mismatch
 from flrc.modules.administration.names import normalize_email, search_key
 from flrc.modules.administration.report_identity import (
@@ -394,10 +396,10 @@ async def delete_managed_user(
     The row stays so grades, grade history, save batches and jobs keep pointing at it;
     every history view then shows ``ERASED_USER_NAME`` through the stored name.
     """
-    # An undo locks its action before the account; take the same order so a concurrent
-    # undo of one of this account's actions waits instead of deadlocking.
-    await _account_actions(db, user_id)
-    target = await db.get(User, user_id, with_for_update=True, populate_existing=True)
+    # The account row first, exclusively: every writer about the account, the year rollover
+    # and undo lock it first too (ADR-080), so none of them can record or restore anything
+    # about it between here and the commit, and none can deadlock with this deletion.
+    target = (await lock_accounts(db, [user_id], exclusive=True)).get(user_id)
     if target is None or target.deleted_at is not None:
         raise HTTPException(404, {"code": "unknown_user"})
     if target.id == actor.id:
@@ -407,8 +409,10 @@ async def delete_managed_user(
     if target.is_active:
         raise HTTPException(409, {"code": "user_active"})
     await db.execute(delete(TeachingAssignment).where(TeachingAssignment.user_id == target.id))
-    await db.execute(delete(OverrideGrant).where(OverrideGrant.user_id == target.id))
+    await _end_grants(db, target.id)
     await db.execute(delete(ReportIdentityAudit).where(ReportIdentityAudit.user_id == target.id))
+    # After the assignments: a slot writer that held one of them has committed its action
+    # by now, so the scan below sees it.
     await _erase_from_actions(db, target.id)
     target.full_name = ERASED_USER_NAME
     target.email = erased_email(target.id)
@@ -423,6 +427,22 @@ async def delete_managed_user(
     # A deactivated account has no usable session; revoke any leftover index anyway.
     revoked = await revoke_user_sessions(target.id)
     return UserDeleteOut(deleted=True, revoked_sessions=revoked)
+
+
+async def _end_grants(db: AsyncSession, user_id: int) -> None:
+    """Remove the account's override grants; one a save went through only expires.
+
+    A grant holds no personal data, and `audit_entries.via_grant_id` keeps naming the grant
+    behind each save, so such a grant stays as an ended record.
+    """
+    owned = OverrideGrant.user_id == user_id
+    used = select(AuditEntry.id).where(AuditEntry.via_grant_id == OverrideGrant.id).exists()
+    await db.execute(delete(OverrideGrant).where(owned, ~used))
+    await db.execute(
+        update(OverrideGrant)
+        .where(owned, OverrideGrant.expires_at > func.now())
+        .values(expires_at=func.now())
+    )
 
 
 async def _account_actions(db: AsyncSession, user_id: int) -> list[AdminAction]:

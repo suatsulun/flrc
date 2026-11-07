@@ -8,7 +8,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flrc.db.models import (
-    AcademicYear,
     Enrollment,
     SchoolClass,
     Student,
@@ -18,6 +17,7 @@ from flrc.db.models import (
 from flrc.db.session import get_session
 from flrc.modules.academics.class_names import class_label
 from flrc.modules.academics.programme import L2_START_GRADE, stage_for_grade
+from flrc.modules.administration.classes import writable_class_year
 from flrc.modules.administration.names import search_key
 from flrc.modules.administration.roster_service import (
     assign_student_language,
@@ -120,14 +120,6 @@ class LanguageBody(BaseModel):
     language: Literal["german", "french"] | None
 
 
-async def _ensure_year_writable(db: AsyncSession, year_id: int) -> None:
-    year = await db.get(AcademicYear, year_id)
-    if year is None:
-        raise HTTPException(404, {"code": "unknown_year"})
-    if year.status == "archived":
-        raise HTTPException(409, {"code": "year_not_writable"})
-
-
 @router.get("/classes/{class_id}/roster")
 async def get_admin_roster(
     class_id: int,
@@ -172,7 +164,7 @@ async def add_admin_roster_student(
     school_class = await db.get(SchoolClass, class_id)
     if school_class is None:
         raise HTTPException(404, {"code": "unknown_class"})
-    await _ensure_year_writable(db, school_class.year_id)
+    await writable_class_year(db, school_class.year_id)
     if body.language and school_class.grade_level < L2_START_GRADE:
         raise HTTPException(422, {"code": "language_grade_too_low"})
     if await school_number_taken(
@@ -237,13 +229,17 @@ async def patch_admin_roster_student(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> RosterStudentWriteOut:
-    # The pupil and their enrollment stay locked from reading the previous values until
-    # the commit, so the recorded undo snapshot is exactly what this edit replaced.
+    school_class = await db.get(SchoolClass, class_id)
+    if school_class is None:
+        raise HTTPException(404, {"code": "unknown_enrollment"})
+    # The year first, as every roster write and undo locks it, then the pupil and their
+    # enrollment. All stay locked from reading the previous values until the commit, so the
+    # recorded undo snapshot is exactly what this edit replaced.
+    year = await writable_class_year(db, school_class.year_id)
     row = (
         await db.execute(
-            select(Enrollment, Student, SchoolClass)
+            select(Enrollment, Student)
             .join(Student, Student.id == Enrollment.student_id)
-            .join(SchoolClass, SchoolClass.id == Enrollment.class_id)
             .where(Enrollment.class_id == class_id, Enrollment.student_id == student_id)
             .with_for_update(of=[Enrollment, Student])
             .execution_options(populate_existing=True)
@@ -251,16 +247,14 @@ async def patch_admin_roster_student(
     ).one_or_none()
     if row is None:
         raise HTTPException(404, {"code": "unknown_enrollment"})
-    enrollment, student, school_class = row
-    year = await db.get(AcademicYear, school_class.year_id)
-    await _ensure_year_writable(db, school_class.year_id)
+    enrollment, student = row
     before: dict[str, object] = {
         "full_name": student.full_name,
         "school_number": enrollment.school_number,
         "language": await student_language(db, student_id, school_class.year_id),
     }
     if "school_number" in body.model_fields_set:
-        if body.school_number is None and year and year.status != "setup":
+        if body.school_number is None and year.status != "setup":
             raise HTTPException(409, {"code": "student_number_required"})
         if body.school_number is not None and await school_number_taken(
             db,
@@ -331,7 +325,7 @@ async def move_admin_roster(
     target = await db.get(SchoolClass, body.target_class_id)
     if target is None:
         raise HTTPException(404, {"code": "unknown_class"})
-    await _ensure_year_writable(db, target.year_id)
+    await writable_class_year(db, target.year_id)
     try:
         moved, unchanged = await move_students(
             db,
@@ -397,7 +391,8 @@ async def set_student_language(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> StudentLanguageOut:
-    await _ensure_year_writable(db, year_id)
+    # The year before the enrollments, the order removal and undo lock them in.
+    await writable_class_year(db, year_id)
     student_ids = list(dict.fromkeys(body.student_ids))
     enrollments = await lock_enrollments(db, year_id=year_id, student_ids=student_ids)
     if len(enrollments) != len(student_ids):

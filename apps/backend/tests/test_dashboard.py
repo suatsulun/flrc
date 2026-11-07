@@ -1,9 +1,11 @@
 from types import SimpleNamespace
+from typing import Any
 
+import pytest
 from sqlalchemy import delete, select
 
 from flrc.db import models as m
-from flrc.modules.administration.coordinator import completion_percent
+from flrc.modules.administration.coordinator import completion_percent, year_rosters
 from tests.conftest import TestSession
 
 ADMIN = m.User(id=90001, email="dash-admin@example.test", full_name="Dash Admin", is_admin=True)
@@ -240,6 +242,71 @@ async def test_a_semester_without_fields_is_not_complete(api) -> None:
     assert body["completion"]["expected_cells"] == 0
 
 
+async def test_a_grid_with_pupils_but_no_fields_keeps_the_semester_open(api) -> None:
+    school = await make_school()
+    await fill_everything(school)
+    async with TestSession() as db:
+        german = await db.scalar(
+            select(m.ColumnDefinition).where(
+                m.ColumnDefinition.semester_id == school.terms[0],
+                m.ColumnDefinition.subject == "german",
+            )
+        )
+        assert german is not None
+        german.is_active = False
+        await db.commit()
+
+    body = await get_dashboard(api)
+    # English is complete, but the pupil's German grid has nothing to fill yet.
+    assert body["completion"]["missing_cells"] == 0
+    assert body["completion"]["complete_rows"] == 1
+    assert body["completion"]["incomplete_rows"] == 1
+    assert body["next_step"]["code"] == "collect_grades"
+    assert body["next_step"]["blockers"] == [{"code": "classes_without_fields", "count": 1}]
+    assert body["problems"]["classes_without_fields"]["count"] == 1
+
+
+async def test_rosters_ignore_a_class_committed_while_they_are_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    school = await make_school()
+    async with TestSession() as db:
+        execute = db.execute
+        statements = 0
+        imported: list[int] = []
+
+        async def import_between_reads(*args: Any, **kwargs: Any) -> Any:
+            # A concurrent import commits a new class and its pupil after the class read
+            # (the first statement) and before the enrollment read.
+            nonlocal statements
+            statements += 1
+            if statements == 2:
+                async with TestSession() as other:
+                    new_class = m.SchoolClass(year_id=school.year, grade_level=6, section="B")
+                    pupil = m.Student(full_name="Synthetic Newcomer", search_name="newcomer")
+                    other.add_all([new_class, pupil])
+                    await other.flush()
+                    other.add(
+                        m.Enrollment(
+                            student_id=pupil.id,
+                            year_id=school.year,
+                            class_id=new_class.id,
+                            school_number=8,
+                        )
+                    )
+                    await other.commit()
+                    imported.append(new_class.id)
+            return await execute(*args, **kwargs)
+
+        monkeypatch.setattr(db, "execute", import_between_reads)
+        rosters = await year_rosters(db, school.year)
+
+    assert imported
+    assert [(roster.school_class.id, roster.students) for roster in rosters] == [
+        (school.cls, {school.student})
+    ]
+
+
 async def test_both_semesters_locked_means_closing_the_year(api) -> None:
     school = await make_school(semesters=("locked", "locked"))
     await fill_everything(school, term_index=1)
@@ -449,6 +516,31 @@ async def test_middle_english_readiness_waits_for_second_language_scores(api) ->
     assert scored["english_middle"]["percent"] == 100.0
     assert scored["german_karne"]["expected_cells"] == 2
     assert scored["german_karne"]["percent"] == 50.0
+
+
+async def test_english_card_without_english_fields_stays_incomplete(api) -> None:
+    """Filled second-language scores do not stand in for a class's missing English fields."""
+    school = await make_school()
+    async with TestSession() as db:
+        english = await db.get(m.ColumnDefinition, school.columns[0])
+        assert english is not None
+        english.is_active = False
+        await db.commit()
+    await fill_everything(school)
+
+    readiness = {item["kind"]: item for item in (await get_dashboard(api))["readiness"]}
+    assert readiness["english_middle"] == {
+        "kind": "english_middle",
+        "eligible_classes": 1,
+        "complete_classes": 0,
+        "students": 1,
+        "expected_cells": 0,
+        "filled_cells": 0,
+        "percent": None,
+    }
+    # The German karne has its own fields and is complete.
+    assert readiness["german_karne"]["complete_classes"] == 1
+    assert readiness["german_karne"]["percent"] == 100.0
 
 
 async def test_missing_cells_name_pupil_field_and_owning_teacher(api, world) -> None:

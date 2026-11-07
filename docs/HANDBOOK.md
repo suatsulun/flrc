@@ -5637,6 +5637,12 @@ const AuditPage = () => {
 
 **Check:** generate ~120 entries by saving in a loop from the grid (or a quick psql `insert … select`), page through with Load more; then, while a next page exists, make one _new_ save in another tab and keep paging: no row duplicates, no skips. That non-event is keyset pagination working; offset pagination would have stuttered. Open the CSV: Turkish characters intact (UTF-8), `∅` marking was-empty cells. Filter by class; the admin can now answer "who entered this 90 and when" in ten seconds. Say that sentence in the school pitch.
 
+> **Current amendment (ADR-079):** the audit page also filters by teacher (any managed user), by
+> student (search by name or number, then filter by that student's id) and by a date range of whole
+> calendar days, sent as `date_from=<day>T00:00:00` and `date_to=<day>T23:59:59.999999`. The CSV
+> export link carries exactly the same query parameters as the table, and the class filter and
+> paging are unchanged.
+
 **If it breaks:** `SyntaxError` on the export module → you found the planted bug; well met. `created_at` renders shifted by your UTC offset → the `+ 'Z'` on the client is doing the same repair as 2.7's serializer; pick one approach (serializers server-side is the cleaner ADR) and make it uniform across `AuditItemOut` too.
 
 ## Step 2.10: The phone stepper
@@ -5853,7 +5859,8 @@ The hardest engineering in the project is now behind you. Phases 3 and 4 are bro
 > original Step 3.1 and 3.3 screen assembly below. A school number now belongs to
 > `Enrollment` and is unique within an academic year and school stage (ADR-070); `Student.id` is the stable identity. Student
 > creation, number editing, class moves, second language, column setup, and class teacher assignment
-> live in the `/classes` table workspace. The separate `/students` route redirects there. The old
+> live in the `/classes` table workspace. `/students` is a whole-year search by name or number that
+> opens a student's history or their class in the workspace (ADR-079). The old
 > CRUD walkthrough remains below as design history, not as code to copy. Closing a standard year
 > creates the next setup year automatically and promotes grades 1-3 and 5-7 (ADR-066) with empty numbers; activation
 > requires those numbers to be filled. See the current models, migration
@@ -6949,6 +6956,21 @@ A “filled” cell is a `grade_values` row whose type-specific field is non-nul
 
 **Frontend:** coordinator landing page is cards + sortable completeness table. Clicking a row opens the existing grid in read-only coordinator mode with missing cells visually marked; do not duplicate a coordinator-specific grid component.
 
+> **Current amendment (ADR-079):** there is no separate coordinator page any more. Admins and
+> coordinators both land on the dashboard at `/` (`/coordinator` redirects there), backed by
+> `GET /api/dashboard`: the active year (else the newest year in setup) with its semesters and the
+> next lifecycle step with its facts (`create_year`, `activate_year` with missing-number blockers,
+> `collect_grades` with the completion percentage, `advance_semester`, `lock_semester`,
+> `close_year`), the overview counts above, the completeness rows of the open (else last)
+> semester, setup problems with counts and concrete items (roles without a teacher, classes
+> without fields, teachers without a report name or signature, pupils without a school number or
+> second language), and report readiness per card kind. `CompletenessRow` also carries
+> `grade_level`, and `/missing` names the pupil, the field, its owner role and the assigned
+> teacher. A completeness row's drill-down lists those cells in a dialog that links to the class
+> table (`/classes?year=&grade=&class=&subject=`). A role counts as missing when the class needs
+> it: English main and skills always, German or French once the class has a pupil taking it;
+> `missing_assignments` uses the same rule.
+
 **Check:** as coordinator, `/admin/users` 403; `/coordinator/overview` 200. Clear one score → completeness decreases by one. Add a German student → only German expected-cell count changes.
 
 **If it breaks:** percentages exceed 100 → duplicate joins from assignments or languages inflated counts; count distinct `(student_id, column_id)` pairs or pre-aggregate each side.
@@ -6969,6 +6991,7 @@ POST /api/admin/users                    teacher 403 · coordinator 403
 POST /api/admin/roster/move              teacher 403 · coordinator 403
 POST /api/admin/import/dry-run           teacher 403 · coordinator 403
 GET  /api/coordinator/overview           teacher 403 · coordinator 200 · admin 200
+GET  /api/dashboard                      teacher 403 · coordinator 200 · admin 200
 GET  /api/archive/years                  teacher 403 · coordinator 200 · admin 200
 POST /api/admin/years/{id}/activate      coordinator 403
 ```

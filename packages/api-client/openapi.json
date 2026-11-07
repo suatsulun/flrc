@@ -3313,6 +3313,7 @@
           "coordinator"
         ],
         "summary": "Coordinator Missing Cells",
+        "description": "Every empty cell of one class grid: the pupil, the field and the teacher who owns it.",
         "operationId": "coordinator_missing_cells",
         "parameters": [
           {
@@ -3356,10 +3357,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": {
-                      "type": "integer"
-                    }
+                    "$ref": "#/components/schemas/MissingCell"
                   },
                   "title": "Response Coordinator Missing Cells"
                 }
@@ -3372,6 +3370,28 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboard": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Get Dashboard",
+        "description": "The active year (else the newest year in setup): its term, next step and open problems.",
+        "operationId": "get_dashboard",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardOut"
                 }
               }
             }
@@ -4893,6 +4913,10 @@
             "type": "string",
             "title": "Class Name"
           },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          },
           "subject": {
             "type": "string",
             "title": "Subject"
@@ -4926,6 +4950,7 @@
         "required": [
           "class_id",
           "class_name",
+          "grade_level",
           "subject",
           "roster_count",
           "active_columns",
@@ -4935,6 +4960,69 @@
           "percent"
         ],
         "title": "CompletenessRow"
+      },
+      "CompletionSummary": {
+        "properties": {
+          "semester_id": {
+            "type": "integer",
+            "title": "Semester Id"
+          },
+          "semester_number": {
+            "type": "integer",
+            "title": "Semester Number"
+          },
+          "expected_cells": {
+            "type": "integer",
+            "title": "Expected Cells"
+          },
+          "filled_cells": {
+            "type": "integer",
+            "title": "Filled Cells"
+          },
+          "missing_cells": {
+            "type": "integer",
+            "title": "Missing Cells"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent"
+          },
+          "complete_rows": {
+            "type": "integer",
+            "title": "Complete Rows"
+          },
+          "incomplete_rows": {
+            "type": "integer",
+            "title": "Incomplete Rows"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CompletenessRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "semester_id",
+          "semester_number",
+          "expected_cells",
+          "filled_cells",
+          "missing_cells",
+          "percent",
+          "complete_rows",
+          "incomplete_rows",
+          "rows"
+        ],
+        "title": "CompletionSummary"
       },
       "ConflictOut": {
         "properties": {
@@ -5061,6 +5149,56 @@
         ],
         "title": "CopyBody"
       },
+      "DashboardOut": {
+        "properties": {
+          "term": {
+            "$ref": "#/components/schemas/TermStatus"
+          },
+          "next_step": {
+            "$ref": "#/components/schemas/NextStep"
+          },
+          "overview": {
+            "$ref": "#/components/schemas/OverviewOut"
+          },
+          "completion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompletionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "problems": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SetupProblems"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "readiness": {
+            "items": {
+              "$ref": "#/components/schemas/ReportReadiness"
+            },
+            "type": "array",
+            "title": "Readiness"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "next_step",
+          "overview",
+          "completion",
+          "problems",
+          "readiness"
+        ],
+        "title": "DashboardOut"
+      },
       "DeleteResult": {
         "properties": {
           "deleted": {
@@ -5179,6 +5317,60 @@
         ],
         "title": "DemoSessionOut",
         "description": "Present only for a temporary public-demo administrator (ADR-051)."
+      },
+      "FieldGap": {
+        "properties": {
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          },
+          "class_name": {
+            "type": "string",
+            "title": "Class Name"
+          },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          },
+          "subject": {
+            "type": "string",
+            "enum": [
+              "english",
+              "german",
+              "french"
+            ],
+            "title": "Subject"
+          }
+        },
+        "type": "object",
+        "required": [
+          "class_id",
+          "class_name",
+          "grade_level",
+          "subject"
+        ],
+        "title": "FieldGap"
+      },
+      "FieldGaps": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FieldGap"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "items"
+        ],
+        "title": "FieldGaps"
       },
       "GrantBody": {
         "properties": {
@@ -6173,6 +6365,75 @@
         ],
         "title": "MeOut"
       },
+      "MissingCell": {
+        "properties": {
+          "student_id": {
+            "type": "integer",
+            "title": "Student Id"
+          },
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          },
+          "student_name": {
+            "type": "string",
+            "title": "Student Name"
+          },
+          "column_id": {
+            "type": "integer",
+            "title": "Column Id"
+          },
+          "field_name": {
+            "type": "string",
+            "title": "Field Name"
+          },
+          "owner_role": {
+            "type": "string",
+            "title": "Owner Role"
+          },
+          "teacher_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teacher Id"
+          },
+          "teacher_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teacher Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id",
+          "school_number",
+          "student_name",
+          "column_id",
+          "field_name",
+          "owner_role",
+          "teacher_id",
+          "teacher_name"
+        ],
+        "title": "MissingCell"
+      },
       "MoveBody": {
         "properties": {
           "student_ids": {
@@ -6228,6 +6489,71 @@
           "subject"
         ],
         "title": "MyAssignmentOut"
+      },
+      "NextStep": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "create_year",
+              "activate_year",
+              "collect_grades",
+              "advance_semester",
+              "lock_semester",
+              "close_year"
+            ],
+            "title": "Code"
+          },
+          "semester_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semester Number"
+          },
+          "completion_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completion Percent"
+          },
+          "missing_cells": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Missing Cells"
+          },
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/StepBlocker"
+            },
+            "type": "array",
+            "title": "Blockers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "semester_number",
+          "completion_percent",
+          "missing_cells",
+          "blockers"
+        ],
+        "title": "NextStep"
       },
       "OverviewOut": {
         "properties": {
@@ -6420,6 +6746,117 @@
           "ordered_ids"
         ],
         "title": "ReorderBody"
+      },
+      "ReportReadiness": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "english_elementary",
+              "english_middle",
+              "german_karne",
+              "french_karne"
+            ],
+            "title": "Kind"
+          },
+          "eligible_classes": {
+            "type": "integer",
+            "title": "Eligible Classes"
+          },
+          "complete_classes": {
+            "type": "integer",
+            "title": "Complete Classes"
+          },
+          "students": {
+            "type": "integer",
+            "title": "Students"
+          },
+          "expected_cells": {
+            "type": "integer",
+            "title": "Expected Cells"
+          },
+          "filled_cells": {
+            "type": "integer",
+            "title": "Filled Cells"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "eligible_classes",
+          "complete_classes",
+          "students",
+          "expected_cells",
+          "filled_cells",
+          "percent"
+        ],
+        "title": "ReportReadiness"
+      },
+      "RoleGap": {
+        "properties": {
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          },
+          "class_name": {
+            "type": "string",
+            "title": "Class Name"
+          },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "main",
+              "skills",
+              "german",
+              "french"
+            ],
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "class_id",
+          "class_name",
+          "grade_level",
+          "role"
+        ],
+        "title": "RoleGap"
+      },
+      "RoleGaps": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RoleGap"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "items"
+        ],
+        "title": "RoleGaps"
       },
       "RosterStudentCreate": {
         "properties": {
@@ -6762,6 +7199,69 @@
         ],
         "title": "SemesterOut"
       },
+      "SetupProblems": {
+        "properties": {
+          "semester_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semester Id"
+          },
+          "unassigned_roles": {
+            "$ref": "#/components/schemas/RoleGaps"
+          },
+          "classes_without_fields": {
+            "$ref": "#/components/schemas/FieldGaps"
+          },
+          "teachers_without_report_name": {
+            "$ref": "#/components/schemas/TeacherGaps"
+          },
+          "teachers_without_signature": {
+            "$ref": "#/components/schemas/TeacherGaps"
+          },
+          "students_without_number": {
+            "$ref": "#/components/schemas/StudentGaps"
+          },
+          "students_without_language": {
+            "$ref": "#/components/schemas/StudentGaps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "semester_id",
+          "unassigned_roles",
+          "classes_without_fields",
+          "teachers_without_report_name",
+          "teachers_without_signature",
+          "students_without_number",
+          "students_without_language"
+        ],
+        "title": "SetupProblems"
+      },
+      "StepBlocker": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "missing_school_numbers",
+            "title": "Code"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "count"
+        ],
+        "title": "StepBlocker"
+      },
       "StudentCreate": {
         "properties": {
           "school_number": {
@@ -6792,6 +7292,27 @@
           "class_id"
         ],
         "title": "StudentCreate"
+      },
+      "StudentGaps": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StudentRef"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "items"
+        ],
+        "title": "StudentGaps"
       },
       "StudentHistoryOut": {
         "properties": {
@@ -6929,6 +7450,186 @@
         },
         "type": "object",
         "title": "StudentPatch"
+      },
+      "StudentRef": {
+        "properties": {
+          "student_id": {
+            "type": "integer",
+            "title": "Student Id"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          },
+          "class_id": {
+            "type": "integer",
+            "title": "Class Id"
+          },
+          "class_name": {
+            "type": "string",
+            "title": "Class Name"
+          },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id",
+          "full_name",
+          "school_number",
+          "class_id",
+          "class_name",
+          "grade_level"
+        ],
+        "title": "StudentRef"
+      },
+      "TeacherGaps": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TeacherRef"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "items"
+        ],
+        "title": "TeacherGaps"
+      },
+      "TeacherRef": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "full_name"
+        ],
+        "title": "TeacherRef"
+      },
+      "TermStatus": {
+        "properties": {
+          "year_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year Id"
+          },
+          "year_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year Label"
+          },
+          "year_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "setup",
+                  "active"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year Status"
+          },
+          "semester_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semester Id"
+          },
+          "semester_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semester Number"
+          },
+          "semester_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "locked"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semester Status"
+          },
+          "semesters": {
+            "items": {
+              "$ref": "#/components/schemas/SemesterOut"
+            },
+            "type": "array",
+            "title": "Semesters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "year_id",
+          "year_label",
+          "year_status",
+          "semester_id",
+          "semester_number",
+          "semester_status",
+          "semesters"
+        ],
+        "title": "TermStatus"
       },
       "UserCreate": {
         "properties": {

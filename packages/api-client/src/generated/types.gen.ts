@@ -733,6 +733,10 @@ export type CompletenessRow = {
      */
     class_name: string;
     /**
+     * Grade Level
+     */
+    grade_level: number;
+    /**
      * Subject
      */
     subject: string;
@@ -760,6 +764,48 @@ export type CompletenessRow = {
      * Percent
      */
     percent: number;
+};
+
+/**
+ * CompletionSummary
+ */
+export type CompletionSummary = {
+    /**
+     * Semester Id
+     */
+    semester_id: number;
+    /**
+     * Semester Number
+     */
+    semester_number: number;
+    /**
+     * Expected Cells
+     */
+    expected_cells: number;
+    /**
+     * Filled Cells
+     */
+    filled_cells: number;
+    /**
+     * Missing Cells
+     */
+    missing_cells: number;
+    /**
+     * Percent
+     */
+    percent: number | null;
+    /**
+     * Complete Rows
+     */
+    complete_rows: number;
+    /**
+     * Incomplete Rows
+     */
+    incomplete_rows: number;
+    /**
+     * Rows
+     */
+    rows: Array<CompletenessRow>;
 };
 
 /**
@@ -820,6 +866,21 @@ export type CopyBody = {
      * Target Subject
      */
     target_subject: 'english' | 'german' | 'french';
+};
+
+/**
+ * DashboardOut
+ */
+export type DashboardOut = {
+    term: TermStatus;
+    next_step: NextStep;
+    overview: OverviewOut;
+    completion: CompletionSummary | null;
+    problems: SetupProblems | null;
+    /**
+     * Readiness
+     */
+    readiness: Array<ReportReadiness>;
 };
 
 /**
@@ -894,6 +955,42 @@ export type DemoSessionOut = {
      * Next Reset At
      */
     next_reset_at: string;
+};
+
+/**
+ * FieldGap
+ */
+export type FieldGap = {
+    /**
+     * Class Id
+     */
+    class_id: number;
+    /**
+     * Class Name
+     */
+    class_name: string;
+    /**
+     * Grade Level
+     */
+    grade_level: number;
+    /**
+     * Subject
+     */
+    subject: 'english' | 'german' | 'french';
+};
+
+/**
+ * FieldGaps
+ */
+export type FieldGaps = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Items
+     */
+    items: Array<FieldGap>;
 };
 
 /**
@@ -1497,6 +1594,44 @@ export type MeOut = {
 };
 
 /**
+ * MissingCell
+ */
+export type MissingCell = {
+    /**
+     * Student Id
+     */
+    student_id: number;
+    /**
+     * School Number
+     */
+    school_number: number | null;
+    /**
+     * Student Name
+     */
+    student_name: string;
+    /**
+     * Column Id
+     */
+    column_id: number;
+    /**
+     * Field Name
+     */
+    field_name: string;
+    /**
+     * Owner Role
+     */
+    owner_role: string;
+    /**
+     * Teacher Id
+     */
+    teacher_id: number | null;
+    /**
+     * Teacher Name
+     */
+    teacher_name: string | null;
+};
+
+/**
  * MoveBody
  */
 export type MoveBody = {
@@ -1534,6 +1669,32 @@ export type MyAssignmentOut = {
      * Subject
      */
     subject: string;
+};
+
+/**
+ * NextStep
+ */
+export type NextStep = {
+    /**
+     * Code
+     */
+    code: 'create_year' | 'activate_year' | 'collect_grades' | 'advance_semester' | 'lock_semester' | 'close_year';
+    /**
+     * Semester Number
+     */
+    semester_number: number | null;
+    /**
+     * Completion Percent
+     */
+    completion_percent: number | null;
+    /**
+     * Missing Cells
+     */
+    missing_cells: number | null;
+    /**
+     * Blockers
+     */
+    blockers: Array<StepBlocker>;
 };
 
 /**
@@ -1659,6 +1820,76 @@ export type ReorderBody = {
      * Ordered Ids
      */
     ordered_ids: Array<number>;
+};
+
+/**
+ * ReportReadiness
+ */
+export type ReportReadiness = {
+    /**
+     * Kind
+     */
+    kind: 'english_elementary' | 'english_middle' | 'german_karne' | 'french_karne';
+    /**
+     * Eligible Classes
+     */
+    eligible_classes: number;
+    /**
+     * Complete Classes
+     */
+    complete_classes: number;
+    /**
+     * Students
+     */
+    students: number;
+    /**
+     * Expected Cells
+     */
+    expected_cells: number;
+    /**
+     * Filled Cells
+     */
+    filled_cells: number;
+    /**
+     * Percent
+     */
+    percent: number | null;
+};
+
+/**
+ * RoleGap
+ */
+export type RoleGap = {
+    /**
+     * Class Id
+     */
+    class_id: number;
+    /**
+     * Class Name
+     */
+    class_name: string;
+    /**
+     * Grade Level
+     */
+    grade_level: number;
+    /**
+     * Role
+     */
+    role: 'main' | 'skills' | 'german' | 'french';
+};
+
+/**
+ * RoleGaps
+ */
+export type RoleGaps = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Items
+     */
+    items: Array<RoleGap>;
 };
 
 /**
@@ -1856,6 +2087,36 @@ export type SemesterOut = {
 };
 
 /**
+ * SetupProblems
+ */
+export type SetupProblems = {
+    /**
+     * Semester Id
+     */
+    semester_id: number | null;
+    unassigned_roles: RoleGaps;
+    classes_without_fields: FieldGaps;
+    teachers_without_report_name: TeacherGaps;
+    teachers_without_signature: TeacherGaps;
+    students_without_number: StudentGaps;
+    students_without_language: StudentGaps;
+};
+
+/**
+ * StepBlocker
+ */
+export type StepBlocker = {
+    /**
+     * Code
+     */
+    code: 'missing_school_numbers';
+    /**
+     * Count
+     */
+    count: number;
+};
+
+/**
  * StudentCreate
  */
 export type StudentCreate = {
@@ -1875,6 +2136,20 @@ export type StudentCreate = {
      * Class Id
      */
     class_id: number;
+};
+
+/**
+ * StudentGaps
+ */
+export type StudentGaps = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Items
+     */
+    items: Array<StudentRef>;
 };
 
 /**
@@ -1951,6 +2226,98 @@ export type StudentPatch = {
      * Full Name
      */
     full_name?: string | null;
+};
+
+/**
+ * StudentRef
+ */
+export type StudentRef = {
+    /**
+     * Student Id
+     */
+    student_id: number;
+    /**
+     * Full Name
+     */
+    full_name: string;
+    /**
+     * School Number
+     */
+    school_number: number | null;
+    /**
+     * Class Id
+     */
+    class_id: number;
+    /**
+     * Class Name
+     */
+    class_name: string;
+    /**
+     * Grade Level
+     */
+    grade_level: number;
+};
+
+/**
+ * TeacherGaps
+ */
+export type TeacherGaps = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Items
+     */
+    items: Array<TeacherRef>;
+};
+
+/**
+ * TeacherRef
+ */
+export type TeacherRef = {
+    /**
+     * User Id
+     */
+    user_id: number;
+    /**
+     * Full Name
+     */
+    full_name: string;
+};
+
+/**
+ * TermStatus
+ */
+export type TermStatus = {
+    /**
+     * Year Id
+     */
+    year_id: number | null;
+    /**
+     * Year Label
+     */
+    year_label: string | null;
+    /**
+     * Year Status
+     */
+    year_status: 'setup' | 'active' | null;
+    /**
+     * Semester Id
+     */
+    semester_id: number | null;
+    /**
+     * Semester Number
+     */
+    semester_number: number | null;
+    /**
+     * Semester Status
+     */
+    semester_status: 'open' | 'locked' | null;
+    /**
+     * Semesters
+     */
+    semesters: Array<SemesterOut>;
 };
 
 /**
@@ -4154,12 +4521,26 @@ export type CoordinatorMissingCellsResponses = {
      *
      * Successful Response
      */
-    200: Array<{
-        [key: string]: number;
-    }>;
+    200: Array<MissingCell>;
 };
 
 export type CoordinatorMissingCellsResponse = CoordinatorMissingCellsResponses[keyof CoordinatorMissingCellsResponses];
+
+export type GetDashboardData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/dashboard';
+};
+
+export type GetDashboardResponses = {
+    /**
+     * Successful Response
+     */
+    200: DashboardOut;
+};
+
+export type GetDashboardResponse = GetDashboardResponses[keyof GetDashboardResponses];
 
 export type ListJobsData = {
     body?: never;

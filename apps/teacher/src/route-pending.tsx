@@ -19,6 +19,7 @@ const PAGE_SKELETONS: Record<PageRouteId, ComponentType> = {
   // The start page opens the teacher's first grade grid.
   "/_auth/": GridPageSkeleton,
   "/_auth/classes/$classId/$subject": GridPageSkeleton,
+  "/_auth/class-report/": ClassReportSkeleton,
   "/_auth/class-report/$classId": ClassReportSkeleton,
   "/_auth/card-preview": CardPreviewSkeleton,
 };

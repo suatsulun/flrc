@@ -16,17 +16,17 @@ Use [TODO.md](TODO.md) for open work and [AI-HANDOFF.md](AI-HANDOFF.md) for a re
 The local `v1.2.0` tag predates several commits, while manifests still read `1.2.0`. Later migrations
 and report changes are committed source, not verified school deployment state.
 
-| Handbook scope            | Current implementation amendment                                                                                                                               |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0-1: tooling and skeleton | Node 26.8.1, pnpm 11.25.0, Python 3.13 are pinned locally. Existing apps are implemented; do not scaffold over them.                                           |
-| 1.11: demo hosting        | One Vercel project (`infra/vercel`) serves both SPAs and the `/api` rewrite (ADR-064); Render hosts the API and worker.                                        |
-| 1.5, 2.1, 4.1: schema     | Fourteen original tables plus `demo_visitors` and `report_identity_audits`; exact names are in ARCH §3.1.                                                      |
-| 2.1: assessment programme | Grade 4 German/French permit ratings and comments without numeric averages. ADR-063 removes grades 5-8 English comments.                                       |
-| 2.4-2.6: grid/save        | Four/five sentence columns at laptop widths, angled middle-English overview, pupil/class rating drafts, maximum 2,000 cells per save.                          |
-| 2.11, 4.6: tests          | Frontend packages have no standalone `test` script. Use root Playwright, configured test servers, and the existing synthetic backend suite.                    |
-| 3.5, 3.9-3.10: years      | Rollover preserves student identity and assigns fresh numbers per year and school stage (ADR-070). Year lists sort by label, not insertion id.                 |
-| 4.2-4.4: reports          | Four PDF sets return directly from `/api/reports/pdf` (ADR-028); year XLSX exports remain durable Celery jobs. Private report overlays/signatures use ADR-057. |
-| 4.5, 4.9-4.10: operations | School deployment consumes paired images, runtime branding, nightly encrypted backups, and monthly restore tests from `infra/school-template/`.                |
+| Handbook scope            | Current implementation amendment                                                                                                                                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0-1: tooling and skeleton | Node 26.8.1, pnpm 11.25.0, Python 3.13 are pinned locally. Existing apps are implemented; do not scaffold over them.                                                                                                     |
+| 1.11: demo hosting        | One Vercel project (`infra/vercel`) serves both SPAs and the `/api` rewrite (ADR-064); Render hosts the API and worker.                                                                                                  |
+| 1.5, 2.1, 4.1: schema     | Fourteen original tables plus `demo_visitors` and `report_identity_audits`; exact names are in ARCH §3.1.                                                                                                                |
+| 2.1: assessment programme | Grade 4 German/French permit ratings and comments without numeric averages. ADR-063 removes grades 5-8 English comments.                                                                                                 |
+| 2.4-2.6: grid/save        | Four/five sentence columns at laptop widths, angled middle-English overview, pupil/class rating drafts, maximum 2,000 cells per save.                                                                                    |
+| 2.11, 4.6: tests          | Frontend packages have no standalone `test` script. Use root Playwright, configured test servers, and the existing synthetic backend suite.                                                                              |
+| 3.5, 3.9-3.10: years      | Rollover preserves student identity and assigns fresh numbers per year and school stage (ADR-070). Year lists sort by label, not insertion id.                                                                           |
+| 4.2-4.4: reports          | One class or one pupil downloads directly from `/api/reports/pdf`; larger sets are `report_set` Celery jobs with a format choice and a 24-hour downloads list (ADR-077). Private report overlays/signatures use ADR-057. |
+| 4.5, 4.9-4.10: operations | School deployment consumes paired images, runtime branding, nightly encrypted backups, and monthly restore tests from `infra/school-template/`.                                                                          |
 
 Backend pytest fixtures wipe the fixed local `flrc_test` database; migration tests also downgrade
 it. Runs must be serialized on disposable test data. Root Playwright does not launch servers and
@@ -327,12 +327,13 @@ The best way to hold the architecture in your head is to trace **one teacher sav
 4. **FastAPI** wakes (or was kept warm by the school-hours ping). The **Origin-check middleware** approves the request. The `current_user` dependency unsigns the cookie with **itsdangerous**, looks the session id up in **Upstash Redis**, loads Kıvılcım from **Neon**. The `writable_semester` dependency confirms semester 1 is open.
 5. The save service checks she owns the `main` role for class 12 (or holds a live grant), then runs the one statement the whole app pivots on: an **SQLAlchemy** UPDATE whose WHERE clause says `AND version = 3`. Rowcount 1: applied, version becomes 4, and an **audit_entry** + **save_batch** row commit in the same transaction. Rowcount 0: someone got there first, and a conflict record with the other teacher's name goes back instead.
 6. The response returns `applied` with new versions. TanStack Query's `setQueryData` merges them into the cached grid (no refetch flash), and the store clears those dirty keys. The Save button ticks to ✓.
-7. Months later that cell is ink: a coordinator requests one of the four report sets through
-   `/api/reports/pdf`. The builder assembles the report data, **Jinja2** renders HTML, and
-   **WeasyPrint** produces the PDF outside the API's async event loop. The browser runs one set
-   request at a time and opens each PDF in a new tab once it arrives. A whole-year workbook follows
-   the separate **Celery** path: queue its job id, record progress/output in **Postgres
-   `job_runs`**, and download through the authenticated API.
+7. Months later that cell is ink: a coordinator prints her class through `/api/reports/pdf`. The
+   builder assembles the report data, **Jinja2** renders HTML, and **WeasyPrint** produces the PDF
+   outside the API's async event loop; the browser opens it in a tab it opened during the click.
+   The whole school (or any larger selection) follows the **Celery** path instead: queue a
+   `report_set` job id, render class by class while recording progress in **Postgres
+   `job_runs`**, package one PDF or a ZIP per class or per pupil, and download it from the
+   report centre's downloads list for 24 hours. A whole-year workbook takes the same job path.
 
 Every tool in Part I appears in that story or guards it. If a step ever feels arbitrary later, re-read the trace.
 
@@ -7627,10 +7628,13 @@ Commit: `feat(reports): pure card models, HTML templates, PDF renderer`.
 
 ## Step 4.3: Celery, one quiet worker, no result backend, durable progress in Postgres
 
-**Current delivery amendment (ADR-028):** the API directly returns four report sets through
-`GET /api/reports/pdf`; it does not expose the report-job creation route illustrated below.
-Celery currently processes whole-year exports via `workers/tasks/exports.py`. Retain durable
-`job_runs`, JSON-only messages, and no result backend for that implemented job path.
+**Current delivery amendment (ADR-077):** `GET /api/reports/pdf` returns one class, or students of
+one class, directly. Larger sets use `POST /api/reports/jobs`, which queues a `report_set` job for
+`workers/tasks/reports.py`: it renders each class once through the bounded pool (ADR-046), counts
+progress in classes, and stores one PDF or a ZIP per class or per pupil for 24 hours, cutting
+pupils' files out of the class PDF by page range rather than rendering them one by one.
+Whole-year exports stay in `workers/tasks/exports.py`. Both keep durable `job_runs`, JSON-only
+messages, and no result backend.
 
 **What we're building:** the asynchronous execution path: the API creates a job, enqueues its id, sends a best-effort wake-up ping, and returns immediately. A separate service consumes the id, renders sequentially, updates Postgres progress, stores the final zip, and marks success/failure.
 

@@ -17,7 +17,6 @@ from flrc.core.middleware import (
     request_context_middleware,
     security_headers_middleware,
 )
-from flrc.core.rate_limit import report_rate_limit
 from flrc.core.telemetry import configure_telemetry
 from flrc.modules.academics.assignments import router as assignments_router
 from flrc.modules.academics.columns import router as columns_router
@@ -127,9 +126,7 @@ def create_app() -> FastAPI:
     protected_api.include_router(archive_router)
     protected_api.include_router(coordinator_router)
     protected_api.include_router(jobs_router)
-    protected_reports = APIRouter(dependencies=[Depends(report_rate_limit)])
-    protected_reports.include_router(reports_router)
-    protected_api.include_router(protected_reports)
+    protected_api.include_router(reports_router)
     app.include_router(protected_api, prefix="/api")
     if settings.env == "test":
         from flrc.modules.auth.test_router import router as test_router

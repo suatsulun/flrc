@@ -1,41 +1,33 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ClockIcon, DownloadIcon, FileTextIcon, ExternalLinkIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
-import {
-  createYearExportJobMutation,
-  getJobOptions,
-  listJobsOptions,
-  listJobsQueryKey,
-  listAcademicYearsOptions,
-  listClassCatalogOptions,
-} from "@flrc/api-client";
-import { Badge } from "@flrc/ui/components/badge";
+import { listAcademicYearsOptions, listJobsQueryKey } from "@flrc/api-client";
 import { AcademicContextBar } from "@flrc/ui/components/academic-context-bar";
 import { Button } from "@flrc/ui/components/button";
-import { Card, CardBody, CardContent, CardHeader, CardTitle } from "@flrc/ui/components/card";
+import { Card, CardHeader, CardTitle } from "@flrc/ui/components/card";
 import { Field } from "@flrc/ui/components/field";
 import { NativeSelect } from "@flrc/ui/components/native-select";
 import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { Segmented } from "@flrc/ui/components/segmented";
+import { academicContextLabels } from "@flrc/i18n";
 import { AdminPage } from "../../admin/AdminPage";
 import { PdfLeaveGuard } from "../../admin/PdfLeaveGuard";
-import { academicContextLabels } from "@flrc/i18n";
+import { DownloadsList } from "../../reports/DownloadsList";
+import { ReportKindCard } from "../../reports/ReportKindCard";
+import { reportRequestMessage } from "../../reports/report-errors";
+import {
+  REPORT_KINDS,
+  startReportJob,
+  startYearExport,
+  type JobScope,
+  type ReportFormat,
+  type ReportKind,
+  type ReportLocale,
+} from "../../reports/report-requests";
+import { useDirectDownload } from "../../reports/use-direct-download";
 
-const JOB_KEY = "flrc-active-export-job";
-type ReportKind = "english_elementary" | "english_middle" | "german_karne" | "french_karne";
-type Locale = "tr" | "en" | "de" | "fr";
-const REPORT_KINDS: ReportKind[] = [
-  "english_elementary",
-  "english_middle",
-  "german_karne",
-  "french_karne",
-];
-type PdfRequest = { kind: ReportKind; url: string };
-/** How long a finished PDF's blob URL (and its "open" toast) stays usable. */
-const PDF_URL_LIFETIME_MS = 300_000;
 const LOCALES = [
   { value: "tr", label: "TR", title: "Türkçe" },
   { value: "en", label: "EN", title: "English" },
@@ -45,184 +37,53 @@ const LOCALES = [
 
 export const Route = createFileRoute("/_auth/reports")({ component: ReportsPage });
 
-const STATUS_TONE = {
-  queued: "neutral",
-  running: "info",
-  succeeded: "success",
-  failed: "danger",
-} as const;
-
 function ReportsPage() {
   const { user } = Route.useRouteContext();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data: years = [], isPending: yearsPending } = useQuery(listAcademicYearsOptions());
-  const { data: jobs = [], isPending: jobsPending } = useQuery(listJobsOptions());
   const [yearId, setYearId] = useState<number>();
   const [semesterNumber, setSemesterNumber] = useState<number>();
-  const [reportClasses, setReportClasses] = useState<Partial<Record<ReportKind, number>>>({});
-  const [locale, setLocale] = useState<Locale>("tr");
-  const [pdfQueue, setPdfQueue] = useState<PdfRequest[]>([]);
-  // The ref is the queue's source of truth for the runner; state mirrors it for rendering.
-  const pdfQueueRef = useRef<PdfRequest[]>([]);
-  // Set only while the queue head's request is in flight.
-  const pdfAbortRef = useRef<AbortController | null>(null);
-  const [jobId, setJobId] = useState<number | null>(
-    () => Number(sessionStorage.getItem(JOB_KEY)) || null,
-  );
+  const [locale, setLocale] = useState<ReportLocale>("tr");
+  const [exportPending, setExportPending] = useState(false);
+  const direct = useDirectDownload();
+
   const activeYearId = yearId ?? years.find((year) => year.status === "active")?.id ?? years[0]?.id;
   const selectedYear = years.find((year) => year.id === activeYearId);
   const selectedSemester =
     selectedYear?.semesters.find((term) => term.number === semesterNumber) ??
     selectedYear?.semesters.find((term) => term.status === "open") ??
     selectedYear?.semesters[0];
-  const { data: classes = [], isFetching: classesFetching } = useQuery({
-    ...listClassCatalogOptions({
-      query: { year_id: activeYearId, semester: selectedSemester?.number },
-    }),
-    enabled: Boolean(selectedSemester),
-  });
-  const eligibleClasses = (kind: ReportKind) => {
-    const subject =
-      kind === "german_karne" ? "german" : kind === "french_karne" ? "french" : "english";
-    return classes.filter(
-      (item) =>
-        (kind !== "english_elementary" || item.grade_level <= 4) &&
-        (kind !== "english_middle" || item.grade_level >= 5) &&
-        item.subjects.some(
-          (entry) => entry.subject === subject && entry.student_count > 0 && entry.column_count > 0,
-        ),
-    );
-  };
-  const selectedClassId = (kind: ReportKind) => {
-    const eligible = eligibleClasses(kind);
-    const chosen = reportClasses[kind];
-    if (!user.demo && eligible.length > 0 && (chosen === undefined || chosen === 0)) return 0;
-    return eligible.find((item) => item.id === chosen)?.id ?? eligible[0]?.id;
-  };
-  const reportUrl = (kind: ReportKind) => {
-    const classId = selectedClassId(kind);
-    if (!selectedSemester || classId === undefined || classesFetching) return null;
-    const query = new URLSearchParams({ semester_id: String(selectedSemester.id), kind, locale });
-    if (classId) query.set("class_id", String(classId));
-    return `/api/reports/pdf?${query}`;
-  };
 
-  const refreshHistory = () => queryClient.invalidateQueries({ queryKey: listJobsQueryKey() });
-  const remember = (id: number) => {
-    setJobId(id);
-    sessionStorage.setItem(JOB_KEY, String(id));
-    void refreshHistory();
-  };
-  const createExport = useMutation({
-    ...createYearExportJobMutation(),
-    onMutate: () => toast.loading(t("reports.exportStarting"), { id: "year-export" }),
-    onSuccess: (job) => {
-      remember(job.id);
-      toast.success(t("reports.exportQueued"), { id: "year-export" });
-    },
-    onError: () => toast.dismiss("year-export"),
-  });
-  const jobOptions = getJobOptions({ path: { job_id: jobId ?? 0 } });
-  const { data: activeJob } = useQuery({
-    ...jobOptions,
-    enabled: jobId !== null,
-    refetchInterval: (query) =>
-      ["queued", "running"].includes(query.state.data?.status ?? "") ? 2000 : false,
-  });
-  const lastJobState = useRef<string | undefined>(undefined);
-
-  useEffect(() => {
-    if (!activeJob) return;
-    const state = `${activeJob.id}:${activeJob.status}:${activeJob.progress}`;
-    if (lastJobState.current === state) return;
-    lastJobState.current = state;
-    const toastId = `job-${activeJob.id}`;
-    if (["queued", "running"].includes(activeJob.status)) {
-      toast.loading(
-        t(`reports.status.${activeJob.status}`, {
-          progress: activeJob.progress,
-          total: activeJob.total,
-        }),
-        { id: toastId },
-      );
-    } else if (activeJob.status === "succeeded") {
-      toast.success(t("reports.exportReady"), { id: toastId });
-      void queryClient.invalidateQueries({ queryKey: listJobsQueryKey() });
-    } else if (activeJob.status === "failed") {
-      toast.error(t("reports.failedCode", { code: activeJob.error_code, id: activeJob.id }), {
-        id: toastId,
-      });
-      void queryClient.invalidateQueries({ queryKey: listJobsQueryKey() });
-    }
-  }, [activeJob, queryClient, t]);
-
-  useEffect(
-    () => () => {
-      pdfAbortRef.current?.abort();
-      pdfAbortRef.current = null;
-      pdfQueueRef.current = [];
-    },
-    [],
-  );
-
-  const updatePdfQueue = (next: PdfRequest[]) => {
-    pdfQueueRef.current = next;
-    setPdfQueue(next);
-  };
-
-  async function runPdfQueue() {
-    const request = pdfQueueRef.current[0];
-    if (!request || pdfAbortRef.current) return;
-    const controller = new AbortController();
-    pdfAbortRef.current = controller;
+  async function startJob(kind: ReportKind, format: ReportFormat, scope: JobScope) {
+    if (!selectedSemester) return false;
     try {
-      const response = await fetch(request.url, {
-        headers: { Accept: "application/pdf" },
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error(`PDF generation failed (${response.status})`);
-      const blob = await response.blob();
-      if (controller.signal.aborted) return;
-      const blobUrl = URL.createObjectURL(blob);
-      window.setTimeout(() => URL.revokeObjectURL(blobUrl), PDF_URL_LIFETIME_MS);
-      if (!window.open(blobUrl, "_blank")) {
-        toast.success(t("reports.pdfReady"), {
-          action: {
-            label: t("reports.openReadyPdf"),
-            onClick: () => window.open(blobUrl, "_blank"),
-          },
-          duration: PDF_URL_LIFETIME_MS,
-        });
-      }
-    } catch {
-      if (!controller.signal.aborted) toast.error(t("reports.pdfFailed"));
+      await startReportJob(selectedSemester.id, kind, locale, format, scope);
+      toast.success(t("reports.jobQueued"));
+      return true;
+    } catch (error) {
+      toast.error(reportRequestMessage(t, error));
+      return false;
     } finally {
-      // A stopped run no longer owns the queue: stopAll already cleared it.
-      if (pdfAbortRef.current === controller) {
-        pdfAbortRef.current = null;
-        updatePdfQueue(pdfQueueRef.current.slice(1));
-        void runPdfQueue();
-      }
+      void queryClient.invalidateQueries({ queryKey: listJobsQueryKey() });
     }
   }
 
-  function openReport(kind: ReportKind) {
-    const url = reportUrl(kind);
-    if (!url || pdfQueueRef.current.some((request) => request.kind === kind)) return;
-    updatePdfQueue([...pdfQueueRef.current, { kind, url }]);
-    void runPdfQueue();
+  async function exportYear() {
+    if (!activeYearId) return;
+    setExportPending(true);
+    try {
+      await startYearExport(activeYearId);
+      toast.success(t("reports.exportQueued"));
+    } catch (error) {
+      toast.error(reportRequestMessage(t, error));
+    } finally {
+      setExportPending(false);
+      void queryClient.invalidateQueries({ queryKey: listJobsQueryKey() });
+    }
   }
 
-  function stopAll() {
-    pdfAbortRef.current?.abort();
-    pdfAbortRef.current = null;
-    updatePdfQueue([]);
-  }
-
-  if (jobsPending || yearsPending) {
-    return <PageSkeleton />;
-  }
+  if (yearsPending) return <PageSkeleton />;
 
   return (
     <AdminPage
@@ -242,7 +103,7 @@ function ReportsPage() {
         </Field>
       }
     >
-      <PdfLeaveGuard active={pdfQueue.length > 0} onLeave={stopAll} />
+      <PdfLeaveGuard active={direct.pending !== null} onLeave={direct.stop} />
       {selectedYear ? (
         <AcademicContextBar
           years={years}
@@ -251,72 +112,24 @@ function ReportsPage() {
           onYearChange={(next) => {
             setYearId(next);
             setSemesterNumber(undefined);
-            setReportClasses({});
           }}
           onSemesterChange={setSemesterNumber}
           labels={academicContextLabels(t, t("classWorkspace.readOnly"))}
         />
       ) : null}
-      <p className="text-sm text-muted-foreground">{t("reports.classPrintingHint")}</p>
+      <p className="text-sm text-muted-foreground">{t("reports.deliveryHint")}</p>
       <div className="grid gap-3 md:grid-cols-2">
-        {REPORT_KINDS.map((kind) => {
-          const url = reportUrl(kind);
-          const queuePosition = pdfQueue.findIndex((request) => request.kind === kind);
-          const queued = queuePosition !== -1;
-          return (
-            <Card key={kind} className="flex flex-col">
-              <CardContent className="flex flex-1 flex-col">
-                <div className="flex items-start justify-between gap-3">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
-                    <FileTextIcon className="size-4.5" />
-                  </span>
-                  <Badge tone="outline">{t(`reports.setScopes.${kind}`)}</Badge>
-                </div>
-                <h3 className="font-heading mt-3 font-semibold tracking-tight">
-                  {t(`reports.kinds.${kind}`)}
-                </h3>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {t(`reports.setDescriptions.${kind}`)}
-                </p>
-                <div className="mt-4">
-                  <Field label={t("reports.classLabel")}>
-                    {(id) => (
-                      <NativeSelect
-                        id={id}
-                        value={selectedClassId(kind) ?? ""}
-                        disabled={classesFetching || queued}
-                        onChange={(event) =>
-                          setReportClasses((previous) => ({
-                            ...previous,
-                            [kind]: Number(event.target.value),
-                          }))
-                        }
-                      >
-                        {!user.demo ? <option value={0}>{t("reports.allClasses")}</option> : null}
-                        {eligibleClasses(kind).map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </NativeSelect>
-                    )}
-                  </Field>
-                </div>
-                <Button
-                  className="mt-4 self-start"
-                  size="sm"
-                  disabled={!url || queuePosition > 0}
-                  pending={queuePosition === 0}
-                  pendingLabel={t("reports.generatingPdf")}
-                  onClick={() => openReport(kind)}
-                >
-                  {queuePosition > 0 ? <ClockIcon /> : <ExternalLinkIcon />}
-                  {t(queuePosition > 0 ? "reports.queuedPdf" : "reports.openPdf")}
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
+        {REPORT_KINDS.map((kind) => (
+          <ReportKindCard
+            key={kind}
+            kind={kind}
+            semesterId={selectedSemester?.id}
+            locale={locale}
+            demo={Boolean(user.demo)}
+            direct={direct}
+            onStartJob={startJob}
+          />
+        ))}
       </div>
 
       {user.is_admin ? (
@@ -346,11 +159,9 @@ function ReportsPage() {
               <Button
                 variant="outline"
                 disabled={!activeYearId}
-                pending={createExport.isPending}
-                pendingLabel={t("reports.exporting")}
-                onClick={() =>
-                  activeYearId && createExport.mutate({ path: { year_id: activeYearId } })
-                }
+                pending={exportPending}
+                pendingLabel={t("reports.starting")}
+                onClick={() => void exportYear()}
               >
                 {t("reports.export")}
               </Button>
@@ -359,83 +170,7 @@ function ReportsPage() {
         </Card>
       ) : null}
 
-      {activeJob ? (
-        <Card aria-live="polite">
-          <CardHeader>
-            <div>
-              <CardTitle>{t("reports.activeExport")}</CardTitle>
-              <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                {["queued", "running"].includes(activeJob.status) ? (
-                  <Loader2Icon className="size-3.5 animate-spin" />
-                ) : null}
-                {t(`reports.status.${activeJob.status}`, {
-                  progress: activeJob.progress,
-                  total: activeJob.total,
-                })}
-              </p>
-            </div>
-            {activeJob.status === "succeeded" ? (
-              <Button variant="outline" render={<a href={`/api/jobs/${activeJob.id}/download`} />}>
-                <DownloadIcon />
-                {t("reports.download")}
-              </Button>
-            ) : null}
-          </CardHeader>
-          {["queued", "running"].includes(activeJob.status) ? (
-            <CardContent>
-              <span className="block h-1.5 overflow-hidden rounded-full bg-muted">
-                <span
-                  className="block h-full rounded-full bg-primary transition-[width]"
-                  style={{
-                    width: `${Math.min((activeJob.progress / Math.max(activeJob.total, 1)) * 100, 100)}%`,
-                  }}
-                />
-              </span>
-            </CardContent>
-          ) : null}
-          {activeJob.status === "failed" ? (
-            <CardContent>
-              <p className="text-sm text-destructive">
-                {t("reports.failedCode", { code: activeJob.error_code, id: activeJob.id })}
-              </p>
-            </CardContent>
-          ) : null}
-        </Card>
-      ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("reports.history")}</CardTitle>
-        </CardHeader>
-        <CardBody>
-          {jobs.length === 0 ? (
-            <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-              {t("reports.noHistory")}
-            </p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {jobs.map((job) => (
-                <li key={job.id} className="flex items-center justify-between gap-3 px-5 py-2.5">
-                  <button
-                    type="button"
-                    className="truncate text-sm font-medium text-primary-strong transition-colors hover:underline"
-                    onClick={() => remember(job.id)}
-                  >
-                    <span className="tabular text-muted-foreground">#{job.id}</span>{" "}
-                    {t(`reports.kinds.${job.kind}`)}
-                  </button>
-                  <Badge tone={STATUS_TONE[job.status as keyof typeof STATUS_TONE] ?? "neutral"}>
-                    {t(`reports.status.${job.status}`, {
-                      progress: job.progress,
-                      total: job.total,
-                    })}
-                  </Badge>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardBody>
-      </Card>
+      <DownloadsList />
     </AdminPage>
   );
 }

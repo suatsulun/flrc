@@ -803,12 +803,18 @@ Jinja2 + WeasyPrint is chosen because report cards are layout-heavy documents an
 
 The Docker image carries WeasyPrint's system dependencies so production matches local execution.
 
-## §7.3 Direct reports and durable export jobs
+## §7.3 Direct reports, report jobs, and durable export jobs
 
-`GET /api/reports/pdf` returns a complete semester set for `english_elementary`, `english_middle`,
-`german_karne`, or `french_karne` to coordinators/admins. The data builder runs before rendering;
-WeasyPrint runs outside the async event loop. The Report centre requests one set at a time and
-opens a tab only once the PDF arrives (ADR-028). There is no current report-job creation endpoint.
+`GET /api/reports/pdf` returns one class (`class_id`) or students of one class (`student_id`) of
+`english_elementary`, `english_middle`, `german_karne`, or `french_karne` to coordinators/admins,
+named `8-A İngilizce Karne 2026-2027 1. Dönem.pdf` through RFC 6266 `filename*`. The data builder
+runs before rendering; WeasyPrint runs outside the async event loop. The Report centre opens a View
+tab during the click and saves Download under the server's name (ADR-077).
+
+`POST /api/reports/jobs` queues anything larger as a `report_set` job: the whole school, classes,
+or picked students (`GET /api/reports/roster` lists who gets each card), as one PDF or a ZIP per
+class or per pupil. The worker renders each class once through the bounded pool, splits pupils'
+files by verified page ranges, and refuses outputs that would pass 192 MiB.
 
 `POST /api/exports/year/{year_id}` creates an admin-only `year_export` job and enqueues its id.
 Celery uses JSON messages, ignores results, and stores progress/output in `job_runs`. Polling and
@@ -818,13 +824,15 @@ downloads go through authenticated job routes. The seven-sheet writer streams ba
 The pending PDF change bounds each WeasyPrint layout document to at most 16 render units,
 submits at most one wave per pool size, and retains bounded batches when the pool fails.
 Units represent template sheets or cards, not a universal page count. Final PDF parts and report
-DTOs still occupy memory; this does not establish constant memory for the whole request.
+DTOs still occupy memory; this does not establish constant memory for the whole request. Report
+jobs hold one class's PDF at a time and spool ZIP entries to a temporary file.
 
 ## §7.4 Artifact durability and private identities
 
-Year-export blobs live temporarily in a deferred `job_runs.output_blob` column, with a 24-hour
-expiry. Downloads reject expired output; `flrc purge-job-outputs` removes expired blobs. Direct
-PDF responses are not saved there. Never rely on an API/worker's local filesystem for durability.
+Report-job and year-export blobs live temporarily in a deferred `job_runs.output_blob` column,
+with a 24-hour expiry. Downloads reject expired output; `flrc purge-job-outputs` removes expired
+blobs. Direct PDF responses are not saved there. Never rely on an API/worker's local filesystem
+for durability.
 
 Teacher report names and normalized PNG signatures are stored in Postgres with identity audits.
 Private templates, principal identities, signatures, and PDF covers live in the school's deployment

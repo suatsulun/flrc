@@ -10,6 +10,7 @@ from sqlalchemy.orm import undefer
 from flrc.db.models import JobRun, User
 from flrc.db.session import get_session
 from flrc.modules.auth.dependencies import current_user
+from flrc.modules.reports.filenames import content_disposition
 
 router = APIRouter(tags=["jobs"])
 
@@ -24,6 +25,7 @@ class JobOut(BaseModel):
     output_size: int | None
     output_expires_at: datetime | None
     error_code: str | None
+    created_at: datetime
 
     @classmethod
     def from_model(cls, job: JobRun) -> "JobOut":
@@ -37,6 +39,7 @@ class JobOut(BaseModel):
             output_size=job.output_size,
             output_expires_at=job.output_expires_at,
             error_code=job.error_code,
+            created_at=job.created_at,
         )
 
 
@@ -44,10 +47,6 @@ def may_read_job(user: User, job: JobRun) -> bool:
     if user.is_admin or job.requested_by == user.id:
         return True
     return user.is_coordinator and job.kind != "year_export"
-
-
-def safe_download_name(value: str | None) -> str:
-    return (value or "download.bin").replace("\r", "").replace("\n", "").replace('"', "_")
 
 
 @router.get("/jobs")
@@ -104,9 +103,8 @@ async def download_job(
     now = datetime.now(UTC).replace(tzinfo=None)
     if job.output_blob is None or job.output_expires_at is None or job.output_expires_at <= now:
         raise HTTPException(410, {"code": "output_expired"})
-    disposition = f'attachment; filename="{safe_download_name(job.output_filename)}"'
     return Response(
         content=job.output_blob,
         media_type=job.output_mime or "application/octet-stream",
-        headers={"Content-Disposition": disposition},
+        headers={"Content-Disposition": content_disposition(job.output_filename)},
     )

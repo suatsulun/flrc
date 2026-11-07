@@ -29,7 +29,8 @@ To process year-export jobs, run a separate worker using the same database and R
 uv run celery -A flrc.workers.celery:celery_app worker --pool=solo --concurrency=1 --loglevel=info
 ```
 
-PDF sets use `GET /api/reports/pdf`; whole-year XLSX exports use Celery and durable `job_runs`.
+One class or one pupil's PDF returns from `GET /api/reports/pdf`; larger report sets
+(`POST /api/reports/jobs`) and whole-year XLSX exports use Celery and durable `job_runs` (ADR-077).
 WeasyPrint needs the native libraries installed by `Dockerfile`. Missing native dependencies are
 an environment failure, not a reason to substitute a different renderer.
 

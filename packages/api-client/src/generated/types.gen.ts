@@ -1327,6 +1327,10 @@ export type JobOut = {
      * Error Code
      */
     error_code: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
 };
 
 /**
@@ -1659,6 +1663,76 @@ export type ReorderBody = {
      * Ordered Ids
      */
     ordered_ids: Array<number>;
+};
+
+/**
+ * ReportJobIn
+ */
+export type ReportJobIn = {
+    /**
+     * Semester Id
+     */
+    semester_id: number;
+    /**
+     * Kind
+     */
+    kind: 'english_elementary' | 'english_middle' | 'german_karne' | 'french_karne';
+    /**
+     * Locale
+     */
+    locale?: 'tr' | 'en' | 'de' | 'fr';
+    /**
+     * Format
+     */
+    format: 'combined' | 'per_class' | 'per_student';
+    /**
+     * Class Ids
+     */
+    class_ids?: Array<number>;
+    /**
+     * Student Ids
+     */
+    student_ids?: Array<number>;
+};
+
+/**
+ * RosterClass
+ */
+export type RosterClass = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Grade Level
+     */
+    grade_level: number;
+    /**
+     * Students
+     */
+    students: Array<RosterStudent>;
+};
+
+/**
+ * RosterStudent
+ */
+export type RosterStudent = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Full Name
+     */
+    full_name: string;
+    /**
+     * School Number
+     */
+    school_number: number | null;
 };
 
 /**
@@ -4271,6 +4345,10 @@ export type DownloadReportSetData = {
          * Class Id
          */
         class_id?: number | null;
+        /**
+         * Student Id
+         */
+        student_id?: Array<number> | null;
     };
     url: '/api/reports/pdf';
 };
@@ -4290,6 +4368,67 @@ export type DownloadReportSetResponses = {
      */
     200: unknown;
 };
+
+export type GetReportRosterData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Semester Id
+         */
+        semester_id: number;
+        /**
+         * Kind
+         */
+        kind: 'english_elementary' | 'english_middle' | 'german_karne' | 'french_karne';
+    };
+    url: '/api/reports/roster';
+};
+
+export type GetReportRosterErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetReportRosterError = GetReportRosterErrors[keyof GetReportRosterErrors];
+
+export type GetReportRosterResponses = {
+    /**
+     * Response Get Report Roster
+     *
+     * Successful Response
+     */
+    200: Array<RosterClass>;
+};
+
+export type GetReportRosterResponse = GetReportRosterResponses[keyof GetReportRosterResponses];
+
+export type CreateReportJobData = {
+    body: ReportJobIn;
+    path?: never;
+    query?: never;
+    url: '/api/reports/jobs';
+};
+
+export type CreateReportJobErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateReportJobError = CreateReportJobErrors[keyof CreateReportJobErrors];
+
+export type CreateReportJobResponses = {
+    /**
+     * Successful Response
+     */
+    202: JobOut;
+};
+
+export type CreateReportJobResponse = CreateReportJobResponses[keyof CreateReportJobResponses];
 
 export type DownloadClassSheetsData = {
     body?: never;

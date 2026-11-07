@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from PIL import Image
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 
 from flrc.config import settings
 from flrc.db import models as m
@@ -389,6 +389,42 @@ async def test_rollover_does_not_copy_a_deleted_teacher(world):
             )
         )
     assert holders == {world.main.id}
+
+
+@pytest.mark.parametrize("path", ["grant", "save"])
+async def test_grant_request_and_save_wait_for_a_concurrent_deletion_and_refuse(api, world, path):
+    if path == "save":
+        async with api(world.skills) as client:
+            granted = await client.post(f"/api/classes/{world.cls}/grants", json={"role": "main"})
+        assert granted.status_code == 200, granted.text
+
+    async def hold(db) -> None:
+        # A deletion holding the account has removed the account's unused grants.
+        await mark_deleted(world.skills.id)(db)
+        await db.execute(delete(m.OverrideGrant).where(m.OverrideGrant.user_id == world.skills.id))
+
+    async def request():
+        if path == "grant":
+            async with api(world.skills) as client:
+                return await client.post(f"/api/classes/{world.cls}/grants", json={"role": "main"})
+        return await save_grid(
+            api, world.skills, world.cls, [cell(world.student_one, world.main_column, 70)]
+        )
+
+    response = await while_held(hold, request)
+    assert response.status_code == 401, response.text
+    assert detail_code(response) == "not_registered"
+    async with TestSession() as db:
+        assert (
+            await db.scalar(
+                select(m.OverrideGrant.id).where(m.OverrideGrant.user_id == world.skills.id)
+            )
+            is None
+        )
+        assert (
+            await db.scalar(select(m.AuditEntry.id).where(m.AuditEntry.actor_id == world.skills.id))
+            is None
+        )
 
 
 @pytest.mark.parametrize("kind", ["user.edit", "assignments.replace"])

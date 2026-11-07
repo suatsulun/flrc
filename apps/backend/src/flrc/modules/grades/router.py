@@ -26,6 +26,7 @@ from flrc.db.models import (
 from flrc.db.session import get_session
 from flrc.modules.academics.class_names import class_label
 from flrc.modules.academics.fields import VALUE_FIELD, CellValue, cell_value, field_name
+from flrc.modules.administration.account_locks import assignable, lock_accounts
 from flrc.modules.auth.dependencies import current_user, writable_semester
 
 router = APIRouter(tags=["grid"])
@@ -164,6 +165,18 @@ def _value_fields(value_type: str, value: CellValue) -> dict[str, CellValue]:
     fields: dict[str, CellValue] = {"score": None, "scale": None, "text_value": None}
     fields[VALUE_FIELD[value_type]] = value
     return fields
+
+
+async def _hold_own_account(db: AsyncSession, user: User) -> None:
+    """Hold the caller's account row (shared) until the request commits (ADR-080).
+
+    Authentication read the account once, without a lock. A deactivation and permanent
+    deletion that raced the request either waits for this save or grant request, or has
+    already committed, and then the request is refused here instead of recording a grant
+    after the deletion ended them, or saving through a grant the deletion removed.
+    """
+    if not assignable((await lock_accounts(db, [user.id])).get(user.id)):
+        raise HTTPException(401, {"code": "not_registered"})
 
 
 async def _writable_class(db: AsyncSession, class_id: int, semester: Semester) -> SchoolClass:
@@ -450,6 +463,7 @@ async def save_grid(
     semester: Annotated[Semester, Depends(writable_semester)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> SaveResponse:
+    await _hold_own_account(db, user)
     cls = await _writable_class(db, class_id, semester)
 
     columns = {
@@ -681,6 +695,7 @@ async def request_grant(
     semester: Annotated[Semester, Depends(writable_semester)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> GrantOut:
+    await _hold_own_account(db, user)
     await _writable_class(db, class_id, semester)
     assignment = (
         await db.execute(

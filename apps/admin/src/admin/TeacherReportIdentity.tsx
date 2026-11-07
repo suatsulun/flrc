@@ -33,12 +33,16 @@ export function TeacherReportIdentity({
   const notifyDone = useNotifyDone();
   const [name, setName] = useState(user.report_name ?? "");
   const [fileError, setFileError] = useState(false);
-  // The latest failed save; this modal hides the page (and its toasts) from assistive
-  // technology, so the failure is explained here instead of by the global error toast.
+  // The latest problem only: a new save clears an earlier file check or failure. This modal
+  // hides the page (and its toasts) from assistive technology, so a failure is explained here
+  // instead of by the global error toast.
   const [failure, setFailure] = useState<unknown>();
   const inlineErrors = {
     meta: { silentError: true },
-    onMutate: () => setFailure(undefined),
+    onMutate: () => {
+      setFileError(false);
+      setFailure(undefined);
+    },
     onError: (error: unknown) => setFailure(error),
   };
   const done = (message: string, saved: ManagedUserWriteOut) => {

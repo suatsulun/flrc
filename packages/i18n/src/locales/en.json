@@ -969,6 +969,8 @@
     "actions": "Action",
     "empty": "No changes were recorded in the last 7 days.",
     "loadMore": "Load more",
+    "loadMoreFailed": "Older changes could not be loaded. The ones above are kept.",
+    "retry": "Try again",
     "unknownActor": "Deleted account",
     "confirmTitle": "Undo this change?",
     "confirmHint": "The previous state is restored. If a later change conflicts with it, nothing changes and the reason is shown.",

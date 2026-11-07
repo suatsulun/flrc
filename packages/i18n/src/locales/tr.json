@@ -969,6 +969,8 @@
     "actions": "İşlem",
     "empty": "Son 7 günde kaydedilmiş bir değişiklik yok.",
     "loadMore": "Daha fazla yükle",
+    "loadMoreFailed": "Daha eski değişiklikler yüklenemedi. Yüklenenler korunuyor.",
+    "retry": "Yeniden dene",
     "unknownActor": "Silinmiş hesap",
     "confirmTitle": "Bu değişiklik geri alınsın mı?",
     "confirmHint": "Önceki durum geri yüklenir. Bu değişiklikten sonra yapılan bir değişiklikle çakışırsa hiçbir şey değişmez ve nedeni gösterilir.",

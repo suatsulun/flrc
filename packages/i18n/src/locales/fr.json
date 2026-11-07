@@ -969,6 +969,8 @@
     "actions": "Action",
     "empty": "Aucune modification enregistrée au cours des 7 derniers jours.",
     "loadMore": "Charger plus",
+    "loadMoreFailed": "Les modifications plus anciennes n’ont pas pu être chargées. Celles affichées sont conservées.",
+    "retry": "Réessayer",
     "unknownActor": "Compte supprimé",
     "confirmTitle": "Annuler cette modification ?",
     "confirmHint": "L’état précédent est rétabli. Si une modification ultérieure entre en conflit, rien ne change et la raison est affichée.",

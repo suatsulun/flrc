@@ -7,7 +7,6 @@ import { Badge } from "@flrc/ui/components/badge";
 import { Button } from "@flrc/ui/components/button";
 import { ConfirmDialog } from "@flrc/ui/components/dialog";
 import { undoChange } from "../admin/undo-toast";
-import { useRefreshQueries } from "../admin/use-refresh-queries";
 import { parseUtc } from "../dashboard/format";
 import { changeSummary, formatChangeTime } from "./summary";
 
@@ -46,20 +45,18 @@ export function ChangeStatusBadge({ action, now }: { action: AdminActionOut; now
 
 /**
  * Undo one recorded change after a confirmation naming it. A refusal toasts its specific
- * reason and reloads the list, since another admin may have undone or changed it meanwhile.
+ * reason; `undoChange` reloads the lists either way.
  */
 export function UndoChangeButton({ action }: { action: AdminActionOut }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const refresh = useRefreshQueries();
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const summary = changeSummary(t, action);
 
   async function undo() {
     setPending(true);
-    const undone = await undoChange(action.id, queryClient, t("changes.undone"));
-    if (!undone) await refresh("listAdminActions");
+    await undoChange(action.id, queryClient, t("changes.undone"));
     setPending(false);
     setConfirming(false);
   }

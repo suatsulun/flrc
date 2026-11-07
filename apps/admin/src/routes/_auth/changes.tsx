@@ -49,7 +49,8 @@ function ChangesPage() {
   });
 
   if (changes.isPending) return <PageSkeleton />;
-  if (changes.isError) return <EmptyState title={t("errors.load")} />;
+  // A failed "Load more" or background refresh keeps the rows already on screen.
+  if (!changes.data) return <EmptyState title={t("errors.load")} />;
 
   const items = changes.data.pages.flatMap((page) => page.items);
   const now = changes.dataUpdatedAt;
@@ -123,7 +124,22 @@ function ChangesPage() {
         )}
       </Card>
 
-      {changes.hasNextPage ? (
+      {changes.isFetchNextPageError ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-center gap-3 text-sm text-destructive"
+        >
+          <p>{t("changes.loadMoreFailed")}</p>
+          <Button
+            variant="outline"
+            pending={changes.isFetchingNextPage}
+            pendingLabel={t("loading")}
+            onClick={() => void changes.fetchNextPage()}
+          >
+            {t("changes.retry")}
+          </Button>
+        </div>
+      ) : changes.hasNextPage ? (
         <div className="flex justify-center">
           <Button
             variant="outline"

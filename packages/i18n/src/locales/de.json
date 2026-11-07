@@ -969,6 +969,8 @@
     "actions": "Aktion",
     "empty": "In den letzten 7 Tagen wurden keine Änderungen erfasst.",
     "loadMore": "Mehr laden",
+    "loadMoreFailed": "Ältere Änderungen konnten nicht geladen werden. Die angezeigten bleiben erhalten.",
+    "retry": "Erneut versuchen",
     "unknownActor": "Gelöschtes Konto",
     "confirmTitle": "Diese Änderung rückgängig machen?",
     "confirmHint": "Der vorherige Zustand wird wiederhergestellt. Kollidiert eine spätere Änderung damit, bleibt alles unverändert und der Grund wird angezeigt.",

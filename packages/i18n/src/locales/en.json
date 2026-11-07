@@ -56,7 +56,8 @@
       "collectGrades": {
         "title": "Complete the semester {{number}} grades",
         "body": "{{percent}} of grades are entered; empty cells: {{missing}}. Lock the semester once every grade is in.",
-        "noFields": "No fields are set up for this semester yet."
+        "noFields": "No fields are set up for this semester yet.",
+        "withoutFields": "Classes without fields: {{count}}. Set up their fields so their grades can be entered before the semester is locked."
       },
       "advanceSemester": {
         "title": "Move on to semester 2",

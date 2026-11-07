@@ -239,6 +239,30 @@ async def test_a_semester_without_fields_is_not_complete(api) -> None:
     assert body["completion"]["expected_cells"] == 0
 
 
+async def test_a_grid_with_pupils_but_no_fields_keeps_the_semester_open(api) -> None:
+    school = await make_school()
+    await fill_everything(school)
+    async with TestSession() as db:
+        german = await db.scalar(
+            select(m.ColumnDefinition).where(
+                m.ColumnDefinition.semester_id == school.terms[0],
+                m.ColumnDefinition.subject == "german",
+            )
+        )
+        assert german is not None
+        german.is_active = False
+        await db.commit()
+
+    body = await get_dashboard(api)
+    # English is complete, but the pupil's German grid has nothing to fill yet.
+    assert body["completion"]["missing_cells"] == 0
+    assert body["completion"]["complete_rows"] == 1
+    assert body["completion"]["incomplete_rows"] == 1
+    assert body["next_step"]["code"] == "collect_grades"
+    assert body["next_step"]["blockers"] == [{"code": "classes_without_fields", "count": 1}]
+    assert body["problems"]["classes_without_fields"]["count"] == 1
+
+
 async def test_both_semesters_locked_means_closing_the_year(api) -> None:
     school = await make_school(semesters=("locked", "locked"))
     await fill_everything(school, term_index=1)

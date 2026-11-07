@@ -6422,6 +6422,18 @@ previous state. Reasons include `changed_since` (the same attribute, pupil or sl
 **Retention:** the backup sidecar deletes expired rows and their kept signature images every night
 before the dump; `flrc purge-admin-actions` does it by hand.
 
+**Recent changes page:** `/changes` ("Son değişiklikler", admins only; the nav item sits under
+Operations next to Audit history, and coordinators are redirected to `/`) pages through
+`GET /api/admin/actions` with "Daha fazla yükle". Each row reads `changes.kinds.<kind>` with the
+recorded `params` (e.g. "Ali Yılmaz 8/A → 8/B taşındı"), who and when, a status badge (days left,
+who undid it and when, or expired) and, while available, an Undo button behind a confirmation.
+Refusals toast `changes.blocked.<reason>`, picking the sentence for the record the params name
+(i18next context `student`, `field`, `user`, `class`, `slot`, …) and falling back to
+`errors.codes.<reason>` for the original rules' codes; the list reloads either way. The dashboard
+shows the latest five in a "Son değişiklikler" card for admins. Every admin write toasts success
+(with Undo when it returns `action_id`) or the specific `errors.codes.<code>` message from the
+global `MutationCache` handler in `apps/admin/src/admin/feedback.ts`.
+
 **Tests:** `tests/test_admin_changes.py` performs each write, undoes it and compares the exact
 previous rows, plus each refusal reason, expiry, double undo, permissions and the purge.
 

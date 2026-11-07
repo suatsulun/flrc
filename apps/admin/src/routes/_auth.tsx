@@ -13,6 +13,7 @@ import {
   KeyRoundIcon,
   LayoutDashboardIcon,
   SchoolIcon,
+  Undo2Icon,
   UploadIcon,
 } from "lucide-react";
 import { sessionOptions } from "@flrc/api-client";
@@ -184,7 +185,12 @@ function AdminNavigation({ isAdmin, onNavigate }: { isAdmin: boolean; onNavigate
     {
       label: t("shell.navOperations"),
       items: [
-        ...(isAdmin ? [{ to: "/audit", label: t("audit.title"), Icon: HistoryIcon }] : []),
+        ...(isAdmin
+          ? [
+              { to: "/audit", label: t("audit.title"), Icon: HistoryIcon },
+              { to: "/changes", label: t("changes.title"), Icon: Undo2Icon },
+            ]
+          : []),
         { to: "/reports", label: t("reports.title"), Icon: FileTextIcon },
         { to: "/archive", label: t("archive.title"), Icon: ArchiveIcon },
       ],

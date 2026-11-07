@@ -14,6 +14,7 @@ import { Route as AuthIndexRouteImport } from './routes/_auth/index'
 import { Route as AuthArchiveRouteImport } from './routes/_auth/archive'
 import { Route as AuthAssignmentsRouteImport } from './routes/_auth/assignments'
 import { Route as AuthAuditRouteImport } from './routes/_auth/audit'
+import { Route as AuthChangesRouteImport } from './routes/_auth/changes'
 import { Route as AuthClassesRouteImport } from './routes/_auth/classes'
 import { Route as AuthColumnsRouteImport } from './routes/_auth/columns'
 import { Route as AuthCoordinatorRouteImport } from './routes/_auth/coordinator'
@@ -46,6 +47,11 @@ const AuthAssignmentsRoute = AuthAssignmentsRouteImport.update({
 const AuthAuditRoute = AuthAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthChangesRoute = AuthChangesRouteImport.update({
+  id: '/changes',
+  path: '/changes',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthClassesRoute = AuthClassesRouteImport.update({
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/archive': typeof AuthArchiveRoute
   '/assignments': typeof AuthAssignmentsRoute
   '/audit': typeof AuthAuditRoute
+  '/changes': typeof AuthChangesRoute
   '/classes': typeof AuthClassesRoute
   '/columns': typeof AuthColumnsRoute
   '/coordinator': typeof AuthCoordinatorRoute
@@ -114,6 +121,7 @@ export interface FileRoutesByTo {
   '/archive': typeof AuthArchiveRoute
   '/assignments': typeof AuthAssignmentsRoute
   '/audit': typeof AuthAuditRoute
+  '/changes': typeof AuthChangesRoute
   '/classes': typeof AuthClassesRoute
   '/columns': typeof AuthColumnsRoute
   '/coordinator': typeof AuthCoordinatorRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/_auth/archive': typeof AuthArchiveRoute
   '/_auth/assignments': typeof AuthAssignmentsRoute
   '/_auth/audit': typeof AuthAuditRoute
+  '/_auth/changes': typeof AuthChangesRoute
   '/_auth/classes': typeof AuthClassesRoute
   '/_auth/columns': typeof AuthColumnsRoute
   '/_auth/coordinator': typeof AuthCoordinatorRoute
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | '/archive'
     | '/assignments'
     | '/audit'
+    | '/changes'
     | '/classes'
     | '/columns'
     | '/coordinator'
@@ -163,6 +173,7 @@ export interface FileRouteTypes {
     | '/archive'
     | '/assignments'
     | '/audit'
+    | '/changes'
     | '/classes'
     | '/columns'
     | '/coordinator'
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '/_auth/archive'
     | '/_auth/assignments'
     | '/_auth/audit'
+    | '/_auth/changes'
     | '/_auth/classes'
     | '/_auth/columns'
     | '/_auth/coordinator'
@@ -230,6 +242,13 @@ declare module '@tanstack/react-router' {
       path: '/audit'
       fullPath: '/audit'
       preLoaderRoute: typeof AuthAuditRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/changes': {
+      id: '/_auth/changes'
+      path: '/changes'
+      fullPath: '/changes'
+      preLoaderRoute: typeof AuthChangesRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/classes': {
@@ -302,6 +321,7 @@ interface AuthRouteChildren {
   AuthArchiveRoute: typeof AuthArchiveRoute
   AuthAssignmentsRoute: typeof AuthAssignmentsRoute
   AuthAuditRoute: typeof AuthAuditRoute
+  AuthChangesRoute: typeof AuthChangesRoute
   AuthClassesRoute: typeof AuthClassesRoute
   AuthColumnsRoute: typeof AuthColumnsRoute
   AuthCoordinatorRoute: typeof AuthCoordinatorRoute
@@ -318,6 +338,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthArchiveRoute: AuthArchiveRoute,
   AuthAssignmentsRoute: AuthAssignmentsRoute,
   AuthAuditRoute: AuthAuditRoute,
+  AuthChangesRoute: AuthChangesRoute,
   AuthClassesRoute: AuthClassesRoute,
   AuthColumnsRoute: AuthColumnsRoute,
   AuthCoordinatorRoute: AuthCoordinatorRoute,

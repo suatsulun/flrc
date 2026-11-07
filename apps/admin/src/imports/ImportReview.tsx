@@ -16,7 +16,6 @@ import {
   Undo2Icon,
   XIcon,
 } from "lucide-react";
-import { toast } from "sonner";
 import {
   commitImportMutation,
   dryRunImport,
@@ -30,6 +29,8 @@ import { Input } from "@flrc/ui/components/input";
 import { NativeSelect } from "@flrc/ui/components/native-select";
 import { Stat } from "@flrc/ui/components/stat";
 import { useDragPageAutoScroll } from "@flrc/ui/hooks/use-drag-page-auto-scroll";
+import { apiError, errorMessage } from "../admin/feedback";
+import { useNotifyDone } from "../admin/undo-toast";
 import { additionRowKey, compareRowKeys, createImportDraft } from "./draft";
 import { ImportRoster } from "./ImportRoster";
 import { ImportAddStudent } from "./ImportAddStudent";
@@ -69,6 +70,7 @@ export function ImportReview({
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const notifyDone = useNotifyDone();
   const [store] = useState(createImportDraft);
   const draft = useStore(store);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
@@ -109,8 +111,9 @@ export function ImportReview({
   const commit = useMutation({
     ...commitImportMutation(),
     onMutate: () => onCommittingChange(true),
-    onSuccess: async () => {
-      toast.success(t("import.committed"));
+    onSuccess: async (result) => {
+      // A roster import is not undoable (ADR-075): the toast carries no Undo.
+      notifyDone(t("import.committedSummary", { count: result.total_rows, year: yearLabel }));
       await queryClient.invalidateQueries({
         predicate: (query) => query.queryKey[0] !== "import-review",
       });
@@ -539,6 +542,7 @@ export function ImportReview({
             </div>
             {review.isError ? (
               <div role="alert" className="space-y-2 p-4 text-sm text-destructive">
+                {apiError(review.error).code ? <p>{errorMessage(review.error)}</p> : null}
                 <p>{t("import.previewFailed")}</p>
                 <Button
                   variant="outline"

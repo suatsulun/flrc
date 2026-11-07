@@ -3,13 +3,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { PlusIcon } from "lucide-react";
-import { toast } from "sonner";
 import {
   createManagedUserMutation,
   listManagedUsersOptions,
   listManagedUsersQueryKey,
   patchManagedUserMutation,
+  type ManagedUserWriteOut,
+  type UserPatch,
 } from "@flrc/api-client";
 import { Badge } from "@flrc/ui/components/badge";
 import { Button } from "@flrc/ui/components/button";
@@ -35,6 +37,7 @@ import {
 } from "@flrc/ui/components/table";
 import { AdminPage } from "../../admin/AdminPage";
 import { TeacherReportIdentity } from "../../admin/TeacherReportIdentity";
+import { useNotifyDone } from "../../admin/undo-toast";
 
 export const Route = createFileRoute("/_auth/users")({ component: UsersPage });
 
@@ -46,9 +49,35 @@ type UserConfirmation = {
   action: "deactivate" | "resetIdentity";
 };
 
+/** What a row control just changed, named for the success toast. */
+function accountChangeMessage(t: TFunction, user: ManagedUserWriteOut, body: UserPatch): string {
+  const name = user.full_name;
+  if (body.reset_google_identity) return t("users.done.identityReset", { name });
+  if (body.is_active != null) {
+    return t(body.is_active ? "users.done.reactivated" : "users.done.deactivated", { name });
+  }
+  if (body.is_admin != null) {
+    return t(body.is_admin ? "users.done.adminGranted" : "users.done.adminRevoked", { name });
+  }
+  if (body.is_coordinator != null) {
+    return t(
+      body.is_coordinator ? "users.done.coordinatorGranted" : "users.done.coordinatorRevoked",
+      { name },
+    );
+  }
+  if (body.teaching_field != null) {
+    return t("users.done.teachingField", { name, value: t(`subjects.${user.teaching_field}`) });
+  }
+  return t("users.done.teachingStage", {
+    name,
+    value: user.teaching_stage ? t(`teachingStages.${user.teaching_stage}`) : "—",
+  });
+}
+
 function UsersPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const notifyDone = useNotifyDone();
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [teachingField, setTeachingField] = useState<TeachingField>("english");
@@ -64,18 +93,18 @@ function UsersPage() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: listManagedUsersQueryKey() });
   const create = useMutation({
     ...createManagedUserMutation(),
-    onSuccess: () => {
+    onSuccess: (created) => {
       setEmail("");
       setFullName("");
-      toast.success(t("users.allowedSuccess"));
+      notifyDone(t("users.done.created", { name: created.full_name }), created.action_id);
       void refresh();
     },
   });
   const patch = useMutation({
     ...patchManagedUserMutation(),
-    onSuccess: () => {
+    onSuccess: (updated, { body }) => {
       setConfirmation(undefined);
-      toast.success(t("feedback.saved"));
+      notifyDone(accountChangeMessage(t, updated, body), updated.action_id);
       void refresh();
     },
   });
@@ -107,14 +136,6 @@ function UsersPage() {
 
   return (
     <AdminPage title={t("users.title")} description={t("users.description")}>
-      {create.isError || patch.isError ? (
-        <p
-          role="alert"
-          className="rounded-xl border border-destructive/30 bg-destructive-surface px-4 py-3 text-sm text-destructive"
-        >
-          {t("users.saveFailed")}
-        </p>
-      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>{t("users.allow")}</CardTitle>

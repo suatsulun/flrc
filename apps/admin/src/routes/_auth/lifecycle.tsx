@@ -23,6 +23,8 @@ import { Input } from "@flrc/ui/components/input";
 import { ConfirmDialog } from "@flrc/ui/components/dialog";
 import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { AdminPage } from "../../admin/AdminPage";
+import { errorMessage } from "../../admin/feedback";
+import { useNotifyDone } from "../../admin/undo-toast";
 
 export const Route = createFileRoute("/_auth/lifecycle")({ component: LifecyclePage });
 
@@ -35,6 +37,7 @@ const YEAR_TONE = {
 function LifecyclePage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const notifyDone = useNotifyDone();
   const [label, setLabel] = useState("");
   const [archiveTarget, setArchiveTarget] = useState<{ id: number; label: string }>();
   const [auditDigest, setAuditDigest] = useState<string>();
@@ -44,45 +47,51 @@ function LifecyclePage() {
   const [reopenConfirmation, setReopenConfirmation] = useState("");
   const { data: years = [], isPending: yearsPending } = useQuery(listYearsOptions());
   const refresh = () => queryClient.invalidateQueries({ queryKey: listYearsQueryKey() });
-  const succeeded = () => {
-    toast.success(t("feedback.actionSucceeded"));
+  const yearLabel = (yearId: number) => years.find((year) => year.id === yearId)?.label ?? "";
+  // Lifecycle steps are not undoable (ADR-075), so their toasts carry no Undo.
+  const succeeded = (message: string) => {
+    notifyDone(message);
     return refresh();
   };
   const create = useMutation({
     ...createYearMutation(),
-    onSuccess: () => {
+    onSuccess: (year) => {
       setLabel("");
-      void succeeded();
+      void succeeded(t("lifecycle.done.created", { label: year.label }));
     },
   });
-  const activate = useMutation({ ...activateYearMutation(), onSuccess: succeeded });
-  const advance = useMutation({ ...advanceSemesterMutation(), onSuccess: succeeded });
-  const lock = useMutation({ ...lockSemesterTwoMutation(), onSuccess: succeeded });
+  const activate = useMutation({
+    ...activateYearMutation(),
+    onSuccess: (_, { path }) =>
+      succeeded(t("lifecycle.done.activated", { label: yearLabel(path.year_id) })),
+  });
+  const advance = useMutation({
+    ...advanceSemesterMutation(),
+    onSuccess: (_, { path }) =>
+      succeeded(t("lifecycle.done.advanced", { label: yearLabel(path.year_id) })),
+  });
+  const lock = useMutation({
+    ...lockSemesterTwoMutation(),
+    onSuccess: (_, { path }) =>
+      succeeded(t("lifecycle.done.locked", { label: yearLabel(path.year_id) })),
+  });
   const reopen = useMutation({
     ...reopenSemesterMutation(),
-    onSuccess: () => {
+    onSuccess: (_, { path }) => {
       setReopenTarget(undefined);
       setReopenConfirmation("");
-      void succeeded();
+      void succeeded(t("lifecycle.done.reopened", { label: yearLabel(path.year_id) }));
     },
   });
   const close = useMutation({
     ...closeYearMutation(),
-    onSuccess: () => {
+    onSuccess: (_, { path }) => {
       setArchiveTarget(undefined);
       setAuditDigest(undefined);
       setArchiveConfirmation("");
-      void succeeded();
+      void succeeded(t("lifecycle.done.archived", { label: yearLabel(path.year_id) }));
     },
   });
-  const transitionFailed = [
-    create.error,
-    activate.error,
-    advance.error,
-    lock.error,
-    reopen.error,
-    close.error,
-  ].some(Boolean);
   const latestStandard = years
     .map((year) => year.label.match(/^(\d{4})-(\d{4})$/))
     .filter((match): match is RegExpMatchArray => Boolean(match))
@@ -97,7 +106,11 @@ function LifecyclePage() {
     toast.loading(t("lifecycle.exportingAudit"), { id: "audit-export" });
     try {
       const response = await fetch(`/api/admin/years/${archiveTarget.id}/audit-export.csv`);
-      if (!response.ok) throw new Error(`Audit export failed (${response.status})`);
+      if (!response.ok) {
+        const failure: unknown = await response.json().catch(() => null);
+        toast.error(errorMessage(failure), { id: "audit-export" });
+        return;
+      }
       const digest = response.headers.get("x-audit-sha256");
       if (!digest) throw new Error("Audit digest is missing");
       const blob = await response.blob();
@@ -138,14 +151,6 @@ function LifecyclePage() {
         <p className="font-semibold">{t("lifecycle.automaticTitle")}</p>
         <p className="mt-0.5 text-muted-foreground">{t("lifecycle.automaticBody")}</p>
       </div>
-      {transitionFailed ? (
-        <p
-          role="alert"
-          className="rounded-xl border border-destructive/30 bg-destructive-surface px-4 py-3 text-sm text-destructive"
-        >
-          {t("lifecycle.actionFailed")}
-        </p>
-      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>{t("lifecycle.create")}</CardTitle>

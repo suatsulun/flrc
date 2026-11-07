@@ -39,6 +39,7 @@ from threading import Lock
 from typing import Literal, cast
 from urllib.parse import quote
 
+import pikepdf
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pypdf import PdfReader, PdfWriter, Transformation
 from weasyprint import HTML
@@ -561,40 +562,53 @@ def _template_environment() -> Environment:
     return branding.environment(HERE / "templates") if branding else env
 
 
+def back_cover_file(kind: str) -> Path | None:
+    """The school's original back-cover PDF for this card kind, if its overlay has one."""
+    branding = report_branding()
+    if branding is None:
+        return None
+    relative = branding.config.covers.get(cast(Literal["german_karne", "french_karne"], kind))
+    return None if relative is None else contained_file(branding.root, relative)
+
+
+def _page_size(page: pikepdf.Page) -> tuple[float, float]:
+    box = page.mediabox
+    return float(box[2]) - float(box[0]), float(box[3]) - float(box[1])
+
+
+def cover_duplex_backs(document: pikepdf.Pdf, cover: pikepdf.Pdf) -> None:
+    """Replace every second page of ``document`` with the cover's single page, in place.
+
+    qpdf copies the cover's objects into ``document`` once and every back shares them, so a
+    set carries the cover once however many cards it holds. ``cover`` must stay open until
+    ``document`` is saved: its streams are read while writing.
+    """
+    if len(cover.pages) != 1 or len(document.pages) % 2:
+        raise ValueError("report_duplex_page_count")
+    back = cover.pages[0]
+    back_width, back_height = _page_size(back)
+    for index in range(1, len(document.pages), 2):
+        face_width, face_height = _page_size(document.pages[index - 1])
+        if abs(face_width - back_width) > 2 or abs(face_height - back_height) > 2:
+            raise ValueError("report_cover_page_size")
+        document.pages[index] = back
+
+
 def apply_back_cover(pdf: bytes, cards: list[ReportCard]) -> bytes:
     """Replace each duplex back with the original school PDF, without rasterizing it.
 
     ``cards`` are the cards ``pdf`` holds, in order; a set merged from several classes takes
     the cover once here instead of once per class (ADR-077).
     """
-    branding = report_branding()
-    if branding is None:
+    cover_file = back_cover_file(cards[0].kind)
+    if cover_file is None:
         return pdf
-    relative = branding.config.covers.get(
-        cast(Literal["german_karne", "french_karne"], cards[0].kind)
-    )
-    if relative is None:
-        return pdf
-    cover = PdfReader(contained_file(branding.root, relative))
-    document = PdfReader(BytesIO(pdf))
-    if len(cover.pages) != 1 or len(document.pages) != 2 * len(cards):
-        raise ValueError("report_duplex_page_count")
-    writer = PdfWriter()
-    for index in range(0, len(document.pages), 2):
-        face = document.pages[index]
-        back = cover.pages[0]
-        if (
-            abs(float(face.mediabox.width) - float(back.mediabox.width)) > 2
-            or abs(float(face.mediabox.height) - float(back.mediabox.height)) > 2
-        ):
-            raise ValueError("report_cover_page_size")
-        writer.add_page(face)
-        writer.add_page(back)
-    if document.metadata:
-        writer.add_metadata({key: str(value) for key, value in document.metadata.items()})
-    writer.compress_identical_objects()
-    result = BytesIO()
-    writer.write(result)
+    with pikepdf.open(BytesIO(pdf)) as document, pikepdf.open(cover_file) as cover:
+        if len(document.pages) != 2 * len(cards):
+            raise ValueError("report_duplex_page_count")
+        cover_duplex_backs(document, cover)
+        result = BytesIO()
+        document.save(result)
     return result.getvalue()
 
 

@@ -1,7 +1,5 @@
 """Report downloads, background report jobs, the student picker and download names (ADR-077)."""
 
-import gc
-import weakref
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from types import SimpleNamespace
@@ -655,27 +653,27 @@ def middle_classes(world_semester: int, student_ids: list[int] | None = None):
     return packaging.group_by_class(entries)
 
 
-async def test_combined_set_releases_each_class_pdf_once_merged(world, monkeypatch) -> None:
+async def test_combined_set_is_joined_from_class_files_on_disk(world, monkeypatch) -> None:
     await three_pupil_class(world)
     await add_class(world, 7, "A", [("Seventh One", 7001), ("Seventh Two", 7002)])
-    readers: list[weakref.ref[PdfReader]] = []
+    joined: list[list[int]] = []
+    original = packaging._concatenate
 
-    class TrackedReader(PdfReader):
-        def __init__(self, *args, **kwargs) -> None:
-            super().__init__(*args, **kwargs)
-            readers.append(weakref.ref(self))
+    def recording(files, output):
+        # Each class is on disk, not in memory, by the time qpdf joins them.
+        joined.append([path.stat().st_size for path in files])
+        original(files, output)
 
-    alive_after_class: list[int] = []
-
-    def count_alive(_done: int) -> None:
-        gc.collect()
-        alive_after_class.append(sum(1 for ref in readers if ref() is not None))
-
-    monkeypatch.setattr(packaging, "PdfReader", TrackedReader)
-    result = packaging.package_report_set(middle_classes(world.semester), "combined", count_alive)
-    # Only the class just merged may still be open; earlier class PDFs are gone from memory.
-    assert alive_after_class == [1, 1, 1]
-    assert len(PdfReader(BytesIO(result.data)).pages) == 1 + 2 + 1
+    monkeypatch.setattr(packaging, "_concatenate", recording)
+    result = packaging.package_report_set(middle_classes(world.semester), "combined")
+    assert len(joined) == 1 and len(joined[0]) == 3 and all(joined[0])
+    pages = pdf_text(result.data)
+    # Two-up sheets per class, in print order: 5/A one sheet, 6/A two, 7/A one.
+    assert len(pages) == 1 + 2 + 1
+    assert "Synthetic Student One" in pages[0]
+    assert "Pupil Alpha" in pages[1] and "Pupil Beta" in pages[2]
+    assert "Seventh One" in pages[3]
+    assert PdfReader(BytesIO(result.data)).metadata.title
 
 
 async def test_class_zip_parts_hold_whole_class_files(world) -> None:

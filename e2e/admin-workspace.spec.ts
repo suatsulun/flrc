@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import type { AdminClassOut } from "../packages/api-client/src/index";
+import type { AdminClassOut, RosterStudentOut } from "../packages/api-client/src/index";
 import { authenticatedContext } from "./helpers/auth";
 import { adminOrigin } from "./helpers/origins";
 import { expectContainedTable } from "./helpers/table";
@@ -149,6 +149,106 @@ test("admin edits and deletes an unused class of a setup year", async ({ browser
       await page.request.delete(`${adminOrigin}/api/admin/classes/${leftover.id}`, {
         headers: { Origin: adminOrigin },
       });
+    }
+    await context.close();
+  }
+});
+
+test("admin manages a class from student cards on a phone", async ({ browser }) => {
+  const context = await authenticatedContext(browser, "admin@example-school.k12.tr");
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${adminOrigin}/admin/classes`);
+  const noSidewaysScroll = () => page.evaluate(() => document.documentElement.scrollWidth <= 390);
+  const yearId = await page.getByLabel("Academic year", { exact: true }).inputValue();
+  const added = "E2E Phone Student";
+  try {
+    await expect(page.getByRole("button", { name: /^5\/A/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+
+    // Each teacher role stacks above a select as wide as the card, so names never clip.
+    const mainTeacher = page
+      .locator("label")
+      .filter({ has: page.locator("span", { hasText: /^Main teacher$/ }) })
+      .locator("select");
+    expect((await mainTeacher.boundingBox())!.width).toBeGreaterThan(300);
+
+    // Cards by default: selection, school number and language stay editable on each card.
+    const viewSwitch = page.getByRole("radiogroup", { name: "View", exact: true });
+    await expect(viewSwitch.getByRole("radio", { name: "Cards", exact: true })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    const cards = page.getByTestId("student-grade-card");
+    const card = cards.filter({ hasText: "E2E Synthetic One" });
+    await expect(card.getByRole("checkbox", { name: "Select E2E Synthetic One" })).toBeVisible();
+    await expect(card.getByLabel("E2E Synthetic One — School number")).toHaveValue("99001");
+    await expect(card.getByLabel("E2E Synthetic One — School number")).toBeEditable();
+    // Each active column is listed with the role that grades it.
+    await expect(card.getByRole("term").filter({ hasText: /^Exam/ })).toContainText("Main teacher");
+    const language = card.getByLabel("E2E Synthetic One — Second language", { exact: true });
+    for (const option of ["german", ""]) {
+      await language.selectOption(option);
+      await expect(language).toHaveValue(option);
+      await expect(language).toBeEnabled();
+    }
+    // Dragging needs a mouse, so phones move students by ticking them instead.
+    await expect(page.getByRole("button", { name: /to another class$/ })).toHaveCount(0);
+    await expect(
+      page.getByText("Tick students on their cards to move them to another class", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    expect(await noSidewaysScroll()).toBe(true);
+
+    // The add form sits under the cards; a ticked student moves through the toolbar.
+    await page.getByRole("spinbutton", { name: "School number", exact: true }).fill("99990");
+    await page.getByRole("textbox", { name: "Full name", exact: true }).fill(added);
+    await page.getByRole("button", { name: "Add student", exact: true }).click();
+    const addedCard = cards.filter({ hasText: added });
+    await expect(addedCard).toBeVisible();
+    await addedCard.getByRole("checkbox", { name: `Select ${added}`, exact: true }).click();
+    const bulkActions = page.getByRole("toolbar", { name: "Actions for the selected students" });
+    await bulkActions.getByLabel("Move to class…").selectOption({ label: "5/B" });
+    await bulkActions.getByRole("button", { name: "Move", exact: true }).click();
+    const moveDialog = page.getByRole("dialog");
+    await expect(moveDialog).toContainText(`${added} will move from 5/A to 5/B.`);
+    await moveDialog.getByRole("button", { name: "Move", exact: true }).click();
+    await expect(page.getByText(`${added} was moved to 5/B.`)).toBeVisible();
+    await expect(addedCard).toHaveCount(0);
+    expect(await noSidewaysScroll()).toBe(true);
+
+    // The table pins the selection, number and name columns narrowly while the rest scrolls.
+    await viewSwitch.getByRole("radio", { name: "Table", exact: true }).click();
+    await expect(cards).toHaveCount(0);
+    const surface = page.getByTestId("class-roster-surface");
+    const headers = surface.locator("thead th");
+    const widths = await Promise.all(
+      [0, 1, 2].map(async (index) => Math.round((await headers.nth(index).boundingBox())!.width)),
+    );
+    expect(widths).toEqual([40, 72, 120]);
+    const nameCell = surface.getByRole("cell", { name: "E2E Synthetic One", exact: true });
+    const before = (await nameCell.boundingBox())!.x;
+    await surface.evaluate((element) => element.scrollBy({ left: 200 }));
+    expect(await surface.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+    expect((await nameCell.boundingBox())!.x).toBeCloseTo(before, 0);
+    expect(await noSidewaysScroll()).toBe(true);
+  } finally {
+    // Later specs count this year's rosters; never leave the phone student behind.
+    const listed = await page.request.get(`${adminOrigin}/api/admin/years/${yearId}/classes`);
+    for (const schoolClass of (await listed.json()) as AdminClassOut[]) {
+      const roster = await page.request.get(
+        `${adminOrigin}/api/admin/classes/${schoolClass.id}/roster`,
+      );
+      for (const student of (await roster.json()) as RosterStudentOut[]) {
+        if (student.full_name !== added) continue;
+        await page.request.delete(
+          `${adminOrigin}/api/admin/classes/${schoolClass.id}/roster/${student.student_id}`,
+          { headers: { Origin: adminOrigin } },
+        );
+      }
     }
     await context.close();
   }

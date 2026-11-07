@@ -15,6 +15,7 @@ import { Card, CardBody } from "@flrc/ui/components/card";
 import { EmptyState } from "@flrc/ui/components/empty-state";
 import { Input } from "@flrc/ui/components/input";
 import { Segmented } from "@flrc/ui/components/segmented";
+import { GradeViewSwitch, useGradeTableView } from "@flrc/ui/components/student-grade-cards";
 import { useDragPageAutoScroll } from "@flrc/ui/hooks/use-drag-page-auto-scroll";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -103,6 +104,7 @@ function ClassesPage() {
 
   const [draggedStudentId, setDraggedStudentId] = useState<number>();
   const [mode, setMode] = useState<"table" | "remove">("table");
+  const { isPhone, view, setView, effectiveView } = useGradeTableView();
   useDragPageAutoScroll(Boolean(draggedStudentId));
 
   const {
@@ -404,6 +406,17 @@ function ClassesPage() {
               value={mode}
               onChange={setMode}
             />
+            {mode === "table" ? (
+              <GradeViewSwitch
+                value={view}
+                onChange={setView}
+                labels={{
+                  ariaLabel: t("grid.viewLabel"),
+                  cards: t("grid.cardsView"),
+                  table: t("grid.tableView"),
+                }}
+              />
+            ) : null}
             {yearWritable ? (
               <ClassActions
                 schoolClass={selectedClass}
@@ -475,12 +488,17 @@ function ClassesPage() {
             onColumnsChanged={refreshColumns}
             hidden={mode === "remove"}
           />
-          {mode === "table" ? (
+          {mode !== "table" ? null : isPhone ? (
+            // Phones move students by ticking them; dragging needs a mouse.
+            effectiveView === "cards" ? (
+              <p className="text-xs text-muted-foreground">{t("classWorkspace.phoneMoveHint")}</p>
+            ) : null
+          ) : (
             <>
               <p className="text-xs text-muted-foreground">{t("classWorkspace.dragHint")}</p>
               <p className="text-xs text-muted-foreground">{t("classWorkspace.dragColumnsHint")}</p>
             </>
-          ) : null}
+          )}
         </>
       )}
       <MoveStudentsDialog

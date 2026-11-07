@@ -12,6 +12,11 @@ import { Card, CardBody } from "@flrc/ui/components/card";
 import { EmptyState } from "@flrc/ui/components/empty-state";
 import { NativeSelect } from "@flrc/ui/components/native-select";
 import {
+  GradeViewSwitch,
+  StudentGradeCards,
+  useGradeTableView,
+} from "@flrc/ui/components/student-grade-cards";
+import {
   Table,
   TableBody,
   TableCaption,
@@ -58,6 +63,7 @@ function ArchivePage() {
     isPending: gridPending,
     isError: gridError,
   } = useQuery({ ...gridOptions, enabled: selectedClassId !== undefined });
+  const { isPhone, view, setView, effectiveView } = useGradeTableView();
 
   if (yearsError || classesError || gridError) return <EmptyState title={t("errors.load")} />;
   if (yearsPending) return <ArchiveSkeleton />;
@@ -73,55 +79,67 @@ function ArchivePage() {
       meta={<Badge tone="neutral">{t("archive.readOnly")}</Badge>}
       actions={
         <>
-          <NativeSelect
-            className="w-36"
-            aria-label={t("reports.yearLabel")}
-            value={selectedYearId ?? ""}
-            onChange={(event) => {
-              setYearId(Number(event.target.value));
-              setClassId(undefined);
+          {/* Phones: the four pickers in a 2×2 grid above the view switch. */}
+          <div className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:flex-wrap md:items-center">
+            <NativeSelect
+              className="w-36 max-md:w-full"
+              aria-label={t("reports.yearLabel")}
+              value={selectedYearId ?? ""}
+              onChange={(event) => {
+                setYearId(Number(event.target.value));
+                setClassId(undefined);
+              }}
+            >
+              {years.map((year) => (
+                <option key={year.id} value={year.id}>
+                  {year.label}
+                </option>
+              ))}
+            </NativeSelect>
+            {/* Sized by its longest option, so long prep class names never clip. */}
+            <NativeSelect
+              className="w-auto min-w-28 max-md:w-full"
+              aria-label={t("classes.title")}
+              value={selectedClassId ?? ""}
+              onChange={(event) => setClassId(Number(event.target.value))}
+            >
+              {classes.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </NativeSelect>
+            <NativeSelect
+              className="w-32 max-md:w-full"
+              aria-label={t("lifecycle.semester", { number: semester })}
+              value={semester}
+              onChange={(event) => setSemester(Number(event.target.value))}
+            >
+              <option value={1}>{t("lifecycle.semester", { number: 1 })}</option>
+              <option value={2}>{t("lifecycle.semester", { number: 2 })}</option>
+            </NativeSelect>
+            <NativeSelect
+              className="w-32 max-md:w-full"
+              aria-label={t("grid.subject")}
+              value={subject}
+              onChange={(event) => setSubject(event.target.value as typeof subject)}
+            >
+              {(["english", "german", "french"] as const).map((item) => (
+                <option key={item} value={item}>
+                  {t(`subjects.${item}`)}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
+          <GradeViewSwitch
+            value={view}
+            onChange={setView}
+            labels={{
+              ariaLabel: t("grid.viewLabel"),
+              cards: t("grid.cardsView"),
+              table: t("grid.tableView"),
             }}
-          >
-            {years.map((year) => (
-              <option key={year.id} value={year.id}>
-                {year.label}
-              </option>
-            ))}
-          </NativeSelect>
-          {/* Sized by its longest option, so long prep class names never clip. */}
-          <NativeSelect
-            className="w-auto min-w-28"
-            aria-label={t("classes.title")}
-            value={selectedClassId ?? ""}
-            onChange={(event) => setClassId(Number(event.target.value))}
-          >
-            {classes.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </NativeSelect>
-          <NativeSelect
-            className="w-32"
-            aria-label={t("lifecycle.semester", { number: semester })}
-            value={semester}
-            onChange={(event) => setSemester(Number(event.target.value))}
-          >
-            <option value={1}>{t("lifecycle.semester", { number: 1 })}</option>
-            <option value={2}>{t("lifecycle.semester", { number: 2 })}</option>
-          </NativeSelect>
-          <NativeSelect
-            className="w-32"
-            aria-label={t("grid.subject")}
-            value={subject}
-            onChange={(event) => setSubject(event.target.value as typeof subject)}
-          >
-            {(["english", "german", "french"] as const).map((item) => (
-              <option key={item} value={item}>
-                {t(`subjects.${item}`)}
-              </option>
-            ))}
-          </NativeSelect>
+          />
         </>
       }
     >
@@ -129,15 +147,33 @@ function ArchivePage() {
         <ArchiveGridSkeleton />
       ) : !grid || grid.rows.length === 0 ? (
         <EmptyState title={t("archive.empty")} description={t("archive.emptyBody")} />
+      ) : effectiveView === "cards" ? (
+        <StudentGradeCards
+          ariaLabel={t("archive.tableLabel")}
+          columns={grid.columns.map((column) => ({ id: column.id, label: column.label }))}
+          students={grid.rows.map((row) => ({
+            id: row.student_id,
+            schoolNumber: row.school_number,
+            fullName: row.full_name,
+            values: grid.columns.map((column) => ({
+              columnId: column.id,
+              value: row.cells[String(column.id)],
+            })),
+          }))}
+        />
       ) : (
         <Card>
           <CardBody>
             <TableScroll aria-label={t("archive.tableLabel")}>
-              <Table style={{ minWidth: `${14 + grid.columns.length * 10}rem` }}>
+              <Table style={{ minWidth: `${(isPhone ? 10 : 14) + grid.columns.length * 10}rem` }}>
                 <TableCaption>{t("archive.tableLabel")}</TableCaption>
                 <TableHead>
                   <tr>
-                    <TableHeader className="sticky left-0 z-30 min-w-56 border-r bg-muted/95">
+                    {/* Pinned at 10rem on phones so the grades keep room to scroll. */}
+                    <TableHeader
+                      sticky
+                      className="max-md:w-40 max-md:max-w-40 max-md:min-w-40 md:min-w-56"
+                    >
                       {t("students.fullName")}
                     </TableHeader>
                     {grid.columns.map((column) => (
@@ -154,11 +190,14 @@ function ArchivePage() {
                 <TableBody>
                   {grid.rows.map((row) => (
                     <TableRow key={row.student_id}>
-                      <TableCell className="sticky left-0 z-10 min-w-56 border-r bg-card font-medium group-even:bg-muted group-hover:bg-accent">
+                      <TableCell
+                        sticky
+                        className="border-r-border/70 font-medium max-md:w-40 max-md:max-w-40 max-md:min-w-40 max-md:px-2 md:min-w-56"
+                      >
                         <span className="mr-2 tabular text-xs text-muted-foreground">
                           {row.school_number ?? "—"}
                         </span>
-                        <TableText className="inline-block max-w-56 align-middle">
+                        <TableText className="inline-block max-w-24 align-middle md:max-w-56">
                           {row.full_name}
                         </TableText>
                       </TableCell>

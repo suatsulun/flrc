@@ -907,6 +907,10 @@ unchanged.
 - Assigned and foreign fields remain visually distinct, and foreign saves require confirmation.
 - Missing teaching assignments no longer block urgent grade entry, but remain visible admin work.
 - Direct API writes without ownership, an active grant, or explicit confirmation are rejected.
+- Amendment 2026-11-07: administrators save any column without confirmation (the API never asked
+  them), so the grid API marks every column `owned_by_you` for them and the grid shows them no
+  ownership warning or dialog. This replaces ADR-025's administrator confirmation; the warning now
+  appears exactly where a save asks for confirmation. Teachers and coordinators are unchanged.
 
 ## Supersedes / Superseded by
 

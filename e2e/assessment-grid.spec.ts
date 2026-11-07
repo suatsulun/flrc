@@ -394,6 +394,11 @@ for (const width of [1536, 390]) {
         })),
     );
     await expect(page.getByTestId("save-grid")).toBeDisabled();
+    // Cancel is always visible and leaves every value untouched.
+    await page.getByTestId("bulk-ratings-class").click();
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByTestId("save-grid")).toBeDisabled();
     await page.getByTestId("bulk-ratings-class").click();
     await page.getByTestId("bulk-rating-2").click();
     await page.getByTestId("save-grid").click();

@@ -8,6 +8,7 @@ import { Button } from "@flrc/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@flrc/ui/components/card";
 import { Field } from "@flrc/ui/components/field";
 import { EmptyState } from "@flrc/ui/components/empty-state";
+import { FilePicker } from "@flrc/ui/components/file-picker";
 import { NativeSelect } from "@flrc/ui/components/native-select";
 import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { AdminPage } from "../../admin/AdminPage";
@@ -62,12 +63,13 @@ function ImportPage() {
             </Field>
             <Field label={t("import.file")}>
               {(id) => (
-                <input
+                <FilePicker
                   id={id}
                   accept=".xlsx"
-                  type="file"
                   disabled={committing}
-                  className="h-9 w-full cursor-pointer rounded-lg border border-input bg-card text-sm shadow-card file:mr-3 file:h-full file:cursor-pointer file:border-0 file:bg-muted file:px-3 file:text-sm file:font-medium"
+                  chooseLabel={t("forms.chooseFile")}
+                  emptyLabel={t("forms.noFileChosen")}
+                  fileName={file?.name}
                   onChange={(event) => {
                     setFile(event.target.files?.[0]);
                     setReviewId(undefined);

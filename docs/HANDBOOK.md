@@ -7007,6 +7007,12 @@ Query strategy: fetch the student; all enrollments joined to year/class; all lan
 
 **Frontend:** `/archive` starts with year cards, drills to classes and read-only grids. `/students/$studentId/history` shows a timeline. Link to History from live roster, student list, and archive. Every archived screen carries a permanent **Read only** badge; no disabled edit controls pretending to be interactive.
 
+**Update 2026-11-07:** the history page shows one term at a time. A year dropdown and a semester
+switch (the shared `AcademicContextBar`) sit on top, the choice lives in the URL (`?year=&semester=`),
+and without one the page opens on the most recent year with grades, on its open semester when that
+has grades, else its latest graded semester. The API lists every semester of each enrolled year,
+also before any grade exists, so empty terms get an explicit empty state instead of disappearing.
+
 **Check:** a student moved 5/A → 5/B midyear still shows one year entry with the current class and all grade values. After closing the year and creating the next, the same student history gains a second year rather than a second identity.
 
 **If it breaks:** archived grid shows semester 2 when you ask for 1 → a helper still auto-selects “open else max.” Archive service must take an explicit semester id/number. Student appears twice → importer created a new student because school number matching drifted.

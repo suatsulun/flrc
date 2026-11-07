@@ -4,8 +4,10 @@ import type { GridOut, GridRowOut } from "@flrc/api-client";
 import { Button } from "@flrc/ui/components/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@flrc/ui/components/dialog";
@@ -70,6 +72,9 @@ export function BulkRatings({
               </Button>
             ))}
           </div>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>{t("grid.cancel")}</DialogClose>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

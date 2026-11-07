@@ -20,8 +20,10 @@ import { Card, CardBody } from "@flrc/ui/components/card";
 import { Checkbox } from "@flrc/ui/components/checkbox";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   ConfirmDialog,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -118,166 +120,170 @@ function ColumnsPage() {
   if (columnsError && !locked) return <EmptyState title={t("errors.load")} />;
 
   return (
-    <AdminPage
-      title={t("columns.title")}
-      description={t("columns.description")}
-      actions={
-        <>
-          <NativeSelect
-            className="w-32"
-            aria-label={t("classes.gradeLevel")}
-            value={grade}
-            onChange={(event) =>
-              navigate({ search: { grade: Number(event.target.value), subject } })
-            }
-          >
-            {GRADES.map((item) => (
-              <option key={item} value={item}>
-                {gradeLabel(t, item)}
-              </option>
-            ))}
-          </NativeSelect>
-          <NativeSelect
-            className="w-36"
-            aria-label={t("grid.subject")}
-            value={subject}
-            onChange={(event) =>
-              navigate({ search: { grade, subject: event.target.value as Subject } })
-            }
-          >
-            {SUBJECTS.map((item) => (
-              <option key={item} value={item}>
-                {t(`subjects.${item}`)}
-              </option>
-            ))}
-          </NativeSelect>
-          {locked ? null : (
-            <>
-              <CopyFieldsDialog
-                grade={grade}
-                subject={subject}
-                columns={columns}
-                onCopied={(target) => {
-                  void navigate({ search: target });
-                  return invalidate();
-                }}
-              />
-              <CreateDialog
-                key={`${grade}-${subject}`}
-                grade={grade}
-                subject={subject}
-                onCreated={invalidate}
-              />
-            </>
-          )}
-        </>
-      }
-    >
-      {locked ? (
-        <EmptyState title={t("columns.lockedTitle")} description={t("columns.locked")} />
-      ) : columns.length === 0 ? (
-        <EmptyState title={t("columns.empty")} description={t("columns.emptyBody")} />
-      ) : (
-        <Card className="max-w-3xl">
-          <CardBody>
-            <ul className="divide-y divide-border">
-              {columns.map((column, index) => (
-                <li
-                  key={column.id}
-                  className={`flex items-center gap-3 px-4 py-2.5 ${column.is_active ? "" : "opacity-55"}`}
-                >
-                  <span className="tabular w-6 text-xs text-muted-foreground">
-                    {column.position}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{column.name}</span>
-                    <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                      <Badge tone="outline">{t(`columns.valueTypes.${column.value_type}`)}</Badge>
-                      <Badge tone="neutral">{t(`roles.${column.owner_role}`)}</Badge>
-                      {column.counts_in_average ? (
-                        <Badge tone="info" title={t("columns.countsInAverage")}>
-                          Ø
-                        </Badge>
-                      ) : null}
-                      {column.is_active ? null : (
-                        <Badge tone="warning">{t("columns.disabled")}</Badge>
-                      )}
-                    </span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-0.5">
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      aria-label={t("columns.moveUp")}
-                      disabled={index === 0 || Boolean(pendingColumnId)}
-                      pending={pendingColumnId === column.id && reorder.isPending}
-                      pendingLabel={t("feedback.saving")}
-                      onClick={() => move(index, -1)}
-                    >
-                      <ChevronUpIcon />
-                    </Button>
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      aria-label={t("columns.moveDown")}
-                      disabled={index === columns.length - 1 || Boolean(pendingColumnId)}
-                      pending={pendingColumnId === column.id && reorder.isPending}
-                      pendingLabel={t("feedback.saving")}
-                      onClick={() => move(index, 1)}
-                    >
-                      <ChevronDownIcon />
-                    </Button>
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      aria-label={t("columns.renameColumn", { name: column.name })}
-                      title={t("columns.rename")}
-                      onClick={(event) => {
-                        dialogFocus.remember(event.currentTarget);
-                        setRenaming(column);
-                      }}
-                    >
-                      <PencilIcon />
-                    </Button>
-                    <Button
-                      size="icon-sm"
-                      variant="destructive"
-                      aria-label={t("columns.delete")}
-                      disabled={remove.isPending}
-                      onClick={(event) => {
-                        dialogFocus.remember(event.currentTarget);
-                        setDeleteTarget(column);
-                      }}
-                    >
-                      <Trash2Icon />
-                    </Button>
-                  </span>
-                </li>
+    // The header controls act on the field list, so both share one column width instead of the
+    // controls drifting to the far edge of a wide screen.
+    <div className="max-w-3xl space-y-4">
+      <AdminPage
+        title={t("columns.title")}
+        description={t("columns.description")}
+        actions={
+          <>
+            <NativeSelect
+              className="w-32"
+              aria-label={t("classes.gradeLevel")}
+              value={grade}
+              onChange={(event) =>
+                navigate({ search: { grade: Number(event.target.value), subject } })
+              }
+            >
+              {GRADES.map((item) => (
+                <option key={item} value={item}>
+                  {gradeLabel(t, item)}
+                </option>
               ))}
-            </ul>
-          </CardBody>
-        </Card>
-      )}
-      <ConfirmDialog
-        finalFocus={dialogFocus.finalFocus}
-        open={Boolean(deleteTarget)}
-        onOpenChange={(open) => !open && setDeleteTarget(undefined)}
-        title={t("columns.delete")}
-        description={t("columns.deleteConfirm", { label: deleteTarget?.name })}
-        cancelLabel={t("forms.cancel")}
-        confirmLabel={t("columns.delete")}
-        destructive
-        pending={remove.isPending}
-        pendingLabel={t("feedback.saving")}
-        onConfirm={() => deleteTarget && remove.mutate({ path: { column_id: deleteTarget.id } })}
-      />
-      <RenameFieldDialog
-        column={renaming}
-        finalFocus={dialogFocus.finalFocus}
-        onClose={() => setRenaming(undefined)}
-        onRenamed={invalidate}
-      />
-    </AdminPage>
+            </NativeSelect>
+            <NativeSelect
+              className="w-36"
+              aria-label={t("grid.subject")}
+              value={subject}
+              onChange={(event) =>
+                navigate({ search: { grade, subject: event.target.value as Subject } })
+              }
+            >
+              {SUBJECTS.map((item) => (
+                <option key={item} value={item}>
+                  {t(`subjects.${item}`)}
+                </option>
+              ))}
+            </NativeSelect>
+            {locked ? null : (
+              <>
+                <CopyFieldsDialog
+                  grade={grade}
+                  subject={subject}
+                  columns={columns}
+                  onCopied={(target) => {
+                    void navigate({ search: target });
+                    return invalidate();
+                  }}
+                />
+                <CreateDialog
+                  key={`${grade}-${subject}`}
+                  grade={grade}
+                  subject={subject}
+                  onCreated={invalidate}
+                />
+              </>
+            )}
+          </>
+        }
+      >
+        {locked ? (
+          <EmptyState title={t("columns.lockedTitle")} description={t("columns.locked")} />
+        ) : columns.length === 0 ? (
+          <EmptyState title={t("columns.empty")} description={t("columns.emptyBody")} />
+        ) : (
+          <Card>
+            <CardBody>
+              <ul className="divide-y divide-border">
+                {columns.map((column, index) => (
+                  <li
+                    key={column.id}
+                    className={`flex items-center gap-3 px-4 py-2.5 ${column.is_active ? "" : "opacity-55"}`}
+                  >
+                    <span className="tabular w-6 text-xs text-muted-foreground">
+                      {column.position}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{column.name}</span>
+                      <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        <Badge tone="outline">{t(`columns.valueTypes.${column.value_type}`)}</Badge>
+                        <Badge tone="neutral">{t(`roles.${column.owner_role}`)}</Badge>
+                        {column.counts_in_average ? (
+                          <Badge tone="info" title={t("columns.countsInAverage")}>
+                            Ø
+                          </Badge>
+                        ) : null}
+                        {column.is_active ? null : (
+                          <Badge tone="warning">{t("columns.disabled")}</Badge>
+                        )}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-0.5">
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={t("columns.moveUpColumn", { name: column.name })}
+                        disabled={index === 0 || Boolean(pendingColumnId)}
+                        pending={pendingColumnId === column.id && reorder.isPending}
+                        pendingLabel={t("feedback.saving")}
+                        onClick={() => move(index, -1)}
+                      >
+                        <ChevronUpIcon />
+                      </Button>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={t("columns.moveDownColumn", { name: column.name })}
+                        disabled={index === columns.length - 1 || Boolean(pendingColumnId)}
+                        pending={pendingColumnId === column.id && reorder.isPending}
+                        pendingLabel={t("feedback.saving")}
+                        onClick={() => move(index, 1)}
+                      >
+                        <ChevronDownIcon />
+                      </Button>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={t("columns.renameColumn", { name: column.name })}
+                        title={t("columns.rename")}
+                        onClick={(event) => {
+                          dialogFocus.remember(event.currentTarget);
+                          setRenaming(column);
+                        }}
+                      >
+                        <PencilIcon />
+                      </Button>
+                      <Button
+                        size="icon-sm"
+                        variant="destructive"
+                        aria-label={t("columns.deleteColumn", { name: column.name })}
+                        disabled={remove.isPending}
+                        onClick={(event) => {
+                          dialogFocus.remember(event.currentTarget);
+                          setDeleteTarget(column);
+                        }}
+                      >
+                        <Trash2Icon />
+                      </Button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </CardBody>
+          </Card>
+        )}
+        <ConfirmDialog
+          finalFocus={dialogFocus.finalFocus}
+          open={Boolean(deleteTarget)}
+          onOpenChange={(open) => !open && setDeleteTarget(undefined)}
+          title={t("columns.delete")}
+          description={t("columns.deleteConfirm", { label: deleteTarget?.name })}
+          cancelLabel={t("forms.cancel")}
+          confirmLabel={t("columns.delete")}
+          destructive
+          pending={remove.isPending}
+          pendingLabel={t("feedback.saving")}
+          onConfirm={() => deleteTarget && remove.mutate({ path: { column_id: deleteTarget.id } })}
+        />
+        <RenameFieldDialog
+          column={renaming}
+          finalFocus={dialogFocus.finalFocus}
+          onClose={() => setRenaming(undefined)}
+          onRenamed={invalidate}
+        />
+      </AdminPage>
+    </div>
   );
 }
 
@@ -358,12 +364,14 @@ function CreateDialog({
         <PlusIcon />
         {t("columns.add")}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-xl">
+      {/* Header and footer stay put while the fields scroll, so Cancel and Save remain
+          visible on a short phone screen. */}
+      <DialogContent className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="text-base">{t("columns.add")}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="-mx-1 min-h-0 space-y-4 overflow-y-auto px-1 pb-1">
           {scaleOnly ? (
             <p className="text-sm text-muted-foreground">{t("grid.gradeFourScaleOnly")}</p>
           ) : null}
@@ -430,16 +438,14 @@ function CreateDialog({
             />
             {t("columns.countsInAverage")}
           </label>
-
-          <div className="flex justify-end gap-2 border-t border-border pt-4">
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              {t("forms.cancel")}
-            </Button>
-            <Button onClick={submit} pending={create.isPending} pendingLabel={t("feedback.saving")}>
-              {t("forms.save")}
-            </Button>
-          </div>
         </div>
+
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>{t("forms.cancel")}</DialogClose>
+          <Button onClick={submit} pending={create.isPending} pendingLabel={t("feedback.saving")}>
+            {t("forms.save")}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

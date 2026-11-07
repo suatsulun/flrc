@@ -47,7 +47,6 @@ function GridPage() {
   const { classId, subject: rawSubject } = Route.useParams();
   const { semester: requestedSemester } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const { user } = Route.useRouteContext();
   const subject = rawSubject as Subject;
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -218,9 +217,7 @@ function GridPage() {
           ) : (
             <div>
               <p className="font-semibold">{t("grid.draftAccessTitle")}</p>
-              <p className="mt-0.5 text-muted-foreground">
-                {user.is_admin ? t("grid.adminDraftAccessBody") : t("grid.draftAccessBody")}
-              </p>
+              <p className="mt-0.5 text-muted-foreground">{t("grid.draftAccessBody")}</p>
             </div>
           )}
         </div>
@@ -329,7 +326,6 @@ function GridPage() {
       />
       <OwnershipWarningDialog
         columns={ownershipColumns}
-        isAdmin={user.is_admin}
         pending={save.isPending}
         onClose={() => setOwnershipColumns([])}
         onAccept={() => save.saveAll(true)}

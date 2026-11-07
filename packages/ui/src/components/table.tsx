@@ -18,13 +18,15 @@ function TableScroll({ className, tabIndex = 0, ...props }: ComponentProps<"div"
   );
 }
 
+/**
+ * Fills its container and grows past it when the (unwrapped) cells need more room. Width stays
+ * `w-full` rather than `w-max min-w-full`, so a caller's own `min-w-[…]` or `style.minWidth` only
+ * adds a minimum and never stops the table from filling a wide card.
+ */
 function Table({ className, ...props }: ComponentProps<"table">) {
   return (
     <table
-      className={cn(
-        "w-max min-w-full table-auto border-separate border-spacing-0 text-sm",
-        className,
-      )}
+      className={cn("w-full table-auto border-separate border-spacing-0 text-sm", className)}
       {...props}
     />
   );

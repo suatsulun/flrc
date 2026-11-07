@@ -110,15 +110,19 @@ function StudentSearchPage() {
           </CardHeader>
           <CardBody>
             <TableScroll aria-label={t("studentSearch.tableLabel")}>
-              <Table className="min-w-[40rem]">
+              {/* Below `sm` the class moves under the name and the actions shrink to labelled
+                  icons, so a phone shows every result without sideways scrolling. */}
+              <Table className="sm:min-w-[40rem]">
                 <TableCaption>{t("studentSearch.tableLabel")}</TableCaption>
                 <TableHead>
                   <tr>
-                    <TableHeader className="sticky left-0 z-30 min-w-56 border-r bg-muted/95">
+                    <TableHeader className="bg-muted/95 sm:sticky sm:left-0 sm:z-30 sm:min-w-56 sm:border-r">
                       {t("audit.student")}
                     </TableHeader>
-                    <TableHeader className="w-28">{t("studentSearch.class")}</TableHeader>
-                    <TableHeader className="w-64">
+                    <TableHeader className="hidden w-28 sm:table-cell">
+                      {t("studentSearch.class")}
+                    </TableHeader>
+                    <TableHeader className="w-0 sm:w-64">
                       <span className="sr-only">{t("students.actions")}</span>
                     </TableHeader>
                   </tr>
@@ -133,17 +137,22 @@ function StudentSearchPage() {
                       const schoolClass = classById.get(student.class_id);
                       return (
                         <TableRow key={student.id}>
-                          <TableCell className="sticky left-0 z-10 border-r bg-card group-even:bg-muted group-hover:bg-accent">
+                          <TableCell className="w-full max-w-0 bg-card group-even:bg-muted group-hover:bg-accent sm:sticky sm:left-0 sm:z-10 sm:w-auto sm:max-w-none sm:border-r">
                             <span className="flex items-baseline gap-2">
                               <span className="tabular w-12 shrink-0 text-xs text-muted-foreground">
                                 {student.school_number ?? "—"}
                               </span>
-                              <TableText className="max-w-56 font-medium">
-                                {student.full_name}
-                              </TableText>
+                              <span className="min-w-0">
+                                <TableText className="max-w-full font-medium sm:max-w-56">
+                                  {student.full_name}
+                                </TableText>
+                                <span className="block text-xs text-muted-foreground sm:hidden">
+                                  {schoolClass?.name ?? "—"}
+                                </span>
+                              </span>
                             </span>
                           </TableCell>
-                          <TableCell className="text-muted-foreground">
+                          <TableCell className="hidden text-muted-foreground sm:table-cell">
                             {schoolClass?.name ?? "—"}
                           </TableCell>
                           <TableCell align="right">
@@ -154,7 +163,7 @@ function StudentSearchPage() {
                                 className={buttonVariants({ variant: "ghost", size: "sm" })}
                               >
                                 <HistoryIcon />
-                                {t("students.history")}
+                                <span className="max-sm:sr-only">{t("students.history")}</span>
                               </Link>
                               {schoolClass ? (
                                 <Link
@@ -167,7 +176,9 @@ function StudentSearchPage() {
                                   className={buttonVariants({ variant: "ghost", size: "sm" })}
                                 >
                                   <SchoolIcon />
-                                  {t("studentSearch.openClass")}
+                                  <span className="max-sm:sr-only">
+                                    {t("studentSearch.openClass")}
+                                  </span>
                                 </Link>
                               ) : null}
                             </span>

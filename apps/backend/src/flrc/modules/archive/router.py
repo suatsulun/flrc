@@ -269,13 +269,11 @@ async def get_student_history(
         )
     ).all()
     cells_by_term: dict[int, list[HistoryCell]] = {}
-    terms: dict[int, Semester] = {}
     for grade, column, term in grade_rows:
         if column.value_type == "text" and not has_teacher_comments(
             column.grade_level, column.subject
         ):
             continue
-        terms[term.id] = term
         cells_by_term.setdefault(term.id, []).append(
             HistoryCell(
                 column_id=column.id,
@@ -285,15 +283,17 @@ async def get_student_history(
                 value=cell_value(grade, column.value_type),
             )
         )
+    # Every semester of an enrolled year is listed, also before any grade exists, so the history
+    # page can switch between both semesters and show which one is open.
+    terms_by_year: dict[int, list[Semester]] = {}
+    for term in await db.scalars(
+        select(Semester)
+        .where(Semester.year_id.in_([year.id for _enrollment, _class, year in enrollments]))
+        .order_by(Semester.number)
+    ):
+        terms_by_year.setdefault(term.year_id, []).append(term)
     years: list[HistoryYear] = []
     for enrollment, school_class, year in enrollments:
-        year_terms = [term for term in terms.values() if term.year_id == year.id]
-        if not year_terms:
-            year_terms = list(
-                await db.scalars(
-                    select(Semester).where(Semester.year_id == year.id).order_by(Semester.number)
-                )
-            )
         years.append(
             HistoryYear(
                 year_id=year.id,
@@ -308,7 +308,7 @@ async def get_student_history(
                         status=term.status,
                         cells=cells_by_term.get(term.id, []),
                     )
-                    for term in sorted(year_terms, key=lambda item: item.number)
+                    for term in terms_by_year.get(year.id, [])
                 ],
             )
         )

@@ -276,3 +276,36 @@ test("class report reads as a card per student on a phone and pins number and na
   expect(Math.round((await numberHeader.boundingBox())!.width)).toBe(64);
   expect(Math.round((await nameHeader.boundingBox())!.width)).toBe(240);
 });
+
+test("a view chosen in another tab applies when the class report opens again", async ({ page }) => {
+  const schoolClass = englishClass(11, 5, "A", ["main"]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockApi(page, "teacher", [schoolClass], filledSheet);
+  await page.goto(`${teacherOrigin}/class-report/${schoolClass.id}`);
+  const viewSwitch = page.getByRole("radiogroup", { name: "View", exact: true });
+  await expect(viewSwitch.getByRole("radio", { name: "Cards", exact: true })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+
+  // Leave the class report without reloading, so nothing on this page listens for the change.
+  await page.getByRole("radio", { name: "Report card preview", exact: true }).click();
+  await expect(page).toHaveURL(/\/card-preview/);
+
+  const other = await page.context().newPage();
+  await other.setViewportSize({ width: 390, height: 844 });
+  await mockApi(other, "teacher", [schoolClass], filledSheet);
+  await other.goto(`${teacherOrigin}/class-report/${schoolClass.id}`);
+  await other
+    .getByRole("radiogroup", { name: "View", exact: true })
+    .getByRole("radio", { name: "Table", exact: true })
+    .click();
+  await other.close();
+
+  await page.getByRole("radio", { name: "Class report", exact: true }).click();
+  await expect(viewSwitch.getByRole("radio", { name: "Table", exact: true })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expect(page.getByTestId("student-grade-card")).toHaveCount(0);
+});

@@ -28,9 +28,15 @@ export function readGradeTableView(): GradeTableView {
 // The page's current choice. Storage only seeds it, so the switch still works for the visit
 // where storage is unavailable (hardened or private browsers).
 let currentView: GradeTableView | null = null;
+// False once a choice could not be stored: storage then no longer holds this page's choice.
+let storedChoiceCurrent = true;
+// While no grade table is mounted nothing hears other tabs' changes, so storage is reread.
+let subscribers = 0;
 
 function gradeViewSnapshot(): GradeTableView {
-  currentView ??= readGradeTableView();
+  if (currentView === null || (subscribers === 0 && storedChoiceCurrent)) {
+    currentView = readGradeTableView();
+  }
   return currentView;
 }
 
@@ -39,8 +45,10 @@ export function storeGradeTableView(view: GradeTableView): void {
   currentView = view;
   try {
     window.localStorage.setItem(GRADE_VIEW_STORAGE_KEY, view);
+    storedChoiceCurrent = true;
   } catch {
     // Not persisted; the choice still holds until the page reloads.
+    storedChoiceCurrent = false;
   }
   window.dispatchEvent(new Event(GRADE_VIEW_EVENT));
 }
@@ -49,11 +57,14 @@ function subscribeGradeView(onChange: () => void): () => void {
   const onStorage = (event: StorageEvent) => {
     if (event.key !== GRADE_VIEW_STORAGE_KEY) return;
     currentView = readGradeTableView();
+    storedChoiceCurrent = true;
     onChange();
   };
+  subscribers += 1;
   window.addEventListener(GRADE_VIEW_EVENT, onChange);
   window.addEventListener("storage", onStorage);
   return () => {
+    subscribers -= 1;
     window.removeEventListener(GRADE_VIEW_EVENT, onChange);
     window.removeEventListener("storage", onStorage);
   };

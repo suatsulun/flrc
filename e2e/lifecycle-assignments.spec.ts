@@ -123,14 +123,26 @@ test("phones assign and remove classes by tapping instead of dragging", async ({
   });
   const row = skillsPicker.getByRole("listitem").filter({ hasText: "5/A" });
   await expect(row).toContainText("Not assigned");
+  // While the save is in flight the picker stays open, so focus can return to an enabled opener.
+  const { promise: held, resolve: release } = Promise.withResolvers<void>();
+  await page.route("**/api/admin/years/*/assignments", async (route) => {
+    if (route.request().method() === "PUT") await held;
+    await route.continue();
+  });
   await row.getByRole("checkbox", { name: "5/A", exact: true }).click();
+  await expect(skillsPicker.getByRole("button", { name: "Done" })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(skillsPicker).toBeVisible();
+  release();
   await expect(
     page.getByText("E2E Middle Teacher 01 assigned to 5/A as Skills teacher."),
   ).toBeVisible();
+  await page.unroute("**/api/admin/years/*/assignments");
   await expect(row.getByRole("checkbox", { name: "5/A", exact: true })).toBeChecked();
   await expect(row).toContainText("Assigned");
   await skillsPicker.getByRole("button", { name: "Done" }).click();
   await expect(skillsPicker).toBeHidden();
+  await expect(addSkills).toBeFocused();
 
   const remove = card.getByRole("button", { name: "Remove 5/A from E2E Middle Teacher 01" });
   const removeBox = await remove.boundingBox();

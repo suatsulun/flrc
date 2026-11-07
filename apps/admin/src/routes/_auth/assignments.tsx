@@ -458,6 +458,7 @@ function AssignmentsPage() {
           classes={classes}
           matrix={matrix}
           disabled={!writable || save.isPending}
+          pending={save.isPending}
           onToggle={(classId, assign) => void change(classId, picker.role, pickerTeacher, assign)}
         />
       ) : null}
@@ -494,6 +495,7 @@ function AssignmentClassPickerDialog({
   classes,
   matrix,
   disabled,
+  pending,
   onToggle,
 }: {
   open: boolean;
@@ -506,14 +508,17 @@ function AssignmentClassPickerDialog({
   classes: AdminClassOut[];
   matrix: MatrixSlotOut[];
   disabled: boolean;
+  /** A save is in flight: the dialog stays open so focus can return to an enabled opener. */
+  pending: boolean;
   onToggle: (classId: number, assign: boolean) => void;
 }) {
   const { t } = useTranslation();
   const gradeClasses = classes.filter((item) => item.grade_level === grade);
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => (next || !pending) && onOpenChange(next)}>
       <DialogContent
         finalFocus={finalFocus}
+        showCloseButton={!pending}
         className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden"
       >
         <DialogHeader>
@@ -581,7 +586,7 @@ function AssignmentClassPickerDialog({
           </ul>
         )}
         <DialogFooter>
-          <Button className="w-full" onClick={() => onOpenChange(false)}>
+          <Button className="w-full" disabled={pending} onClick={() => onOpenChange(false)}>
             {t("grid.commentEditorDone")}
           </Button>
         </DialogFooter>

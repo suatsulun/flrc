@@ -62,8 +62,11 @@ def run_report_job(db: Session, job: m.JobRun) -> None:
         pupils = [s.id for s in item.students if not wanted_students or s.id in wanted_students]
         if pupils:
             classes.append((item.id, pupils))
-    # A chosen pupil who has since left the set (moved, removed, another language) would be
-    # missing from the file without notice; the request is refused instead, as at enqueue.
+    # A chosen class or pupil who has since left the set (moved, removed, another language)
+    # would be missing from the file without notice; the request is refused instead, as at
+    # enqueue.
+    if wanted_classes and {class_id for class_id, _ in classes} != wanted_classes:
+        raise ReportPackagingError("class_not_in_report_set")
     if wanted_students and {pupil for _, ids in classes for pupil in ids} != wanted_students:
         raise ReportPackagingError("student_not_in_report_set")
     if not classes:

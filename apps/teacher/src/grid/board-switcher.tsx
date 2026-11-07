@@ -2,11 +2,13 @@ import { academicContextLabels, gradeTabLabel } from "@flrc/i18n";
 import { listAcademicYearsOptions, listClassCatalogOptions } from "@flrc/api-client";
 import { AcademicContextBar } from "@flrc/ui/components/academic-context-bar";
 import { Segmented } from "@flrc/ui/components/segmented";
+import { SkeletonToolbar } from "@flrc/ui/components/skeleton";
 import { usePrefetchSiblings } from "@flrc/ui/hooks/use-prefetch-siblings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ClassTabsSkeleton } from "../page-skeletons";
 import type { Subject } from "./subjects";
 
 /**
@@ -42,8 +44,8 @@ export function BoardSwitcher({
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { data: years = [] } = useQuery(listAcademicYearsOptions());
-  const { data: catalog = [] } = useQuery(
+  const { data: years = [], isPending: yearsPending } = useQuery(listAcademicYearsOptions());
+  const { data: catalog = [], isPending: catalogPending } = useQuery(
     listClassCatalogOptions({
       query: { year_id: meta.year_id, semester: requestedSemester },
     }),
@@ -101,14 +103,18 @@ export function BoardSwitcher({
 
   return (
     <>
-      <AcademicContextBar
-        years={years}
-        yearId={meta.year_id}
-        semesterNumber={meta.semester_number}
-        onYearChange={(next) => void switchYear(next)}
-        onSemesterChange={(next) => void goTo(Number(classId), subject, next)}
-        labels={academicContextLabels(t, lockedLabel)}
-      />
+      {yearsPending ? (
+        <SkeletonToolbar />
+      ) : (
+        <AcademicContextBar
+          years={years}
+          yearId={meta.year_id}
+          semesterNumber={meta.semester_number}
+          onYearChange={(next) => void switchYear(next)}
+          onSemesterChange={(next) => void goTo(Number(classId), subject, next)}
+          labels={academicContextLabels(t, lockedLabel)}
+        />
+      )}
 
       <div
         className={`flex flex-col gap-3 rounded-xl border border-border bg-card shadow-card lg:flex-row lg:items-center ${compact ? "p-2" : "p-3"}`}
@@ -131,26 +137,30 @@ export function BoardSwitcher({
             className="max-w-full"
           />
         ) : null}
-        <div className="flex min-w-0 flex-1 flex-wrap items-end gap-1 lg:justify-end">
-          {gradeTabs.map((schoolClass) => (
-            <button
-              key={schoolClass.id}
-              type="button"
-              aria-current={schoolClass.id === Number(classId) ? "page" : undefined}
-              className={[
-                "min-w-0 flex-1 basis-16 rounded-lg px-2 py-2 text-xs font-semibold outline-none transition-colors sm:text-sm",
-                schoolClass.id === Number(classId)
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-              ].join(" ")}
-              onPointerEnter={() => void prefetchBoard(schoolClass.id)}
-              onFocus={() => void prefetchBoard(schoolClass.id)}
-              onClick={() => void goTo(schoolClass.id, subject, meta.semester_number)}
-            >
-              {schoolClass.name}
-            </button>
-          ))}
-        </div>
+        {catalogPending ? (
+          <ClassTabsSkeleton />
+        ) : (
+          <div className="flex min-w-0 flex-1 flex-wrap items-end gap-1 lg:justify-end">
+            {gradeTabs.map((schoolClass) => (
+              <button
+                key={schoolClass.id}
+                type="button"
+                aria-current={schoolClass.id === Number(classId) ? "page" : undefined}
+                className={[
+                  "min-w-0 flex-1 basis-16 rounded-lg px-2 py-2 text-xs font-semibold outline-none transition-colors sm:text-sm",
+                  schoolClass.id === Number(classId)
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                ].join(" ")}
+                onPointerEnter={() => void prefetchBoard(schoolClass.id)}
+                onFocus={() => void prefetchBoard(schoolClass.id)}
+                onClick={() => void goTo(schoolClass.id, subject, meta.semester_number)}
+              >
+                {schoolClass.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );

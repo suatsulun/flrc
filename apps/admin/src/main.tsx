@@ -5,11 +5,11 @@ import { sentryPrivacyOptions } from "@flrc/ui/lib/telemetry";
 import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { client } from "@flrc/api-client";
-import { i18n, initI18n } from "@flrc/i18n";
-import { FullScreenLoading } from "@flrc/ui/components/page-activity";
+import { initI18n } from "@flrc/i18n";
 import { toast } from "sonner";
 import { routeTree } from "./routeTree.gen";
 import { errorMessage } from "./admin/feedback";
+import { RoutePending } from "./admin/route-pending";
 import "./index.css";
 
 client.setConfig({ baseUrl: "" });
@@ -42,7 +42,7 @@ const router = createRouter({
   basepath: "/admin",
   defaultPendingMs: 150,
   defaultPendingMinMs: 300,
-  defaultPendingComponent: () => <FullScreenLoading label={i18n.t("loading")} />,
+  defaultPendingComponent: RoutePending,
 });
 
 declare module "@tanstack/react-router" {

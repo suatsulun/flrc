@@ -5,6 +5,7 @@ import { ArrowRightIcon } from "lucide-react";
 import { listAdminActionsOptions } from "@flrc/api-client";
 import { buttonVariants } from "@flrc/ui/components/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@flrc/ui/components/card";
+import { SkeletonList } from "@flrc/ui/components/skeleton";
 import { ChangeStatusBadge, UndoChangeButton } from "../changes/ChangeControls";
 import { changeSummary, formatChangeTime } from "../changes/summary";
 
@@ -31,9 +32,7 @@ export function RecentChangesCard() {
         </Link>
       </CardHeader>
       {isPending ? (
-        <p className="border-t border-border px-5 py-6 text-sm text-muted-foreground">
-          {t("loading")}
-        </p>
+        <SkeletonList rows={CHANGE_LIMIT} action className="border-t border-border" />
       ) : isError ? (
         <p className="border-t border-border px-5 py-6 text-sm text-muted-foreground">
           {t("errors.load")}

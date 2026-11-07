@@ -7,9 +7,9 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { client } from "@flrc/api-client";
 import { i18n, initI18n } from "@flrc/i18n";
 import { Toaster } from "@flrc/ui/components/sonner";
-import { FullScreenLoading } from "@flrc/ui/components/page-activity";
 import { toast } from "sonner";
 import { routeTree } from "./routeTree.gen";
+import { RoutePending } from "./route-pending";
 import "./index.css";
 
 client.setConfig({ baseUrl: "" });
@@ -36,7 +36,7 @@ const router = createRouter({
   context: { queryClient },
   defaultPendingMs: 150,
   defaultPendingMinMs: 300,
-  defaultPendingComponent: () => <FullScreenLoading label={i18n.t("loading")} />,
+  defaultPendingComponent: RoutePending,
 });
 
 declare module "@tanstack/react-router" {

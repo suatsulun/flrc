@@ -14,7 +14,7 @@ import { Card, CardBody, CardHeader } from "@flrc/ui/components/card";
 import { EmptyState } from "@flrc/ui/components/empty-state";
 import { Input } from "@flrc/ui/components/input";
 import { NativeSelect } from "@flrc/ui/components/native-select";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
+import { Skeleton, SkeletonTableRows } from "@flrc/ui/components/skeleton";
 import {
   Table,
   TableBody,
@@ -28,6 +28,7 @@ import {
   TableText,
 } from "@flrc/ui/components/table";
 import { AdminPage } from "../../admin/AdminPage";
+import { StudentsSkeleton } from "../../admin/page-skeletons";
 import { useDebouncedValue } from "../../students/use-debounced-value";
 
 const PAGE_SIZE = 50;
@@ -68,14 +69,18 @@ function StudentSearchPage() {
     enabled: Boolean(year),
     placeholderData: keepPreviousData,
   });
-  const { data: classes = [], isError: classesError } = useQuery({
+  const {
+    data: classes = [],
+    isLoading: classesLoading,
+    isError: classesError,
+  } = useQuery({
     ...listAdminClassesOptions({ path: { year_id: year?.id ?? 0 } }),
     enabled: Boolean(year),
   });
   const classById = new Map(classes.map((item) => [item.id, item]));
   const items = students.data?.pages.flatMap((page) => page.items) ?? [];
 
-  if (yearsPending) return <PageSkeleton />;
+  if (yearsPending) return <StudentsSkeleton />;
   if (yearsError || classesError || students.isError) {
     return <EmptyState title={t("errors.load")} />;
   }
@@ -129,7 +134,7 @@ function StudentSearchPage() {
                 </TableHead>
                 <TableBody>
                   {students.isPending ? (
-                    <TableEmpty colSpan={3}>{t("loading")}</TableEmpty>
+                    <SkeletonTableRows columns={3} rows={8} />
                   ) : items.length === 0 ? (
                     <TableEmpty colSpan={3}>{t("students.empty")}</TableEmpty>
                   ) : (
@@ -153,7 +158,11 @@ function StudentSearchPage() {
                             </span>
                           </TableCell>
                           <TableCell className="hidden text-muted-foreground sm:table-cell">
-                            {schoolClass?.name ?? "—"}
+                            {classesLoading ? (
+                              <Skeleton className="h-4 w-12 rounded-md" />
+                            ) : (
+                              (schoolClass?.name ?? "—")
+                            )}
                           </TableCell>
                           <TableCell align="right">
                             <span className="flex justify-end gap-1.5">
@@ -187,6 +196,7 @@ function StudentSearchPage() {
                       );
                     })
                   )}
+                  {students.isFetchingNextPage ? <SkeletonTableRows columns={3} /> : null}
                 </TableBody>
               </Table>
             </TableScroll>

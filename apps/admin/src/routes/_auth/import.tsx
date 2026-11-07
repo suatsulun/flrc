@@ -10,8 +10,8 @@ import { Field } from "@flrc/ui/components/field";
 import { EmptyState } from "@flrc/ui/components/empty-state";
 import { FilePicker } from "@flrc/ui/components/file-picker";
 import { NativeSelect } from "@flrc/ui/components/native-select";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { AdminPage } from "../../admin/AdminPage";
+import { ImportSkeleton } from "../../admin/page-skeletons";
 import { ImportReview } from "../../imports/ImportReview";
 
 export const Route = createFileRoute("/_auth/import")({ component: ImportPage });
@@ -28,7 +28,7 @@ function ImportPage() {
   const [reviewId, setReviewId] = useState<string>();
   const [committing, setCommitting] = useState(false);
 
-  if (isPending) return <PageSkeleton />;
+  if (isPending) return <ImportSkeleton />;
   if (isError) return <EmptyState title={t("errors.load")} />;
 
   return (

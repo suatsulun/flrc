@@ -27,6 +27,7 @@ import { Button } from "@flrc/ui/components/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@flrc/ui/components/card";
 import { Input } from "@flrc/ui/components/input";
 import { NativeSelect } from "@flrc/ui/components/native-select";
+import { Skeleton, SkeletonStatRow } from "@flrc/ui/components/skeleton";
 import { Stat } from "@flrc/ui/components/stat";
 import { useDragPageAutoScroll } from "@flrc/ui/hooks/use-drag-page-auto-scroll";
 import { apiError, errorMessage } from "../admin/feedback";
@@ -254,6 +255,8 @@ export function ImportReview({
             <Stat key={key} value={value} label={t(`import.counts.${key}`)} />
           ))}
         </div>
+      ) : review.isPending ? (
+        <SkeletonStatRow count={8} className="sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4" />
       ) : null}
       {preview?.issues.length ? (
         <Card>
@@ -315,6 +318,9 @@ export function ImportReview({
             {t("import.allClasses")}
           </Button>
           <div className="grid grid-cols-3 gap-2">
+            {review.isPending
+              ? Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-14" />)
+              : null}
             {preview?.classes
               .filter((item) => item.grade_level === selectedTrayGrade)
               .map((item) => {

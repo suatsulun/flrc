@@ -12,7 +12,7 @@ import { EmptyState } from "@flrc/ui/components/empty-state";
 import { Field } from "@flrc/ui/components/field";
 import { Input } from "@flrc/ui/components/input";
 import { NativeSelect } from "@flrc/ui/components/native-select";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
+import { SkeletonTableRows } from "@flrc/ui/components/skeleton";
 import {
   Table,
   TableBody,
@@ -26,6 +26,7 @@ import {
   TableText,
 } from "@flrc/ui/components/table";
 import { AdminPage } from "../../admin/AdminPage";
+import { AuditSkeleton } from "../../admin/page-skeletons";
 import { StudentPicker, type PickedStudent } from "../../students/StudentPicker";
 
 export const Route = createFileRoute("/_auth/audit")({ component: AuditPage });
@@ -107,7 +108,7 @@ function AuditPage() {
     }
   }
 
-  if (classesPending || usersPending || audit.isPending) return <PageSkeleton />;
+  if (classesPending || usersPending || audit.isPending) return <AuditSkeleton />;
   if (classesError || usersError || audit.isError) {
     return <EmptyState title={t("errors.load")} />;
   }
@@ -277,6 +278,7 @@ function AuditPage() {
                     </TableRow>
                   ))
                 )}
+                {audit.isFetchingNextPage ? <SkeletonTableRows columns={6} /> : null}
               </TableBody>
             </Table>
           </TableScroll>

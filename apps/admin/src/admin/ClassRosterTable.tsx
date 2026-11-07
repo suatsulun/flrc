@@ -1,4 +1,4 @@
-import { Skeleton } from "@flrc/ui/components/skeleton";
+import { SkeletonTableRows } from "@flrc/ui/components/skeleton";
 import { TableCaption, TableScroll } from "@flrc/ui/components/table";
 import type { ColumnCreate } from "@flrc/api-client";
 import {
@@ -331,13 +331,7 @@ export function ClassRosterTable({
           </thead>
           <tbody>
             {rosterPending ? (
-              <tr aria-label={t("loading")}>
-                <td colSpan={visibleColumns.length + 5} className="space-y-2 p-4">
-                  {Array.from({ length: 5 }, (_, index) => (
-                    <Skeleton key={index} className="h-9 w-full" />
-                  ))}
-                </td>
-              </tr>
+              <SkeletonTableRows columns={visibleColumns.length + 5} rows={8} />
             ) : roster.length === 0 ? (
               <tr>
                 <td

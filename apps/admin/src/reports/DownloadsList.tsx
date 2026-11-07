@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { listJobsOptions, type JobOut } from "@flrc/api-client";
 import { Badge } from "@flrc/ui/components/badge";
 import { Card, CardBody, CardHeader, CardTitle } from "@flrc/ui/components/card";
+import { DownloadsListSkeleton } from "../admin/page-skeletons";
 import { JobDownloadButton, JobPartsList } from "./JobPartsList";
 import { jobFailureMessage } from "./report-errors";
 import { formatBytes, groupJobParts } from "./report-requests";
@@ -49,6 +50,7 @@ export function DownloadsList() {
   const { t, i18n } = useTranslation();
   const {
     data: jobs = [],
+    isPending,
     isError,
     dataUpdatedAt,
   } = useQuery({
@@ -97,7 +99,9 @@ export function DownloadsList() {
         </div>
       </CardHeader>
       <CardBody>
-        {isError ? (
+        {isPending ? (
+          <DownloadsListSkeleton />
+        ) : isError ? (
           <p className="px-5 py-8 text-center text-sm text-destructive">{t("errors.load")}</p>
         ) : requests.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-muted-foreground">

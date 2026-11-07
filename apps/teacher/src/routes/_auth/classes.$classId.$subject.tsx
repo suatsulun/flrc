@@ -11,7 +11,6 @@ import { Button } from "@flrc/ui/components/button";
 import { ConfirmDialog } from "@flrc/ui/components/dialog";
 import { EmptyState } from "@flrc/ui/components/empty-state";
 import { Kbd, isMacPlatform } from "@flrc/ui/components/kbd";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { Segmented } from "@flrc/ui/components/segmented";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useBlocker } from "@tanstack/react-router";
@@ -30,6 +29,7 @@ import { StepperView } from "../../grid/stepper";
 import { useIsPhone } from "../../grid/use-is-phone";
 import { useSaveGrid } from "../../grid/use-save-grid";
 import { BulkRatings } from "../../grid/bulk-ratings";
+import { GridPageSkeleton } from "../../page-skeletons";
 
 type View = "auto" | "grid" | "stepper";
 
@@ -138,7 +138,7 @@ function GridPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [attemptSave]);
 
-  if (isPending) return <PageSkeleton />;
+  if (isPending) return <GridPageSkeleton />;
   if (isError || !data) return <p className="text-sm text-destructive">{t("errors.load")}</p>;
 
   const showStepper = view === "stepper" || (view === "auto" && phone);

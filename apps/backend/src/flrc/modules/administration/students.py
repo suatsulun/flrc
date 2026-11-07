@@ -212,7 +212,9 @@ async def patch_student(
     db: Annotated[AsyncSession, Depends(get_session)],
     year_id: int,
 ) -> StudentWriteOut:
-    # Locked until the commit, so the recorded undo snapshot is what this edit replaced.
+    # The year, then the pupil and enrollment (the order every roster write and undo uses),
+    # locked until the commit, so the recorded undo snapshot is what this edit replaced.
+    year = await db.scalar(select(AcademicYear).where(AcademicYear.id == year_id).with_for_update())
     row = (
         await db.execute(
             select(Enrollment, Student)
@@ -227,7 +229,6 @@ async def patch_student(
             raise HTTPException(404, {"code": "unknown_student"})
         raise HTTPException(404, {"code": "unknown_enrollment"})
     enrollment, student = row
-    year = await db.get(AcademicYear, year_id)
     if year is None or year.status == "archived":
         raise HTTPException(409, {"code": "year_not_writable"})
     before: dict[str, object] = {

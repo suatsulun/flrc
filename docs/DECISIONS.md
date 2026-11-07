@@ -3541,7 +3541,7 @@ date filters.
   - **Report readiness** per card kind: classes in the card's grades with at least one pupil on
     that card, how many are complete, and the share of the printed fields entered. The
     middle-school English card counts each pupil's own German or French score fields too, since it
-    prints them.
+    prints them; a class without English fields stays incomplete however many of those are filled.
   - **Downloads**: recent background report and export jobs with progress, expiry and a download
     link.
 - The coordinator page is merged into the dashboard and `/coordinator` redirects to `/`. The

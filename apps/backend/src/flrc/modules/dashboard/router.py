@@ -252,7 +252,13 @@ def _readiness(
                 spec.last_grade
             ):
                 continue
+            eligible += 1
+            students += len(on_card)
             groups = _card_cells(kind, roster, columns_by_scope)
+            # Without fields of its own subject the card prints the no-fields warning: it stays
+            # incomplete, whatever second-language scores it would also print.
+            if not groups[0][1]:
+                continue
             class_expected = sum(len(pupils) * len(columns) for pupils, columns in groups)
             class_filled = sum(
                 (student_id, column.id) in filled_cells
@@ -260,9 +266,7 @@ def _readiness(
                 for student_id in pupils
                 for column in columns
             )
-            eligible += 1
             complete += class_expected > 0 and class_filled == class_expected
-            students += len(on_card)
             expected += class_expected
             filled += class_filled
         result.append(

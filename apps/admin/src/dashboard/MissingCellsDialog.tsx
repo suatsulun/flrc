@@ -78,7 +78,7 @@ export function MissingCellsDialog({
             aria-label={t("adminDashboard.missing.tableLabel")}
             className="max-h-[min(55svh,32rem)]"
           >
-            <Table className="min-w-[36rem]">
+            <Table className="w-full min-w-[36rem]">
               <TableCaption>{t("adminDashboard.missing.tableLabel")}</TableCaption>
               <TableHead>
                 <tr>

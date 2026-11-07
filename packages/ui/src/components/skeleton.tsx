@@ -22,7 +22,7 @@ function Skeleton({ className, ...props }: ComponentProps<"div">) {
     <div
       aria-hidden
       className={cn(
-        "animate-pulse rounded-lg bg-[color-mix(in_oklch,var(--muted),var(--foreground)_9%)] motion-reduce:animate-none",
+        "animate-pulse rounded-lg bg-[color-mix(in_oklch,var(--muted),var(--foreground)_14%)] motion-reduce:animate-none",
         className,
       )}
       {...props}

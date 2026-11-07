@@ -12,6 +12,7 @@ import { ConfirmDialog } from "@flrc/ui/components/dialog";
 import { EmptyState } from "@flrc/ui/components/empty-state";
 import { Kbd, isMacPlatform } from "@flrc/ui/components/kbd";
 import { Segmented } from "@flrc/ui/components/segmented";
+import { useMediaQuery } from "@flrc/ui/hooks/use-is-phone";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useBlocker } from "@tanstack/react-router";
 import { CheckIcon, TriangleAlertIcon, Undo2Icon } from "lucide-react";
@@ -26,12 +27,14 @@ import { GradeCell } from "../../grid/grade-cell";
 import { GridTable } from "../../grid/grid-table";
 import { OwnershipWarningDialog } from "../../grid/ownership-warning-dialog";
 import { StepperView } from "../../grid/stepper";
-import { useIsPhone } from "../../grid/use-is-phone";
 import { useSaveGrid } from "../../grid/use-save-grid";
 import { BulkRatings } from "../../grid/bulk-ratings";
 import { GridPageSkeleton } from "../../page-skeletons";
 
 type View = "auto" | "grid" | "stepper";
+
+/** Below Tailwind's `sm`, the grid opens as the one-student stepper unless a view is chosen. */
+const STEPPER_MEDIA_QUERY = "(max-width: 639px)";
 
 export const Route = createFileRoute("/_auth/classes/$classId/$subject")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -54,7 +57,7 @@ function GridPage() {
   const ownershipSaveStarted = useRef(false);
   const saveBar = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>("auto");
-  const phone = useIsPhone();
+  const phone = useMediaQuery(STEPPER_MEDIA_QUERY);
 
   const queryOptions = {
     path: { class_id: Number(classId) },

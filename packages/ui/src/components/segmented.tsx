@@ -51,6 +51,7 @@ export function Segmented<T extends string | number>({
               "rounded-[0.3rem] font-medium transition-colors",
               "focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
               size === "sm" ? "px-2 py-1 text-[0.6875rem]" : "px-2.5 py-1.5 text-xs",
+              "max-md:min-h-10 max-md:min-w-10 max-md:px-3 max-md:text-xs",
               active
                 ? "bg-card text-foreground shadow-card"
                 : "text-muted-foreground hover:text-foreground",

@@ -6,7 +6,9 @@ import {
   SkeletonFields,
   SkeletonList,
   SkeletonPageHeader,
+  SkeletonPhoneCards,
   SkeletonStatRow,
+  SkeletonStudentCards,
   SkeletonTable,
   SkeletonTabs,
   SkeletonText,
@@ -18,7 +20,9 @@ import { REPORT_KINDS } from "../reports/report-requests";
  * Each admin page's loading shape, built from the shared skeleton blocks. A page shows its
  * skeleton until its first data arrives, and the router shows the same skeleton while the
  * page's code loads (route-pending.tsx), so a route change never flashes an empty area.
- * Every block is aria-hidden; the shell's PageActivity announces the load once.
+ * Every block is aria-hidden; the shell's PageActivity announces the load once. Pages that
+ * swap their tables for cards on phones swap them here with CSS too (`md:hidden` /
+ * `hidden md:block`), so the skeleton matches the viewport before any script runs.
  */
 
 /** The dashboard cards fed by the summary request: term, setup problems and completion. */
@@ -39,7 +43,8 @@ export function DashboardSummaryCardsSkeleton() {
         <SkeletonList rows={4} />
       </SkeletonCard>
       <SkeletonCard action className="lg:col-span-2">
-        <SkeletonTable columns={7} rows={5} />
+        <SkeletonTable columns={7} rows={5} className="hidden md:block" />
+        <SkeletonPhoneCards rows={4} fields={2} actions={1} className="md:hidden" />
       </SkeletonCard>
     </>
   );
@@ -87,26 +92,46 @@ export function ClassesBoardSkeleton() {
       </div>
       <div aria-hidden className="flex flex-wrap items-center gap-2">
         <SkeletonTabs count={2} />
-        <Skeleton className="h-9 w-24" />
-        <Skeleton className="h-9 w-24" />
+        {/* "Kartlar | Tablo" for the roster on phones. */}
+        <SkeletonTabs count={2} className="md:hidden" />
+        <Skeleton className="h-9 w-24 max-md:h-10" />
+        <Skeleton className="h-9 w-24 max-md:h-10" />
       </div>
       <Card aria-hidden>
         <CardBody className="space-y-3 p-3">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="hidden flex-wrap items-center gap-2 md:flex">
             <Skeleton className="mr-2 h-4 w-24 rounded-md" />
             {Array.from({ length: 4 }, (_, index) => (
               <Skeleton key={index} className="h-9 w-48" />
             ))}
           </div>
+          {/* On phones each teacher role stacks its name above a full-width select. */}
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:hidden">
+            <Skeleton className="h-4 w-32 rounded-md sm:col-span-2" />
+            {Array.from({ length: 4 }, (_, index) => (
+              <div key={index} className="grid gap-1">
+                <Skeleton className="h-3 w-24 rounded-md" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ))}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Skeleton className="h-9 w-56" />
-            <Skeleton className="h-9 w-36" />
-            <Skeleton className="h-9 w-28" />
+            <Skeleton className="h-9 w-56 max-md:h-10" />
+            <Skeleton className="h-9 w-36 max-md:h-10" />
+            <Skeleton className="h-9 w-28 max-md:h-10" />
           </div>
         </CardBody>
       </Card>
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+      <div className="hidden overflow-hidden rounded-xl border border-border bg-card shadow-card md:block">
         <SkeletonTable columns={6} rows={8} />
+      </div>
+      <div aria-hidden className="space-y-3 md:hidden">
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-card">
+          <Skeleton className="size-4 shrink-0 rounded-[4px]" />
+          <Skeleton className="h-4 w-40 rounded-md" />
+          <Skeleton className="ml-auto h-3 w-16 rounded-md" />
+        </div>
+        <SkeletonStudentCards cards={4} columns={4} controls />
       </div>
     </>
   );
@@ -158,44 +183,75 @@ export function ColumnsSkeleton() {
   );
 }
 
-/** Teacher cards with their role drop zones, and the class tray. */
+/** The teacher-group filter above the teacher cards. */
+function AssignmentsFilterSkeleton() {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2 shadow-card">
+      <Skeleton className="h-3.5 w-28 rounded-md" />
+      <SkeletonTabs count={5} size="sm" />
+    </div>
+  );
+}
+
+/**
+ * Teacher cards with their role drop zones, and the class tray. Phones get no tray and one
+ * collapsed line per teacher: avatar, name, badges and the expand chevron.
+ */
 export function AssignmentsBoardSkeleton() {
   return (
-    <div aria-hidden className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2 shadow-card">
-          <Skeleton className="h-3.5 w-28 rounded-md" />
-          <SkeletonTabs count={5} size="sm" />
-        </div>
-        {Array.from({ length: 3 }, (_, index) => (
+    <>
+      <div aria-hidden className="space-y-3 md:hidden">
+        <AssignmentsFilterSkeleton />
+        {Array.from({ length: 6 }, (_, index) => (
           <Card key={index}>
-            <CardBody className="space-y-3 p-3">
-              <div className="flex items-center gap-3">
-                <Skeleton className="size-9 shrink-0 rounded-full" />
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <Skeleton className="h-4 w-40 max-w-full rounded-md" />
-                  <Skeleton className="h-3 w-56 max-w-full rounded-md" />
-                </div>
-                <Skeleton className="h-5 w-16 rounded-full" />
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Skeleton className="h-24 rounded-lg" />
-                <Skeleton className="h-24 rounded-lg" />
+            <CardBody className="p-3">
+              <div className="flex min-h-11 items-center gap-2.5">
+                <Skeleton className="size-8 shrink-0 rounded-full" />
+                <Skeleton className="h-4 min-w-0 flex-1 rounded-md" />
+                <Skeleton className="h-5 w-14 shrink-0 rounded-full" />
+                <Skeleton className="h-5 w-12 shrink-0 rounded-full" />
+                <Skeleton className="size-4 shrink-0 rounded-md" />
               </div>
             </CardBody>
           </Card>
         ))}
       </div>
-      <div className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-card">
-        <SkeletonText lines={2} />
-        <SkeletonTabs count={5} />
-        <div className="grid grid-cols-2 gap-2">
-          {Array.from({ length: 6 }, (_, index) => (
-            <Skeleton key={index} className="h-9" />
+      <div
+        aria-hidden
+        className="hidden items-start gap-4 md:grid xl:grid-cols-[minmax(0,1fr)_18rem]"
+      >
+        <div className="space-y-4">
+          <AssignmentsFilterSkeleton />
+          {Array.from({ length: 3 }, (_, index) => (
+            <Card key={index}>
+              <CardBody className="space-y-3 p-3">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="size-9 shrink-0 rounded-full" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <Skeleton className="h-4 w-40 max-w-full rounded-md" />
+                    <Skeleton className="h-3 w-56 max-w-full rounded-md" />
+                  </div>
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Skeleton className="h-24 rounded-lg" />
+                  <Skeleton className="h-24 rounded-lg" />
+                </div>
+              </CardBody>
+            </Card>
           ))}
         </div>
+        <div className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-card">
+          <SkeletonText lines={2} />
+          <SkeletonTabs count={5} />
+          <div className="grid grid-cols-2 gap-2">
+            {Array.from({ length: 6 }, (_, index) => (
+              <Skeleton key={index} className="h-9" />
+            ))}
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -258,6 +314,7 @@ export function ImportSkeleton() {
   );
 }
 
+/** The audit log: the filter card above a table on wide screens, cards on phones. */
 export function AuditSkeleton() {
   return (
     <>
@@ -267,11 +324,12 @@ export function AuditSkeleton() {
           {Array.from({ length: 5 }, (_, index) => (
             <SkeletonFields key={index} count={1} />
           ))}
-          <Skeleton className="h-9 w-28" />
+          <Skeleton className="h-9 w-28 max-md:h-10 max-md:w-full" />
         </CardBody>
       </Card>
       <Card aria-hidden>
-        <SkeletonTable columns={6} rows={10} />
+        <SkeletonTable columns={6} rows={10} className="hidden md:block" />
+        <SkeletonPhoneCards rows={6} fields={0} actions={0} meta className="md:hidden" />
       </Card>
     </>
   );
@@ -296,19 +354,32 @@ export function ChangesSkeleton() {
   );
 }
 
-/** One archived class grid. */
+/** One archived class grid: a table on wide screens, a card per student on phones. */
 export function ArchiveGridSkeleton() {
   return (
-    <Card aria-hidden>
-      <SkeletonTable columns={6} rows={10} />
-    </Card>
+    <>
+      <Card aria-hidden className="hidden md:block">
+        <SkeletonTable columns={6} rows={10} />
+      </Card>
+      <SkeletonStudentCards cards={4} columns={5} className="md:hidden" />
+    </>
   );
 }
 
 export function ArchiveSkeleton() {
   return (
     <>
-      <SkeletonPageHeader actions={4} meta />
+      <SkeletonPageHeader actions={4} meta className="hidden md:flex" />
+      {/* Phones: the four pickers in a 2×2 grid, then "Kartlar | Tablo". */}
+      <SkeletonPageHeader meta className="md:hidden" />
+      <div aria-hidden className="space-y-2 md:hidden">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          {Array.from({ length: 4 }, (_, index) => (
+            <Skeleton key={index} className="h-10 sm:w-32" />
+          ))}
+        </div>
+        <SkeletonTabs count={2} />
+      </div>
       <ArchiveGridSkeleton />
     </>
   );
@@ -382,7 +453,7 @@ export const USERS_ADD_FORM_GRID =
 /**
  * Teachers & access: the add form above the teacher table, whose person column (name over
  * e-mail) takes the spare width while the selects, checkboxes, status and actions hug their
- * content.
+ * content. Phones list one card per teacher instead.
  */
 export function UsersSkeleton() {
   return (
@@ -393,43 +464,46 @@ export function UsersSkeleton() {
           {["w-full", "w-full", "w-36", "w-36"].map((width, index) => (
             <div key={index} className="grid gap-1.5">
               <Skeleton className="h-3.5 w-24 rounded-md" />
-              <Skeleton className={`h-9 ${width}`} />
+              <Skeleton className={`h-9 max-md:h-10 ${width}`} />
             </div>
           ))}
-          <Skeleton className="h-9 w-36 self-end" />
+          <Skeleton className="h-9 w-full max-md:h-10 sm:w-36 sm:self-end" />
         </div>
       </SkeletonCard>
       <Card aria-hidden>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
           <Skeleton className="h-4 w-40 rounded-md" />
-          <Skeleton className="h-9 w-full sm:w-72" />
+          <Skeleton className="h-9 w-full max-md:h-10 sm:w-72" />
         </div>
-        <div className="flex items-center gap-6 border-b border-border bg-muted/85 px-3 py-3">
-          <Skeleton className="h-3 w-40 flex-1 rounded-md bg-muted-foreground/15" />
-          <Skeleton className="hidden h-3 w-24 rounded-md bg-muted-foreground/15 md:block" />
-          <Skeleton className="hidden h-3 w-24 rounded-md bg-muted-foreground/15 md:block" />
-          <Skeleton className="hidden h-3 w-16 rounded-md bg-muted-foreground/15 lg:block" />
-          <Skeleton className="hidden h-3 w-20 rounded-md bg-muted-foreground/15 lg:block" />
-          <Skeleton className="hidden h-3 w-14 rounded-md bg-muted-foreground/15 lg:block" />
-          <Skeleton className="h-3 w-16 rounded-md bg-muted-foreground/15" />
-        </div>
-        {Array.from({ length: 6 }, (_, index) => (
-          <div
-            key={index}
-            className="flex items-center gap-6 border-b border-border/70 px-3 py-2.5 last:border-b-0"
-          >
-            <div className="grid flex-1 gap-1.5">
-              <Skeleton className="h-4 w-36 rounded-md" />
-              <Skeleton className="h-3 w-48 max-w-full rounded-md" />
-            </div>
-            <Skeleton className="hidden h-9 w-28 md:block" />
-            <Skeleton className="hidden h-9 w-28 md:block" />
-            <Skeleton className="hidden size-4 rounded-sm lg:mx-6 lg:block" />
-            <Skeleton className="hidden size-4 rounded-sm lg:mx-8 lg:block" />
-            <Skeleton className="hidden h-6 w-14 rounded-full lg:block" />
-            <Skeleton className="h-9 w-40 sm:w-56" />
+        <div className="hidden md:block">
+          <div className="flex items-center gap-6 border-b border-border bg-muted/85 px-3 py-3">
+            <Skeleton className="h-3 w-40 flex-1 rounded-md bg-muted-foreground/15" />
+            <Skeleton className="h-3 w-24 rounded-md bg-muted-foreground/15" />
+            <Skeleton className="h-3 w-24 rounded-md bg-muted-foreground/15" />
+            <Skeleton className="hidden h-3 w-16 rounded-md bg-muted-foreground/15 lg:block" />
+            <Skeleton className="hidden h-3 w-20 rounded-md bg-muted-foreground/15 lg:block" />
+            <Skeleton className="hidden h-3 w-14 rounded-md bg-muted-foreground/15 lg:block" />
+            <Skeleton className="h-3 w-16 rounded-md bg-muted-foreground/15" />
           </div>
-        ))}
+          {Array.from({ length: 6 }, (_, index) => (
+            <div
+              key={index}
+              className="flex items-center gap-6 border-b border-border/70 px-3 py-2.5 last:border-b-0"
+            >
+              <div className="grid flex-1 gap-1.5">
+                <Skeleton className="h-4 w-36 rounded-md" />
+                <Skeleton className="h-3 w-48 max-w-full rounded-md" />
+              </div>
+              <Skeleton className="h-9 w-28" />
+              <Skeleton className="h-9 w-28" />
+              <Skeleton className="hidden size-4 rounded-sm lg:mx-6 lg:block" />
+              <Skeleton className="hidden size-4 rounded-sm lg:mx-8 lg:block" />
+              <Skeleton className="hidden h-6 w-14 rounded-full lg:block" />
+              <Skeleton className="h-9 w-56" />
+            </div>
+          ))}
+        </div>
+        <SkeletonPhoneCards rows={6} fields={4} actions={2} className="md:hidden" />
       </Card>
     </>
   );

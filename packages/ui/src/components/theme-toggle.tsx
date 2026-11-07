@@ -45,7 +45,7 @@ export function ThemeToggle({
             title={labels[value]}
             onClick={() => setTheme(value)}
             className={cn(
-              "grid size-7 place-items-center rounded-[0.3rem] transition-colors",
+              "grid size-7 place-items-center rounded-[0.3rem] transition-colors max-md:size-10",
               "focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
               active
                 ? "bg-card text-foreground shadow-card"

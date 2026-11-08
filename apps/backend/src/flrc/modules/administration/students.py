@@ -14,6 +14,7 @@ from flrc.db.models import AcademicYear, Enrollment, SchoolClass, Student, User
 from flrc.db.session import get_session
 from flrc.modules.academics.class_names import class_label
 from flrc.modules.academics.programme import stage_for_grade
+from flrc.modules.administration.classes import writable_class_year
 from flrc.modules.administration.names import search_key
 from flrc.modules.administration.roster_service import (
     is_duplicate_school_number,
@@ -165,9 +166,9 @@ async def create_student(
     school_class = await db.get(SchoolClass, body.class_id)
     if school_class is None or school_class.year_id != body.year_id:
         raise HTTPException(422, {"code": "invalid_class"})
-    year = await db.get(AcademicYear, body.year_id)
-    if year is None or year.status == "archived":
-        raise HTTPException(409, {"code": "year_not_writable"})
+    # The year first, as every roster write does, and until the commit: a number check and
+    # insert racing a renumbering then queue behind it instead of deadlocking on the number.
+    await writable_class_year(db, body.year_id)
     if await school_number_taken(
         db,
         year_id=body.year_id,
@@ -220,18 +221,23 @@ async def patch_student(
     db: Annotated[AsyncSession, Depends(get_session)],
     year_id: int,
 ) -> StudentWriteOut:
-    student = await db.get(Student, student_id)
-    if student is None:
-        raise HTTPException(404, {"code": "unknown_student"})
-    enrollment = await db.scalar(
-        select(Enrollment).where(
-            Enrollment.student_id == student_id,
-            Enrollment.year_id == year_id,
+    # The year, then the pupil and enrollment (the order every roster write and undo uses),
+    # locked until the commit, so the recorded undo snapshot is what this edit replaced.
+    year = await db.scalar(select(AcademicYear).where(AcademicYear.id == year_id).with_for_update())
+    row = (
+        await db.execute(
+            select(Enrollment, Student)
+            .join(Student, Student.id == Enrollment.student_id)
+            .where(Enrollment.student_id == student_id, Enrollment.year_id == year_id)
+            .with_for_update(of=[Enrollment, Student])
+            .execution_options(populate_existing=True)
         )
-    )
-    if enrollment is None:
+    ).one_or_none()
+    if row is None:
+        if await db.get(Student, student_id) is None:
+            raise HTTPException(404, {"code": "unknown_student"})
         raise HTTPException(404, {"code": "unknown_enrollment"})
-    year = await db.get(AcademicYear, year_id)
+    enrollment, student = row
     if year is None or year.status == "archived":
         raise HTTPException(409, {"code": "year_not_writable"})
     before: dict[str, object] = {

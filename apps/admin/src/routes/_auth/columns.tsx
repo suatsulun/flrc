@@ -1,19 +1,18 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
 import { GRADES, gradeLabel } from "@flrc/i18n";
-import { toast } from "sonner";
-import { ChevronDownIcon, ChevronUpIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ChevronDownIcon, ChevronUpIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import {
   createColumnMutation,
   deleteColumnMutation,
   listColumnsOptions,
-  listColumnsQueryKey,
-  reorderColumnsMutation,
+  reorderColumns,
+  type ColumnOut,
 } from "@flrc/api-client";
 import { Badge } from "@flrc/ui/components/badge";
 import { Button } from "@flrc/ui/components/button";
@@ -33,6 +32,12 @@ import { Input } from "@flrc/ui/components/input";
 import { NativeSelect } from "@flrc/ui/components/native-select";
 import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { AdminPage } from "../../admin/AdminPage";
+import { CopyFieldsDialog } from "../../admin/CopyFieldsDialog";
+import { apiError } from "../../admin/feedback";
+import { RenameFieldDialog } from "../../admin/RenameFieldDialog";
+import { useNotifyDone } from "../../admin/undo-toast";
+import { useRefreshQueries } from "../../admin/use-refresh-queries";
+import { useReturnFocus } from "../../admin/use-return-focus";
 
 const SUBJECTS = ["english", "german", "french"] as const;
 type Subject = (typeof SUBJECTS)[number];
@@ -60,26 +65,41 @@ function ColumnsPage() {
   const { grade, subject } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
+  const notifyDone = useNotifyDone();
+  const refresh = useRefreshQueries();
   const query = { grade_level: grade, subject };
-  const listKey = listColumnsQueryKey({ query });
   const [pendingColumnId, setPendingColumnId] = useState<number>();
-  const [deleteTarget, setDeleteTarget] = useState<{ id: number; label: string }>();
-  const { data: columns = [], isPending: columnsPending } = useQuery(listColumnsOptions({ query }));
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: listKey });
+  const [deleteTarget, setDeleteTarget] = useState<ColumnOut>();
+  const [renaming, setRenaming] = useState<ColumnOut>();
+  const dialogFocus = useReturnFocus();
+  const {
+    data: columns = [],
+    isPending: columnsPending,
+    error: columnsError,
+  } = useQuery(listColumnsOptions({ query }));
+  // Without an open semester of the active year there is nothing to edit here.
+  const locked = apiError(columnsError).code === "semester_locked";
+  const invalidate = () => refresh("listColumns", "getGrid", "listClassCatalog");
 
   const reorder = useMutation({
-    ...reorderColumnsMutation(),
-    onSuccess: () => {
-      toast.success(t("feedback.saved"));
+    // The variables carry the moved field's name, so the toast names what was sent.
+    mutationFn: async ({ ids }: { ids: number[]; name: string }) =>
+      (await reorderColumns({ body: { ordered_ids: ids }, throwOnError: true })).data,
+    onSuccess: (result, { name }) => {
+      notifyDone(t("columns.reordered", { name }), result.action_id);
       void invalidate();
     },
     onSettled: () => setPendingColumnId(undefined),
   });
   const remove = useMutation({
     ...deleteColumnMutation(),
-    onSuccess: (result) => {
-      toast(result.disabled ? t("columns.disabledInfo") : t("columns.deletedInfo"));
+    // The toast names the field that was confirmed, captured when the delete is sent.
+    onMutate: () => ({ name: deleteTarget?.name ?? "" }),
+    onSuccess: (result, _variables, submitted) => {
+      notifyDone(
+        result.disabled ? t("columns.disabledKept", submitted) : t("columns.deleted", submitted),
+        result.action_id,
+      );
       setDeleteTarget(undefined);
       void invalidate();
     },
@@ -91,10 +111,11 @@ function ColumnsPage() {
     if (target < 0 || target >= ids.length) return;
     [ids[index], ids[target]] = [ids[target], ids[index]];
     setPendingColumnId(columns[index]?.id);
-    reorder.mutate({ body: { ordered_ids: ids } });
+    reorder.mutate({ ids, name: columns[index].name });
   };
 
   if (columnsPending) return <PageSkeleton />;
+  if (columnsError && !locked) return <EmptyState title={t("errors.load")} />;
 
   return (
     <AdminPage
@@ -130,16 +151,31 @@ function ColumnsPage() {
               </option>
             ))}
           </NativeSelect>
-          <CreateDialog
-            key={`${grade}-${subject}`}
-            grade={grade}
-            subject={subject}
-            onCreated={invalidate}
-          />
+          {locked ? null : (
+            <>
+              <CopyFieldsDialog
+                grade={grade}
+                subject={subject}
+                columns={columns}
+                onCopied={(target) => {
+                  void navigate({ search: target });
+                  return invalidate();
+                }}
+              />
+              <CreateDialog
+                key={`${grade}-${subject}`}
+                grade={grade}
+                subject={subject}
+                onCreated={invalidate}
+              />
+            </>
+          )}
         </>
       }
     >
-      {columns.length === 0 ? (
+      {locked ? (
+        <EmptyState title={t("columns.lockedTitle")} description={t("columns.locked")} />
+      ) : columns.length === 0 ? (
         <EmptyState title={t("columns.empty")} description={t("columns.emptyBody")} />
       ) : (
         <Card className="max-w-3xl">
@@ -193,10 +229,25 @@ function ColumnsPage() {
                     </Button>
                     <Button
                       size="icon-sm"
+                      variant="ghost"
+                      aria-label={t("columns.renameColumn", { name: column.name })}
+                      title={t("columns.rename")}
+                      onClick={(event) => {
+                        dialogFocus.remember(event.currentTarget);
+                        setRenaming(column);
+                      }}
+                    >
+                      <PencilIcon />
+                    </Button>
+                    <Button
+                      size="icon-sm"
                       variant="destructive"
                       aria-label={t("columns.delete")}
                       disabled={remove.isPending}
-                      onClick={() => setDeleteTarget({ id: column.id, label: column.name })}
+                      onClick={(event) => {
+                        dialogFocus.remember(event.currentTarget);
+                        setDeleteTarget(column);
+                      }}
                     >
                       <Trash2Icon />
                     </Button>
@@ -208,16 +259,23 @@ function ColumnsPage() {
         </Card>
       )}
       <ConfirmDialog
+        finalFocus={dialogFocus.finalFocus}
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(undefined)}
         title={t("columns.delete")}
-        description={t("columns.deleteConfirm", { label: deleteTarget?.label })}
+        description={t("columns.deleteConfirm", { label: deleteTarget?.name })}
         cancelLabel={t("forms.cancel")}
         confirmLabel={t("columns.delete")}
         destructive
         pending={remove.isPending}
         pendingLabel={t("feedback.saving")}
         onConfirm={() => deleteTarget && remove.mutate({ path: { column_id: deleteTarget.id } })}
+      />
+      <RenameFieldDialog
+        column={renaming}
+        finalFocus={dialogFocus.finalFocus}
+        onClose={() => setRenaming(undefined)}
+        onRenamed={invalidate}
       />
     </AdminPage>
   );
@@ -230,9 +288,10 @@ function CreateDialog({
 }: {
   grade: number;
   subject: Subject;
-  onCreated: () => void;
+  onCreated: () => Promise<unknown>;
 }) {
   const { t } = useTranslation();
+  const notifyDone = useNotifyDone();
   const [open, setOpen] = useState(false);
   const isSecondLanguage = subject !== "english";
   const scaleOnly = grade === 4 && isSecondLanguage;
@@ -261,8 +320,9 @@ function CreateDialog({
   const printsTurkish = subject === "english" ? grade < 5 : effectiveType !== "score";
   const create = useMutation({
     ...createColumnMutation(),
-    onSuccess: () => {
-      onCreated();
+    onSuccess: (created) => {
+      notifyDone(t("columns.created", { name: created.name }), created.action_id);
+      void onCreated();
       setOpen(false);
       form.reset();
     },

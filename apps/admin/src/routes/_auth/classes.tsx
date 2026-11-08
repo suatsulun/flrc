@@ -7,7 +7,7 @@ import {
   listAdminClassesOptions,
   listColumnsOptions,
   listYearsOptions,
-  moveAdminRosterMutation,
+  moveAdminRoster,
 } from "@flrc/api-client";
 import { AcademicContextBar } from "@flrc/ui/components/academic-context-bar";
 import { Button } from "@flrc/ui/components/button";
@@ -24,11 +24,16 @@ import { useCallback, useMemo, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AdminPage } from "../../admin/AdminPage";
+import { ClassActions } from "../../admin/ClassActions";
 import { ClassAddColumn } from "../../admin/ClassAddColumn";
 import { ClassRemovePanel } from "../../admin/ClassRemovePanel";
 import { ClassRosterTable } from "../../admin/ClassRosterTable";
 import { ClassTeachers } from "../../admin/ClassTeachers";
+import { MoveStudentsDialog, type MoveRequest } from "../../admin/MoveStudentsDialog";
+import { moveConfirmationSkipped } from "../../admin/move-confirmation";
+import { useNotifyDone } from "../../admin/undo-toast";
 import { useRefreshQueries } from "../../admin/use-refresh-queries";
+import { useReturnFocus } from "../../admin/use-return-focus";
 
 const SUBJECTS = ["english", "german", "french"] as const;
 type Subject = (typeof SUBJECTS)[number];
@@ -67,6 +72,7 @@ function ClassesPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const invalidate = useRefreshQueries();
+  const notifyDone = useNotifyDone();
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const updateSearch = (next: ClassWorkspaceSearch) =>
@@ -142,16 +148,68 @@ function ClassesPage() {
       "getArchiveGrid",
     );
   const refreshColumns = () => invalidate("listColumns", "getGrid", "listClassCatalog");
+  const refreshClasses = () =>
+    invalidate(
+      "listAdminClasses",
+      "listClassCatalog",
+      "listAssignmentMatrix",
+      "getAssignments",
+      "getStudentHistory",
+    );
 
+  const [moveRequest, setMoveRequest] = useState<MoveRequest>();
+  const moveFocus = useReturnFocus();
   const move = useMutation({
-    ...moveAdminRosterMutation(),
+    // The variables are the confirmed request, so the toast names exactly who moved where.
+    mutationFn: async (request: MoveRequest) =>
+      (
+        await moveAdminRoster({
+          body: {
+            student_ids: request.studentIds,
+            target_class_id: request.targetClassId,
+            allow_grade_change: false,
+          },
+          throwOnError: true,
+        })
+      ).data,
     onMutate: () => toast.loading(t("classWorkspace.movingStudent"), { id: "move-student" }),
-    onSuccess: () => {
-      toast.success(t("classWorkspace.studentMoved"), { id: "move-student" });
+    onSuccess: (result, request) => {
+      const target = request.targetClass;
+      notifyDone(
+        result.changed === 0
+          ? t("classWorkspace.studentsAlreadyThere", { target })
+          : request.names.length === 1
+            ? t("classWorkspace.studentMoved", { name: request.names[0], target })
+            : t("classWorkspace.studentsMoved", { count: result.changed, target }),
+        result.action_id,
+      );
       void refreshRoster();
     },
-    onError: () => toast.dismiss("move-student"),
+    onSettled: () => {
+      toast.dismiss("move-student");
+      setMoveRequest(undefined);
+    },
   });
+  /** Every move is confirmed first, unless the admin opted out for this browser session. */
+  function requestMove(studentIds: number[], targetClassId: number, opener: EventTarget | null) {
+    const target = gradeClasses.find((item) => item.id === targetClassId);
+    if (!selectedClass || !target || move.isPending || studentIds.length === 0) return;
+    const request: MoveRequest = {
+      studentIds,
+      names: roster
+        .filter((student) => studentIds.includes(student.student_id))
+        .map((student) => student.full_name),
+      fromClasses: [selectedClass.name],
+      targetClassId,
+      targetClass: target.name,
+    };
+    if (moveConfirmationSkipped()) {
+      move.mutate(request);
+      return;
+    }
+    moveFocus.remember(opener);
+    setMoveRequest(request);
+  }
   const [addingClass, setAddingClass] = useState(false);
   const [newSection, setNewSection] = useState("");
   const createClass = useMutation({
@@ -160,8 +218,8 @@ function ClassesPage() {
       updateSearch({ class: created.id });
       setNewSection("");
       setAddingClass(false);
-      toast.success(t("classWorkspace.classAdded"));
-      void invalidate("listAdminClasses", "listClassCatalog");
+      notifyDone(t("classes.added", { className: created.name }), created.action_id);
+      void refreshClasses();
     },
   });
   const yearWritable = selectedYear?.status !== "archived";
@@ -191,13 +249,7 @@ function ClassesPage() {
     );
     const studentId = transferredStudentId || draggedStudentId;
     if (!studentId || targetClassId === selectedClass?.id) return;
-    move.mutate({
-      body: {
-        student_ids: [studentId],
-        target_class_id: targetClassId,
-        allow_grade_change: false,
-      },
-    });
+    requestMove([studentId], targetClassId, event.currentTarget);
     setDraggedStudentId(undefined);
   }
 
@@ -327,15 +379,31 @@ function ClassesPage() {
         />
       ) : (
         <>
-          <Segmented
-            ariaLabel={t("classWorkspace.mode")}
-            options={[
-              { value: "table", label: t("classWorkspace.tableTab") },
-              { value: "remove", label: t("classWorkspace.remove") },
-            ]}
-            value={mode}
-            onChange={setMode}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Segmented
+              ariaLabel={t("classWorkspace.mode")}
+              options={[
+                { value: "table", label: t("classWorkspace.tableTab") },
+                { value: "remove", label: t("classWorkspace.remove") },
+              ]}
+              value={mode}
+              onChange={setMode}
+            />
+            {yearWritable ? (
+              <ClassActions
+                schoolClass={selectedClass}
+                yearStatus={selectedYear!.status}
+                onEdited={(updated) => {
+                  updateSearch({ grade: updated.grade_level, class: updated.id });
+                  return refreshClasses();
+                }}
+                onDeleted={() => {
+                  updateSearch({ class: undefined });
+                  return refreshClasses();
+                }}
+              />
+            ) : null}
+          </div>
           {mode === "remove" ? (
             <ClassRemovePanel
               key={`${selectedClass.id}-${selectedSemester?.id}-${subject}`}
@@ -357,6 +425,7 @@ function ClassesPage() {
               <ClassTeachers
                 yearId={selectedYear!.id}
                 classId={selectedClass.id}
+                className={selectedClass.name}
                 grade={grade}
                 writable={yearWritable}
               />
@@ -373,16 +442,20 @@ function ClassesPage() {
             </CardBody>
           </Card>
           <ClassRosterTable
+            yearId={selectedYear!.id}
             classId={selectedClass.id}
+            className={selectedClass.name}
             grade={grade}
             subject={subject}
             semesterId={selectedSemester?.id}
             roster={roster}
             rosterPending={rosterPending}
             columns={columns}
+            moveTargets={gradeClasses.filter((item) => item.id !== selectedClass.id)}
             yearWritable={yearWritable}
             columnsWritable={columnsWritable}
             setDraggedStudentId={setDraggedStudentId}
+            onMoveRequest={requestMove}
             onRosterChanged={refreshRoster}
             onColumnsChanged={refreshColumns}
             hidden={mode === "remove"}
@@ -395,6 +468,13 @@ function ClassesPage() {
           ) : null}
         </>
       )}
+      <MoveStudentsDialog
+        request={moveRequest}
+        pending={move.isPending}
+        finalFocus={moveFocus.finalFocus}
+        onCancel={() => setMoveRequest(undefined)}
+        onConfirm={(request) => move.mutate(request)}
+      />
     </AdminPage>
   );
 }

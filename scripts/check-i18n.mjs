@@ -113,7 +113,7 @@ const requiredDynamicKeys = [
     "english_middle",
     "german_karne",
     "french_karne",
-    "progress_pdf",
+    "report_set",
     "year_export",
   ].map((value) => `reports.kinds.${value}`),
   ...["english_elementary", "english_middle", "german_karne", "french_karne"].flatMap((value) => [

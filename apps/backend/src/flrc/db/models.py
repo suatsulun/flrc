@@ -282,10 +282,7 @@ class OverrideGrant(TimestampMixin, Base):
 class JobRun(TimestampMixin, Base):
     __tablename__ = "job_runs"
     __table_args__ = (
-        CheckConstraint(
-            "kind IN ('progress_pdf','german_karne','french_karne','year_export')",
-            name="kind_valid",
-        ),
+        CheckConstraint("kind IN ('report_set','year_export')", name="kind_valid"),
         CheckConstraint("status IN ('queued','running','succeeded','failed')", name="status_valid"),
         CheckConstraint("progress >= 0", name="progress_nonnegative"),
         CheckConstraint("total >= 0", name="total_nonnegative"),

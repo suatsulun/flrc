@@ -8,7 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Columns3Icon, PlusIcon } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { useNotifyDone } from "./undo-toast";
 type Subject = ColumnCreate["subject"];
 type Role = ColumnCreate["owner_role"];
 type ValueType = ColumnCreate["value_type"];
@@ -33,6 +33,7 @@ export function ClassAddColumn({
   onChanged: () => Promise<unknown>;
 }) {
   const { t } = useTranslation();
+  const notifyDone = useNotifyDone();
   const visibleColumns = columns.filter((column) => column.is_active);
   const scaleOnly = grade === 4 && subject !== "english";
   const allowText = subject !== "english" || grade < 5;
@@ -52,11 +53,11 @@ export function ClassAddColumn({
   const ownerRoles: Role[] = subject === "english" ? ["main", "skills"] : [subject];
   const createColumn = useMutation({
     ...createColumnMutation(),
-    onSuccess: () => {
+    onSuccess: (created) => {
       setColumnLabel("");
       setTurkishLabel("");
       setAddingColumn(false);
-      toast.success(t("classWorkspace.columnAdded"));
+      notifyDone(t("columns.created", { name: created.name }), created.action_id);
       void onChanged();
     },
   });
@@ -97,7 +98,7 @@ export function ClassAddColumn({
           <Badge tone="neutral">{t("classWorkspace.readOnly")}</Badge>
         )}
       </div>
-
+      {!writable ? <p className="text-sm text-muted-foreground">{t("columns.locked")}</p> : null}
       {scaleOnly ? (
         <p className="text-sm text-muted-foreground">{t("grid.gradeFourScaleOnly")}</p>
       ) : null}

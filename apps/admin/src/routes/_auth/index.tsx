@@ -10,6 +10,7 @@ import { AdminPage } from "../../admin/AdminPage";
 import { CompletionCard } from "../../dashboard/CompletionCard";
 import { JobsCard } from "../../dashboard/JobsCard";
 import { ReadinessCard } from "../../dashboard/ReadinessCard";
+import { RecentChangesCard } from "../../dashboard/RecentChangesCard";
 import { SetupProblemsCard } from "../../dashboard/SetupProblemsCard";
 import { TermCard } from "../../dashboard/TermCard";
 
@@ -76,6 +77,7 @@ function Dashboard() {
         {completion && readiness.length ? (
           <ReadinessCard readiness={readiness} semesterNumber={completion.semester_number} />
         ) : null}
+        {user.is_admin ? <RecentChangesCard /> : null}
         <JobsCard />
       </div>
     </AdminPage>

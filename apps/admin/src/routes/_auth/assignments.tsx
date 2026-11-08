@@ -21,6 +21,7 @@ import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { Segmented } from "@flrc/ui/components/segmented";
 import { useRefreshQueries } from "../../admin/use-refresh-queries";
 import { AdminPage } from "../../admin/AdminPage";
+import { useNotifyDone } from "../../admin/undo-toast";
 
 type Role = "main" | "skills" | "german" | "french";
 type TeacherFilter = "all" | "primary" | "middle" | "german" | "french";
@@ -36,6 +37,7 @@ function rolesFor(field: string): Role[] {
 function AssignmentsPage() {
   const { t } = useTranslation();
   const refresh = useRefreshQueries();
+  const notifyDone = useNotifyDone();
   const { data: years = [], isPending: yearsPending } = useQuery(listYearsOptions());
   const [yearId, setYearId] = useState<number>();
   const selectedYear =
@@ -63,24 +65,37 @@ function AssignmentsPage() {
   const save = useMutation({
     ...replaceAssignmentMatrixMutation(),
     onMutate: () => toast.loading(t("assignmentBoard.saving"), { id: "assignment-save" }),
-    onSuccess: () => {
-      toast.success(t("assignmentBoard.saved"), { id: "assignment-save" });
-      return refresh("listAssignmentMatrix", "getAssignments", "getGrid", "listClassCatalog");
-    },
-    onError: () => toast.dismiss("assignment-save"),
+    onSuccess: () =>
+      refresh("listAssignmentMatrix", "getAssignments", "getGrid", "listClassCatalog"),
+    onSettled: () => toast.dismiss("assignment-save"),
   });
 
-  function change(classId: number, role: Role, userId: number | null) {
+  /** Assign or unassign one class slot; each save gets its own toast with Undo. */
+  async function change(
+    classId: number,
+    role: Role,
+    teacher: { id: number; full_name: string },
+    assign: boolean,
+  ) {
     if (!selectedYear || !writable) return;
-    save.mutate({
-      path: { year_id: selectedYear.id },
-      body: { changes: [{ class_id: classId, role, user_id: userId }] },
+    const message = t(assign ? "assignmentBoard.assigned" : "assignmentBoard.unassigned", {
+      teacher: teacher.full_name,
+      className: classes.find((item) => item.id === classId)?.name ?? classId,
+      role: t(`roles.${role}`),
     });
+    // A failed save is reported by the global error toast.
+    const saved = await save
+      .mutateAsync({
+        path: { year_id: selectedYear.id },
+        body: { changes: [{ class_id: classId, role, user_id: assign ? teacher.id : null }] },
+      })
+      .catch(() => undefined);
+    if (saved) notifyDone(message, saved.action_id);
   }
 
-  function drop(event: DragEvent, role: Role, userId: number) {
+  function drop(event: DragEvent, role: Role, teacher: { id: number; full_name: string }) {
     event.preventDefault();
-    if (draggedClassId) change(draggedClassId, role, userId);
+    if (draggedClassId) void change(draggedClassId, role, teacher, true);
     setDraggedClassId(undefined);
   }
 
@@ -121,15 +136,6 @@ function AssignmentsPage() {
           onSemesterChange={setSemester}
           labels={academicContextLabels(t, t("classWorkspace.readOnly"))}
         />
-      ) : null}
-
-      {save.isError ? (
-        <p
-          role="alert"
-          className="rounded-xl border border-destructive/30 bg-destructive-surface px-4 py-3 text-sm text-destructive"
-        >
-          {t("assignmentBoard.saveFailed")}
-        </p>
       ) : null}
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
@@ -191,7 +197,7 @@ function AssignmentsPage() {
                           key={role}
                           className="min-h-24 rounded-lg border border-dashed border-border-strong bg-muted/30 p-2 transition-colors hover:border-primary hover:bg-accent/45"
                           onDragOver={(event) => event.preventDefault()}
-                          onDrop={(event) => drop(event, role, teacher.id)}
+                          onDrop={(event) => drop(event, role, teacher)}
                         >
                           <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                             <LanguagesIcon className="size-3.5" />
@@ -230,7 +236,9 @@ function AssignmentsPage() {
                                         className: schoolClass?.name,
                                         teacher: teacher.full_name,
                                       })}
-                                      onClick={() => change(slot.class_id, role, null)}
+                                      onClick={() =>
+                                        void change(slot.class_id, role, teacher, false)
+                                      }
                                     >
                                       <XIcon />
                                     </Button>

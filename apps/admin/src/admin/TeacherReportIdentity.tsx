@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import {
   deleteUserSignatureMutation,
   listManagedUsersQueryKey,
   patchManagedUserMutation,
   uploadUserSignatureMutation,
 } from "@flrc/api-client";
-import type { ManagedUserOut } from "@flrc/api-client";
+import type { ManagedUserOut, ManagedUserWriteOut } from "@flrc/api-client";
 import { Button } from "@flrc/ui/components/button";
 import {
   Dialog,
@@ -19,6 +18,8 @@ import {
 } from "@flrc/ui/components/dialog";
 import { Field } from "@flrc/ui/components/field";
 import { Input } from "@flrc/ui/components/input";
+import { errorMessage } from "./feedback";
+import { useNotifyDone } from "./undo-toast";
 
 export function TeacherReportIdentity({
   user,
@@ -29,15 +30,46 @@ export function TeacherReportIdentity({
 }) {
   const { t } = useTranslation();
   const client = useQueryClient();
+  const notifyDone = useNotifyDone();
   const [name, setName] = useState(user.report_name ?? "");
   const [fileError, setFileError] = useState(false);
-  const refresh = () => {
-    toast.success(t("feedback.saved"));
+  // The latest problem only: a new save clears an earlier file check or failure. This modal
+  // hides the page (and its toasts) from assistive technology, so a failure is explained here
+  // instead of by the global error toast.
+  const [failure, setFailure] = useState<unknown>();
+  const inlineErrors = {
+    meta: { silentError: true },
+    onMutate: () => {
+      setFileError(false);
+      setFailure(undefined);
+    },
+    onError: (error: unknown) => setFailure(error),
+  };
+  const done = (message: string, saved: ManagedUserWriteOut) => {
+    notifyDone(message, saved.action_id);
     void client.invalidateQueries({ queryKey: listManagedUsersQueryKey() });
   };
-  const patch = useMutation({ ...patchManagedUserMutation(), onSuccess: refresh });
-  const upload = useMutation({ ...uploadUserSignatureMutation(), onSuccess: refresh });
-  const remove = useMutation({ ...deleteUserSignatureMutation(), onSuccess: refresh });
+  const patch = useMutation({
+    ...patchManagedUserMutation(),
+    ...inlineErrors,
+    onSuccess: (saved) =>
+      done(
+        saved.report_name
+          ? t("users.done.reportName", { name: user.full_name, value: saved.report_name })
+          : t("users.done.reportNameCleared", { name: user.full_name }),
+        saved,
+      ),
+  });
+  const upload = useMutation({
+    ...uploadUserSignatureMutation(),
+    ...inlineErrors,
+    onSuccess: (saved) => done(t("users.done.signatureUploaded", { name: user.full_name }), saved),
+  });
+  const remove = useMutation({
+    ...deleteUserSignatureMutation(),
+    ...inlineErrors,
+    onSuccess: (saved) => done(t("users.done.signatureRemoved", { name: user.full_name }), saved),
+  });
   const pending = patch.isPending || upload.isPending || remove.isPending;
 
   return (
@@ -104,6 +136,7 @@ export function TeacherReportIdentity({
                   event.target.value = "";
                   if (!file) return;
                   setFileError(false);
+                  setFailure(undefined);
                   if (file.size > 1024 * 1024 || !file.name.toLowerCase().endsWith(".png")) {
                     setFileError(true);
                     return;
@@ -126,14 +159,13 @@ export function TeacherReportIdentity({
               {t("users.signatureRemove")}
             </Button>
           ) : null}
-          {fileError || upload.isError ? (
+          {fileError ? (
             <p role="alert" className="text-sm text-destructive">
               {t("users.signatureInvalid")}
             </p>
-          ) : null}
-          {patch.isError || remove.isError ? (
+          ) : failure ? (
             <p role="alert" className="text-sm text-destructive">
-              {t("users.saveFailed")}
+              {errorMessage(failure)}
             </p>
           ) : null}
         </div>

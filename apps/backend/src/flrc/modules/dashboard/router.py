@@ -22,20 +22,23 @@ from flrc.modules.academics.class_names import class_label
 from flrc.modules.academics.programme import L2_START_GRADE
 from flrc.modules.administration.coordinator import (
     ClassRoster,
+    ColumnsByScope,
     CompletenessRow,
     OverviewOut,
     Role,
+    ScopeColumn,
     Subject,
     active_columns_by_scope,
     assigned_roles,
     completeness_rows,
+    scope_filled_cells,
     unassigned_roles,
     year_overview,
     year_rosters,
 )
 from flrc.modules.administration.lifecycle import SemesterOut
 from flrc.modules.auth.dependencies import require_coordinator_or_admin
-from flrc.modules.reports.builder import REPORT_SETS
+from flrc.modules.reports.builder import REPORT_SETS, SECOND_LANGUAGES
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -214,27 +217,68 @@ def _completion(term: Semester, rows: list[CompletenessRow]) -> CompletionSummar
     )
 
 
-def _readiness(rows: list[CompletenessRow]) -> list[ReportReadiness]:
+def _card_cells(
+    kind: ReportKind, roster: ClassRoster, columns_by_scope: ColumnsByScope
+) -> list[tuple[set[int], list[ScopeColumn]]]:
+    """The (pupils, fields) groups whose values one class's cards of this kind print."""
+    spec = REPORT_SETS[kind]
+    grade = roster.school_class.grade_level
+    cells = [(roster.subject_roster(spec.subject), columns_by_scope.get((grade, spec.subject), []))]
+    if kind == "english_middle":
+        # The middle-school English card also prints each pupil's own second-language score
+        # fields (its DEUTSCH/FRANÇAIS block), as the report builder does.
+        cells += [
+            (
+                roster.subject_roster(language),
+                [
+                    column
+                    for column in columns_by_scope.get((grade, language), [])
+                    if column.value_type == "score"
+                ],
+            )
+            for language in SECOND_LANGUAGES
+        ]
+    return cells
+
+
+def _readiness(
+    rosters: list[ClassRoster],
+    columns_by_scope: ColumnsByScope,
+    filled_cells: set[tuple[int, int]],
+) -> list[ReportReadiness]:
     result: list[ReportReadiness] = []
     for kind in REPORT_KINDS:
         spec = REPORT_SETS[kind]
-        scoped = [
-            row
-            for row in rows
-            if row.subject == spec.subject
-            and spec.first_grade <= row.grade_level <= spec.last_grade
-            and row.roster_count > 0
-        ]
-        expected = sum(row.expected_cells for row in scoped)
-        filled = sum(row.filled_cells for row in scoped)
+        eligible = complete = students = expected = filled = 0
+        for roster in rosters:
+            on_card = roster.subject_roster(spec.subject)
+            if not on_card or not spec.first_grade <= roster.school_class.grade_level <= (
+                spec.last_grade
+            ):
+                continue
+            eligible += 1
+            students += len(on_card)
+            groups = _card_cells(kind, roster, columns_by_scope)
+            # Without fields of its own subject the card prints the no-fields warning: it stays
+            # incomplete, whatever second-language scores it would also print.
+            if not groups[0][1]:
+                continue
+            class_expected = sum(len(pupils) * len(columns) for pupils, columns in groups)
+            class_filled = sum(
+                (student_id, column.id) in filled_cells
+                for pupils, columns in groups
+                for student_id in pupils
+                for column in columns
+            )
+            complete += class_expected > 0 and class_filled == class_expected
+            expected += class_expected
+            filled += class_filled
         result.append(
             ReportReadiness(
                 kind=kind,
-                eligible_classes=len(scoped),
-                complete_classes=sum(
-                    row.expected_cells > 0 and row.missing_cells == 0 for row in scoped
-                ),
-                students=sum(row.roster_count for row in scoped),
+                eligible_classes=eligible,
+                complete_classes=complete,
+                students=students,
                 expected_cells=expected,
                 filled_cells=filled,
                 percent=_percent(filled, expected),
@@ -325,7 +369,7 @@ async def _setup_problems(
     term: Semester | None,
     rosters: list[ClassRoster],
     assigned: set[tuple[int, str]],
-    columns_by_scope: dict[tuple[int, str], list[int]],
+    columns_by_scope: ColumnsByScope,
 ) -> SetupProblems:
     role_gaps = [
         RoleGap(
@@ -466,9 +510,10 @@ async def get_dashboard(
     completion: CompletionSummary | None = None
     readiness: list[ReportReadiness] = []
     if year.status == "active" and focus is not None:
-        rows = await completeness_rows(db, rosters, columns_by_scope)
+        filled_cells = await scope_filled_cells(db, columns_by_scope)
+        rows = completeness_rows(rosters, columns_by_scope, filled_cells)
         completion = _completion(focus, rows)
-        readiness = _readiness(rows)
+        readiness = _readiness(rosters, columns_by_scope, filled_cells)
     problems = await _setup_problems(db, year, focus, rosters, assigned, columns_by_scope)
 
     return DashboardOut(

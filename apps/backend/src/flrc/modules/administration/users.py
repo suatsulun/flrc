@@ -98,7 +98,12 @@ async def lock_account_for_edit(db: AsyncSession, user_id: int, actor: User) -> 
     """
     target: User | None = None
     for locked_id in sorted({user_id, actor.id}):
-        row = await db.get(User, locked_id, with_for_update={"read": locked_id != user_id})
+        row = await db.get(
+            User,
+            locked_id,
+            with_for_update={"read": locked_id != user_id},
+            populate_existing=True,
+        )
         if locked_id == user_id:
             target = row
     return target
@@ -107,8 +112,12 @@ async def lock_account_for_edit(db: AsyncSession, user_id: int, actor: User) -> 
 async def ensure_admin_remains(
     db: AsyncSession, target: User, *, is_admin: bool, is_active: bool
 ) -> None:
-    """Refuse a change that would leave the school without an active administrator."""
-    if target.is_admin and (not is_admin or not is_active):
+    """Refuse a change that would leave the school without an active administrator.
+
+    Only a currently active administrator losing that status can do so; editing an
+    inactive administrator never removes an active one.
+    """
+    if target.is_admin and target.is_active and (not is_admin or not is_active):
         active_admins = await db.scalar(
             select(func.count())
             .select_from(User)

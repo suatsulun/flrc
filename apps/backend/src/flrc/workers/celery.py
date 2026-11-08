@@ -5,7 +5,7 @@ from flrc.config import settings
 celery_app = Celery(
     "flrc",
     broker=settings.redis_url,
-    include=["flrc.workers.tasks.exports"],
+    include=["flrc.workers.tasks.exports", "flrc.workers.tasks.reports"],
 )
 celery_app.conf.update(
     # Pin the wire format instead of relying on the default: an accepted

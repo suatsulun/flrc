@@ -16,18 +16,18 @@ Use [TODO.md](TODO.md) for open work and [AI-HANDOFF.md](AI-HANDOFF.md) for a re
 The local `v1.2.0` tag predates several commits, while manifests still read `1.2.0`. Later migrations
 and report changes are committed source, not verified school deployment state.
 
-| Handbook scope            | Current implementation amendment                                                                                                                               |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0-1: tooling and skeleton | Node 26.8.1, pnpm 11.25.0, Python 3.13 are pinned locally. Existing apps are implemented; do not scaffold over them.                                           |
-| 1.11: demo hosting        | One Vercel project (`infra/vercel`) serves both SPAs and the `/api` rewrite (ADR-064); Render hosts the API and worker.                                        |
-| 1.5, 2.1, 4.1: schema     | Fourteen original tables plus `demo_visitors` and `report_identity_audits`; exact names are in ARCH §3.1.                                                      |
-| 2.1: assessment programme | Grade 4 German/French permit ratings and comments without numeric averages. ADR-063 removes grades 5-8 English comments.                                       |
-| 2.4-2.6: grid/save        | Four/five sentence columns at laptop widths, angled middle-English overview, pupil/class rating drafts, maximum 2,000 cells per save.                          |
-| 2.11, 4.6: tests          | Frontend packages have no standalone `test` script. Use root Playwright, configured test servers, and the existing synthetic backend suite.                    |
-| 3.5, 3.9-3.10: years      | Rollover preserves student identity and assigns fresh numbers per year and school stage (ADR-070). Year lists sort by label, not insertion id.                 |
-| 4.2-4.4: reports          | Four PDF sets return directly from `/api/reports/pdf` (ADR-028); year XLSX exports remain durable Celery jobs. Private report overlays/signatures use ADR-057. |
-| 4.4: teacher previews     | Teachers view their own students' cards with an ÖNİZLEME watermark at `/card-preview` via `/api/reports/preview` (ADR-078).                                    |
-| 4.5, 4.9-4.10: operations | School deployment consumes paired images, runtime branding, nightly encrypted backups, and monthly restore tests from `infra/school-template/`.                |
+| Handbook scope            | Current implementation amendment                                                                                                                                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0-1: tooling and skeleton | Node 26.8.1, pnpm 11.25.0, Python 3.13 are pinned locally. Existing apps are implemented; do not scaffold over them.                                                                                                     |
+| 1.11: demo hosting        | One Vercel project (`infra/vercel`) serves both SPAs and the `/api` rewrite (ADR-064); Render hosts the API and worker.                                                                                                  |
+| 1.5, 2.1, 4.1: schema     | Fourteen original tables plus `demo_visitors` and `report_identity_audits`; exact names are in ARCH §3.1.                                                                                                                |
+| 2.1: assessment programme | Grade 4 German/French permit ratings and comments without numeric averages. ADR-063 removes grades 5-8 English comments.                                                                                                 |
+| 2.4-2.6: grid/save        | Four/five sentence columns at laptop widths, angled middle-English overview, pupil/class rating drafts, maximum 2,000 cells per save.                                                                                    |
+| 2.11, 4.6: tests          | Frontend packages have no standalone `test` script. Use root Playwright, configured test servers, and the existing synthetic backend suite.                                                                              |
+| 3.5, 3.9-3.10: years      | Rollover preserves student identity and assigns fresh numbers per year and school stage (ADR-070). Year lists sort by label, not insertion id.                                                                           |
+| 4.2-4.4: reports          | One class or one pupil downloads directly from `/api/reports/pdf`; larger sets are `report_set` Celery jobs with a format choice and a 24-hour downloads list (ADR-077). Private report overlays/signatures use ADR-057. |
+| 4.4: teacher previews     | Teachers view their own students' cards with an ÖNİZLEME watermark at `/card-preview` via `/api/reports/preview` (ADR-078).                                                                                              |
+| 4.5, 4.9-4.10: operations | School deployment consumes paired images, runtime branding, nightly encrypted backups, and monthly restore tests from `infra/school-template/`.                                                                          |
 
 Backend pytest fixtures wipe the fixed local `flrc_test` database; migration tests also downgrade
 it. Runs must be serialized on disposable test data. Root Playwright does not launch servers and
@@ -328,12 +328,13 @@ The best way to hold the architecture in your head is to trace **one teacher sav
 4. **FastAPI** wakes (or was kept warm by the school-hours ping). The **Origin-check middleware** approves the request. The `current_user` dependency unsigns the cookie with **itsdangerous**, looks the session id up in **Upstash Redis**, loads Kıvılcım from **Neon**. The `writable_semester` dependency confirms semester 1 is open.
 5. The save service checks she owns the `main` role for class 12 (or holds a live grant), then runs the one statement the whole app pivots on: an **SQLAlchemy** UPDATE whose WHERE clause says `AND version = 3`. Rowcount 1: applied, version becomes 4, and an **audit_entry** + **save_batch** row commit in the same transaction. Rowcount 0: someone got there first, and a conflict record with the other teacher's name goes back instead.
 6. The response returns `applied` with new versions. TanStack Query's `setQueryData` merges them into the cached grid (no refetch flash), and the store clears those dirty keys. The Save button ticks to ✓.
-7. Months later that cell is ink: a coordinator requests one of the four report sets through
-   `/api/reports/pdf`. The builder assembles the report data, **Jinja2** renders HTML, and
-   **WeasyPrint** produces the PDF outside the API's async event loop. The browser runs one set
-   request at a time and opens each PDF in a new tab once it arrives. A whole-year workbook follows
-   the separate **Celery** path: queue its job id, record progress/output in **Postgres
-   `job_runs`**, and download through the authenticated API.
+7. Months later that cell is ink: a coordinator prints her class through `/api/reports/pdf`. The
+   builder assembles the report data, **Jinja2** renders HTML, and **WeasyPrint** produces the PDF
+   outside the API's async event loop; the browser opens it in a tab it opened during the click.
+   The whole school (or any larger selection) follows the **Celery** path instead: queue a
+   `report_set` job id, render class by class while recording progress in **Postgres
+   `job_runs`**, package one PDF or a ZIP per class or per pupil, and download it from the
+   report centre's downloads list for 24 hours. A whole-year workbook takes the same job path.
 
 Every tool in Part I appears in that story or guards it. If a step ever feels arbitrary later, re-read the trace.
 
@@ -2798,6 +2799,16 @@ the other karne language needs names in that language (`copy_language_mismatch`)
 rules in Step 2.1 apply first. Every write (create, patch, delete, reorder, copy) also returns
 `action_id` for the admin undo (ADR-075): `ColumnWriteOut`, `DeleteResult`, `ReorderOut`,
 `CopyOut`.
+
+**Admin screens (ADR-075, ADR-076):** a field is renamed from a pencil button on each Fields page
+row and in each class-table column header. The dialog holds one box, prefilled and labelled with
+the subject's language; a blank or unchanged name cannot be saved, Enter saves and Escape cancels.
+Without an editable semester the Fields page explains why and offers no edits, and the class
+table hides its column controls behind the same explanation. **Copy to another grade or subject**
+on the Fields page picks a target grade and a subject of the same family (English to English,
+German and French to each other), shows whether the target already has fields (it must be empty),
+how many fields will be copied or skipped, and any missing name or Turkish wording, then opens the
+target. Every field write answers with a specific success toast that offers Undo.
 
 **What we're building:** admin-only CRUD plus two operations CRUD doesn't have: **reorder** (the up/down arrows) and **copy** (September's sanity: duplicating a column set to another grade or the twin language).
 
@@ -6377,6 +6388,17 @@ For language upsert, preload existing rows into `{student_id: row}`. For each st
 **Class-table removal and column placement (ADR-048):** a Remove tab lists students and all assessment columns for the selected grade, subject, and semester. Student removal confirms the current class/year, removes only that enrollment and its year-scoped L2 choice, and preserves the student, other years, saved grades, and grade audit rows. Archived years reject it. Column removal uses the existing delete-or-disable API and states that columns are shared across the grade. Column-header handles support drag placement; arrow controls remain available for keyboard/touch. Reorder sends the complete column set for one grade/subject/semester, including inactive definitions except programme-ineligible middle-English text fields under
 ADR-063, and rejects duplicate, partial, or mixed-scope lists.
 
+**Confirmations and feedback (ADR-075):** every move, dragged onto a class tab or sent from the
+selection toolbar, first opens a confirmation naming the students (five, then "+N more"), the
+class they leave and the target. Its "do not ask again this session" box is kept in
+`sessionStorage`, and Cancel changes nothing. Each roster, class, field and teacher write shows a
+success toast naming what changed, with Undo when the API returned an `action_id`; failures use
+the global per-code error toast, never a second inline message. **Edit class** changes grade and
+section; **Delete class** is enabled only in a setup year for a class without students or
+teachers and otherwise shows why (the API still refuses one that holds saved grades). Dialogs
+opened from page state return focus to the control that opened them (`useReturnFocus` with Base
+UI's `finalFocus`), and toasts name what was submitted, captured when the write is sent.
+
 **Check (prove the invariant):** enter three grades for a student in 5/A. Move them to 5/B. Open 5/B's same subject grid: the grades are there. Move back: still there. Switch German → French: the English grades remain; German grid drops the student; French grid gains them.
 
 **If it breaks:** moved student appears in both classes → you inserted a second enrollment instead of updating the year-unique one. Grades vanish → some query still filters grade values by class identity instead of deriving the roster first and then fetching by student ids.
@@ -6413,14 +6435,40 @@ Errors: `404 unknown_action`, `409 action_already_undone`, `410 action_expired`,
 `409 {"code": "undo_blocked", "reason", "params"}` when the current data no longer allows the
 previous state. Reasons include `changed_since` (the same attribute, pupil or slot changed again),
 `target_missing`, `school_number_taken` (`number`, `student`, `class`), `enrollment_exists`,
-`duplicate_class`, `class_in_use`, `field_has_grades`, `order_changed`, `user_in_use`,
+`duplicate_class`, `class_in_use`, `field_has_grades`, `field_has_history` (`field`: grades were
+saved and undone, and the audit trail still refers to it), `order_changed`, `user_in_use`,
 `last_admin`, `cannot_deactivate_self`, `teacher_inactive`, `teacher_field_mismatch`,
 `teacher_stage_mismatch`, `teacher_assignments_incompatible`, `language_grade_too_low`,
 `student_number_required`, and the original rules' own codes such as `year_not_writable` and
 `semester_locked`. A refused undo changes nothing.
 
+**Locks:** every recorded write locks the rows it changes before reading their previous values
+and keeps the lock until it commits with the action, so two concurrent edits each record what
+they actually replaced. Locks are taken year first: a pupil's yearly data (number, class, second
+language), including a new pupil from either the roster or the students page, is guarded by the
+year (`writable_class_year`), then their enrollment row (`lock_enrollments`, id order); class
+writes lock the year, then the class (`lock_class`). Undo handlers and roster removal take the
+same locks in the same order before checking. Grade saves and grid undo key-share-lock the fields
+they write (`FOR KEY SHARE`, id order) after their grant or batch locks and before the first grade
+or audit row; removing fields (copy undo, field delete) locks them `FOR UPDATE` in id order, so it
+waits for a save in progress and then sees its grades. A field reorder and its undo change only
+positions, so they lock the fields `FOR NO KEY UPDATE`: grade saves neither wait for them nor
+deadlock with them.
+
 **Retention:** the backup sidecar deletes expired rows and their kept signature images every night
 before the dump; `flrc purge-admin-actions` does it by hand.
+
+**Recent changes page:** `/changes` ("Son değişiklikler", admins only; the nav item sits under
+Operations next to Audit history, and coordinators are redirected to `/`) pages through
+`GET /api/admin/actions` with "Daha fazla yükle". Each row reads `changes.kinds.<kind>` with the
+recorded `params` (e.g. "Ali Yılmaz 8/A → 8/B taşındı"), who and when, a status badge (days left,
+who undid it and when, or expired) and, while available, an Undo button behind a confirmation.
+Refusals toast `changes.blocked.<reason>`, picking the sentence for the record the params name
+(i18next context `student`, `field`, `user`, `class`, `slot`, …) and falling back to
+`errors.codes.<reason>` for the original rules' codes; the list reloads either way. The dashboard
+shows the latest five in a "Son değişiklikler" card for admins. Every admin write toasts success
+(with Undo when it returns `action_id`) or the specific `errors.codes.<code>` message from the
+global `MutationCache` handler in `apps/admin/src/admin/feedback.ts`.
 
 **Tests:** `tests/test_admin_changes.py` performs each write, undoes it and compares the exact
 previous rows, plus each refusal reason, expiry, double undo, permissions and the purge.
@@ -7701,10 +7749,13 @@ Commit: `feat(reports): pure card models, HTML templates, PDF renderer`.
 
 ## Step 4.3: Celery, one quiet worker, no result backend, durable progress in Postgres
 
-**Current delivery amendment (ADR-028):** the API directly returns four report sets through
-`GET /api/reports/pdf`; it does not expose the report-job creation route illustrated below.
-Celery currently processes whole-year exports via `workers/tasks/exports.py`. Retain durable
-`job_runs`, JSON-only messages, and no result backend for that implemented job path.
+**Current delivery amendment (ADR-077):** `GET /api/reports/pdf` returns one class, or students of
+one class, directly. Larger sets use `POST /api/reports/jobs`, which queues a `report_set` job for
+`workers/tasks/reports.py`: it renders each class once through the bounded pool (ADR-046), counts
+progress in classes, and stores one PDF or a ZIP per class or per pupil for 24 hours, cutting
+pupils' files out of the class PDF by page range rather than rendering them one by one.
+Whole-year exports stay in `workers/tasks/exports.py`. Both keep durable `job_runs`, JSON-only
+messages, and no result backend.
 
 **What we're building:** the asynchronous execution path: the API creates a job, enqueues its id, sends a best-effort wake-up ping, and returns immediately. A separate service consumes the id, renders sequentially, updates Postgres progress, stores the final zip, and marks success/failure.
 

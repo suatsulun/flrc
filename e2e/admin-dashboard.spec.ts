@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import type {
+  AdminActionPage,
   AuditPageOut,
   ClassOut,
   DashboardOut,
@@ -28,6 +29,7 @@ const en = JSON.parse(readFileSync("packages/i18n/src/locales/en.json", "utf8"))
   lifecycle: { activate: string };
   subjects: { german: string };
   audit: { actor: string; dateFrom: string; exportCsv: string; studentFilter: string };
+  changes: { title: string; empty: string };
 };
 
 const admin: MeOut = {
@@ -154,6 +156,8 @@ async function mockApi(page: Page, exports: URL[] = []) {
     if (path === "/api/me") return route.fulfill({ json: admin });
     if (path === "/api/dashboard") return route.fulfill({ json: dashboard });
     if (path === "/api/jobs") return route.fulfill({ json: jobs });
+    if (path === "/api/admin/actions")
+      return route.fulfill({ json: { items: [], next_cursor: null } satisfies AdminActionPage });
     if (path === "/api/coordinator/classes/11/missing") return route.fulfill({ json: missing });
     if (path === "/api/classes") return route.fulfill({ json: [] satisfies ClassOut[] });
     if (path === "/api/users") return route.fulfill({ json: [teacher] });
@@ -192,6 +196,10 @@ for (const size of [
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
+    // Administrators see their recent changes with a way to the full list.
+    const changes = page.getByTestId("recent-changes-card");
+    await expect(changes.getByRole("heading", { name: en.changes.title })).toBeVisible();
+    await expect(changes.getByText(en.changes.empty)).toBeVisible();
 
     await page.getByRole("button", { name: en.adminDashboard.completion.details }).click();
     const dialog = page.getByRole("dialog");

@@ -116,13 +116,32 @@ class AssignmentMatrixWriteOut(ActionWrite):
 
 
 async def writable_class_year(db: AsyncSession, year_id: int) -> AcademicYear:
-    """Lock a year for a class or assignment write; archived years are read-only."""
+    """Lock a year for a class, roster or assignment write; archived years are read-only.
+
+    Taken before any class or enrollment lock of the year, the order every write and undo uses.
+    """
     year = await db.scalar(select(AcademicYear).where(AcademicYear.id == year_id).with_for_update())
     if year is None:
         raise HTTPException(404, {"code": "unknown_year"})
     if year.status == "archived":
         raise HTTPException(409, {"code": "year_not_writable"})
     return year
+
+
+async def lock_class(db: AsyncSession, class_id: int) -> tuple[SchoolClass, AcademicYear]:
+    """Lock a class's writable year, then the class itself, and read the class fresh.
+
+    Always year first, the order every class and roster write uses, so a recorded
+    previous state cannot change before the commit.
+    """
+    school_class = await db.get(SchoolClass, class_id)
+    if school_class is None:
+        raise HTTPException(404, {"code": "unknown_class"})
+    year = await writable_class_year(db, school_class.year_id)
+    locked = await db.get(SchoolClass, class_id, with_for_update=True, populate_existing=True)
+    if locked is None:
+        raise HTTPException(404, {"code": "unknown_class"})
+    return locked, year
 
 
 async def class_in_use(db: AsyncSession, class_id: int) -> bool:
@@ -280,10 +299,7 @@ async def patch_admin_class(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> AdminClassWriteOut:
-    school_class = await db.get(SchoolClass, class_id)
-    if school_class is None:
-        raise HTTPException(404, {"code": "unknown_class"})
-    await writable_class_year(db, school_class.year_id)
+    school_class, _ = await lock_class(db, class_id)
     grade = body.grade_level if body.grade_level is not None else school_class.grade_level
     section = normalize_section(
         grade, body.section if body.section is not None else school_class.section
@@ -336,10 +352,7 @@ async def delete_admin_class(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ClassDeleteOut:
-    school_class = await db.get(SchoolClass, class_id)
-    if school_class is None:
-        raise HTTPException(404, {"code": "unknown_class"})
-    year = await writable_class_year(db, school_class.year_id)
+    school_class, year = await lock_class(db, class_id)
     if year.status != "setup":
         raise HTTPException(409, {"code": "class_delete_setup_only"})
     if await class_in_use(db, class_id):
@@ -403,6 +416,9 @@ async def apply_assignment_slots(
         select(TeachingAssignment, User.full_name)
         .join(User, User.id == TeachingAssignment.user_id)
         .where(TeachingAssignment.class_id.in_({class_id for class_id, _ in slots}))
+        .order_by(TeachingAssignment.id)
+        .with_for_update(of=TeachingAssignment)
+        .execution_options(populate_existing=True)
     )
     assignments: dict[tuple[int, str], TeachingAssignment] = {}
     holders: dict[int, str] = {}

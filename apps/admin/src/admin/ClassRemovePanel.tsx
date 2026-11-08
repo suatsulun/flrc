@@ -3,7 +3,6 @@ import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { PREP_GRADE } from "@flrc/i18n";
 import { Trash2Icon } from "lucide-react";
-import { toast } from "sonner";
 import {
   deleteColumnMutation,
   removeAdminRosterStudentMutation,
@@ -15,6 +14,8 @@ import { Button } from "@flrc/ui/components/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@flrc/ui/components/card";
 import { ConfirmDialog } from "@flrc/ui/components/dialog";
 import { Input } from "@flrc/ui/components/input";
+import { useNotifyDone } from "./undo-toast";
+import { useReturnFocus } from "./use-return-focus";
 
 type Target = { kind: "student" | "column"; id: number; label: string };
 
@@ -44,26 +45,34 @@ export function ClassRemovePanel({
   onColumnsChanged: () => Promise<unknown>;
 }) {
   const { t } = useTranslation();
+  const notifyDone = useNotifyDone();
   const subjectLabel = t(`subjects.${subject}`);
   const columnScope =
     grade === PREP_GRADE
       ? t("classWorkspace.columnScopePrep", { subject: subjectLabel })
       : t("classWorkspace.columnScope", { grade, subject: subjectLabel });
   const [target, setTarget] = useState<Target>();
+  const targetFocus = useReturnFocus();
   const [search, setSearch] = useState("");
+  // Toasts name what was confirmed, captured when the removal is sent.
   const removeStudent = useMutation({
     ...removeAdminRosterStudentMutation(),
-    onSuccess: async () => {
+    onMutate: () => ({ name: target?.label ?? "", className }),
+    onSuccess: async (result, _variables, submitted) => {
+      notifyDone(t("classWorkspace.studentRemoved", submitted), result.action_id);
       setTarget(undefined);
-      toast.success(t("classWorkspace.studentRemoved"));
       await onRosterChanged();
     },
   });
   const removeColumn = useMutation({
     ...deleteColumnMutation(),
-    onSuccess: async (result) => {
+    onMutate: () => ({ name: target?.label ?? "" }),
+    onSuccess: async (result, _variables, submitted) => {
+      notifyDone(
+        result.disabled ? t("columns.disabledKept", submitted) : t("columns.deleted", submitted),
+        result.action_id,
+      );
       setTarget(undefined);
-      toast.success(result.disabled ? t("columns.disabledInfo") : t("columns.deletedInfo"));
       await onColumnsChanged();
     },
   });
@@ -101,7 +110,10 @@ export function ClassRemovePanel({
                     size="sm"
                     disabled={!columnsWritable || pending}
                     aria-label={t("classWorkspace.removeColumnLabel", { name: c.name })}
-                    onClick={() => setTarget({ kind: "column", id: c.id, label: c.name })}
+                    onClick={(event) => {
+                      targetFocus.remember(event.currentTarget);
+                      setTarget({ kind: "column", id: c.id, label: c.name });
+                    }}
                   >
                     <Trash2Icon />
                     {t("classWorkspace.remove")}
@@ -154,9 +166,10 @@ export function ClassRemovePanel({
                   size="sm"
                   disabled={!yearWritable || pending}
                   aria-label={t("classWorkspace.removeStudentLabel", { name: s.full_name })}
-                  onClick={() =>
-                    setTarget({ kind: "student", id: s.student_id, label: s.full_name })
-                  }
+                  onClick={(event) => {
+                    targetFocus.remember(event.currentTarget);
+                    setTarget({ kind: "student", id: s.student_id, label: s.full_name });
+                  }}
                 >
                   <Trash2Icon />
                   {t("classWorkspace.remove")}
@@ -170,6 +183,7 @@ export function ClassRemovePanel({
         </CardBody>
       </Card>
       <ConfirmDialog
+        finalFocus={targetFocus.finalFocus}
         open={Boolean(target)}
         onOpenChange={(open) => {
           if (!open && !pending) setTarget(undefined);

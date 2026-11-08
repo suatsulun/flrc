@@ -3726,6 +3726,7 @@
           "reports"
         ],
         "summary": "Download Report Set",
+        "description": "One class's cards, or the cards of one or more students of one class.\n\nLarger sets are background jobs (`POST /api/reports/jobs`, ADR-077).",
         "operationId": "download_report_set",
         "parameters": [
           {
@@ -3784,6 +3785,26 @@
               ],
               "title": "Class Id"
             }
+          },
+          {
+            "name": "student_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "maxItems": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Student Id"
+            }
           }
         ],
         "responses": {
@@ -3792,6 +3813,110 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/roster": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Get Report Roster",
+        "description": "Every class of a report set with the students who get its card, in print order.\n\nSecond-language cards list only the students taking that language; classes without an\neligible student are left out.",
+        "operationId": "get_report_roster",
+        "parameters": [
+          {
+            "name": "semester_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Semester Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "english_elementary",
+                "english_middle",
+                "german_karne",
+                "french_karne"
+              ],
+              "type": "string",
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RosterClass"
+                  },
+                  "title": "Response Get Report Roster"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/jobs": {
+      "post": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Create Report Job",
+        "description": "Queue a report set as a background job: the whole school, classes, or students.\n\nEmpty `class_ids` and `student_ids` mean every eligible class. The finished file waits\nin the downloads list for 24 hours (ADR-024, ADR-077). An account with\n`MAX_PENDING_REPORT_JOBS` report jobs still waiting or running is refused with\n`report_jobs_pending` until one finishes.",
+        "operationId": "create_report_job",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportJobIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
               }
             }
           },
@@ -6637,6 +6762,11 @@
               }
             ],
             "title": "Error Code"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
           }
         },
         "type": "object",
@@ -6649,7 +6779,8 @@
           "output_filename",
           "output_size",
           "output_expires_at",
-          "error_code"
+          "error_code",
+          "created_at"
         ],
         "title": "JobOut"
       },
@@ -7534,6 +7665,68 @@
         ],
         "title": "ReorderOut"
       },
+      "ReportJobIn": {
+        "properties": {
+          "semester_id": {
+            "type": "integer",
+            "title": "Semester Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "english_elementary",
+              "english_middle",
+              "german_karne",
+              "french_karne"
+            ],
+            "title": "Kind"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "tr",
+              "en",
+              "de",
+              "fr"
+            ],
+            "title": "Locale",
+            "default": "tr"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "combined",
+              "per_class",
+              "per_student"
+            ],
+            "title": "Format"
+          },
+          "class_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Class Ids"
+          },
+          "student_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 2000,
+            "title": "Student Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "semester_id",
+          "kind",
+          "format"
+        ],
+        "title": "ReportJobIn"
+      },
       "ReportReadiness": {
         "properties": {
           "kind": {
@@ -7645,6 +7838,37 @@
         ],
         "title": "RoleGaps"
       },
+      "RosterClass": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "grade_level": {
+            "type": "integer",
+            "title": "Grade Level"
+          },
+          "students": {
+            "items": {
+              "$ref": "#/components/schemas/RosterStudent"
+            },
+            "type": "array",
+            "title": "Students"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "grade_level",
+          "students"
+        ],
+        "title": "RosterClass"
+      },
       "RosterMoveOut": {
         "properties": {
           "action_id": {
@@ -7667,6 +7891,36 @@
           "unchanged"
         ],
         "title": "RosterMoveOut"
+      },
+      "RosterStudent": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "school_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Number"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "full_name",
+          "school_number"
+        ],
+        "title": "RosterStudent"
       },
       "RosterStudentCreate": {
         "properties": {

@@ -442,14 +442,15 @@ async def test_report_readiness_counts_classes_with_pupils_on_each_card(api) -> 
         await db.commit()
 
     readiness = {item["kind"]: item for item in (await get_dashboard(api))["readiness"]}
+    # 5/A's German pupil needs an English and a German score cell; 5/B's pupil only English.
     assert readiness["english_middle"] == {
         "kind": "english_middle",
         "eligible_classes": 2,
         "complete_classes": 1,
         "students": 2,
-        "expected_cells": 2,
+        "expected_cells": 3,
         "filled_cells": 1,
-        "percent": 50.0,
+        "percent": 33.3,
     }
     assert readiness["german_karne"]["eligible_classes"] == 1
     assert readiness["german_karne"]["students"] == 1
@@ -457,6 +458,89 @@ async def test_report_readiness_counts_classes_with_pupils_on_each_card(api) -> 
     for kind in ("english_elementary", "french_karne"):
         assert readiness[kind]["eligible_classes"] == 0
         assert readiness[kind]["percent"] is None
+
+
+async def test_middle_english_readiness_waits_for_second_language_scores(api) -> None:
+    """The middle-school English card prints the pupil's German scores, not German notes."""
+    school = await make_school()
+    async with TestSession() as db:
+        db.add(
+            m.ColumnDefinition(
+                semester_id=school.terms[0],
+                grade_level=5,
+                subject="german",
+                value_type="text",
+                owner_role="german",
+                labels={"tr": "Almanca görüş", "de": "Bemerkung"},
+                position=2,
+            )
+        )
+        db.add(
+            m.GradeValue(
+                student_id=school.student,
+                column_definition_id=school.columns[0],
+                score=90,
+                updated_by=school.main.id,
+            )
+        )
+        await db.commit()
+
+    english_only = {item["kind"]: item for item in (await get_dashboard(api))["readiness"]}
+    assert english_only["english_middle"]["expected_cells"] == 2
+    assert english_only["english_middle"]["filled_cells"] == 1
+    assert english_only["english_middle"]["complete_classes"] == 0
+    assert english_only["english_middle"]["percent"] == 50.0
+
+    async with TestSession() as db:
+        german_score = await db.scalar(
+            select(m.ColumnDefinition.id).where(
+                m.ColumnDefinition.semester_id == school.terms[0],
+                m.ColumnDefinition.subject == "german",
+                m.ColumnDefinition.value_type == "score",
+            )
+        )
+        assert german_score is not None
+        db.add(
+            m.GradeValue(
+                student_id=school.student,
+                column_definition_id=german_score,
+                score=70,
+                updated_by=school.main.id,
+            )
+        )
+        await db.commit()
+
+    scored = {item["kind"]: item for item in (await get_dashboard(api))["readiness"]}
+    # The German note does not hold up the English card, only the German karne.
+    assert scored["english_middle"]["complete_classes"] == 1
+    assert scored["english_middle"]["percent"] == 100.0
+    assert scored["german_karne"]["expected_cells"] == 2
+    assert scored["german_karne"]["percent"] == 50.0
+
+
+async def test_english_card_without_english_fields_stays_incomplete(api) -> None:
+    """Filled second-language scores do not stand in for a class's missing English fields."""
+    school = await make_school()
+    async with TestSession() as db:
+        english = await db.get(m.ColumnDefinition, school.columns[0])
+        assert english is not None
+        english.is_active = False
+        await db.commit()
+    await fill_everything(school)
+
+    readiness = {item["kind"]: item for item in (await get_dashboard(api))["readiness"]}
+    assert readiness["english_middle"] == {
+        "kind": "english_middle",
+        "eligible_classes": 1,
+        "complete_classes": 0,
+        "students": 1,
+        "expected_cells": 0,
+        "filled_cells": 0,
+        "percent": None,
+    }
+    # The German karne has its own fields and is complete.
+    assert readiness["german_karne"]["complete_classes"] == 1
+    assert readiness["german_karne"]["percent"] == 100.0
 
 
 async def test_missing_cells_name_pupil_field_and_owning_teacher(api, world) -> None:

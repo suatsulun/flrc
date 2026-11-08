@@ -102,6 +102,27 @@ async def delete_enrollment(db: AsyncSession, enrollment: Enrollment) -> str | N
     return language
 
 
+async def lock_enrollments(
+    db: AsyncSession, *, year_id: int, student_ids: Collection[int]
+) -> list[Enrollment]:
+    """Lock pupils' enrollments of one year, in id order, and read them fresh.
+
+    Every write of a pupil's yearly data (number, class, second language) and its undo
+    takes this lock, after the year's (``writable_class_year``), so a recorded previous state
+    cannot change before the commit. Removal locks in the same order: a new language row's
+    foreign key waits for the year, so an enrollment taken first could deadlock with it.
+    """
+    return list(
+        await db.scalars(
+            select(Enrollment)
+            .where(Enrollment.year_id == year_id, Enrollment.student_id.in_(list(student_ids)))
+            .order_by(Enrollment.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    )
+
+
 async def student_language(db: AsyncSession, student_id: int, year_id: int) -> str | None:
     return await db.scalar(
         select(StudentLanguage.language).where(
@@ -114,7 +135,11 @@ async def student_language(db: AsyncSession, student_id: int, year_id: int) -> s
 async def assign_student_language(
     db: AsyncSession, *, student_id: int, year_id: int, language: str | None
 ) -> None:
-    """Set or clear a pupil's second language for one year."""
+    """Set or clear a pupil's second language for one year.
+
+    Callers hold the pupil's enrollment lock (``lock_enrollments``) or created that
+    enrollment in the same transaction.
+    """
     if language is None:
         await db.execute(
             delete(StudentLanguage).where(
@@ -170,13 +195,8 @@ async def move_students(
 ) -> tuple[list[tuple[int, int]], int]:
     """Move pupils within their year; return ``(student_id, from_class_id)`` per move and
     the number already in the target class."""
-    enrollments = list(
-        await db.scalars(
-            select(Enrollment).where(
-                Enrollment.student_id.in_(student_ids),
-                Enrollment.year_id == target_class.year_id,
-            )
-        )
+    enrollments = await lock_enrollments(
+        db, year_id=target_class.year_id, student_ids=set(student_ids)
     )
     if len(enrollments) != len(set(student_ids)):
         raise ValueError("student_not_enrolled_in_year")

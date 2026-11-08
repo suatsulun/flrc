@@ -1,13 +1,13 @@
 import { useDragPageAutoScroll } from "@flrc/ui/hooks/use-drag-page-auto-scroll";
 import type { ColumnCreate } from "@flrc/api-client";
-import { reorderColumnsMutation, updateColumnMutation, type ColumnOut } from "@flrc/api-client";
+import { reorderColumns, updateColumnMutation, type ColumnOut } from "@flrc/api-client";
 import { Button } from "@flrc/ui/components/button";
 import { NativeSelect } from "@flrc/ui/components/native-select";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowLeftIcon, ArrowRightIcon, GripVerticalIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, GripVerticalIcon, PencilIcon } from "lucide-react";
 import { useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { useNotifyDone } from "./undo-toast";
 type Subject = ColumnCreate["subject"];
 type Role = ColumnCreate["owner_role"];
 
@@ -17,14 +17,17 @@ export function ClassColumnHeaders({
   semesterId,
   writable,
   onChanged,
+  onRename,
 }: {
   columns: ColumnOut[];
   subject: Subject;
   semesterId?: number;
   writable: boolean;
   onChanged: () => Promise<unknown>;
+  onRename: (column: ColumnOut, opener: HTMLElement) => void;
 }) {
   const { t } = useTranslation();
+  const notifyDone = useNotifyDone();
   const [draggedColumnId, setDraggedColumnId] = useState<number>();
   useDragPageAutoScroll(Boolean(draggedColumnId));
   const [columnDropTarget, setColumnDropTarget] = useState<number>();
@@ -32,16 +35,30 @@ export function ClassColumnHeaders({
   const ownerRoles = subject === "english" ? (["main", "skills"] as const) : [subject];
   const updateColumn = useMutation({
     ...updateColumnMutation(),
-    onSuccess: async () => {
-      toast.success(t("feedback.saved"));
+    onSuccess: async (updated) => {
+      notifyDone(
+        t("columns.ownerChanged", {
+          name: updated.name,
+          role: t(`roles.${updated.owner_role}`),
+        }),
+        updated.action_id,
+      );
       await onChanged();
     },
   });
   const [reorderingColumnId, setReorderingColumnId] = useState<number>();
   const reorder = useMutation({
-    ...reorderColumnsMutation(),
-    onSuccess: async () => {
-      toast.success(t("feedback.saved"));
+    // The variables carry the moved field's name, so the toast names what was sent.
+    mutationFn: async ({ ids, semester }: { ids: number[]; semester: number; name: string }) =>
+      (
+        await reorderColumns({
+          query: { semester_id: semester },
+          body: { ordered_ids: ids },
+          throwOnError: true,
+        })
+      ).data,
+    onSuccess: async (result, { name }) => {
+      notifyDone(t("columns.reordered", { name }), result.action_id);
       await onChanged();
     },
     onError: () => {
@@ -58,8 +75,9 @@ export function ClassColumnHeaders({
     ordered.splice(to, 0, columnId);
     setReorderingColumnId(columnId);
     reorder.mutate({
-      query: { semester_id: semesterId },
-      body: { ordered_ids: [...ordered, ...columns.filter((c) => !c.is_active).map((c) => c.id)] },
+      semester: semesterId,
+      ids: [...ordered, ...columns.filter((c) => !c.is_active).map((c) => c.id)],
+      name: visibleColumns[from].name,
     });
   }
 
@@ -126,37 +144,34 @@ export function ClassColumnHeaders({
           >
             {column.name}
           </span>
-          <div className="mt-1 grid grid-cols-2 gap-0.5">
-            {writable
-              ? ([-1, 1] as const).map((offset) => (
-                  <Button
-                    key={offset}
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    className="h-5 w-full min-w-0 rounded"
-                    disabled={
-                      index + offset < 0 ||
-                      index + offset >= visibleColumns.length ||
-                      Boolean(reorderingColumnId)
-                    }
-                    pending={reorderingColumnId === column.id && reorder.isPending}
-                    pendingLabel={t("feedback.saving")}
-                    aria-label={t(
-                      offset === -1
-                        ? "classWorkspace.moveColumnLeft"
-                        : "classWorkspace.moveColumnRight",
-                    )}
-                    onClick={() => moveColumn(index, index + offset)}
-                  >
-                    {offset === -1 ? (
-                      <ArrowLeftIcon className="size-3" />
-                    ) : (
-                      <ArrowRightIcon className="size-3" />
-                    )}
-                  </Button>
-                ))
-              : null}
+          <div className="mt-1 grid grid-cols-3 gap-0.5">
+            {writable ? (
+              <>
+                <MoveColumnButton
+                  offset={-1}
+                  disabled={index === 0 || Boolean(reorderingColumnId)}
+                  pending={reorderingColumnId === column.id && reorder.isPending}
+                  onClick={() => moveColumn(index, index - 1)}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="h-5 w-full min-w-0 rounded"
+                  aria-label={t("columns.renameColumn", { name: column.name })}
+                  title={t("columns.rename")}
+                  onClick={(event) => onRename(column, event.currentTarget)}
+                >
+                  <PencilIcon className="size-3" />
+                </Button>
+                <MoveColumnButton
+                  offset={1}
+                  disabled={index + 1 >= visibleColumns.length || Boolean(reorderingColumnId)}
+                  pending={reorderingColumnId === column.id && reorder.isPending}
+                  onClick={() => moveColumn(index, index + 1)}
+                />
+              </>
+            ) : null}
           </div>
           <div className="mt-1 min-w-0">
             {writable ? (
@@ -187,5 +202,36 @@ export function ClassColumnHeaders({
         </th>
       ))}
     </>
+  );
+}
+
+function MoveColumnButton({
+  offset,
+  disabled,
+  pending,
+  onClick,
+}: {
+  offset: -1 | 1;
+  disabled: boolean;
+  pending: boolean;
+  onClick: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-xs"
+      className="h-5 w-full min-w-0 rounded"
+      disabled={disabled}
+      pending={pending}
+      pendingLabel={t("feedback.saving")}
+      aria-label={t(
+        offset === -1 ? "classWorkspace.moveColumnLeft" : "classWorkspace.moveColumnRight",
+      )}
+      onClick={onClick}
+    >
+      {offset === -1 ? <ArrowLeftIcon className="size-3" /> : <ArrowRightIcon className="size-3" />}
+    </Button>
   );
 }

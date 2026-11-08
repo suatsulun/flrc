@@ -35,6 +35,7 @@ from flrc.modules.academics.class_names import class_label
 from flrc.modules.academics.columns import (
     apply_column_patch,
     column_has_grades,
+    column_has_history,
     column_state,
     editable_semester,
     reorder_scope_ids,
@@ -46,6 +47,7 @@ from flrc.modules.administration.classes import (
     assignment_mismatch,
     class_conflict,
     class_in_use,
+    lock_class,
     stage_number_clash,
     writable_class_year,
 )
@@ -54,6 +56,7 @@ from flrc.modules.administration.report_identity import audit_identity, identity
 from flrc.modules.administration.roster_service import (
     assign_student_language,
     delete_enrollment,
+    lock_enrollments,
     move_students,
     school_number_holder,
     student_language,
@@ -103,11 +106,8 @@ def _class_name(school_class: SchoolClass) -> str:
 
 
 async def _enrollment(db: AsyncSession, student_id: int, year_id: int) -> Enrollment | None:
-    return await db.scalar(
-        select(Enrollment)
-        .where(Enrollment.student_id == student_id, Enrollment.year_id == year_id)
-        .with_for_update()
-    )
+    locked = await lock_enrollments(db, year_id=year_id, student_ids=[student_id])
+    return locked[0] if locked else None
 
 
 async def _student_is_referenced(db: AsyncSession, student_id: int) -> bool:
@@ -200,11 +200,7 @@ async def _undo_student_move(ctx: UndoContext) -> None:
     student_ids = [item["student_id"] for item in moved]
     enrollments = {
         item.student_id: item
-        for item in await db.scalars(
-            select(Enrollment)
-            .where(Enrollment.year_id == data["year_id"], Enrollment.student_id.in_(student_ids))
-            .with_for_update()
-        )
+        for item in await lock_enrollments(db, year_id=data["year_id"], student_ids=student_ids)
     }
     names = dict(
         (
@@ -262,7 +258,9 @@ async def _undo_student_move(ctx: UndoContext) -> None:
 async def _undo_student_edit(ctx: UndoContext) -> None:
     db, data = ctx.db, ctx.data
     year = await writable_class_year(db, data["year_id"])
-    student = await db.get(Student, data["student_id"], with_for_update=True)
+    student = await db.get(
+        Student, data["student_id"], with_for_update=True, populate_existing=True
+    )
     enrollment = await _enrollment(db, data["student_id"], year.id)
     if student is None or enrollment is None:
         raise UndoBlocked("target_missing", student=ctx.params.get("student"))
@@ -315,6 +313,12 @@ async def _undo_student_language(ctx: UndoContext) -> None:
     year = await writable_class_year(db, data["year_id"])
     before: list[dict[str, Any]] = data["before"]
     student_ids = [item["student_id"] for item in before]
+    # The same enrollment locks ordinary language writes take, held until the commit:
+    # the check below and the restore see one state.
+    enrollments = {
+        item.student_id: item
+        for item in await lock_enrollments(db, year_id=year.id, student_ids=student_ids)
+    }
     names = dict(
         (
             await db.execute(
@@ -335,19 +339,20 @@ async def _undo_student_language(ctx: UndoContext) -> None:
     grades = dict(
         (
             await db.execute(
-                select(Enrollment.student_id, SchoolClass.grade_level)
-                .join(SchoolClass, SchoolClass.id == Enrollment.class_id)
-                .where(Enrollment.year_id == year.id, Enrollment.student_id.in_(student_ids))
+                select(SchoolClass.id, SchoolClass.grade_level).where(
+                    SchoolClass.id.in_({item.class_id for item in enrollments.values()})
+                )
             )
         ).all()
     )
     for item in before:
         name = names.get(item["student_id"])
+        enrollment = enrollments.get(item["student_id"])
+        if enrollment is None:
+            raise UndoBlocked("target_missing", student=name)
         if current.get(item["student_id"]) != data["language"]:
             raise UndoBlocked("changed_since", student=name)
-        if item["student_id"] not in grades:
-            raise UndoBlocked("target_missing", student=name)
-        if item["language"] is not None and grades[item["student_id"]] < L2_START_GRADE:
+        if item["language"] is not None and grades[enrollment.class_id] < L2_START_GRADE:
             raise UndoBlocked("language_grade_too_low", student=name)
     for item in before:
         await assign_student_language(
@@ -358,13 +363,17 @@ async def _undo_student_language(ctx: UndoContext) -> None:
 # Classes --------------------------------------------------------------------
 
 
+async def _locked_class(ctx: UndoContext, class_id: int) -> SchoolClass:
+    if await ctx.db.get(SchoolClass, class_id) is None:
+        raise UndoBlocked("target_missing", **{"class": ctx.params.get("class")})
+    school_class, _ = await lock_class(ctx.db, class_id)
+    return school_class
+
+
 @handles("class.create")
 async def _undo_class_create(ctx: UndoContext) -> None:
     db = ctx.db
-    school_class = await db.get(SchoolClass, ctx.data["class_id"])
-    if school_class is None:
-        raise UndoBlocked("target_missing", **{"class": ctx.params.get("class")})
-    await writable_class_year(db, school_class.year_id)
+    school_class = await _locked_class(ctx, ctx.data["class_id"])
     if await class_in_use(db, school_class.id):
         raise UndoBlocked("class_in_use", **{"class": _class_name(school_class)})
     await db.delete(school_class)
@@ -373,10 +382,7 @@ async def _undo_class_create(ctx: UndoContext) -> None:
 @handles("class.edit")
 async def _undo_class_edit(ctx: UndoContext) -> None:
     db, data = ctx.db, ctx.data
-    school_class = await db.get(SchoolClass, data["class_id"])
-    if school_class is None:
-        raise UndoBlocked("target_missing", **{"class": ctx.params.get("class")})
-    await writable_class_year(db, school_class.year_id)
+    school_class = await _locked_class(ctx, data["class_id"])
     after, before = data["after"], data["before"]
     if (school_class.grade_level, school_class.section) != (
         after["grade_level"],
@@ -423,18 +429,28 @@ async def _undo_class_delete(ctx: UndoContext) -> None:
 
 
 async def _column(ctx: UndoContext, column_id: int) -> ColumnDefinition:
-    column = await ctx.db.get(ColumnDefinition, column_id, with_for_update=True)
+    column = await ctx.db.get(
+        ColumnDefinition, column_id, with_for_update=True, populate_existing=True
+    )
     if column is None:
         raise UndoBlocked("target_missing", field=ctx.params.get("field"))
     await editable_semester(ctx.db, column.semester_id)
     return column
 
 
+async def _ensure_unused(db: AsyncSession, column: ColumnDefinition) -> None:
+    """Refuse removing an added field that holds grades or grade history; history stays."""
+    name = field_name(column.labels, column.subject)
+    if await column_has_grades(db, column.id):
+        raise UndoBlocked("field_has_grades", field=name)
+    if await column_has_history(db, column.id):
+        raise UndoBlocked("field_has_history", field=name)
+
+
 @handles("field.create")
 async def _undo_field_create(ctx: UndoContext) -> None:
     column = await _column(ctx, ctx.data["column_id"])
-    if await column_has_grades(ctx.db, column.id):
-        raise UndoBlocked("field_has_grades", field=field_name(column.labels, column.subject))
+    await _ensure_unused(ctx.db, column)
     await ctx.db.delete(column)
 
 
@@ -494,7 +510,12 @@ async def _undo_field_reorder(ctx: UndoContext) -> None:
     columns = {
         item.id: item
         for item in await db.scalars(
-            select(ColumnDefinition).where(ColumnDefinition.id.in_(after)).with_for_update()
+            select(ColumnDefinition)
+            .where(ColumnDefinition.id.in_(after))
+            .order_by(ColumnDefinition.id)
+            # Positions only, as in the reorder itself: no wait on grade saves' key-share locks.
+            .with_for_update(key_share=True)
+            .execution_options(populate_existing=True)
         )
     }
     # A field deleted after the scope was read is missing from the locked rows.
@@ -513,14 +534,19 @@ async def _undo_field_copy(ctx: UndoContext) -> None:
     column_ids: list[int] = data["column_ids"]
     columns = list(
         await db.scalars(
-            select(ColumnDefinition).where(ColumnDefinition.id.in_(column_ids)).with_for_update()
+            select(ColumnDefinition)
+            .where(ColumnDefinition.id.in_(column_ids))
+            # In id order, as grid saves key-share-lock the fields they write: a save in progress
+            # finishes first, and its grades then refuse the removal below.
+            .order_by(ColumnDefinition.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
     )
     if len(columns) != len(column_ids):
         raise UndoBlocked("changed_since", count=len(column_ids))
     for column in columns:
-        if await column_has_grades(db, column.id):
-            raise UndoBlocked("field_has_grades", field=field_name(column.labels, column.subject))
+        await _ensure_unused(db, column)
     for column in columns:
         await db.delete(column)
 

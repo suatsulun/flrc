@@ -6220,9 +6220,19 @@ Google subject, report name, signature and role flags are cleared and `deleted_a
 Assignments and the account's own `report_identity_audits` rows are deleted; override grants are
 deleted unless a save went through one (`audit_entries.via_grant_id`), which then only expires.
 The account's name, e-mail and kept images are scrubbed from `admin_actions`. Lock order
-(`administration/account_locks.py`): every account write, assignment writer, the year rollover and
-undo lock the account row before actions or assignments, and the deletion holds it exclusively,
-so writers revalidate after waiting and nothing deadlocks. Lists and the teacher picker skip
+(`administration/account_locks.py`, table in ADR-080): accounts by id, then year, class,
+assignment rows by id and action rows. Writes that change accounts or roles, cannot be undone, or
+touch assignments (account create and edit, signature routes, deletion, both assignment writers,
+undo, year close) lock the administrator with the accounts they name and refuse one deactivated,
+deleted (401) or demoted (403) meanwhile; other admin writes (classes, rosters, fields, imports)
+rely on the request's authorization, so an admin removed mid-request finishes at most that
+request. The deletion holds the account exclusively, so writers revalidate after waiting and nothing
+deadlocks. Report renders keep teachers' signatures out of all process-wide renderer state; a
+parallel download renders each document in a process of its own (no executor), reads each one's
+pipe until end of file, stops every process before returning, and concurrent renders share one
+process budget (`render_worker_limit()`). Undos of one action take turns on a transaction advisory
+lock.
+Lists and the teacher picker skip
 deleted accounts; PATCH and signature routes answer 404 for them. In `/users` a
 deactivated row offers **Kalıcı olarak sil** (destructive outline) next to **Yeniden
 etkinleştir**; the `CountdownConfirmDialog` lists what is erased and kept, keeps the delete button
@@ -6467,9 +6477,16 @@ recorded actions keep only the account id.
 
 **Locks:** every recorded write locks the rows it changes before reading their previous values
 and keeps the lock until it commits with the action, so two concurrent edits each record what
-they actually replaced. A pupil's yearly data (number, class, second language) is guarded by
-their enrollment row (`lock_enrollments`, id order); class writes lock the year, then the class
-(`lock_class`). Undo handlers take the same locks before checking.
+they actually replaced. Locks are taken year first: a pupil's yearly data (number, class, second
+language), including a new pupil from either the roster or the students page, is guarded by the
+year (`writable_class_year`), then their enrollment row (`lock_enrollments`, id order); class
+writes lock the year, then the class (`lock_class`). Undo handlers and roster removal take the
+same locks in the same order before checking. Grade saves and grid undo key-share-lock the fields
+they write (`FOR KEY SHARE`, id order) after their grant or batch locks and before the first grade
+or audit row; removing fields (copy undo, field delete) locks them `FOR UPDATE` in id order, so it
+waits for a save in progress and then sees its grades. A field reorder and its undo change only
+positions, so they lock the fields `FOR NO KEY UPDATE`: grade saves neither wait for them nor
+deadlock with them.
 
 **Retention:** the backup sidecar deletes expired rows and their kept signature images every night
 before the dump; `flrc purge-admin-actions` does it by hand.

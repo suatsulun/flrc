@@ -42,7 +42,7 @@ from flrc.modules.academics.columns import (
 )
 from flrc.modules.academics.fields import field_name
 from flrc.modules.academics.programme import L2_START_GRADE, stage_for_grade
-from flrc.modules.administration.account_locks import lock_accounts
+from flrc.modules.administration.account_locks import lock_for_admin
 from flrc.modules.administration.classes import (
     apply_assignment_slots,
     assignment_mismatch,
@@ -102,25 +102,30 @@ def handles(*kinds: ActionKind) -> Callable[[Handler], Handler]:
     return register
 
 
-async def lock_action_accounts(db: AsyncSession, kind: str, data: dict[str, Any]) -> None:
-    """Lock the accounts an action names, before the action row itself (ADR-080).
+async def lock_action_accounts(
+    db: AsyncSession, kind: str, data: dict[str, Any], actor: User
+) -> dict[int, User]:
+    """Lock the undoing administrator and the accounts an action names, in id order,
+    before anything else (ADR-080); returns their current rows.
 
     Every write about an account and a permanent deletion lock the account first, so an
     undo does too: account actions lock their account exclusively, as the handler does;
-    assignment changes take shared locks on every teacher their slots name.
+    assignment changes take shared locks on every teacher their slots name. The
+    administrator is locked shared and checked again, as the account and assignment
+    writers do: marking the action undone refers to that account, which its own deletion
+    holds.
     """
     if kind in ACCOUNT_ACTION_KINDS:
-        await lock_accounts(db, [int(data["user_id"])], exclusive=True)
-    elif kind == "assignments.replace":
-        await lock_accounts(
-            db,
-            {
-                slot[key]
-                for slot in data["slots"]
-                for key in ("before", "after")
-                if slot[key] is not None
-            },
-        )
+        return await lock_for_admin(db, actor, exclusive=int(data["user_id"]))
+    named: set[int] = set()
+    if kind == "assignments.replace":
+        named = {
+            slot[key]
+            for slot in data["slots"]
+            for key in ("before", "after")
+            if slot[key] is not None
+        }
+    return await lock_for_admin(db, actor, shared=named)
 
 
 def _class_name(school_class: SchoolClass) -> str:
@@ -535,11 +540,15 @@ async def _undo_field_reorder(ctx: UndoContext) -> None:
             select(ColumnDefinition)
             .where(ColumnDefinition.id.in_(after))
             .order_by(ColumnDefinition.id)
-            .with_for_update()
+            # Positions only, as in the reorder itself: no wait on grade saves' key-share locks.
+            .with_for_update(key_share=True)
             .execution_options(populate_existing=True)
         )
     }
-    if any(columns[column_id].position != position for column_id, position in after.items()):
+    # A field deleted after the scope was read is missing from the locked rows.
+    if columns.keys() != after.keys() or any(
+        columns[column_id].position != position for column_id, position in after.items()
+    ):
         raise UndoBlocked("order_changed", **params)
     for column_id, position in data["before"]:
         columns[int(column_id)].position = position
@@ -554,6 +563,8 @@ async def _undo_field_copy(ctx: UndoContext) -> None:
         await db.scalars(
             select(ColumnDefinition)
             .where(ColumnDefinition.id.in_(column_ids))
+            # In id order, as grid saves key-share-lock the fields they write: a save in progress
+            # finishes first, and its grades then refuse the removal below.
             .order_by(ColumnDefinition.id)
             .with_for_update()
             .execution_options(populate_existing=True)
@@ -669,15 +680,19 @@ async def _undo_assignments(ctx: UndoContext) -> None:
         item.id: item
         for item in await db.scalars(select(SchoolClass).where(SchoolClass.id.in_(class_ids)))
     }
-    # `lock_action_accounts` already holds these; re-reading them shows a deletion it waited for.
-    teachers = await lock_accounts(
-        db, {item["before"] for item in slots if item["before"] is not None}
-    )
+    # `lock_action_accounts` holds these already and read them after any wait, so a
+    # deletion it waited for shows here.
+    teacher_ids = {item["before"] for item in slots if item["before"] is not None}
+    teachers = {
+        user.id: user for user in await db.scalars(select(User).where(User.id.in_(teacher_ids)))
+    }
+    # In id order, as every assignment writer and a permanent deletion lock them (ADR-080).
     current = {
         (item.class_id, item.role): item.user_id
         for item in await db.scalars(
             select(TeachingAssignment)
             .where(TeachingAssignment.class_id.in_(class_ids))
+            .order_by(TeachingAssignment.id)
             .with_for_update()
         )
     }

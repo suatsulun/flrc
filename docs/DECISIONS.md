@@ -1776,6 +1776,8 @@ are not moved back into job payloads or temporary artifact storage.
 ## Supersedes / Superseded by
 
 Extends ADR-028; the endpoint and the four school-wide report-set contract are unchanged.
+ADR-080 replaces the warm pool: a parallel download renders each document in a process of its
+own, stopped before the render returns.
 
 ---
 
@@ -3275,8 +3277,13 @@ undo (Step 2.8); administrative writes had none.
   them still apply. A hidden field with grades is shown again with its grades.
 - Every recorded write locks the rows it changes before reading their previous values and holds
   the lock until it commits with its action; undo handlers take the same locks before checking.
-  A pupil's number, class and second language are guarded by their enrollment row, so language
-  writes and their undo cannot interleave.
+  A pupil's number, class and second language are guarded by the year, then their enrollment
+  row, so language writes and their undo cannot interleave; every roster write, new pupil,
+  removal and undo locks in that order, so none of them deadlock. Grade saves and grid undo
+  key-share-lock the fields they write in id order before writing; removing copied fields locks
+  them `FOR UPDATE` in the same order, so it waits for a save and is then refused by its grades.
+  Field reorders and their undo change only positions and lock the fields `FOR NO KEY UPDATE`,
+  which grade saves' key-share locks do not wait for.
 - The backup sidecar deletes expired rows and their images each night before the dump
   (`flrc purge-admin-actions` does the same by hand). Until then an expired row is listed as
   `expired` and cannot be undone.
@@ -3372,13 +3379,20 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
   eligible class) returns 202 and a `report_set` job. The API validates the selection against the
   roster (`unknown_class`, `class_not_in_semester`, `class_not_in_report_set`,
   `student_not_in_report_set`, `empty_report_set`) and stores the output name and class count at
-  creation, so the downloads list can name a job while it waits. The demo refuses jobs.
+  creation, so the downloads list can name a job while it waits. The demo refuses jobs. An account
+  may have three report jobs waiting or running at once; a fourth is refused
+  (`report_jobs_pending`) under a lock on the account row, so simultaneous requests cannot pass
+  together. A job the queue refuses is stored as failed (`job_queue_unavailable`, 503), not left
+  waiting for a message that never comes.
 - **Worker** (`reports.set`): builds the set with the fixed-query builder, renders each class once
   through the bounded pool of ADR-046 (progress counts classes), then packages it. A combined PDF
   merges classes incrementally and folds repeated fonts and covers. A per-pupil ZIP never renders
   a pupil alone: the class is rendered once — middle-school cards one per sheet instead of two-up —
   and cut by page range (two pages per duplex card, one per middle-school card). Every class's
   page count is checked against that mapping; a mismatch fails the job (`report_page_mapping`).
+  A chosen class or pupil who left the set before the job ran (moved, removed, another language)
+  fails it too (`class_not_in_report_set`, `student_not_in_report_set`, shown as an out-of-date
+  selection), rather than a file silently missing them.
 - **Output budget and numbered parts:** no stored file may pass 192 MiB. A per-class or per-pupil
   ZIP that would is cut into numbered parts, `… 1. Dönem (Bölüm 1).zip`, `(Bölüm 2)` …, breaking
   only between whole files; a pupil ZIP breaks at a class boundary when the class no longer fits
@@ -3401,13 +3415,14 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
 - **File names:** `{scope} {card} {year} {N}. Dönem.{pdf|zip}`, scope `8-A`, `8-A 123 Ali Yılmaz`,
   `8-A Seçili Öğrenciler`, `Seçili Öğrenciler`, `Seçili Sınıflar` or `Tüm Okul`; class sheets
   `8-A Sınıf Raporu …` / `Sınıf Raporları …`. `/` becomes `-`, characters Windows refuses are
-  dropped, and `Content-Disposition` carries an ASCII `filename` plus RFC 6266 `filename*`.
+  dropped, and `Content-Disposition` carries an ASCII `filename` plus RFC 6266 `filename*`; the
+  ASCII name is cleaned again after folding, since folding turns fullwidth quotes into ASCII ones.
 - **Rate limits are per route:** jobs 5/min (`report_pdf`); direct PDFs and class sheets 30/min
   (`report_single`); the year export keeps the 3/min export budget.
 - **Report centre:** per card kind, View/Download one class, prepare the whole school in a chosen
   format, or pick pupils across classes; a downloads list (report and export jobs, polled while one
-  runs) replaces the browser queue and blob-link toasts. The leave guard covers only a direct
-  download in flight.
+  runs, each poll waking the worker while a job is queued) replaces the browser queue and
+  blob-link toasts. The leave guard covers only a direct download in flight.
 
 ## Alternatives considered
 
@@ -3450,15 +3465,19 @@ student_ids}` (`format`: `combined` | `per_class` | `per_student`; both lists em
   their own year exports; the list and the download use the same rule.
 - A job freezes its classes and their pupils in one read when it starts and builds each class
   from that list. Before anything is published, every frozen pupil must appear exactly once; a
-  pupil moved or removed during the job fails it with `report_roster_changed` instead of being
-  printed twice or dropped.
+  pupil moved or removed during the job fails it with `report_roster_changed`, shown as an
+  out-of-date selection, instead of being printed twice or dropped.
 - Each job renders in its own temporary folder, `flrc-report-<job id>-…`. A worker reclaims
   folders of jobs that are no longer queued or running, and any folder untouched for six hours,
-  when it starts and before each job, so a forced stop cannot leave pupils' PDFs on disk.
+  when it starts and after each job, so a forced stop cannot leave pupils' PDFs on disk: the
+  attempt that finishes an interrupted job also removes the folder the killed attempt left.
 - A staged part carries its own six-hour expiry until the set succeeds and replaces it with the
-  shared one. `purge_job_outputs` (nightly in the backup sidecar, or `flrc purge-job-outputs`)
-  deletes parts of failed requests and staged parts past that bound, even when the job's own
-  cleanup never ran.
+  shared one; every class the job finishes extends it, so only a job that stopped advancing
+  loses its parts. `purge_job_outputs` (nightly in the backup sidecar, or
+  `flrc purge-job-outputs`) deletes parts of failed requests and staged parts past that bound,
+  even when the job's own cleanup never ran, and marks a request still queued or running whose
+  parts it reclaims as failed in the same transaction. A split set is published only while its
+  request is still running and holds every part from 1 to the last; otherwise it fails.
 
 ## Supersedes / Superseded by
 
@@ -3586,9 +3605,10 @@ date filters.
   the newest year in setup, else nothing:
   - **Term status and next step.** One code with the facts behind it: `create_year`;
     `activate_year` with blockers (pupils without a school number, the only activation guard);
-    `collect_grades` while the open semester is incomplete, with its completion percentage;
-    `advance_semester` / `lock_semester` once it is complete; `close_year` when both semesters are
-    locked. A semester without any field is not complete.
+    `collect_grades` while the open semester is incomplete, with its completion percentage and a
+    blocker counting grids with pupils but no fields; `advance_semester` / `lock_semester` once it
+    is complete; `close_year` when both semesters are locked. A semester without any field is not
+    complete, and neither is one where a grid with pupils has no fields.
   - **Completion** of the open semester (else the last one) per class and subject, with a
     drill-down dialog listing each empty cell's pupil, field, owner role and assigned teacher
     (`/api/coordinator/classes/{id}/missing` now returns those names), linked to the class table.
@@ -3601,7 +3621,7 @@ date filters.
   - **Report readiness** per card kind: classes in the card's grades with at least one pupil on
     that card, how many are complete, and the share of the printed fields entered. The
     middle-school English card counts each pupil's own German or French score fields too, since it
-    prints them.
+    prints them; a class without English fields stays incomplete however many of those are filled.
   - **Downloads**: recent background report and export jobs with progress, expiry and a download
     link.
 - The coordinator page is merged into the dashboard and `/coordinator` redirects to `/`. The
@@ -3668,16 +3688,62 @@ points at the account.
   `user.create`, `user.edit`, `signature.upload` and `signature.delete` for the account keep only
   `{"user_id"}` as their snapshot, drop the kept image and show the erased name without e-mail or
   name changes; `assignments.replace` entries show the erased name for the account's slots.
-- One lock order per account: whatever writes or records something about an account locks the
-  account row first: account edits and signature changes exclusively, assignment writers
-  (single slot and matrix), the year rollover, grid saves and grant requests (on the caller's own
-  account) shared, and undo before it locks the action row (exclusive for account actions, shared
-  on every teacher an assignment change names). The deletion holds the row exclusively, then
-  deletes assignments, then scrubs actions. So no action naming the account is recorded after the
-  scrub, assignment writers revalidate the account after waiting and refuse an inactive or deleted
-  one, the rollover leaves a deleted teacher's slots empty, a save or grant request that raced the
-  deactivation and deletion answers `401 not_registered` instead of saving through a removed
-  grant or recording a new one, and nothing deadlocks with the deletion.
+- One lock order for the writes that touch accounts, assignments, grants, recorded actions or
+  report identity: **accounts by id → year → class → assignment rows by id → action rows**. The
+  accounts are the acting administrator (or, for a teacher's own grid write, the teacher) and the
+  accounts the write names, locked together in id order: shared, except the one account whose row
+  the write changes, which is locked exclusively.
+- Administrator writes that change accounts or roles, cannot be undone, or touch assignments
+  check the acting administrator again under that lock: account create and edit, the signature
+  routes, permanent deletion, both assignment writers, undo and year close. One deactivated or
+  deleted meanwhile is refused with `401 not_registered`, one demoted meanwhile with
+  `403 forbidden`, before anything is written, erased or archived. Other administrator writes
+  (classes, rosters, fields, imports) rely on the request's authorization like any request already
+  under way: an administrator removed meanwhile finishes at most that one request.
+
+  | Write                                         | Locks, in order                                                                                                                                                                                                    |
+  | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+  | Account create                                | administrator (shared) → the new action                                                                                                                                                                            |
+  | Account edit; signature view, upload, removal | administrator (shared) and account (exclusive), by id → its identity audit → the new action                                                                                                                        |
+  | Permanent deletion                            | administrator (shared) and account (exclusive), by id → the account's slots by id → its grants → its identity audits → the actions naming it, by id                                                                |
+  | Assignment matrix and single slot             | administrator and destination teachers (shared), by id → year → the classes' slots by id → the new action                                                                                                          |
+  | Year close and rollover                       | administrator and the year's slot holders (shared), by id → year → the new year's rows                                                                                                                             |
+  | Grid save, grid undo, grant request           | the teacher's own account (shared) → grants (save, grant request) or the last save batch (undo) → the fields written, key share, by id → grade values and save batch → grade audit                                 |
+  | Undo of a recorded action                     | administrator (shared) and the accounts it names (exclusive for an account action, shared for an assignment change), by id → what the handler restores (year, class, roster, fields, slots by id) → the action row |
+
+  Undos of one action also take a transaction-scoped advisory lock on the action's id before any
+  row lock, so a second undo waits and then answers `409 action_already_undone` instead of
+  restoring the same rows twice; nothing else takes that key. The expiry purge takes no lock, so an
+  undo that waited past its action's expiry may find the action row gone when it locks it last;
+  it then rolls back and answers `410 action_expired`. A holder assigned while a year close
+  waited for the holders is locked after the year; nothing that locks an account exclusively goes
+  on to lock a year, so that cannot deadlock. So no action naming an account is recorded after its
+  scrub, assignment writers refuse an inactive or deleted teacher, the rollover leaves a deleted
+  teacher's slots empty, a checked write whose own account raced the deactivation and deletion is
+  refused instead of saving through a removed grant or recording, undoing, erasing or archiving
+  anything, and nothing deadlocks with the deletion.
+
+- Report rendering keeps teachers' signatures out of every process-wide state: the renderer's
+  only process-wide memo holds the fixed artwork's bytes (logo, faces, watermarks, overlay
+  assets), and WeasyPrint's parsed images, the asset fetcher and the signatures live only as long
+  as the document being rendered, in the API process and in render processes alike; a render that
+  printed a signature clears `urllib.parse.urlsplit`'s memo, which WeasyPrint fills with every URL
+  a document uses. A parallel
+  download uses no process pool: an executor's manager and queue threads keep the documents they
+  were sent, and a worker killed in the middle of its result could leave them blocked for good.
+  Instead each wave starts one process per document, each with its own pipe whose only write end
+  is the child's: the child renders, writes its PDF and exits, and the parent reads every pipe
+  without blocking until end of file, so a child that dies yields end of file at once. Whatever
+  happens, every process is terminated (then killed) if still running and joined, and every pipe
+  is closed. A process that exits without its whole PDF makes the download fall back to the serial
+  render. The forkserver preloads the renderer, so a process costs a fork, not a WeasyPrint import.
+  Concurrent renders share one budget of `render_worker_limit()` processes per OS process: a
+  render reserves its workers before starting a wave and releases them after the last process has
+  exited, so a second download waits rather than starting more processes. A parallel render that
+  has not finished after ten minutes (`RENDER_DEADLINE_SECONDS`) has a stuck process: its
+  processes are stopped, the budget is given back and the render fails, so one stuck process
+  cannot hold the budget for good. A deleted teacher's signature cannot be printed again or read
+  back from a running process.
 - No undo can bring the account back: undo handlers refuse a deleted account with
   `target_missing`.
 - Deleted accounts are left out of `/api/admin/users` and the `/api/users` teacher picker; editing
@@ -3709,7 +3775,8 @@ points at the account.
 
 ## Supersedes / Superseded by
 
-Extends ADR-075 (undo records) and Step 3.2's deactivation; supersedes nothing.
+Extends ADR-075 (undo records) and Step 3.2's deactivation. Supersedes ADR-046's warm renderer
+pool: a parallel download renders each document in a process of its own, with no executor.
 
 ---
 

@@ -21,6 +21,10 @@ export function reportRequestMessage(t: TFunction, error: unknown): string {
       return t("reports.errors.demoJobs");
     case "output_expired":
       return t("reports.errors.expired");
+    case "report_jobs_pending":
+      return t("reports.errors.jobsPending");
+    case "job_queue_unavailable":
+      return t("reports.errors.queueUnavailable");
     default:
       return t("reports.pdfFailed");
   }
@@ -31,12 +35,18 @@ export function jobFailureMessage(t: TFunction, code: string | null): string {
   switch (code) {
     case "empty_report_set":
       return t("reports.errors.empty");
+    case "class_not_in_report_set":
+    case "student_not_in_report_set":
+    case "report_roster_changed":
+      return t("reports.errors.selectionChanged");
     case "report_page_mapping":
       return t("reports.errors.pageMapping");
     case "report_output_too_large":
       return t("reports.errors.tooLarge");
     case "report_job_retired":
       return t("reports.errors.retired");
+    case "job_queue_unavailable":
+      return t("reports.errors.queueUnavailable");
     default:
       return t("reports.errors.jobFailed");
   }

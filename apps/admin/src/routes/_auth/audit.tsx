@@ -109,7 +109,8 @@ function AuditPage() {
     },
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
-    // A filter change keeps the filters (and the table) on screen while the new page loads.
+    // A filter change keeps the filters on screen (and focused) while the new page loads;
+    // the previous filter's rows stay hidden behind the table skeleton, never shown as current.
     placeholderData: keepPreviousData,
   });
   const items = audit.data?.pages.flatMap((page) => page.items) ?? [];
@@ -269,7 +270,9 @@ function AuditPage() {
                 </tr>
               </TableHead>
               <TableBody>
-                {items.length === 0 ? (
+                {audit.isPlaceholderData ? (
+                  <SkeletonTableRows columns={6} rows={10} />
+                ) : items.length === 0 ? (
                   <TableEmpty colSpan={6}>
                     {filtered ? t("audit.noMatches") : t("audit.empty")}
                   </TableEmpty>
@@ -373,7 +376,7 @@ function AuditPage() {
         ) : null}
       </Card>
 
-      {audit.hasNextPage ? (
+      {audit.hasNextPage && !audit.isPlaceholderData ? (
         <div className="flex justify-center">
           <Button
             variant="outline"

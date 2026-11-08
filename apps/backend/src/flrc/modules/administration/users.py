@@ -18,7 +18,7 @@ from flrc.db.models import (
 )
 from flrc.db.session import get_session
 from flrc.modules.academics.programme import Stage
-from flrc.modules.administration.account_locks import lock_accounts
+from flrc.modules.administration.account_locks import lock_for_admin
 from flrc.modules.administration.classes import assignment_mismatch
 from flrc.modules.administration.names import normalize_email, search_key
 from flrc.modules.administration.report_identity import (
@@ -198,6 +198,8 @@ async def create_managed_user(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ManagedUserWriteOut:
+    # The administrator first (ADR-080): the action recorded below refers to that account.
+    await lock_for_admin(db, actor)
     email = normalize_email(body.email)
     if allowed_google_domain() and not email_is_in_school_domain(email):
         raise HTTPException(422, {"code": "wrong_school_domain"})
@@ -234,7 +236,7 @@ async def patch_managed_user(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ManagedUserWriteOut:
-    target = await db.get(User, user_id, with_for_update=True, populate_existing=True)
+    target = (await lock_for_admin(db, actor, exclusive=user_id)).get(user_id)
     if target is None or target.deleted_at is not None:
         raise HTTPException(404, {"code": "unknown_user"})
     if target.id != actor.id and await demo.is_visitor(db, target.id):
@@ -293,7 +295,7 @@ async def patch_managed_user(
 
 
 async def signature_user(db: AsyncSession, user_id: int, actor: User) -> User:
-    target = await db.get(User, user_id, with_for_update=True, populate_existing=True)
+    target = (await lock_for_admin(db, actor, exclusive=user_id)).get(user_id)
     if target is None or target.deleted_at is not None:
         raise HTTPException(404, {"code": "unknown_user"})
     if await demo.is_visitor(db, target.id):
@@ -396,10 +398,12 @@ async def delete_managed_user(
     The row stays so grades, grade history, save batches and jobs keep pointing at it;
     every history view then shows ``ERASED_USER_NAME`` through the stored name.
     """
-    # The account row first, exclusively: every writer about the account, the year rollover
-    # and undo lock it first too (ADR-080), so none of them can record or restore anything
-    # about it between here and the commit, and none can deadlock with this deletion.
-    target = (await lock_accounts(db, [user_id], exclusive=True)).get(user_id)
+    # The acting administrator shared and the account exclusively, in id order: every
+    # writer about the account, the year rollover and undo lock it first too (ADR-080), so
+    # none of them can record or restore anything about it between here and the commit,
+    # and none can deadlock with this deletion. An administrator erased or demoted while
+    # this waited is refused before anything is erased.
+    target = (await lock_for_admin(db, actor, exclusive=user_id)).get(user_id)
     if target is None or target.deleted_at is not None:
         raise HTTPException(404, {"code": "unknown_user"})
     if target.id == actor.id:
@@ -408,7 +412,16 @@ async def delete_managed_user(
         raise HTTPException(403, {"code": "visitor_protected"})
     if target.is_active:
         raise HTTPException(409, {"code": "user_active"})
-    await db.execute(delete(TeachingAssignment).where(TeachingAssignment.user_id == target.id))
+    # The slots in id order, as every assignment writer locks them, before deleting them.
+    slot_ids = list(
+        await db.scalars(
+            select(TeachingAssignment.id)
+            .where(TeachingAssignment.user_id == target.id)
+            .order_by(TeachingAssignment.id)
+            .with_for_update()
+        )
+    )
+    await db.execute(delete(TeachingAssignment).where(TeachingAssignment.id.in_(slot_ids)))
     await _end_grants(db, target.id)
     await db.execute(delete(ReportIdentityAudit).where(ReportIdentityAudit.user_id == target.id))
     # After the assignments: a slot writer that held one of them has committed its action

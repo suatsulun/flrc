@@ -28,7 +28,7 @@ from flrc.modules.academics.class_names import (
     normalize_section,
 )
 from flrc.modules.academics.programme import stage_for_grade
-from flrc.modules.administration.account_locks import assignable, lock_accounts
+from flrc.modules.administration.account_locks import assignable, lock_for_admin
 from flrc.modules.administration.roster_service import (
     NumberHolder,
     is_duplicate_school_number,
@@ -117,7 +117,10 @@ class AssignmentMatrixWriteOut(ActionWrite):
 
 
 async def writable_class_year(db: AsyncSession, year_id: int) -> AcademicYear:
-    """Lock a year for a class or assignment write; archived years are read-only."""
+    """Lock a year for a class, roster or assignment write; archived years are read-only.
+
+    Taken before any class or enrollment lock of the year, the order every write and undo uses.
+    """
     year = await db.scalar(select(AcademicYear).where(AcademicYear.id == year_id).with_for_update())
     if year is None:
         raise HTTPException(404, {"code": "unknown_year"})
@@ -491,8 +494,11 @@ async def replace_assignment_matrix(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> AssignmentMatrixWriteOut:
     user_ids = {change.user_id for change in body.changes if change.user_id is not None}
-    # The accounts first (ADR-080): a concurrent deactivation or deletion is waited for and seen.
-    users = await lock_accounts(db, user_ids)
+    # The acting administrator and the destination accounts first, in id order (ADR-080): a
+    # concurrent deactivation or deletion of any of them is waited for and seen. The actor is
+    # locked even for a clear-only change, or its recorded action could wait behind a deletion
+    # of the actor that waits for the actor's own slot.
+    users = await lock_for_admin(db, actor, shared=user_ids)
     await writable_class_year(db, year_id)
     class_ids = {change.class_id for change in body.changes}
     classes = {
@@ -501,7 +507,7 @@ async def replace_assignment_matrix(
     }
     if any(item.year_id != year_id for item in classes.values()) or len(classes) != len(class_ids):
         raise HTTPException(422, {"code": "invalid_class"})
-    if len(users) != len(user_ids) or not all(assignable(item) for item in users.values()):
+    if not all(assignable(users.get(user_id)) for user_id in user_ids):
         raise HTTPException(422, {"code": "invalid_user"})
     # Validate every input before reducing repeated slots to their final value.
     slots: dict[tuple[int, str], int | None] = {}

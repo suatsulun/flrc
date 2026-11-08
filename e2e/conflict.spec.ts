@@ -1,4 +1,5 @@
 import { expect, test, type Browser } from "@playwright/test";
+import type { SaveResponse } from "../packages/api-client/src/index";
 import { authenticatedContext } from "./helpers/auth";
 import { expectFocusedTable } from "./helpers/table";
 
@@ -39,8 +40,17 @@ test("two writers collide and overwrite is explicit", async ({ browser }) => {
   await ownerCell.fill(String(ownerValue));
   await adminCell.fill(String(adminValue));
   // An admin's save never asks for ownership confirmation, so the grid does not warn them.
+  const adminSave = admin.waitForResponse(
+    (response) => response.request().method() === "POST" && response.url().endsWith("/grid/save"),
+  );
   await admin.getByTestId("save-grid").click();
-  await expect(admin.getByTestId("save-grid")).toBeDisabled();
+  // The owner's save must reach the server second, so wait for the admin's to commit.
+  const adminResponse = await adminSave;
+  expect(adminResponse.ok()).toBeTruthy();
+  const adminResult = (await adminResponse.json()) as SaveResponse;
+  expect(adminResult.conflicts).toEqual([]);
+  expect(adminResult.applied).toHaveLength(1);
+  await expect(admin.getByText("All changes saved", { exact: true })).toBeVisible();
   await expect(admin.getByRole("dialog")).toHaveCount(0);
   await expect(adminCell).toHaveValue(String(adminValue));
   await owner.getByTestId("save-grid").click();
@@ -72,7 +82,7 @@ test("a teacher confirms before saving another teacher's column", async ({ brows
   // and it should survive rewording the button.
   await ownershipWarning.getByTestId("confirm-ownership").click();
   await expect(ownershipWarning).toBeHidden();
-  await expect(teacher.getByTestId("save-grid")).toBeDisabled();
+  await expect(teacher.getByText("All changes saved", { exact: true })).toBeVisible();
   await expect(teacherCell).toHaveValue(String(teacherValue));
 
   await teacherContext.close();

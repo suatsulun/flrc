@@ -37,7 +37,8 @@ Not collected: gender, birthdate, national id, home address, browser tokens, or 
   its unused grants (a grant a save went through only expires), and its name, e-mail and kept
   images in `admin_actions`. Grades, grade audit, save batches and jobs keep pointing at the row,
   now named "Silinmiş öğretmen". Older backups and already generated PDFs keep the data until
-  they expire.
+  they expire. Report renderers hold a teacher's signature only for the render that prints it,
+  never in a process-wide cache, so it is not printed again after the deletion.
 - Direct PDF responses are not stored as job blobs. Downloaded files and school Drive archive
   bundles have the school's retention policy, independently of the 24-hour job-download expiry.
   Expired job blobs remain in storage until `flrc purge-job-outputs` removes them.

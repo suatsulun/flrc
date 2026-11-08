@@ -4,7 +4,8 @@ Report cards return as background jobs (ADR-077). The retired per-card kinds
 (`progress_pdf`, `german_karne`, `french_karne`) become the single
 `report_set` kind, so their history stays listed. A retired job still waiting
 would never run — no worker task handles it any more — so it is marked failed
-instead of spinning in the downloads list forever.
+instead of spinning in the downloads list forever. A downgrade does the same to
+waiting `report_set` jobs, which the old worker cannot run.
 
 Revision ID: c4e7a2d9f318
 Revises: c41d7e9a2b58
@@ -22,8 +23,8 @@ depends_on: str | Sequence[str] | None = None
 RETIRED_KINDS = "('progress_pdf','german_karne','french_karne')"
 
 
-def upgrade() -> None:
-    op.drop_constraint(op.f("ck_job_runs_kind_valid"), "job_runs", type_="check")
+def fail_unfinished(kinds: str) -> None:
+    """Fail the waiting jobs of kinds no worker will run; finished jobs keep their outputs."""
     op.execute(
         f"""
         UPDATE job_runs
@@ -31,9 +32,14 @@ def upgrade() -> None:
             error_code = 'report_job_retired',
             error_detail = 'The job failed. See server logs with this job id.',
             finished_at = now() AT TIME ZONE 'UTC'
-        WHERE kind IN {RETIRED_KINDS} AND status IN ('queued', 'running')
+        WHERE kind IN {kinds} AND status IN ('queued', 'running')
         """
     )
+
+
+def upgrade() -> None:
+    op.drop_constraint(op.f("ck_job_runs_kind_valid"), "job_runs", type_="check")
+    fail_unfinished(RETIRED_KINDS)
     op.execute(f"UPDATE job_runs SET kind = 'report_set' WHERE kind IN {RETIRED_KINDS}")
     op.create_check_constraint(
         op.f("ck_job_runs_kind_valid"),
@@ -45,6 +51,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_constraint(op.f("ck_job_runs_kind_valid"), "job_runs", type_="check")
     # The old schema had no set-wide kind; its generic report kind keeps the history rows.
+    fail_unfinished("('report_set')")
     op.execute("UPDATE job_runs SET kind = 'progress_pdf' WHERE kind = 'report_set'")
     op.create_check_constraint(
         op.f("ck_job_runs_kind_valid"),

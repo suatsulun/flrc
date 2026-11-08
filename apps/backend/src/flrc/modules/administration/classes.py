@@ -117,7 +117,10 @@ class AssignmentMatrixWriteOut(ActionWrite):
 
 
 async def writable_class_year(db: AsyncSession, year_id: int) -> AcademicYear:
-    """Lock a year for a class or assignment write; archived years are read-only."""
+    """Lock a year for a class, roster or assignment write; archived years are read-only.
+
+    Taken before any class or enrollment lock of the year, the order every write and undo uses.
+    """
     year = await db.scalar(select(AcademicYear).where(AcademicYear.id == year_id).with_for_update())
     if year is None:
         raise HTTPException(404, {"code": "unknown_year"})

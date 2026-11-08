@@ -14,6 +14,7 @@ const en = JSON.parse(readFileSync("packages/i18n/src/locales/en.json", "utf8"))
   classWorkspace: { year: string; semester: string };
   students: Record<string, string>;
   studentSearch: Record<string, string>;
+  loading: string;
 };
 
 const admin: MeOut = {
@@ -199,4 +200,51 @@ test("student search results fit a phone and open the history", async ({ page })
   await results.getByRole("link", { name: en.students.history, exact: true }).click();
   await expect(page).toHaveURL(/\/students\/21\/history/);
   await expect(page.getByRole("heading", { name: "Synthetic Pupil", exact: true })).toBeVisible();
+});
+
+test("a new student search shows skeleton rows, not the previous results", async ({ page }) => {
+  await mockApi(page);
+  const searched = Promise.withResolvers<void>();
+  // Registered after mockApi, so it answers the search first; the unfiltered list falls back.
+  await page.route(
+    (url) => url.pathname === "/api/admin/students",
+    async (route) => {
+      if (!new URL(route.request().url()).searchParams.get("q")) return route.fallback();
+      await searched.promise;
+      return route.fulfill({
+        json: {
+          items: [
+            {
+              id: 22,
+              school_number: 513,
+              full_name: "Synthetic Searched Pupil",
+              year_id: 5,
+              class_id: 55,
+            },
+          ],
+          next_cursor: null,
+        } satisfies StudentPage,
+      });
+    },
+  );
+  await page.goto(`${adminOrigin}/admin/students`);
+
+  const results = page.getByLabel(en.studentSearch.tableLabel, { exact: true });
+  const placeholders = results.locator("tbody tr[aria-hidden]");
+  const loading = page.getByRole("status").filter({ hasText: en.loading });
+  await expect(results.getByRole("row", { name: /Synthetic Pupil With/ })).toBeVisible();
+
+  const search = page.getByLabel(en.studentSearch.searchLabel, { exact: true });
+  await search.fill("Searched");
+  // While the search runs, the previous results are gone and skeleton rows stand in; the
+  // search box keeps focus, and one polite status says it is loading.
+  await expect(placeholders).toHaveCount(8);
+  await expect(results.getByText(/Synthetic Pupil With/)).toHaveCount(0);
+  await expect(search).toBeFocused();
+  await expect(loading).toHaveCount(1);
+
+  searched.resolve();
+  await expect(results.getByRole("row", { name: /Synthetic Searched Pupil/ })).toBeVisible();
+  await expect(placeholders).toHaveCount(0);
+  await expect(loading).toHaveCount(0);
 });

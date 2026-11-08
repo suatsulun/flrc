@@ -540,11 +540,15 @@ async def _undo_field_reorder(ctx: UndoContext) -> None:
             select(ColumnDefinition)
             .where(ColumnDefinition.id.in_(after))
             .order_by(ColumnDefinition.id)
-            .with_for_update()
+            # Positions only, as in the reorder itself: no wait on grade saves' key-share locks.
+            .with_for_update(key_share=True)
             .execution_options(populate_existing=True)
         )
     }
-    if any(columns[column_id].position != position for column_id, position in after.items()):
+    # A field deleted after the scope was read is missing from the locked rows.
+    if columns.keys() != after.keys() or any(
+        columns[column_id].position != position for column_id, position in after.items()
+    ):
         raise UndoBlocked("order_changed", **params)
     for column_id, position in data["before"]:
         columns[int(column_id)].position = position
@@ -559,6 +563,8 @@ async def _undo_field_copy(ctx: UndoContext) -> None:
         await db.scalars(
             select(ColumnDefinition)
             .where(ColumnDefinition.id.in_(column_ids))
+            # In id order, as grid saves key-share-lock the fields they write: a save in progress
+            # finishes first, and its grades then refuse the removal below.
             .order_by(ColumnDefinition.id)
             .with_for_update()
             .execution_options(populate_existing=True)

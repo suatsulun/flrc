@@ -406,6 +406,9 @@ function ClassesPage() {
             />
             {yearWritable ? (
               <ClassActions
+                // An open dialog and its drafts belong to one class: when that class disappears
+                // and the page falls back to another, they close instead of acting on it.
+                key={selectedClass.id}
                 schoolClass={selectedClass}
                 yearStatus={selectedYear!.status}
                 onEdited={(updated) => {

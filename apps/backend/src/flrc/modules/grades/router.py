@@ -512,6 +512,18 @@ async def save_grid(
         for role in roles:
             grants[role], _ = await _renew_grant(db, user.id, class_id, role)
 
+    # The fields this save writes, in id order, before its first grade or audit row. Their
+    # foreign keys then find these key-share locks already held, so removing copied fields,
+    # which locks them FOR UPDATE in id order, waits for the save rather than deadlocking.
+    written = sorted({cell.column_id for cell in body.cells if cell.column_id in columns})
+    if written:
+        await db.execute(
+            select(ColumnDefinition.id)
+            .where(ColumnDefinition.id.in_(written))
+            .order_by(ColumnDefinition.id)
+            .with_for_update(read=True, key_share=True)
+        )
+
     applied: list[AppliedOut] = []
     rejected: list[RejectedOut] = []
     raw_conflicts: list[dict[str, Any]] = []
@@ -755,9 +767,11 @@ async def undo_grid(
         column.id: column
         for column in (
             await db.scalars(
-                select(ColumnDefinition).where(
-                    ColumnDefinition.id.in_({entry.column_definition_id for entry in entries})
-                )
+                select(ColumnDefinition)
+                .where(ColumnDefinition.id.in_({entry.column_definition_id for entry in entries}))
+                # Key-share, in id order, as a save locks the fields it writes (see save_grid).
+                .order_by(ColumnDefinition.id)
+                .with_for_update(read=True, key_share=True)
             )
         )
     }

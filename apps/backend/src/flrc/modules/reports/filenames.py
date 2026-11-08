@@ -69,11 +69,16 @@ def part_filename(filename: str, number: int) -> str:
 
 
 def ascii_filename(value: str) -> str:
-    """The ``filename=`` fallback for clients without RFC 5987: Turkish letters folded."""
+    """The ``filename=`` fallback for clients without RFC 5987: Turkish letters folded.
+
+    Folding turns compatibility characters such as fullwidth ``＂`` and ``＼`` into ASCII
+    quotes and backslashes, so the folded name is cleaned again before it is quoted.
+    """
     folded = unicodedata.normalize("NFKD", value.translate(_ASCII_LETTERS))
-    return "".join(
+    ascii_only = "".join(
         char if char.isascii() else "_" for char in folded if not unicodedata.combining(char)
     )
+    return clean_filename(ascii_only) or FALLBACK_NAME
 
 
 def content_disposition(filename: str | None, *, inline: bool = False) -> str:

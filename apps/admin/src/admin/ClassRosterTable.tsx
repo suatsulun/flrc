@@ -301,7 +301,7 @@ export function ClassRosterTable({
                     }
                   />
                 ) : null}
-                <span className="sr-only">{t("classWorkspace.moveStudent")}</span>
+                <span className="sr-only">{t("classWorkspace.selectMoveColumn")}</span>
               </th>
               <th className="sticky top-0 left-16 z-40 border-b border-r border-border bg-muted p-2 text-left text-xs font-semibold text-muted-foreground">
                 {t("students.schoolNumber")}

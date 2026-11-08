@@ -3377,6 +3377,7 @@
           "jobs"
         ],
         "summary": "List Jobs",
+        "description": "The newest ``limit`` requests plus every job still running or still downloadable.\n\nOutputs are kept for 24 hours (ADR-024), so a downloads list must reach each of them,\nincluding every part of a split request, however many jobs ran since.",
         "operationId": "list_jobs",
         "parameters": [
           {
@@ -6767,6 +6768,28 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "part": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
           }
         },
         "type": "object",
@@ -6780,7 +6803,9 @@
           "output_size",
           "output_expires_at",
           "error_code",
-          "created_at"
+          "created_at",
+          "parent_id",
+          "part"
         ],
         "title": "JobOut"
       },

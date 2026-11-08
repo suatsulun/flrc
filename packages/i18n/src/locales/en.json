@@ -116,7 +116,8 @@
       "description": "Report and export files prepared in the background are kept for 24 hours.",
       "empty": "No background files yet.",
       "expires": "Available until {{time}}",
-      "expired": "Expired"
+      "expired": "Expired",
+      "more": "All in the report centre ({{count}})"
     }
   },
   "auth": {
@@ -372,6 +373,7 @@
     "moveColumnLeft": "Move column left",
     "moveColumnRight": "Move column right",
     "moveStudent": "Move {{name}} to another class",
+    "selectMoveColumn": "Select and move students",
     "gradeEntryInTeacher": "Grades are entered in the teacher table.",
     "addStudent": "Add student",
     "movingStudent": "Moving student…",
@@ -751,7 +753,9 @@
       "expires": "until {{time}}",
       "expired": "Expired",
       "ready": "{{name}} is ready.",
-      "failedNamed": "{{name}} could not be prepared: {{reason}}"
+      "failedNamed": "{{name}} could not be prepared: {{reason}}",
+      "parts": "{{count}} parts",
+      "partsOf": "Parts of {{name}}"
     },
     "picker": {
       "title": "{{kind}} · Choose students",
@@ -775,7 +779,7 @@
       "demoJobs": "The demo only downloads one class or one student at a time.",
       "expired": "This file has expired; prepare it again.",
       "pageMapping": "The pages could not be matched to students safely, so no file was made. Please tell your administrator.",
-      "tooLarge": "The file for this selection would be too large. Choose one PDF, or fewer students or classes.",
+      "tooLarge": "A single file in this selection is larger than allowed. Choose fewer students or classes, or try a ZIP format.",
       "retired": "This old job can no longer run; prepare it again.",
       "jobsPending": "Several of your files are still being prepared. Wait for one to finish, then try again.",
       "queueUnavailable": "The file could not be queued because the job service is unavailable. Try again in a few minutes.",

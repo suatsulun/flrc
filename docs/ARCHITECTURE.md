@@ -814,7 +814,7 @@ tab during the click and saves Download under the server's name (ADR-077).
 `POST /api/reports/jobs` queues anything larger as a `report_set` job: the whole school, classes,
 or picked students (`GET /api/reports/roster` lists who gets each card), as one PDF or a ZIP per
 class or per pupil. The worker renders each class once through the bounded pool, splits pupils'
-files by verified page ranges, and refuses outputs that would pass 192 MiB.
+files by verified page ranges, and cuts a ZIP larger than 192 MiB into numbered parts.
 
 `POST /api/exports/year/{year_id}` creates an admin-only `year_export` job and enqueues its id.
 Celery uses JSON messages, ignores results, and stores progress/output in `job_runs`. Polling and

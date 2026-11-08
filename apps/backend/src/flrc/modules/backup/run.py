@@ -22,6 +22,7 @@ from flrc.modules.backup import archive, crypto, dump, schedule
 from flrc.modules.backup.drive import Store, ensure_folder
 from flrc.modules.backup.status import now_iso, read_status, update_status
 from flrc.modules.changes.service import purge_expired_actions
+from flrc.modules.jobs.service import purge_job_outputs
 
 log = structlog.get_logger()
 
@@ -243,11 +244,14 @@ def archive_year(store: Store, label: str) -> dict[str, object]:
 
 def purge_expired_records() -> int:
     """Nightly maintenance before the dump: drop undo records past their seven days
-    (ADR-075), so expired snapshots and kept signatures never reach a new backup."""
+    (ADR-075), so expired snapshots and kept signatures never reach a new backup, and job
+    outputs past their expiry or left by report sets that did not finish (ADR-077)."""
     with Session(sync_engine()) as db:
         count = purge_expired_actions(db)
         db.commit()
+        outputs = purge_job_outputs(db)
     log.info("admin_actions_purged", count=count)
+    log.info("job_outputs_purged", count=outputs)
     return count
 
 

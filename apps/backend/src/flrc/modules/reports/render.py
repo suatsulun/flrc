@@ -39,6 +39,7 @@ from threading import Lock
 from typing import Literal, cast
 from urllib.parse import quote
 
+import pikepdf
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pypdf import PdfReader, PdfWriter, Transformation
 from weasyprint import HTML
@@ -71,6 +72,9 @@ MAX_RENDER_WORKERS = 4
 MIN_PARALLEL_UNITS = 12
 # Bound layout memory even when a school has hundreds of duplex report cards.
 MAX_RENDER_UNITS = 16
+# A report job renders a class inside one render process; smaller batches keep each process's
+# peak down when every card carries artwork (ADR-077 measurements).
+JOB_RENDER_UNITS = 8
 # Everything the cards reference is a data URI built in this module. Anything
 # else — a local file, an internal HTTP address — is refused outright.
 ALLOWED_ASSET_SCHEMES = frozenset({"data"})
@@ -561,36 +565,53 @@ def _template_environment() -> Environment:
     return branding.environment(HERE / "templates") if branding else env
 
 
-def _apply_back_cover(pdf: bytes, cards: list[ReportCard]) -> bytes:
-    """Replace each duplex back with the original school PDF, without rasterizing it."""
+def back_cover_file(kind: str) -> Path | None:
+    """The school's original back-cover PDF for this card kind, if its overlay has one."""
     branding = report_branding()
     if branding is None:
-        return pdf
-    relative = branding.config.covers.get(
-        cast(Literal["german_karne", "french_karne"], cards[0].kind)
-    )
-    if relative is None:
-        return pdf
-    cover = PdfReader(contained_file(branding.root, relative))
-    document = PdfReader(BytesIO(pdf))
-    if len(cover.pages) != 1 or len(document.pages) != 2 * len(cards):
+        return None
+    relative = branding.config.covers.get(cast(Literal["german_karne", "french_karne"], kind))
+    return None if relative is None else contained_file(branding.root, relative)
+
+
+def _page_size(page: pikepdf.Page) -> tuple[float, float]:
+    box = page.mediabox
+    return float(box[2]) - float(box[0]), float(box[3]) - float(box[1])
+
+
+def cover_duplex_backs(document: pikepdf.Pdf, cover: pikepdf.Pdf) -> None:
+    """Replace every second page of ``document`` with the cover's single page, in place.
+
+    qpdf copies the cover's objects into ``document`` once and every back shares them, so a
+    set carries the cover once however many cards it holds. ``cover`` must stay open until
+    ``document`` is saved: its streams are read while writing.
+    """
+    if len(cover.pages) != 1 or len(document.pages) % 2:
         raise ValueError("report_duplex_page_count")
-    writer = PdfWriter()
-    for index in range(0, len(document.pages), 2):
-        face = document.pages[index]
-        back = cover.pages[0]
-        if (
-            abs(float(face.mediabox.width) - float(back.mediabox.width)) > 2
-            or abs(float(face.mediabox.height) - float(back.mediabox.height)) > 2
-        ):
+    back = cover.pages[0]
+    back_width, back_height = _page_size(back)
+    for index in range(1, len(document.pages), 2):
+        face_width, face_height = _page_size(document.pages[index - 1])
+        if abs(face_width - back_width) > 2 or abs(face_height - back_height) > 2:
             raise ValueError("report_cover_page_size")
-        writer.add_page(face)
-        writer.add_page(back)
-    if document.metadata:
-        writer.add_metadata({key: str(value) for key, value in document.metadata.items()})
-    writer.compress_identical_objects()
-    result = BytesIO()
-    writer.write(result)
+        document.pages[index] = back
+
+
+def apply_back_cover(pdf: bytes, cards: list[ReportCard]) -> bytes:
+    """Replace each duplex back with the original school PDF, without rasterizing it.
+
+    ``cards`` are the cards ``pdf`` holds, in order; a set merged from several classes takes
+    the cover once here instead of once per class (ADR-077).
+    """
+    cover_file = back_cover_file(cards[0].kind)
+    if cover_file is None:
+        return pdf
+    with pikepdf.open(BytesIO(pdf)) as document, pikepdf.open(cover_file) as cover:
+        if len(document.pages) != 2 * len(cards):
+            raise ValueError("report_duplex_page_count")
+        cover_duplex_backs(document, cover)
+        result = BytesIO()
+        document.save(result)
     return result.getvalue()
 
 
@@ -641,8 +662,11 @@ def _stamp_watermark(pdf: bytes, text: str, *, two_up: bool) -> bytes:
     return result.getvalue()
 
 
-def _finish_report(pdf: bytes, cards: list[ReportCard], watermark: str | None) -> bytes:
-    pdf = _apply_back_cover(pdf, cards)
+def _finish_report(
+    pdf: bytes, cards: list[ReportCard], watermark: str | None, back_cover: bool
+) -> bytes:
+    if back_cover:
+        pdf = apply_back_cover(pdf, cards)
     if watermark is None:
         return pdf
     return _stamp_watermark(pdf, watermark, two_up=cards[0].kind == "english_middle")
@@ -817,7 +841,11 @@ def _chunk(units: list[object], count: int) -> list[list[object]]:
 
 
 def render_report_pdf(
-    cards: list[ReportCard], *, one_card_per_sheet: bool = False, watermark: str | None = None
+    cards: list[ReportCard],
+    *,
+    one_card_per_sheet: bool = False,
+    watermark: str | None = None,
+    back_cover: bool = True,
 ) -> bytes:
     """Render a report set, laying its sheets out in parallel when that helps.
 
@@ -837,6 +865,9 @@ def render_report_pdf(
     unset and are rendered exactly as before.
     ``one_card_per_sheet`` prints each middle-school card alone on its sheet
     instead of the guillotine imposition; other card kinds ignore it.
+    ``back_cover=False`` leaves the template's own duplex backs in place, page for page, for
+    a caller that merges several sets and applies the school's cover once with
+    :func:`apply_back_cover`.
     """
     template, context, units_key, units = _document_plan(cards, one_card_per_sheet)
     jinja_template = _template_environment().get_template(template)
@@ -854,11 +885,11 @@ def render_report_pdf(
         return parts[0] if len(parts) == 1 else _merge_pdf_parts(parts)
 
     if not parallel and len(chunks) == 1:
-        return _finish_report(render_pdf_document(document(units)), cards, watermark)
+        return _finish_report(render_pdf_document(document(units)), cards, watermark, back_cover)
 
     pool = _render_pool(workers) if parallel else None
     if pool is None:
-        return _finish_report(serial(), cards, watermark)
+        return _finish_report(serial(), cards, watermark, back_cover)
     try:
         parts: list[bytes] = []
         # Submit only one wave at a time; queued HTML also holds embedded images.
@@ -873,5 +904,47 @@ def render_report_pdf(
         # because the serial retry below renders the very same HTML.
         logger.warning("parallel report render failed, falling back to serial", exc_info=True)
         _discard_pool()
-        return _finish_report(serial(), cards, watermark)
-    return _finish_report(_merge_pdf_parts(parts), cards, watermark)
+        return _finish_report(serial(), cards, watermark, back_cover)
+    return _finish_report(_merge_pdf_parts(parts), cards, watermark, back_cover)
+
+
+def concatenate_pdfs(files: list[Path], output: Path) -> None:
+    """Join PDFs page by page with qpdf, reading each from disk.
+
+    The first file is the primary input, so the result keeps its title and metadata.
+    """
+    job = pikepdf.Job(
+        ["qpdf", str(files[0]), "--pages", *(str(path) for path in files), "--", str(output)]
+    )
+    job.run()
+    if job.exit_code != 0:
+        raise RuntimeError(f"qpdf could not join the PDFs (exit {job.exit_code})")
+
+
+def render_cards_to_file(
+    cards: list[ReportCard], output: Path, *, one_card_per_sheet: bool = False
+) -> int:
+    """Render a set to ``output`` within this process, in bounded batches; returns its pages.
+
+    The report-job path (ADR-077): one class runs entirely inside a render process, batch by
+    batch, and each batch goes to disk before qpdf joins them, so neither this process nor the
+    job's worker holds the set's PDF or HTML at once. The school's back cover is not applied.
+    """
+    template, context, units_key, units = _document_plan(cards, one_card_per_sheet)
+    jinja_template = _template_environment().get_template(template)
+    batches = _chunk(units, max(1, -(-len(units) // JOB_RENDER_UNITS)))
+    files: list[Path] = []
+    for index, batch in enumerate(batches):
+        path = output.with_name(f"{output.stem}-batch-{index:03d}.pdf")
+        path.write_bytes(
+            render_pdf_document(jinja_template.render(**context, **{units_key: batch}))
+        )
+        files.append(path)
+    if len(files) == 1:
+        files[0].replace(output)
+    else:
+        concatenate_pdfs(files, output)
+        for path in files:
+            path.unlink()
+    with pikepdf.open(output) as document:
+        return len(document.pages)

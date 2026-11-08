@@ -116,7 +116,8 @@
       "description": "Les fichiers de bulletins et d’export préparés en arrière-plan sont conservés 24 heures.",
       "empty": "Aucun fichier en arrière-plan pour l’instant.",
       "expires": "Disponible jusqu’au {{time}}",
-      "expired": "Expiré"
+      "expired": "Expiré",
+      "more": "Tout dans le Centre des bulletins ({{count}})"
     }
   },
   "auth": {
@@ -372,6 +373,7 @@
     "moveColumnLeft": "Déplacer la colonne à gauche",
     "moveColumnRight": "Déplacer la colonne à droite",
     "moveStudent": "Déplacer {{name}} vers une autre classe",
+    "selectMoveColumn": "Sélectionner et déplacer les élèves",
     "gradeEntryInTeacher": "Les notes sont saisies dans le tableau enseignant.",
     "addStudent": "Ajouter un élève",
     "movingStudent": "Déplacement de l’élève…",
@@ -751,7 +753,9 @@
       "expires": "jusqu’au {{time}}",
       "expired": "Expiré",
       "ready": "{{name}} est prêt.",
-      "failedNamed": "{{name}} n’a pas pu être préparé : {{reason}}"
+      "failedNamed": "{{name}} n’a pas pu être préparé : {{reason}}",
+      "parts": "{{count}} parties",
+      "partsOf": "Parties de {{name}}"
     },
     "picker": {
       "title": "{{kind}} · Choisir des élèves",
@@ -775,7 +779,7 @@
       "demoJobs": "La démo ne télécharge qu’une classe ou un élève à la fois.",
       "expired": "Ce fichier a expiré ; préparez-le à nouveau.",
       "pageMapping": "Les pages n’ont pas pu être attribuées aux élèves de façon sûre ; aucun fichier n’a été créé. Veuillez prévenir l’administration.",
-      "tooLarge": "Le fichier de cette sélection serait trop volumineux. Choisissez un seul PDF, ou moins d’élèves ou de classes.",
+      "tooLarge": "Un seul fichier de cette sélection dépasse la taille autorisée. Choisissez moins d’élèves ou de classes, ou un format ZIP.",
       "retired": "Cette ancienne tâche ne peut plus s’exécuter ; préparez-la à nouveau.",
       "jobsPending": "Plusieurs de vos fichiers sont encore en préparation. Attendez qu’un fichier soit prêt, puis réessayez.",
       "queueUnavailable": "Le fichier n’a pas pu être mis en file d’attente, car le service de tâches est indisponible. Réessayez dans quelques minutes.",

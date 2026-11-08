@@ -17,7 +17,7 @@ export function CompletionBar({ percent }: { percent: number | null }) {
         aria-label={label}
       >
         <span
-          className={`block h-full rounded-full ${percent >= 99.95 ? "bg-success" : "bg-primary"}`}
+          className={`block h-full rounded-full ${percent >= 100 ? "bg-success" : "bg-primary"}`}
           style={{ width: `${Math.min(percent, 100)}%` }}
         />
       </span>

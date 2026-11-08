@@ -1,22 +1,31 @@
 """Report downloads, background report jobs, the student picker and download names (ADR-077)."""
 
 import asyncio
+import os
+import tempfile
+import threading
+import time
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from urllib.parse import quote
 from uuid import uuid4
 from zipfile import ZipFile
 
+import pikepdf
 import pytest
 from kombu.exceptions import OperationalError
 from pypdf import PdfReader
 from redis.asyncio import Redis
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, text, update
 from sqlalchemy.orm import Session
 
 from flrc.config import settings
 from flrc.core import rate_limit
 from flrc.db import models as m
+from flrc.modules.jobs import service as jobs_service
 from flrc.modules.reports import packaging
 from flrc.modules.reports import router as reports_router
 from flrc.modules.reports.builder import build_report_entries
@@ -464,6 +473,30 @@ async def test_each_account_has_a_bounded_number_of_waiting_report_jobs(
         assert (await client.post("/api/reports/jobs", json=body)).status_code == 409
 
 
+async def test_staged_parts_of_a_split_job_do_not_count_as_waiting_jobs(api, world, queued) -> None:
+    limit = reports_router.MAX_PENDING_REPORT_JOBS
+    body = {"semester_id": world.semester, "kind": "english_middle", "format": "per_student"}
+    async with api(world.admin) as client:
+        created = await client.post("/api/reports/jobs", json=body)
+        assert created.status_code == 202
+    # The job is splitting its output: each finished part is staged as a running row under it.
+    with Session(create_engine(TEST_URL_SYNC)) as db:
+        job = db.get(m.JobRun, created.json()["id"])
+        assert job is not None
+        jobs_service.mark_running(db, job, total=2)
+        for number in range(1, limit + 1):
+            jobs_service.store_part(
+                db, job, number=number, filename=f"part {number}.zip", data=b"zip"
+            )
+    async with api(world.admin) as client:
+        # One request is waiting, however many parts it has staged.
+        for _ in range(limit - 1):
+            assert (await client.post("/api/reports/jobs", json=body)).status_code == 202
+        refused = await client.post("/api/reports/jobs", json=body)
+    assert refused.status_code == 409
+    assert refused.json()["detail"]["code"] == "report_jobs_pending"
+
+
 def refuse_publication(_job_id: int) -> None:
     raise OperationalError("Error 111 connecting to the broker")
 
@@ -664,17 +697,51 @@ async def test_a_selected_pupil_who_left_the_set_fails_the_job(api, world, queue
     assert job["output_size"] is None
 
 
+async def test_a_chosen_class_whose_pupils_all_left_the_set_fails_the_job(
+    api, world, queued
+) -> None:
+    await add_german(world, world.student_one)
+    other = await add_class(world, 5, "B", [("German Only", 5301)], language="german")
+    body = {
+        "semester_id": world.semester,
+        "kind": "german_karne",
+        "format": "per_class",
+        "class_ids": [world.cls, other.id],
+    }
+    async with api(world.admin) as client:
+        created = await client.post("/api/reports/jobs", json=body)
+        assert created.status_code == 202, created.text
+        # Before the worker starts, 5/B's only German pupil changes to French.
+        async with TestSession() as db:
+            language = await db.scalar(
+                select(m.StudentLanguage).where(m.StudentLanguage.student_id == other.students[0])
+            )
+            assert language is not None
+            language.language = "french"
+            await db.commit()
+        report_tasks.report_set_job(created.json()["id"])
+        job = (await client.get(f"/api/jobs/{created.json()['id']}")).json()
+    # The file would silently miss a class the admin chose, so none is made.
+    assert (job["status"], job["error_code"]) == ("failed", "class_not_in_report_set")
+    assert job["output_size"] is None
+
+
 async def test_a_page_mapping_mismatch_fails_the_job_instead_of_misfiling(
     api, world, queued, monkeypatch
 ) -> None:
-    original = packaging.render_report_pdf
+    original = packaging.render_cards_to_file
 
-    def one_page_short(cards, *, one_card_per_sheet=False):
-        pdf = original(cards, one_card_per_sheet=one_card_per_sheet)
+    def one_page_short(cards, output, **options):
+        original(cards, output, **options)
         # Every karne is two pages; keep only the first, as a layout overflow bug might.
-        return next(packaging.split_pdf(pdf, 1, 2 * len(cards)))
+        with pikepdf.open(output, allow_overwriting_input=True) as document:
+            del document.pages[1:]
+            document.save(output)
+        return 1
 
-    monkeypatch.setattr(packaging, "render_report_pdf", one_page_short)
+    # The double must run in this process, not in a render process.
+    monkeypatch.setattr(settings, "report_render_workers", 1)
+    monkeypatch.setattr(packaging, "render_cards_to_file", one_page_short)
     await add_german(world, world.student_one)
     async with api(world.admin) as client:
         created = await client.post(
@@ -690,31 +757,83 @@ async def test_a_page_mapping_mismatch_fails_the_job_instead_of_misfiling(
     assert download.status_code == 409
 
 
-async def test_a_set_that_cannot_fit_the_output_budget_stops_early(world, monkeypatch) -> None:
+async def test_only_a_single_file_larger_than_a_part_fails_the_set(world, monkeypatch) -> None:
     await three_pupil_class(world)
-    with Session(create_engine(TEST_URL_SYNC)) as db:
-        entries = build_report_entries(
-            db, semester_id=world.semester, kind="english_middle", locale="tr"
-        )
-    classes = packaging.group_by_class(entries)
+    classes = middle_classes(world.semester)
+    one_card = min(pupil_file_sizes(classes[0]))
     rendered: list[int] = []
-    original = packaging.render_report_pdf
+    original = packaging.render_cards_to_file
 
-    def counting(cards, *, one_card_per_sheet=False):
+    def counting(cards, output, **options):
         rendered.append(len(cards))
-        return original(cards, one_card_per_sheet=one_card_per_sheet)
+        return original(cards, output, **options)
 
-    monkeypatch.setattr(packaging, "render_report_pdf", counting)
-    one_card = len(original([entries[0].card], one_card_per_sheet=True))
+    monkeypatch.setattr(settings, "report_render_workers", 1)
+    monkeypatch.setattr(packaging, "render_cards_to_file", counting)
     with pytest.raises(packaging.ReportPackagingError, match="report_output_too_large"):
-        # Room for about two of the five pupils: the projection stops after the first class.
-        packaging.package_report_set(classes, "per_student", max_bytes=one_card * 2)
+        packaging.package_report_set(classes, "per_student", max_bytes=one_card // 2)
+    # The first pupil's file already cannot fit any part: nothing else is rendered.
     assert rendered == [2]
-    # The same set fits a budget sized for it.
-    data, mime = packaging.package_report_set(classes, "per_student", max_bytes=one_card * 10)
-    assert mime == "application/zip"
+
+
+def pupil_file_sizes(class_set: packaging.ClassSet) -> list[int]:
+    """The sizes of a class's pupil files, rendered exactly as a per-pupil job renders them."""
+    with TemporaryDirectory() as folder:
+        cards = [entry.card for entry in class_set.entries]
+        paths = packaging.render_class_files(cards, folder, 0, "per_student", None)
+        return [Path(path).stat().st_size for path in paths]
+
+
+def class_file_size(class_set: packaging.ClassSet) -> int:
+    with TemporaryDirectory() as folder:
+        cards = [entry.card for entry in class_set.entries]
+        (path,) = packaging.render_class_files(cards, folder, 0, "per_class", None)
+        return Path(path).stat().st_size
+
+
+def zip_names(data: bytes) -> list[str]:
     with ZipFile(BytesIO(data)) as bundle:
-        assert len(bundle.namelist()) == 5
+        return bundle.namelist()
+
+
+async def test_an_oversized_pupil_zip_splits_into_parts_between_whole_files(world) -> None:
+    await three_pupil_class(world)
+    classes = middle_classes(world.semester)
+    largest = max(pupil_file_sizes(classes[0]))
+    # Room for two pupil files per part, never three.
+    overhead = packaging.ARCHIVE_OVERHEAD + 2 * (packaging.ENTRY_OVERHEAD + 300)
+    budget = int(largest * 2.1) + overhead
+    parts: dict[int, bytes] = {}
+    result = packaging.package_report_set(
+        classes, "per_student", max_bytes=budget, on_part=parts.__setitem__
+    )
+    parts[result.parts] = result.data
+    assert result.parts == len(parts) >= 2
+    assert list(parts) == list(range(1, result.parts + 1))
+    assert all(len(data) <= budget for data in parts.values())
+    names = [name for number in sorted(parts) for name in zip_names(parts[number])]
+    # Every pupil exactly once across the parts, in print order, each a whole one-page file.
+    assert names == [
+        f"5-A 51001 Synthetic Student One İngilizce Karne {TERM}.pdf",
+        f"5-A 51002 Synthetic Student Two İngilizce Karne {TERM}.pdf",
+        f"6-A 6001 Pupil Alpha İngilizce Karne {TERM}.pdf",
+        f"6-A 6002 Pupil Beta İngilizce Karne {TERM}.pdf",
+        f"6-A 6003 Pupil Gamma İngilizce Karne {TERM}.pdf",
+    ]
+    for data in parts.values():
+        with ZipFile(BytesIO(data)) as bundle:
+            for name in bundle.namelist():
+                assert len(PdfReader(BytesIO(bundle.read(name))).pages) == 1
+
+
+async def test_a_set_that_fits_one_part_stays_one_file(world) -> None:
+    await three_pupil_class(world)
+    parts: dict[int, bytes] = {}
+    result = packaging.package_report_set(
+        middle_classes(world.semester), "per_student", on_part=parts.__setitem__
+    )
+    assert result.parts == 1 and parts == {}
+    assert len(zip_names(result.data)) == 5
 
 
 async def test_class_sheet_download_is_named_for_its_classes(api, world) -> None:
@@ -734,3 +853,478 @@ async def test_class_sheet_download_is_named_for_its_classes(api, world) -> None
     assert disposition_name(several.headers["content-disposition"]) == quote(
         f"Sınıf Raporları {TERM}.pdf", safe=""
     )
+
+
+def middle_classes(world_semester: int, student_ids: list[int] | None = None):
+    with Session(create_engine(TEST_URL_SYNC)) as db:
+        entries = build_report_entries(
+            db,
+            semester_id=world_semester,
+            kind="english_middle",
+            locale="tr",
+            student_ids=student_ids,
+        )
+    return packaging.group_by_class(entries)
+
+
+async def test_combined_set_is_joined_from_class_files_on_disk(world, monkeypatch) -> None:
+    await three_pupil_class(world)
+    await add_class(world, 7, "A", [("Seventh One", 7001), ("Seventh Two", 7002)])
+    joined: list[list[int]] = []
+    original = packaging.concatenate_pdfs
+
+    def recording(files, output):
+        # Each class is on disk, not in memory, by the time qpdf joins them.
+        joined.append([path.stat().st_size for path in files])
+        original(files, output)
+
+    monkeypatch.setattr(packaging, "concatenate_pdfs", recording)
+    result = packaging.package_report_set(middle_classes(world.semester), "combined")
+    assert len(joined) == 1 and len(joined[0]) == 3 and all(joined[0])
+    pages = pdf_text(result.data)
+    # Two-up sheets per class, in print order: 5/A one sheet, 6/A two, 7/A one.
+    assert len(pages) == 1 + 2 + 1
+    assert "Synthetic Student One" in pages[0]
+    assert "Pupil Alpha" in pages[1] and "Pupil Beta" in pages[2]
+    assert "Seventh One" in pages[3]
+    assert PdfReader(BytesIO(result.data)).metadata.title
+
+
+async def test_class_zip_parts_hold_whole_class_files(world) -> None:
+    pupils = await three_pupil_class(world)
+    # One pupil from 5/A, then all three of 6/A: two class files, four pupils.
+    classes = middle_classes(world.semester, [world.student_one, *pupils.students])
+    assert [len(item.entries) for item in classes] == [1, 3]
+    largest = max(class_file_size(item) for item in classes)
+    budget = int(largest * 1.5) + packaging.ARCHIVE_OVERHEAD + packaging.ENTRY_OVERHEAD + 300
+    parts: dict[int, bytes] = {}
+    result = packaging.package_report_set(
+        classes, "per_class", max_bytes=budget, on_part=parts.__setitem__
+    )
+    parts[result.parts] = result.data
+    assert [zip_names(parts[number]) for number in sorted(parts)] == [
+        [f"5-A İngilizce Karne {TERM}.pdf"],
+        [f"6-A İngilizce Karne {TERM}.pdf"],
+    ]
+    assert all(len(data) <= budget for data in parts.values())
+
+
+async def test_jobs_list_reaches_every_unexpired_download(api, world) -> None:
+    now = datetime.now(UTC).replace(tzinfo=None)
+    async with TestSession() as db:
+        for index in range(30):
+            db.add(
+                m.JobRun(
+                    kind="report_set",
+                    status="succeeded",
+                    requested_by=world.admin.id,
+                    payload={},
+                    progress=1,
+                    total=1,
+                    output_filename=f"file {index}.pdf",
+                    output_size=3,
+                    output_blob=b"pdf",
+                    output_expires_at=now + timedelta(hours=20),
+                )
+            )
+        await db.flush()
+        for index in range(30):
+            db.add(
+                m.JobRun(
+                    kind="report_set",
+                    status="succeeded",
+                    requested_by=world.admin.id,
+                    payload={},
+                    progress=1,
+                    total=1,
+                    output_filename=f"newer expired {index}.pdf",
+                    output_expires_at=now - timedelta(hours=1),
+                )
+            )
+        await db.commit()
+    async with api(world.admin) as client:
+        listed = (await client.get("/api/jobs")).json()
+    names = [job["output_filename"] for job in listed]
+    # The 25 newest history rows, plus every older file that can still be downloaded.
+    assert all(f"file {index}.pdf" in names for index in range(30))
+    assert len(names) == 25 + 30
+    assert [job["id"] for job in listed] == sorted((job["id"] for job in listed), reverse=True)
+
+
+async def test_a_split_job_lists_numbered_parts_with_one_expiry_and_its_access(
+    api, world, queued, monkeypatch
+) -> None:
+    await three_pupil_class(world)
+    coordinator = await add_coordinator()
+    classes = middle_classes(world.semester)
+    largest = max(pupil_file_sizes(classes[1]))
+    overhead = packaging.ARCHIVE_OVERHEAD + 2 * (packaging.ENTRY_OVERHEAD + 300)
+    monkeypatch.setattr(packaging, "MAX_OUTPUT_BYTES", int(largest * 2.1) + overhead)
+    body = {"semester_id": world.semester, "kind": "english_middle", "format": "per_student"}
+    async with api(coordinator) as client:
+        created = (await client.post("/api/reports/jobs", json=body)).json()
+        report_tasks.report_set_job(created["id"])
+        listed = (await client.get("/api/jobs")).json()
+        request = next(job for job in listed if job["id"] == created["id"])
+        parts = sorted(
+            (job for job in listed if job["parent_id"] == created["id"]),
+            key=lambda job: job["part"],
+        )
+        downloads = [await client.get(f"/api/jobs/{part['id']}/download") for part in parts]
+        whole = await client.get(f"/api/jobs/{created['id']}/download")
+
+    base = f"Tüm Okul İngilizce Karne {TERM}"
+    assert request["status"] == "succeeded"
+    assert request["output_filename"] == f"{base}.zip"
+    assert [part["output_filename"] for part in parts] == [
+        f"{base} (Bölüm {number}).zip" for number in range(1, len(parts) + 1)
+    ]
+    assert len(parts) == 3
+    assert {part["output_expires_at"] for part in parts} == {request["output_expires_at"]}
+    assert all(part["status"] == "succeeded" for part in parts)
+    assert whole.status_code == 409
+    assert whole.json()["detail"]["code"] == "job_output_in_parts"
+
+    pupils: list[str] = []
+    for part, download in zip(parts, downloads, strict=True):
+        assert download.status_code == 200
+        assert disposition_name(download.headers["content-disposition"]) == quote(
+            part["output_filename"], safe=""
+        )
+        assert len(download.content) <= packaging.MAX_OUTPUT_BYTES
+        pupils.extend(zip_names(download.content))
+    assert len(pupils) == len(set(pupils)) == 5
+
+    # Parts carry the request's access: another teacher cannot read them.
+    async with api(world.main) as client:
+        for part in parts:
+            assert (await client.get(f"/api/jobs/{part['id']}/download")).status_code == 403
+
+    # A part past its expiry is gone like any other output.
+    async with TestSession() as db:
+        first = await db.get(m.JobRun, parts[0]["id"])
+        assert first is not None
+        first.output_expires_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(seconds=1)
+        await db.commit()
+    async with api(coordinator) as client:
+        expired = await client.get(f"/api/jobs/{parts[0]['id']}/download")
+    assert expired.status_code == 410
+
+
+async def test_classes_are_built_only_as_render_processes_take_them(world, monkeypatch) -> None:
+    await three_pupil_class(world)
+    await add_class(world, 7, "A", [("Seventh One", 7001), ("Seventh Two", 7002)])
+    classes = middle_classes(world.semester)
+    monkeypatch.setattr(settings, "report_render_workers", 2)
+    taken: list[int] = []
+
+    def lazily():
+        for class_set in classes:
+            taken.append(class_set.class_id)
+            yield class_set
+
+    taken_when_done: list[int] = []
+    result = packaging.package_report_set(
+        lazily(), "per_class", lambda _done: taken_when_done.append(len(taken))
+    )
+    # Two render processes: a class is taken only when one of them can start on it, so the
+    # job never holds more than two classes' cards (and never any class's PDF bytes).
+    assert taken_when_done == [2, 3, 3]
+    assert len(zip_names(result.data)) == 3
+
+
+def now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+async def test_a_pupil_moved_mid_job_fails_the_set_instead_of_misfiling(
+    api,
+    world,
+    queued,
+    monkeypatch,  # noqa: F811
+) -> None:
+    other = await add_class(world, 6, "A", [("Pupil Alpha", 6001)])
+    original = report_tasks.build_report_entries
+    moved = False
+
+    def move_then_build(db, **arguments):
+        nonlocal moved
+        if not moved:
+            # Another admin moves a pupil while the job runs, before the first class renders.
+            moved = True
+            with Session(create_engine(TEST_URL_SYNC)) as other_db:
+                other_db.execute(
+                    update(m.Enrollment)
+                    .where(m.Enrollment.student_id == world.student_two)
+                    .values(class_id=other.id)
+                )
+                other_db.commit()
+        return original(db, **arguments)
+
+    monkeypatch.setattr(report_tasks, "build_report_entries", move_then_build)
+    async with api(world.admin) as client:
+        created = await client.post(
+            "/api/reports/jobs",
+            json={"semester_id": world.semester, "kind": "english_middle", "format": "per_class"},
+        )
+        job_id = created.json()["id"]
+        report_tasks.report_set_job(job_id)
+        job = (await client.get(f"/api/jobs/{job_id}")).json()
+    # The pupil left 5/A after the set was frozen and was not in 6/A when it was: printing
+    # would drop them silently, so the job refuses.
+    assert job["status"] == "failed"
+    assert job["error_code"] == "report_roster_changed"
+
+
+def test_stale_workspaces_are_reclaimed_but_a_live_jobs_is_kept(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    live = tmp_path / f"{packaging.workspace_prefix(7)}abc"
+    finished = tmp_path / f"{packaging.workspace_prefix(8)}def"
+    stuck = tmp_path / f"{packaging.workspace_prefix(9)}ghi"
+    unrelated = tmp_path / "something-else"
+    for folder in (live, finished, stuck, unrelated):
+        folder.mkdir()
+        (folder / "class-0000.pdf").write_bytes(b"%PDF-")
+    # Job 9 still says running, but nothing has touched its workspace for a day.
+    old = time.time() - 24 * 3600
+    os.utime(stuck, (old, old))
+
+    removed = packaging.reclaim_workspaces(live_job_ids={7, 9})
+
+    assert removed == 2
+    assert live.exists() and unrelated.exists()
+    assert not finished.exists() and not stuck.exists()
+
+
+async def test_staged_parts_expire_on_their_own_and_purge_reclaims_aborted_ones(world) -> None:
+    async with TestSession() as db:
+        request = m.JobRun(
+            kind="report_set", status="running", requested_by=world.admin.id, payload={}
+        )
+        db.add(request)
+        await db.commit()
+        request_id = request.id
+    with Session(create_engine(TEST_URL_SYNC)) as db:
+        job = db.get(m.JobRun, request_id)
+        assert job is not None
+        jobs_service.store_part(db, job, number=1, filename="part 1.zip", data=b"zip")
+        part = db.scalar(select(m.JobRun).where(m.JobRun.parent_id == request_id))
+        assert part is not None
+        # Staged with a bounded expiry of its own, even before the set succeeds.
+        assert part.output_expires_at is not None
+        assert part.output_expires_at <= now() + jobs_service.STAGED_PART_TTL
+
+        # The worker died before cleanup: the request failed and the part is past its bound.
+        job.status = "failed"
+        part.output_expires_at = now() - timedelta(seconds=1)
+        db.commit()
+        assert jobs_service.purge_job_outputs(db) == 1
+        assert db.scalar(select(m.JobRun).where(m.JobRun.parent_id == request_id)) is None
+
+
+async def test_a_finished_job_reclaims_the_workspace_of_its_interrupted_attempt(
+    api, world, queued, tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    async with api(world.admin) as client:
+        created = await client.post(
+            "/api/reports/jobs",
+            json={"semester_id": world.semester, "kind": "english_middle", "format": "per_class"},
+        )
+        job_id = created.json()["id"]
+    # A killed attempt left its PDFs behind, and the job still says running when the
+    # redelivered attempt takes it, so neither the restart nor the new attempt may remove them.
+    abandoned = tmp_path / f"{packaging.workspace_prefix(job_id)}killed"
+    abandoned.mkdir()
+    (abandoned / "class-0000.pdf").write_bytes(b"%PDF-")
+    async with TestSession() as db:
+        job = await db.get(m.JobRun, job_id)
+        assert job is not None
+        job.status = "running"
+        await db.commit()
+
+    report_tasks.report_set_job(job_id)
+
+    async with TestSession() as db:
+        job = await db.get(m.JobRun, job_id)
+        assert job is not None
+        assert job.status == "succeeded"
+    # Once the job is finished, nothing of either attempt stays on disk.
+    assert list(tmp_path.glob(f"{packaging.WORKSPACE_PREFIX}*")) == []
+
+
+async def three_part_pupil_set(world, monkeypatch) -> dict[str, object]:
+    """A per-pupil set of 5/A and 6/A that comes out in three parts."""
+    await three_pupil_class(world)
+    classes = middle_classes(world.semester)
+    largest = max(pupil_file_sizes(classes[1]))
+    overhead = packaging.ARCHIVE_OVERHEAD + 2 * (packaging.ENTRY_OVERHEAD + 300)
+    monkeypatch.setattr(packaging, "MAX_OUTPUT_BYTES", int(largest * 2.1) + overhead)
+    return {"semester_id": world.semester, "kind": "english_middle", "format": "per_student"}
+
+
+def age_part(request_id: int, number: int) -> None:
+    """Let a staged part's bound run out, as if it was stored more than six hours ago."""
+    with Session(create_engine(TEST_URL_SYNC)) as other:
+        other.execute(
+            update(m.JobRun)
+            .where(m.JobRun.parent_id == request_id, m.JobRun.part == number)
+            .values(output_expires_at=now() - timedelta(seconds=1))
+        )
+        other.commit()
+
+
+def nightly_purge() -> None:
+    """The backup sidecar's purge, in its own connection while the job runs."""
+    with Session(create_engine(TEST_URL_SYNC)) as other:
+        jobs_service.purge_job_outputs(other)
+
+
+async def test_a_split_job_that_keeps_advancing_keeps_its_staged_parts(
+    api, world, queued, monkeypatch
+) -> None:
+    body = await three_part_pupil_set(world, monkeypatch)
+    store, publish = report_tasks.store_part, report_tasks.mark_parts_succeeded
+
+    def store_then_age(db, job, **part):
+        store(db, job, **part)
+        if part["number"] == 1:
+            age_part(job.id, 1)
+
+    def purge_then_publish(db, job, *args, **kwargs):
+        # The job has finished classes since its first part: the purge must leave it alone.
+        nightly_purge()
+        publish(db, job, *args, **kwargs)
+
+    monkeypatch.setattr(report_tasks, "store_part", store_then_age)
+    monkeypatch.setattr(report_tasks, "mark_parts_succeeded", purge_then_publish)
+    async with api(world.admin) as client:
+        job_id = (await client.post("/api/reports/jobs", json=body)).json()["id"]
+        report_tasks.report_set_job(job_id)
+        job = (await client.get(f"/api/jobs/{job_id}")).json()
+        listed = (await client.get("/api/jobs")).json()
+
+    assert job["status"] == "succeeded"
+    parts = [item for item in listed if item["parent_id"] == job_id]
+    assert sorted(part["part"] for part in parts) == [1, 2, 3]
+
+
+async def test_purge_fails_a_stalled_split_job_instead_of_it_publishing_a_partial_set(
+    api, world, queued, monkeypatch
+) -> None:
+    body = await three_part_pupil_set(world, monkeypatch)
+    store = report_tasks.store_part
+
+    def store_then_stall(db, job, **part):
+        store(db, job, **part)
+        if part["number"] == 1:
+            # The job stops advancing past the staging bound right after its first part, and
+            # the nightly purge reclaims that part before the job resumes.
+            age_part(job.id, 1)
+            nightly_purge()
+
+    monkeypatch.setattr(report_tasks, "store_part", store_then_stall)
+    async with api(world.admin) as client:
+        job_id = (await client.post("/api/reports/jobs", json=body)).json()["id"]
+        with pytest.raises(jobs_service.IncompletePartsError):
+            report_tasks.report_set_job(job_id)
+        job = (await client.get(f"/api/jobs/{job_id}")).json()
+        listed = (await client.get("/api/jobs")).json()
+
+    assert job["status"] == "failed"
+    assert job["error_code"] == "report_set_failed"
+    assert [item for item in listed if item["parent_id"] == job_id] == []
+    async with TestSession() as db:
+        assert (
+            await db.scalars(select(m.JobRun.id).where(m.JobRun.parent_id == job_id))
+        ).all() == []
+
+
+async def test_purge_spares_parts_a_job_renews_while_the_purge_waits(world, monkeypatch) -> None:
+    async with TestSession() as db:
+        request = m.JobRun(
+            kind="report_set", status="running", requested_by=world.admin.id, payload={}
+        )
+        db.add(request)
+        await db.commit()
+        request_id = request.id
+    engine = create_engine(TEST_URL_SYNC)
+    with Session(engine) as worker, Session(engine) as observer:
+        job = worker.get(m.JobRun, request_id)
+        assert job is not None
+        jobs_service.store_part(worker, job, number=1, filename="part 1.zip", data=b"zip")
+        age_part(request_id, 1)
+        # The job finishes a class at the six-hour boundary: its heartbeat has written the
+        # request and renewed the part, but has not committed when the nightly purge starts.
+        with monkeypatch.context() as patch:
+            patch.setattr(worker, "commit", worker.flush)
+            jobs_service.record_progress(worker, job, 1)
+        purge = threading.Thread(target=nightly_purge)
+        purge.start()
+        deadline = time.monotonic() + 10
+        while not observer.scalar(
+            text(
+                "SELECT count(*) FROM pg_stat_activity"
+                " WHERE datname = current_database() AND wait_event_type = 'Lock'"
+            )
+        ):
+            observer.rollback()
+            assert time.monotonic() < deadline, "the purge never waited for the request row"
+            time.sleep(0.05)
+        worker.commit()
+        purge.join(timeout=10)
+        assert not purge.is_alive()
+
+    with Session(engine) as db:
+        # The purge waited for the heartbeat and saw the renewed part: nothing was reclaimed.
+        assert db.get_one(m.JobRun, request_id).status == "running"
+        part = db.scalar(select(m.JobRun).where(m.JobRun.parent_id == request_id))
+        assert part is not None
+        assert part.output_expires_at is not None and part.output_expires_at > now()
+
+
+async def test_a_split_set_missing_a_part_is_never_published(world) -> None:
+    async with TestSession() as db:
+        request = m.JobRun(
+            kind="report_set", status="running", requested_by=world.admin.id, payload={}
+        )
+        db.add(request)
+        await db.commit()
+        request_id = request.id
+    with Session(create_engine(TEST_URL_SYNC)) as db:
+        job = db.get(m.JobRun, request_id)
+        assert job is not None
+        for number in (2, 3):
+            jobs_service.store_part(
+                db, job, number=number, filename=f"part {number}.zip", data=b"zip"
+            )
+        with pytest.raises(jobs_service.IncompletePartsError):
+            jobs_service.mark_parts_succeeded(db, job, parts=3)
+        db.rollback()
+        statuses = db.scalars(
+            select(m.JobRun.status).where(
+                (m.JobRun.id == request_id) | (m.JobRun.parent_id == request_id)
+            )
+        ).all()
+        # Nothing was published: the request and both parts are still staged.
+        assert statuses == ["running"] * 3
+
+
+async def test_a_coordinator_sees_their_own_year_export(api, world) -> None:
+    coordinator = await add_coordinator()
+    async with TestSession() as db:
+        mine = m.JobRun(
+            kind="year_export", status="queued", requested_by=coordinator.id, payload={}
+        )
+        theirs = m.JobRun(
+            kind="year_export", status="queued", requested_by=world.admin.id, payload={}
+        )
+        db.add_all([mine, theirs])
+        await db.commit()
+        mine_id, theirs_id = mine.id, theirs.id
+    async with api(coordinator) as client:
+        listed = {job["id"] for job in (await client.get("/api/jobs")).json()}
+        assert (await client.get(f"/api/jobs/{mine_id}")).status_code == 200
+    # The list shows exactly what the coordinator may open.
+    assert mine_id in listed
+    assert theirs_id not in listed

@@ -116,7 +116,8 @@
       "description": "Im Hintergrund erstellte Zeugnis- und Exportdateien werden 24 Stunden aufbewahrt.",
       "empty": "Noch keine Hintergrunddateien.",
       "expires": "Verfügbar bis {{time}}",
-      "expired": "Abgelaufen"
+      "expired": "Abgelaufen",
+      "more": "Alle in der Zeugniszentrale ({{count}})"
     }
   },
   "auth": {
@@ -372,6 +373,7 @@
     "moveColumnLeft": "Spalte nach links",
     "moveColumnRight": "Spalte nach rechts",
     "moveStudent": "{{name}} in eine andere Klasse verschieben",
+    "selectMoveColumn": "Schüler auswählen und verschieben",
     "gradeEntryInTeacher": "Bewertungen werden in der Lehrertabelle eingetragen.",
     "addStudent": "Lernenden hinzufügen",
     "movingStudent": "Lernender wird verschoben…",
@@ -751,7 +753,9 @@
       "expires": "bis {{time}}",
       "expired": "Abgelaufen",
       "ready": "{{name}} ist fertig.",
-      "failedNamed": "{{name}} konnte nicht erstellt werden: {{reason}}"
+      "failedNamed": "{{name}} konnte nicht erstellt werden: {{reason}}",
+      "parts": "{{count}} Teile",
+      "partsOf": "Teile von {{name}}"
     },
     "picker": {
       "title": "{{kind}} · Schüler auswählen",
@@ -775,7 +779,7 @@
       "demoJobs": "In der Demo kann nur eine Klasse oder ein Schüler auf einmal heruntergeladen werden.",
       "expired": "Diese Datei ist abgelaufen; erstellen Sie sie erneut.",
       "pageMapping": "Die Seiten konnten den Schülern nicht sicher zugeordnet werden, daher wurde keine Datei erstellt. Bitte informieren Sie die Administration.",
-      "tooLarge": "Die Datei für diese Auswahl wäre zu groß. Wählen Sie eine PDF oder weniger Schüler bzw. Klassen.",
+      "tooLarge": "Eine einzelne Datei dieser Auswahl ist größer als erlaubt. Wählen Sie weniger Schüler oder Klassen oder ein ZIP-Format.",
       "retired": "Dieser alte Auftrag kann nicht mehr ausgeführt werden; erstellen Sie ihn erneut.",
       "jobsPending": "Für Sie werden bereits mehrere Dateien erstellt. Warten Sie, bis eine fertig ist, und versuchen Sie es dann erneut.",
       "queueUnavailable": "Die Datei konnte nicht eingereiht werden, weil der Auftragsdienst nicht verfügbar ist. Versuchen Sie es in einigen Minuten erneut.",

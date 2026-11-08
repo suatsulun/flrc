@@ -62,6 +62,12 @@ def class_sheet_filename(class_names: list[str], year_label: str, semester_numbe
     return f"{clean_filename(f'{scope} {term_label(year_label, semester_number)}')}.pdf"
 
 
+def part_filename(filename: str, number: int) -> str:
+    """``… 1. Dönem (Bölüm 2).zip``: one of the numbered parts of a set too large for one file."""
+    stem, _, extension = filename.rpartition(".")
+    return f"{stem} (Bölüm {number}).{extension}"
+
+
 def ascii_filename(value: str) -> str:
     """The ``filename=`` fallback for clients without RFC 5987: Turkish letters folded.
 

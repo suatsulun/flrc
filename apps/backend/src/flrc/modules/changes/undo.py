@@ -536,6 +536,8 @@ async def _undo_field_copy(ctx: UndoContext) -> None:
         await db.scalars(
             select(ColumnDefinition)
             .where(ColumnDefinition.id.in_(column_ids))
+            # In id order, as grid saves key-share-lock the fields they write: a save in progress
+            # finishes first, and its grades then refuse the removal below.
             .order_by(ColumnDefinition.id)
             .with_for_update()
             .execution_options(populate_existing=True)

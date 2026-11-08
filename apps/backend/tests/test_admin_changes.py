@@ -1210,8 +1210,8 @@ async def test_student_edit_records_the_name_a_concurrent_edit_committed(api, wo
         assert student.full_name == "Synthetic Concurrent Name"
 
 
-async def wait_for_a_lock_wait() -> None:
-    """Return once some session of the test database is waiting for a lock."""
+async def wait_for_a_lock_wait(count: int = 1) -> None:
+    """Return once ``count`` sessions of the test database are waiting for a lock."""
     async with TestSession() as probe:
         for _ in range(200):
             waiting = await probe.scalar(
@@ -1220,10 +1220,10 @@ async def wait_for_a_lock_wait() -> None:
                     "WHERE datname = current_database() AND wait_event_type = 'Lock'"
                 )
             )
-            if waiting:
+            if waiting >= count:
                 return
             await asyncio.sleep(0.02)
-    raise AssertionError("the request never waited for a lock")
+    raise AssertionError("the requests never waited for a lock")
 
 
 @pytest.mark.parametrize("write", ["year_language", "roster_language", "undo_language"])
@@ -1555,6 +1555,79 @@ async def test_undo_field_copy_refuses_copies_with_grade_history(api, world):
     async with api(world.admin) as client:
         assert_blocked(await undo(client, copied.json()["action_id"]), "field_has_history")
     assert await column_row(column_id) is not None
+
+
+async def test_undo_field_copy_and_a_grade_save_take_the_fields_in_one_order(api, world):
+    """A grid save locks its fields up front, in id order, as removing copied fields does.
+
+    The save writes the higher-id copy first, then waits on the lower-id copy's grade row,
+    which another transaction holds. Undoing the copy meanwhile waits for the save's field
+    locks instead of holding the lower-id field that the save's audit rows still need, so
+    the save completes and the undo, seeing grades in the copies, is refused, with no
+    deadlock.
+    """
+    async with api(world.admin) as client:
+        copied = await client.post(
+            "/api/columns/copy",
+            params={"semester_id": world.semester},
+            json={
+                "source_grade_level": 5,
+                "source_subject": "english",
+                "target_grade_level": 6,
+                "target_subject": "english",
+            },
+        )
+        assert copied.status_code == 200, copied.text
+    async with TestSession() as db:
+        low, high = list(
+            await db.scalars(
+                select(m.ColumnDefinition.id)
+                .where(m.ColumnDefinition.grade_level == 6)
+                .order_by(m.ColumnDefinition.id)
+            )
+        )
+        sixth = m.SchoolClass(year_id=world.year, grade_level=6, section="A")
+        pupil = m.Student(full_name="Synthetic Sixth Pupil", search_name="synthetic sixth pupil")
+        db.add_all([sixth, pupil])
+        await db.flush()
+        db.add(
+            m.Enrollment(
+                student_id=pupil.id, year_id=world.year, class_id=sixth.id, school_number=61001
+            )
+        )
+        db.add(
+            m.GradeValue(
+                student_id=pupil.id, column_definition_id=low, score=50, updated_by=world.main.id
+            )
+        )
+        await db.commit()
+        sixth_id, pupil_id = sixth.id, pupil.id
+
+    async with api(world.admin) as client:
+        async with TestSession() as gate:
+            await gate.execute(
+                select(m.GradeValue)
+                .where(m.GradeValue.column_definition_id == low)
+                .with_for_update()
+            )
+            save = asyncio.create_task(
+                save_grid(
+                    api,
+                    world.admin,
+                    sixth_id,
+                    [cell(pupil_id, high, 70), cell(pupil_id, low, 80, expected=1)],
+                )
+            )
+            await wait_for_a_lock_wait()
+            removal = asyncio.create_task(undo(client, copied.json()["action_id"]))
+            await wait_for_a_lock_wait(2)
+            await gate.commit()
+        saved = await save
+        undone = await removal
+    assert saved.status_code == 200, saved.text
+    assert len(saved.json()["applied"]) == 2
+    assert_blocked(undone, "field_has_grades")
+    assert await column_row(low) is not None and await column_row(high) is not None
 
 
 async def test_undo_edit_of_an_inactive_admin_is_not_a_last_admin_change(api, world):

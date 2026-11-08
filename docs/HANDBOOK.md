@@ -6448,9 +6448,12 @@ they actually replaced. Locks are taken year first: a pupil's yearly data (numbe
 language), including a new pupil from either the roster or the students page, is guarded by the
 year (`writable_class_year`), then their enrollment row (`lock_enrollments`, id order); class
 writes lock the year, then the class (`lock_class`). Undo handlers and roster removal take the
-same locks in the same order before checking. A field reorder and its undo change only
-positions, so they lock the fields `FOR NO KEY UPDATE`: grade saves inserting into those fields
-(whose foreign keys take `KEY SHARE`) neither wait for them nor deadlock with them.
+same locks in the same order before checking. Grade saves and grid undo key-share-lock the fields
+they write (`FOR KEY SHARE`, id order) after their grant or batch locks and before the first grade
+or audit row; removing fields (copy undo, field delete) locks them `FOR UPDATE` in id order, so it
+waits for a save in progress and then sees its grades. A field reorder and its undo change only
+positions, so they lock the fields `FOR NO KEY UPDATE`: grade saves neither wait for them nor
+deadlock with them.
 
 **Retention:** the backup sidecar deletes expired rows and their kept signature images every night
 before the dump; `flrc purge-admin-actions` does it by hand.

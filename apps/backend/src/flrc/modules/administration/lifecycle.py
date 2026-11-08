@@ -36,6 +36,7 @@ from flrc.modules.academics.programme import (
     stage_for_grade,
     uses_scale_only,
 )
+from flrc.modules.administration.account_locks import lock_accounts, lock_for_admin
 from flrc.modules.auth.dependencies import require_admin
 
 router = APIRouter(prefix="/admin/years", tags=["admin-lifecycle"])
@@ -393,7 +394,16 @@ async def _create_rollover_year(
                 select(TeachingAssignment).where(TeachingAssignment.class_id.in_(class_by_id))
             )
         )
+        # Shared locks on the holders (ADR-080), which closing the year has taken before
+        # the year: a concurrent deletion is waited for, and a deleted account's slot starts
+        # the new year empty. A holder assigned while closing waited is locked only here;
+        # nothing that locks an account exclusively goes on to lock a year, so that cannot
+        # deadlock.
+        holders = await lock_accounts(db, {item.user_id for item in assignments})
         for assignment in assignments:
+            holder = holders.get(assignment.user_id)
+            if holder is None or holder.deleted_at is not None:
+                continue
             old_class = class_by_id[assignment.class_id]
             new_class = target_classes[(old_class.grade_level, old_class.section)]
             db.add(
@@ -521,6 +531,18 @@ async def close_year(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> YearOut:
+    # The administrator and the teachers whose slots the rollover copies, before the year
+    # (ADR-080): closing a year cannot be undone, so an administrator deactivated, erased
+    # or demoted while this waited is refused.
+    await lock_for_admin(
+        db,
+        actor,
+        shared=await db.scalars(
+            select(TeachingAssignment.user_id)
+            .join(SchoolClass, SchoolClass.id == TeachingAssignment.class_id)
+            .where(SchoolClass.year_id == year_id)
+        ),
+    )
     year = await _lock_year(db, year_id)
     semesters = await _semesters(db, year_id)
     if year.status != "active" or any(item.status != "locked" for item in semesters):

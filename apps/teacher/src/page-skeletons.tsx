@@ -5,11 +5,11 @@ import {
   SkeletonFields,
   SkeletonGrid,
   SkeletonList,
-  SkeletonPageHeader,
   SkeletonTable,
   SkeletonTabs,
   SkeletonToolbar,
 } from "@flrc/ui/components/skeleton";
+import { REPORT_GRADES } from "./class-report/scope";
 
 /*
  * Each teacher page's loading shape, built from the shared skeleton blocks. A page shows its
@@ -30,7 +30,7 @@ export function ClassTabsSkeleton() {
 }
 
 /** `BoardSwitcher`: the year bar above the grade, subject and class pickers. */
-export function BoardSwitcherSkeleton() {
+function BoardSwitcherSkeleton({ grades, subjects }: { grades: number; subjects: boolean }) {
   return (
     <>
       <SkeletonToolbar />
@@ -38,19 +38,28 @@ export function BoardSwitcherSkeleton() {
         aria-hidden
         className="flex flex-col gap-3 rounded-xl border border-border bg-card p-2 shadow-card lg:flex-row lg:items-center"
       >
-        <SkeletonTabs count={GRADES.length} size="sm" />
-        <SkeletonTabs count={3} size="sm" />
+        <SkeletonTabs count={grades} size="sm" />
+        {subjects ? <SkeletonTabs count={3} size="sm" /> : null}
         <ClassTabsSkeleton />
       </div>
     </>
   );
 }
 
-/** A board page's heading: the class and subject, a summary line and the page's actions. */
-function BoardHeadingSkeleton({ actions }: { actions: number }) {
+/** "Sınıf raporu | Karne önizleme", above both report views. */
+function ReportModeSwitchSkeleton() {
+  return <SkeletonTabs count={2} />;
+}
+
+/**
+ * A board page's heading: an optional overline, the class and subject, a summary line and the
+ * page's actions.
+ */
+function BoardHeadingSkeleton({ actions, overline }: { actions: number; overline: boolean }) {
   return (
     <div aria-hidden className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
       <div className="min-w-0 space-y-2">
+        {overline ? <Skeleton className="h-3 w-24 rounded-md" /> : null}
         <Skeleton className="h-7 w-48" />
         <Skeleton className="h-4 w-64 max-w-full rounded-md" />
       </div>
@@ -67,8 +76,8 @@ function BoardHeadingSkeleton({ actions }: { actions: number }) {
 export function GridPageSkeleton() {
   return (
     <div className="space-y-2">
-      <BoardSwitcherSkeleton />
-      <BoardHeadingSkeleton actions={2} />
+      <BoardSwitcherSkeleton grades={GRADES.length} subjects />
+      <BoardHeadingSkeleton actions={2} overline={false} />
       <SkeletonGrid />
       <div
         aria-hidden
@@ -81,12 +90,13 @@ export function GridPageSkeleton() {
   );
 }
 
-/** The middle-school English class sheet. */
+/** Sınıf raporu: the mode switch, the middle-school English class pickers and the sheet. */
 export function ClassReportSkeleton() {
   return (
     <div className="space-y-4">
-      <BoardSwitcherSkeleton />
-      <BoardHeadingSkeleton actions={4} />
+      <ReportModeSwitchSkeleton />
+      <BoardSwitcherSkeleton grades={REPORT_GRADES.length} subjects={false} />
+      <BoardHeadingSkeleton actions={4} overline />
       <Card aria-hidden className="overflow-hidden">
         <SkeletonTable columns={8} rows={10} />
       </Card>
@@ -94,14 +104,20 @@ export function ClassReportSkeleton() {
   );
 }
 
-/** Karne önizleme: the class and card pickers, the student list and the card itself. */
+/** Karne önizleme: the mode switch, the class and semester pickers, the pupils and the card. */
 export function CardPreviewSkeleton() {
   return (
     <div className="space-y-4">
-      <SkeletonPageHeader />
+      <ReportModeSwitchSkeleton />
+      <div aria-hidden className="min-w-0 space-y-2">
+        <Skeleton className="h-3 w-28 rounded-md" />
+        <Skeleton className="h-7 w-56 max-w-2/3" />
+        <Skeleton className="h-4 w-48 rounded-md" />
+        <Skeleton className="h-4 w-full max-w-3xl rounded-md" />
+      </div>
       <div aria-hidden className="flex flex-wrap items-end gap-3">
         <SkeletonFields count={1} className="min-w-56" />
-        <SkeletonTabs count={3} />
+        <SkeletonTabs count={2} />
       </div>
       <div aria-hidden className="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
         <Card className="p-1">

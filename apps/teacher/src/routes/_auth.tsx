@@ -12,6 +12,7 @@ import {
   sidebarItemActiveClass,
   sidebarItemClass,
 } from "@flrc/ui/components/app-shell";
+import { SkeletonNavItems } from "@flrc/ui/components/app-shell-skeleton";
 import { DemoBanner } from "@flrc/ui/components/demo-banner";
 import { PageActivity } from "@flrc/ui/components/page-activity";
 
@@ -99,7 +100,7 @@ function AuthLayout() {
 function TeacherNavigation({ onNavigate }: { onNavigate: () => void }) {
   const { t } = useTranslation();
   // Shares the dashboard's cache entry, so this costs no extra request.
-  const { data: catalog = [] } = useQuery(listClassCatalogOptions());
+  const { data: catalog = [], isPending: catalogPending } = useQuery(listClassCatalogOptions());
   const reportMatch = useMatch({ from: "/_auth/class-report/$classId", shouldThrow: false });
   const gridMatch = useMatch({ from: "/_auth/classes/$classId/$subject", shouldThrow: false });
   const englishGrid = gridMatch?.params.subject === "english" ? gridMatch : undefined;
@@ -193,7 +194,11 @@ function TeacherNavigation({ onNavigate }: { onNavigate: () => void }) {
 
       {/* The boards this teacher is actually responsible for — the whole point
           of the sidebar, and one click from anywhere. */}
-      {myBoards.length ? (
+      {catalogPending ? (
+        <SidebarSection label={t("dashboard.myAssignments")}>
+          <SkeletonNavItems count={4} />
+        </SidebarSection>
+      ) : myBoards.length ? (
         <SidebarSection label={t("dashboard.myAssignments")}>
           {myBoards.map(({ schoolClass, subject }) => {
             const label = (

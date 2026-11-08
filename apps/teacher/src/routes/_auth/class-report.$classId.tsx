@@ -1,7 +1,6 @@
 import { getClassSheetOptions, listClassCatalogOptions } from "@flrc/api-client";
 import { Button, buttonVariants } from "@flrc/ui/components/button";
 import { EmptyState } from "@flrc/ui/components/empty-state";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
@@ -25,6 +24,7 @@ import { PdfLeaveGuard } from "../../class-report/pdf-leave-guard";
 import { ReportModeSwitch } from "../../class-report/report-mode-switch";
 import { REPORT_GRADES, reportClasses } from "../../class-report/scope";
 import { BoardSwitcher } from "../../grid/board-switcher";
+import { ClassReportSkeleton } from "../../page-skeletons";
 
 export const Route = createFileRoute("/_auth/class-report/$classId")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -102,7 +102,7 @@ function ClassReport({ pdf }: { pdf: ClassSheetPdf }) {
     />
   );
 
-  if (isPending) return <PageSkeleton />;
+  if (isPending) return <ClassReportSkeleton />;
   if (isError) {
     return errorCode(error) === "class_report_middle_english_only" ? (
       <div className="space-y-4">

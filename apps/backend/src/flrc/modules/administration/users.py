@@ -1,15 +1,24 @@
 import hashlib
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
-from flrc.db.models import AdminAction, SchoolClass, TeachingAssignment, User
+from flrc.db.models import (
+    AdminAction,
+    AuditEntry,
+    OverrideGrant,
+    ReportIdentityAudit,
+    SchoolClass,
+    TeachingAssignment,
+    User,
+)
 from flrc.db.session import get_session
 from flrc.modules.academics.programme import Stage
+from flrc.modules.administration.account_locks import lock_for_admin
 from flrc.modules.administration.classes import assignment_mismatch
 from flrc.modules.administration.names import normalize_email, search_key
 from flrc.modules.administration.report_identity import (
@@ -28,11 +37,19 @@ from flrc.modules.changes.service import (
     change_list,
     changed_values,
     record_action,
+    utcnow,
     with_action,
 )
 
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 TeachingField = Literal["english", "german", "french"]
+
+# What every history view shows for a permanently deleted account (ADR-080).
+ERASED_USER_NAME = "Silinmiş öğretmen"
+# Recorded actions whose snapshot belongs to one account (``undo_data.user_id``).
+ACCOUNT_ACTION_KINDS = ("user.create", "user.edit", "signature.upload", "signature.delete")
+# Account attributes whose recorded values are personal data.
+PERSONAL_ATTRIBUTES = frozenset({"full_name", "report_name", "google_subject"})
 
 
 class ManagedUserOut(BaseModel):
@@ -86,27 +103,6 @@ EDITABLE_ATTRIBUTES = (
 
 def account_state(user: User) -> dict[str, object]:
     return {name: getattr(user, name) for name in EDITABLE_ATTRIBUTES}
-
-
-async def lock_account_for_edit(db: AsyncSession, user_id: int, actor: User) -> User | None:
-    """Lock an account an administrator changes, together with the administrator's own.
-
-    Recording the change refers to the administrator's account (``actor_id``), which
-    another administrator changing it holds. Both rows are locked in id order, the
-    administrator's only shared, so two administrators changing each other's accounts
-    wait for one another instead of deadlocking.
-    """
-    target: User | None = None
-    for locked_id in sorted({user_id, actor.id}):
-        row = await db.get(
-            User,
-            locked_id,
-            with_for_update={"read": locked_id != user_id},
-            populate_existing=True,
-        )
-        if locked_id == user_id:
-            target = row
-    return target
 
 
 async def ensure_admin_remains(
@@ -184,7 +180,7 @@ async def list_managed_users(
     active: bool | None = None,
 ) -> list[ManagedUserOut]:
     del actor
-    statement = select(User)
+    statement = select(User).where(User.deleted_at.is_(None))
     if q.strip():
         needle = f"%{search_key(q)}%"
         statement = statement.where(
@@ -202,6 +198,8 @@ async def create_managed_user(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ManagedUserWriteOut:
+    # The administrator first (ADR-080): the action recorded below refers to that account.
+    await lock_for_admin(db, actor)
     email = normalize_email(body.email)
     if allowed_google_domain() and not email_is_in_school_domain(email):
         raise HTTPException(422, {"code": "wrong_school_domain"})
@@ -238,8 +236,8 @@ async def patch_managed_user(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ManagedUserWriteOut:
-    target = await lock_account_for_edit(db, user_id, actor)
-    if target is None:
+    target = (await lock_for_admin(db, actor, exclusive=user_id)).get(user_id)
+    if target is None or target.deleted_at is not None:
         raise HTTPException(404, {"code": "unknown_user"})
     if target.id != actor.id and await demo.is_visitor(db, target.id):
         # Demo visitors are all administrators; none may touch another's account.
@@ -297,8 +295,8 @@ async def patch_managed_user(
 
 
 async def signature_user(db: AsyncSession, user_id: int, actor: User) -> User:
-    target = await lock_account_for_edit(db, user_id, actor)
-    if target is None:
+    target = (await lock_for_admin(db, actor, exclusive=user_id)).get(user_id)
+    if target is None or target.deleted_at is not None:
         raise HTTPException(404, {"code": "unknown_user"})
     if await demo.is_visitor(db, target.id):
         raise HTTPException(403, {"code": "visitor_protected"})
@@ -377,3 +375,138 @@ async def _record_signature_change(
         },
         blob=target.signature_png,
     )
+
+
+class UserDeleteOut(BaseModel):
+    deleted: bool
+    revoked_sessions: int = 0
+
+
+def erased_email(user_id: int) -> str:
+    """A unique address no Google account can hold (RFC 2606), so the real one is free."""
+    return f"deleted-{user_id}@deleted.invalid"
+
+
+@router.delete("/{user_id}")
+async def delete_managed_user(
+    user_id: int,
+    actor: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> UserDeleteOut:
+    """Permanently erase a deactivated account's personal data (ADR-080); not undoable.
+
+    The row stays so grades, grade history, save batches and jobs keep pointing at it;
+    every history view then shows ``ERASED_USER_NAME`` through the stored name.
+    """
+    # The acting administrator shared and the account exclusively, in id order: every
+    # writer about the account, the year rollover and undo lock it first too (ADR-080), so
+    # none of them can record or restore anything about it between here and the commit,
+    # and none can deadlock with this deletion. An administrator erased or demoted while
+    # this waited is refused before anything is erased.
+    target = (await lock_for_admin(db, actor, exclusive=user_id)).get(user_id)
+    if target is None or target.deleted_at is not None:
+        raise HTTPException(404, {"code": "unknown_user"})
+    if target.id == actor.id:
+        raise HTTPException(409, {"code": "cannot_delete_self"})
+    if await demo.is_visitor(db, target.id):
+        raise HTTPException(403, {"code": "visitor_protected"})
+    if target.is_active:
+        raise HTTPException(409, {"code": "user_active"})
+    # The slots in id order, as every assignment writer locks them, before deleting them.
+    slot_ids = list(
+        await db.scalars(
+            select(TeachingAssignment.id)
+            .where(TeachingAssignment.user_id == target.id)
+            .order_by(TeachingAssignment.id)
+            .with_for_update()
+        )
+    )
+    await db.execute(delete(TeachingAssignment).where(TeachingAssignment.id.in_(slot_ids)))
+    await _end_grants(db, target.id)
+    await db.execute(delete(ReportIdentityAudit).where(ReportIdentityAudit.user_id == target.id))
+    # After the assignments: a slot writer that held one of them has committed its action
+    # by now, so the scan below sees it.
+    await _erase_from_actions(db, target.id)
+    target.full_name = ERASED_USER_NAME
+    target.email = erased_email(target.id)
+    target.google_subject = None
+    target.report_name = None
+    target.signature_png = None
+    target.signature_digest = None
+    target.is_admin = False
+    target.is_coordinator = False
+    target.deleted_at = utcnow()
+    await db.commit()
+    # A deactivated account has no usable session; revoke any leftover index anyway.
+    revoked = await revoke_user_sessions(target.id)
+    return UserDeleteOut(deleted=True, revoked_sessions=revoked)
+
+
+async def _end_grants(db: AsyncSession, user_id: int) -> None:
+    """Remove the account's override grants; one a save went through only expires.
+
+    A grant holds no personal data, and `audit_entries.via_grant_id` keeps naming the grant
+    behind each save, so such a grant stays as an ended record.
+    """
+    owned = OverrideGrant.user_id == user_id
+    used = select(AuditEntry.id).where(AuditEntry.via_grant_id == OverrideGrant.id).exists()
+    await db.execute(delete(OverrideGrant).where(owned, ~used))
+    await db.execute(
+        update(OverrideGrant)
+        .where(owned, OverrideGrant.expires_at > func.now())
+        .values(expires_at=func.now())
+    )
+
+
+async def _account_actions(db: AsyncSession, user_id: int) -> list[AdminAction]:
+    """Lock and return the recorded admin actions that hold this account's data."""
+    statement = (
+        select(AdminAction)
+        .where(
+            or_(
+                AdminAction.kind.in_(ACCOUNT_ACTION_KINDS)
+                & AdminAction.undo_data.contains({"user_id": user_id}),
+                (AdminAction.kind == "assignments.replace")
+                & or_(
+                    AdminAction.undo_data.contains({"slots": [{"before": user_id}]}),
+                    AdminAction.undo_data.contains({"slots": [{"after": user_id}]}),
+                ),
+            )
+        )
+        .order_by(AdminAction.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return list(await db.scalars(statement))
+
+
+async def _erase_from_actions(db: AsyncSession, user_id: int) -> None:
+    """Remove the account's personal data from recorded admin actions (ADR-075).
+
+    Display names become ``ERASED_USER_NAME``; an account action keeps only the account
+    id, so its undo finds the deleted account and refuses instead of restoring the data.
+    """
+    for action in await _account_actions(db, user_id):
+        params = dict(cast(dict[str, Any], action.summary.get("params", {})))
+        if action.kind == "assignments.replace":
+            slots = cast(list[dict[str, Any]], action.undo_data["slots"])
+            changes = [dict(item) for item in cast(list[dict[str, Any]], params["changes"])]
+            # Both lists come from the same changed slots, in the same order.
+            for slot, change in zip(slots, changes, strict=True):
+                if slot["before"] == user_id:
+                    change["from_teacher"] = ERASED_USER_NAME
+                if slot["after"] == user_id:
+                    change["to_teacher"] = ERASED_USER_NAME
+            params["changes"] = changes
+        else:
+            params["user"] = ERASED_USER_NAME
+            params.pop("email", None)
+            if "changes" in params:
+                params["changes"] = [
+                    item
+                    for item in cast(list[dict[str, Any]], params["changes"])
+                    if item.get("field") not in PERSONAL_ATTRIBUTES
+                ]
+            action.undo_data = {"user_id": user_id}
+            action.blob = None
+        action.summary = {**action.summary, "params": params}

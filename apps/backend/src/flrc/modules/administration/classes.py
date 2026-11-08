@@ -28,6 +28,7 @@ from flrc.modules.academics.class_names import (
     normalize_section,
 )
 from flrc.modules.academics.programme import stage_for_grade
+from flrc.modules.administration.account_locks import assignable, lock_for_admin
 from flrc.modules.administration.roster_service import (
     NumberHolder,
     is_duplicate_school_number,
@@ -492,19 +493,21 @@ async def replace_assignment_matrix(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> AssignmentMatrixWriteOut:
+    user_ids = {change.user_id for change in body.changes if change.user_id is not None}
+    # The acting administrator and the destination accounts first, in id order (ADR-080): a
+    # concurrent deactivation or deletion of any of them is waited for and seen. The actor is
+    # locked even for a clear-only change, or its recorded action could wait behind a deletion
+    # of the actor that waits for the actor's own slot.
+    users = await lock_for_admin(db, actor, shared=user_ids)
     await writable_class_year(db, year_id)
     class_ids = {change.class_id for change in body.changes}
-    user_ids = {change.user_id for change in body.changes if change.user_id is not None}
     classes = {
         item.id: item
         for item in (await db.scalars(select(SchoolClass).where(SchoolClass.id.in_(class_ids))))
     }
-    users = {
-        item.id: item for item in (await db.scalars(select(User).where(User.id.in_(user_ids))))
-    }
     if any(item.year_id != year_id for item in classes.values()) or len(classes) != len(class_ids):
         raise HTTPException(422, {"code": "invalid_class"})
-    if len(users) != len(user_ids) or any(not item.is_active for item in users.values()):
+    if not all(assignable(users.get(user_id)) for user_id in user_ids):
         raise HTTPException(422, {"code": "invalid_user"})
     # Validate every input before reducing repeated slots to their final value.
     slots: dict[tuple[int, str], int | None] = {}

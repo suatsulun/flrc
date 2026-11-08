@@ -42,6 +42,7 @@ from flrc.modules.academics.columns import (
 )
 from flrc.modules.academics.fields import field_name
 from flrc.modules.academics.programme import L2_START_GRADE, stage_for_grade
+from flrc.modules.administration.account_locks import lock_for_admin
 from flrc.modules.administration.classes import (
     apply_assignment_slots,
     assignment_mismatch,
@@ -62,10 +63,10 @@ from flrc.modules.administration.roster_service import (
     student_language,
 )
 from flrc.modules.administration.users import (
+    ACCOUNT_ACTION_KINDS,
     account_state,
     ensure_admin_remains,
     ensure_assignments_fit,
-    lock_account_for_edit,
 )
 from flrc.modules.auth import demo
 from flrc.modules.changes.service import ActionKind, UndoBlocked
@@ -99,6 +100,32 @@ def handles(*kinds: ActionKind) -> Callable[[Handler], Handler]:
         return handler
 
     return register
+
+
+async def lock_action_accounts(
+    db: AsyncSession, kind: str, data: dict[str, Any], actor: User
+) -> dict[int, User]:
+    """Lock the undoing administrator and the accounts an action names, in id order,
+    before anything else (ADR-080); returns their current rows.
+
+    Every write about an account and a permanent deletion lock the account first, so an
+    undo does too: account actions lock their account exclusively, as the handler does;
+    assignment changes take shared locks on every teacher their slots name. The
+    administrator is locked shared and checked again, as the account and assignment
+    writers do: marking the action undone refers to that account, which its own deletion
+    holds.
+    """
+    if kind in ACCOUNT_ACTION_KINDS:
+        return await lock_for_admin(db, actor, exclusive=int(data["user_id"]))
+    named: set[int] = set()
+    if kind == "assignments.replace":
+        named = {
+            slot[key]
+            for slot in data["slots"]
+            for key in ("before", "after")
+            if slot[key] is not None
+        }
+    return await lock_for_admin(db, actor, shared=named)
 
 
 def _class_name(school_class: SchoolClass) -> str:
@@ -555,9 +582,10 @@ async def _undo_field_copy(ctx: UndoContext) -> None:
 
 
 async def _user(ctx: UndoContext, user_id: int) -> User:
-    user = await lock_account_for_edit(ctx.db, user_id, ctx.actor)
-    if user is None:
-        raise UndoBlocked("target_missing", user=ctx.params.get("user"))
+    user = await ctx.db.get(User, user_id, with_for_update=True, populate_existing=True)
+    if user is None or user.deleted_at is not None:
+        # A deleted account's actions keep only its id (ADR-080); nothing is restored.
+        raise UndoBlocked("target_missing", user=user.full_name if user else ctx.params.get("user"))
     if user.id != ctx.actor.id and await demo.is_visitor(ctx.db, user.id):
         raise UndoBlocked("visitor_protected", user=user.full_name)
     return user
@@ -652,20 +680,20 @@ async def _undo_assignments(ctx: UndoContext) -> None:
         item.id: item
         for item in await db.scalars(select(SchoolClass).where(SchoolClass.id.in_(class_ids)))
     }
+    # `lock_action_accounts` holds these already and read them after any wait, so a
+    # deletion it waited for shows here.
+    teacher_ids = {item["before"] for item in slots if item["before"] is not None}
+    teachers = {
+        user.id: user for user in await db.scalars(select(User).where(User.id.in_(teacher_ids)))
+    }
+    # In id order, as every assignment writer and a permanent deletion lock them (ADR-080).
     current = {
         (item.class_id, item.role): item.user_id
         for item in await db.scalars(
             select(TeachingAssignment)
             .where(TeachingAssignment.class_id.in_(class_ids))
+            .order_by(TeachingAssignment.id)
             .with_for_update()
-        )
-    }
-    teachers = {
-        item.id: item
-        for item in await db.scalars(
-            select(User).where(
-                User.id.in_({item["before"] for item in slots if item["before"] is not None})
-            )
         )
     }
     for item in slots:
@@ -678,7 +706,7 @@ async def _undo_assignments(ctx: UndoContext) -> None:
         if item["before"] is None:
             continue
         teacher = teachers.get(item["before"])
-        if teacher is None:
+        if teacher is None or teacher.deleted_at is not None:
             raise UndoBlocked("target_missing", **where)
         if not teacher.is_active:
             raise UndoBlocked("teacher_inactive", teacher=teacher.full_name, **where)

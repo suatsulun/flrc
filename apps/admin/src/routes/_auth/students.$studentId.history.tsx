@@ -16,7 +16,6 @@ import {
 } from "@flrc/ui/components/card";
 import { EmptyState } from "@flrc/ui/components/empty-state";
 import { PageHeader } from "@flrc/ui/components/page-header";
-import { Skeleton, SkeletonRows } from "@flrc/ui/components/skeleton";
 import {
   Table,
   TableBody,
@@ -28,6 +27,10 @@ import {
   TableScroll,
   TableText,
 } from "@flrc/ui/components/table";
+import { StudentHistorySkeleton } from "../../admin/page-skeletons";
+
+/** Report-card subjects in the order the school prints them. */
+const SUBJECT_ORDER = ["english", "german", "french"] as const;
 
 /** The year and semester on screen; absent values fall back to the latest recorded term. */
 type HistorySearch = { year?: number; semester?: 1 | 2 };
@@ -68,7 +71,7 @@ function StudentHistoryPage() {
     getStudentHistoryOptions({ path: { student_id: Number(studentId) } }),
   );
 
-  if (isPending) return <HistorySkeleton />;
+  if (isPending) return <StudentHistorySkeleton />;
   if (isError || !data) return <EmptyState title={t("errors.load")} />;
 
   // Years arrive oldest first; without a choice the most recent year with grades is shown.
@@ -185,30 +188,42 @@ function StudentHistoryPage() {
                         <TableHeader align="right">{t("forms.value")}</TableHeader>
                       </tr>
                     </TableHead>
-                    <TableBody>
-                      {term.cells.map((cell) => (
-                        <TableRow key={cell.column_id}>
-                          <TableCell className="overflow-hidden">
-                            <span className="flex min-w-0 items-baseline gap-1.5">
-                              <TableText className="max-w-full">{cell.label}</TableText>
-                              <span className="truncate text-xs text-muted-foreground">
-                                {t(`subjects.${cell.subject}`)}
-                              </span>
-                            </span>
-                          </TableCell>
-                          <TableCell align="right" className="font-medium">
-                            {cell.value === null || cell.value === "" ? (
-                              <span className="text-muted-foreground">—</span>
-                            ) : (
-                              // Comment columns hold whole sentences.
-                              <TableText className="ml-auto max-w-full">
-                                {String(cell.value)}
-                              </TableText>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
+                    {SUBJECT_ORDER.map((subject) => {
+                      // English, German and French columns each read as their own block
+                      // instead of interleaving by column position.
+                      const cells = term.cells.filter((cell) => cell.subject === subject);
+                      if (cells.length === 0) return null;
+                      return (
+                        <TableBody key={subject}>
+                          <tr>
+                            <th
+                              colSpan={2}
+                              scope="colgroup"
+                              className="border-b border-border bg-muted/50 px-3 py-2 text-left text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+                            >
+                              {t(`subjects.${subject}`)}
+                            </th>
+                          </tr>
+                          {cells.map((cell) => (
+                            <TableRow key={cell.column_id}>
+                              <TableCell className="overflow-hidden">
+                                <TableText className="max-w-full">{cell.label}</TableText>
+                              </TableCell>
+                              <TableCell align="right" className="font-medium">
+                                {cell.value === null || cell.value === "" ? (
+                                  <span className="text-muted-foreground">—</span>
+                                ) : (
+                                  // Comment columns hold whole sentences.
+                                  <TableText className="ml-auto max-w-full">
+                                    {String(cell.value)}
+                                  </TableText>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      );
+                    })}
                   </Table>
                 </TableScroll>
               </CardBody>
@@ -217,26 +232,5 @@ function StudentHistoryPage() {
         </>
       )}
     </>
-  );
-}
-
-/** Loading shape of the page: back link and header, the year/semester bar, one term card. */
-function HistorySkeleton() {
-  return (
-    <div className="space-y-4" aria-hidden>
-      <div className="space-y-2">
-        <Skeleton className="h-3.5 w-24" />
-        <Skeleton className="h-7 w-64 max-w-2/3" />
-        <Skeleton className="h-4 w-96 max-w-full" />
-      </div>
-      <Skeleton className="h-12 w-full rounded-xl" />
-      <div className="rounded-xl border border-border bg-card shadow-card">
-        <div className="space-y-2 border-b border-border px-5 py-4">
-          <Skeleton className="h-5 w-48 max-w-2/3" />
-          <Skeleton className="h-4 w-36" />
-        </div>
-        <SkeletonRows rows={8} />
-      </div>
-    </div>
   );
 }

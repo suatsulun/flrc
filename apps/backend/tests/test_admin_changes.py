@@ -538,6 +538,31 @@ async def test_undo_field_delete_restores_empty_field_and_reenables_graded_one(a
     assert await grade_row(world.student_one, world.main_column) == graded
 
 
+async def test_concurrent_undos_of_one_deleted_field_restore_it_once(api, world):
+    """Undos of one action take turns: one restores the field, the other finds it undone.
+
+    The restore inserts the deleted field again with its old id, which no row lock guards,
+    so two undos running side by side would both insert it and one would fail with a 500.
+    """
+    async with api(world.admin) as client:
+        removed = await client.delete(
+            f"/api/columns/{world.skills_column}", params={"semester_id": world.semester}
+        )
+    assert removed.json()["deleted"] is True
+    action_id = removed.json()["action_id"]
+
+    async def attempt():
+        async with api(world.admin) as client:
+            return await undo(client, action_id)
+
+    results = await asyncio.gather(attempt(), attempt(), return_exceptions=True)
+    statuses = sorted((getattr(result, "status_code", repr(result)) for result in results), key=str)
+    assert statuses == [200, 409], statuses
+    refused = next(result for result in results if result.status_code == 409)
+    assert refused.json()["detail"]["code"] == "action_already_undone"
+    assert (await column_row(world.skills_column)) is not None
+
+
 async def test_undo_field_edit_restores_name_and_attributes(api, world):
     async with api(world.admin) as client:
         edited = await client.patch(
@@ -568,6 +593,31 @@ async def test_undo_field_edit_restores_name_and_attributes(api, world):
     column = await column_row(world.main_column)
     assert column.labels == {"tr": "Main score", "en": "Main score", "de": "", "fr": ""}
     assert (column.counts_in_average, column.owner_role) == (False, "skills")
+
+
+async def test_undo_whose_action_is_purged_while_it_waits_restores_nothing(api, world):
+    """The expiry purge takes no lock; an undo that finds its action gone answers expired."""
+    async with api(world.admin) as client:
+        edited = await client.patch(
+            f"/api/columns/{world.main_column}",
+            params={"semester_id": world.semester},
+            json={"name": "Synthetic Renamed"},
+        )
+        assert edited.status_code == 200, edited.text
+        action_id = edited.json()["action_id"]
+
+        async def purge_while_the_field_is_held(db):
+            await db.execute(
+                select(m.ColumnDefinition.id)
+                .where(m.ColumnDefinition.id == world.main_column)
+                .with_for_update()
+            )
+            await db.execute(delete(m.AdminAction).where(m.AdminAction.id == action_id))
+
+        response = await while_held(purge_while_the_field_is_held, lambda: undo(client, action_id))
+    assert response.status_code == 410, response.text
+    assert response.json()["detail"]["code"] == "action_expired"
+    assert (await column_row(world.main_column)).labels["en"] == "Synthetic Renamed"
 
 
 async def test_undo_reorder_and_refusal_after_a_later_reorder(api, world):

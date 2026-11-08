@@ -12,12 +12,19 @@ import { cn } from "#lib/utils";
  * stops for people who ask for reduced motion.
  */
 
-/** Placeholder block shown while a query is in flight. */
+/**
+ * Placeholder block shown while a query is in flight. The muted surface is nudged towards the
+ * text colour so blocks stay visible on the page background, on cards and in table headers in
+ * both themes.
+ */
 function Skeleton({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       aria-hidden
-      className={cn("animate-pulse rounded-lg bg-muted motion-reduce:animate-none", className)}
+      className={cn(
+        "animate-pulse rounded-lg bg-[color-mix(in_oklch,var(--muted),var(--foreground)_14%)] motion-reduce:animate-none",
+        className,
+      )}
       {...props}
     />
   );

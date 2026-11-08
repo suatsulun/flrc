@@ -3,7 +3,7 @@ from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -20,9 +20,12 @@ from flrc.modules.changes.service import (
     action_status,
     utcnow,
 )
-from flrc.modules.changes.undo import HANDLERS, UndoContext
+from flrc.modules.changes.undo import HANDLERS, UndoContext, lock_action_accounts
 
 router = APIRouter(prefix="/admin/actions", tags=["admin-actions"])
+
+# The first key of the transaction-scoped advisory lock that serializes undos of one action.
+UNDO_LOCK_NAMESPACE = 75
 
 
 class AdminActionOut(BaseModel):
@@ -98,8 +101,27 @@ async def undo_admin_action(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> AdminActionOut:
     """Restore the state before an action in one transaction, or change nothing."""
+    # Undos of one action take turns, before any row lock: the second waits for the first
+    # to commit and then finds the action undone. Only undo takes this key, so it adds no
+    # lock cycle with the row-lock order below (ADR-080).
+    await db.execute(select(func.pg_advisory_xact_lock(UNDO_LOCK_NAMESPACE, action_id)))
+    named = (
+        await db.execute(
+            select(AdminAction.kind, AdminAction.undo_data).where(AdminAction.id == action_id)
+        )
+    ).first()
+    if named is None:
+        raise HTTPException(404, {"code": "unknown_action"})
+    # The undoing administrator and the named accounts first, the action row last: the
+    # order the account and assignment writers and a permanent deletion use (ADR-080), so
+    # none of them can deadlock with this undo. An administrator deactivated, deleted or
+    # demoted meanwhile is refused.
+    await lock_action_accounts(db, named.kind, named.undo_data, actor)
+    # Read again after any wait; a deletion that held a named account has scrubbed it.
     action = await db.scalar(
-        select(AdminAction).where(AdminAction.id == action_id).with_for_update()
+        select(AdminAction)
+        .where(AdminAction.id == action_id)
+        .execution_options(populate_existing=True)
     )
     if action is None:
         raise HTTPException(404, {"code": "unknown_action"})
@@ -111,8 +133,6 @@ async def undo_admin_action(
     context = UndoContext(db=db, action=action, actor=actor)
     try:
         await HANDLERS[action.kind](context)
-        action.undone_at = now
-        action.undone_by = actor.id
         await db.flush()
     except UndoBlocked as exc:
         await db.rollback()
@@ -133,6 +153,23 @@ async def undo_admin_action(
         if is_duplicate_school_number(exc):
             raise _blocked("school_number_taken", {}) from exc
         raise
+    # The action row last. A concurrent undo of the same action waited on the advisory
+    # lock above; the expiry purge takes no lock, so past its expiry the row may have been
+    # deleted while the handler waited for its locks, and then nothing is restored.
+    action = await db.scalar(
+        select(AdminAction)
+        .where(AdminAction.id == action_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if action is None:
+        await db.rollback()
+        raise HTTPException(410, {"code": "action_expired"})
+    if action.undone_at is not None:
+        await db.rollback()
+        raise HTTPException(409, {"code": "action_already_undone"})
+    action.undone_at = now
+    action.undone_by = actor.id
     await db.commit()
     for user_id in context.revoke_user_ids:
         await revoke_user_sessions(user_id)

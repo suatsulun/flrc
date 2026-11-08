@@ -307,6 +307,17 @@
     "signatureHelp": "PNG, en fazla 1 MiB ve 4 milyon piksel; hiçbir kenar 4096 pikseli aşmamalı. Şeffaf arka plan önerilir. Değişiklikler yeni oluşturulan karnelere uygulanır.",
     "signatureRemove": "İmzayı kaldır",
     "signatureInvalid": "Boyut sınırları içinde geçerli, tek kareli bir PNG seçin.",
+    "delete": "Kalıcı olarak sil",
+    "deleteCountdown": "Kalıcı olarak sil ({{seconds}})",
+    "deleteTitle": "{{name}} kalıcı olarak silinsin mi?",
+    "deleteDescription": "Bu işlem geri alınamaz. Hesap bir daha giriş yapamaz.",
+    "deleteErased": "Silinecekler",
+    "deleteErasedIdentity": "Ad, e-posta ve Google hesabı bağlantısı",
+    "deleteErasedReport": "Karne adı ve imzası",
+    "deleteErasedAccess": "Ders görevleri ve geçici düzenleme izinleri",
+    "deleteKept": "Korunacaklar",
+    "deleteKeptGrades": "Girdiği notlar ve not geçmişi; geçmişte “Silinmiş öğretmen” olarak görünür.",
+    "deleteKeptEmail": "Aynı e-posta adresi daha sonra yeni bir öğretmen olarak eklenebilir.",
     "done": {
       "created": "{{name}} öğretmen olarak eklendi.",
       "teachingField": "{{name}}: ders alanı {{value}} olarak değiştirildi.",
@@ -321,7 +332,8 @@
       "reportName": "{{name}} için karne adı “{{value}}” olarak kaydedildi.",
       "reportNameCleared": "{{name}} için karne adı kaldırıldı; karnede hesap adı yazılacak.",
       "signatureUploaded": "{{name}} için karne imzası yüklendi.",
-      "signatureRemoved": "{{name}} için karne imzası kaldırıldı."
+      "signatureRemoved": "{{name}} için karne imzası kaldırıldı.",
+      "deleted": "{{name}} kalıcı olarak silindi. Bu işlem geri alınamaz."
     }
   },
   "classes": {
@@ -808,6 +820,7 @@
       "bad_session": "Oturumunuz geçersiz. Lütfen yeniden giriş yapın.",
       "bad_xlsx_container": "Dosya geçerli bir Excel çalışma kitabı değil.",
       "cannot_deactivate_self": "Kendi hesabınızı devre dışı bırakamazsınız.",
+      "cannot_delete_self": "Kendi hesabınızı silemezsiniz.",
       "class_delete_setup_only": "Sınıflar yalnızca kurulum aşamasındaki bir eğitim yılında silinebilir.",
       "class_in_use": "Bu sınıfta öğrenci, öğretmen görevi ya da kayıtlı not olduğu için sınıf silinemez.",
       "class_not_in_report_set": "Seçilen sınıflardan biri bu karneyi almıyor. Sayfayı yenileyin.",
@@ -892,6 +905,7 @@
       "unknown_student": "Öğrenci bulunamadı. Sayfayı yenileyin.",
       "unknown_user": "Öğretmen bulunamadı ya da hesabı devre dışı.",
       "unknown_year": "Eğitim yılı bulunamadı. Sayfayı yenileyin.",
+      "user_active": "Yalnızca devre dışı bırakılmış öğretmenler kalıcı olarak silinebilir.",
       "visitor_protected": "Tanıtım ziyaretçi hesapları değiştirilemez.",
       "wrong_domain": "Yalnızca okulun Google Workspace hesaplarıyla giriş yapılabilir.",
       "wrong_school_domain": "Yalnızca okulun e-posta alan adındaki hesaplar eklenebilir.",

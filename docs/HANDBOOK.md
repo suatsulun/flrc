@@ -6211,6 +6211,35 @@ return UserOut.from_model(target, revoked_sessions=revoked)
 
 **Tests:** fake Redis or an isolated Redis DB for create/revoke; API test for self-deactivate, final-admin protection, role changes, and teacher/coordinator 403.
 
+**Permanent deletion (ADR-080, added later):** `DELETE /api/admin/users/{id}` erases a
+deactivated account's personal data and answers `{deleted, revoked_sessions}`; refusals are
+`404 unknown_user`, `409 cannot_delete_self`, `403 visitor_protected` and `409 user_active`. The
+row stays for grades, grade audit, save batches and jobs: `full_name` becomes "Silinmiş öğretmen",
+`email` becomes `deleted-<id>@deleted.invalid` (so the real address can be added again), the
+Google subject, report name, signature and role flags are cleared and `deleted_at` is set.
+Assignments and the account's own `report_identity_audits` rows are deleted; override grants are
+deleted unless a save went through one (`audit_entries.via_grant_id`), which then only expires.
+The account's name, e-mail and kept images are scrubbed from `admin_actions`. Lock order
+(`administration/account_locks.py`, table in ADR-080): accounts by id, then year, class,
+assignment rows by id and action rows. Writes that change accounts or roles, cannot be undone, or
+touch assignments (account create and edit, signature routes, deletion, both assignment writers,
+undo, year close) lock the administrator with the accounts they name and refuse one deactivated,
+deleted (401) or demoted (403) meanwhile; other admin writes (classes, rosters, fields, imports)
+rely on the request's authorization, so an admin removed mid-request finishes at most that
+request. The deletion holds the account exclusively, so writers revalidate after waiting and nothing
+deadlocks. Report renders keep teachers' signatures out of all process-wide renderer state; a
+parallel download renders each document in a process of its own (no executor), reads each one's
+pipe until end of file, stops every process before returning, and concurrent renders share one
+process budget (`render_worker_limit()`). Undos of one action take turns on a transaction advisory
+lock.
+Lists and the teacher picker skip
+deleted accounts; PATCH and signature routes answer 404 for them. In `/users` a
+deactivated row offers **Kalıcı olarak sil** (destructive outline) next to **Yeniden
+etkinleştir**; the `CountdownConfirmDialog` lists what is erased and kept, keeps the delete button
+disabled for five seconds ("Kalıcı olarak sil (5)" … "(1)") every time it opens, and lets Cancel
+work at once. The toast says the deletion is permanent and offers no Undo. Tests:
+`tests/test_user_delete.py` and `e2e/teacher-delete.spec.ts`.
+
 Commit: `feat(admin): teacher allowlist and session revocation`.
 
 ## Step 3.3: Classes and the assignment matrix
@@ -6443,6 +6472,8 @@ saved and undone, and the audit trail still refers to it), `order_changed`, `use
 `teacher_stage_mismatch`, `teacher_assignments_incompatible`, `language_grade_too_low`,
 `student_number_required`, and the original rules' own codes such as `year_not_writable` and
 `semester_locked`. A refused undo changes nothing.
+A permanently deleted account (ADR-080) refuses every undo about it with `target_missing`; its
+recorded actions keep only the account id.
 
 **Locks:** every recorded write locks the rows it changes before reading their previous values
 and keeps the lock until it commits with the action, so two concurrent edits each record what

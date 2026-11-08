@@ -57,7 +57,11 @@ for (const size of [
   }, testInfo) => {
     const labels = JSON.parse(
       readFileSync(`packages/i18n/src/locales/${size.locale}.json`, "utf8"),
-    ) as { import: Record<string, string>; students: Record<string, string> };
+    ) as {
+      import: Record<string, string>;
+      students: Record<string, string>;
+      forms: Record<string, string>;
+    };
     await page.setViewportSize({ width: size.width, height: size.height });
     await page.addInitScript(({ theme, locale }) => {
       localStorage.setItem("flrc-theme", theme);
@@ -93,11 +97,15 @@ for (const size of [
       return route.abort();
     });
     await page.goto(`${adminUrl}/admin/import`);
+    // The picker speaks the UI language, not the browser's, and names the chosen file.
+    await expect(page.getByText(labels.forms.chooseFile, { exact: true })).toBeVisible();
+    await expect(page.getByText(labels.forms.noFileChosen, { exact: true })).toBeVisible();
     await page.getByLabel(labels.import.file, { exact: true }).setInputFiles({
       name: "synthetic-layout.xlsx",
       mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       buffer: Buffer.from("synthetic layout fixture"),
     });
+    await expect(page.getByText("synthetic-layout.xlsx", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: labels.import.preview, exact: true }).click();
     const rows = page.getByTestId("import-student-row");
     await expect(rows).toHaveCount(3);

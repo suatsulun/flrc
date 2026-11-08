@@ -2,12 +2,21 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ArrowLeftIcon } from "lucide-react";
-import { getStudentHistoryOptions } from "@flrc/api-client";
+import { getStudentHistoryOptions, type HistoryYear } from "@flrc/api-client";
+import { academicContextLabels } from "@flrc/i18n";
+import { AcademicContextBar } from "@flrc/ui/components/academic-context-bar";
 import { Badge } from "@flrc/ui/components/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@flrc/ui/components/card";
+import {
+  Card,
+  CardBody,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@flrc/ui/components/card";
 import { EmptyState } from "@flrc/ui/components/empty-state";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { PageHeader } from "@flrc/ui/components/page-header";
+import { Skeleton, SkeletonRows } from "@flrc/ui/components/skeleton";
 import {
   Table,
   TableBody,
@@ -20,19 +29,59 @@ import {
   TableText,
 } from "@flrc/ui/components/table";
 
+/** The year and semester on screen; absent values fall back to the latest recorded term. */
+type HistorySearch = { year?: number; semester?: 1 | 2 };
+
+function positiveId(value: unknown): number | undefined {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+}
+
 export const Route = createFileRoute("/_auth/students/$studentId/history")({
+  validateSearch: (search: Record<string, unknown>): HistorySearch => ({
+    year: positiveId(search.year),
+    semester:
+      Number(search.semester) === 1 || Number(search.semester) === 2
+        ? (Number(search.semester) as 1 | 2)
+        : undefined,
+  }),
   component: StudentHistoryPage,
 });
 
+/**
+ * The semester a year opens on: the open one while it has grades, else the latest with grades,
+ * else the open one, else the first.
+ */
+function defaultSemester(year: HistoryYear) {
+  const open = year.semesters.find((term) => term.status === "open");
+  if (open?.cells.length) return open.number;
+  const recorded = year.semesters.filter((term) => term.cells.length > 0);
+  return (recorded.at(-1) ?? open ?? year.semesters[0])?.number;
+}
+
 function StudentHistoryPage() {
   const { studentId } = Route.useParams();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const { t } = useTranslation();
   const { data, isPending, isError } = useQuery(
     getStudentHistoryOptions({ path: { student_id: Number(studentId) } }),
   );
 
-  if (isPending) return <PageSkeleton />;
+  if (isPending) return <HistorySkeleton />;
   if (isError || !data) return <EmptyState title={t("errors.load")} />;
+
+  // Years arrive oldest first; without a choice the most recent year with grades is shown.
+  const selectedYear =
+    data.years.find((year) => year.year_id === search.year) ??
+    data.years.filter((year) => year.semesters.some((term) => term.cells.length > 0)).at(-1) ??
+    data.years.at(-1);
+  const semesterNumber =
+    selectedYear?.semesters.find((term) => term.number === search.semester)?.number ??
+    (selectedYear ? defaultSemester(selectedYear) : undefined);
+  const term = selectedYear?.semesters.find((item) => item.number === semesterNumber);
+  const select = (next: HistorySearch) =>
+    void navigate({ search: (previous) => ({ ...previous, ...next }), replace: true });
 
   return (
     <>
@@ -46,101 +95,148 @@ function StudentHistoryPage() {
         </Link>
         <div className="mt-1.5">
           <PageHeader
-            title={data?.full_name ?? t("students.history")}
+            title={data.full_name}
             description={t("students.description")}
             meta={<Badge tone="neutral">{t("archive.readOnly")}</Badge>}
           />
         </div>
       </div>
 
-      {data && data.years.length === 0 ? (
+      {!selectedYear ? (
         <EmptyState title={t("students.noHistory")} />
       ) : (
-        data?.years.map((year) => (
-          <Card key={year.year_id}>
+        <>
+          <AcademicContextBar
+            years={data.years.map((year) => ({
+              id: year.year_id,
+              label: year.label,
+              status: year.year_status,
+              semesters: year.semesters.map((item) => ({
+                id: item.number,
+                number: item.number,
+                status: item.status,
+              })),
+            }))}
+            yearId={selectedYear.year_id}
+            semesterNumber={semesterNumber ?? 1}
+            onYearChange={(year) => select({ year, semester: undefined })}
+            onSemesterChange={(semester) =>
+              select({ year: selectedYear.year_id, semester: semester === 2 ? 2 : 1 })
+            }
+            labels={academicContextLabels(t, t("lifecycle.locked"))}
+          />
+
+          <Card>
             <CardHeader>
-              <div>
+              <div className="min-w-0">
                 <CardTitle className="text-base">
-                  {year.label}
+                  {selectedYear.class_name ?? "—"}
                   <span className="font-normal text-muted-foreground">
                     {" · "}
-                    {year.class_name ?? "—"}
-                    {" · "}
-                    {t("students.schoolNumber")} {year.school_number ?? "—"}
+                    {t("students.schoolNumber")} {selectedYear.school_number ?? "—"}
                   </span>
                 </CardTitle>
+                <CardDescription>
+                  {selectedYear.label}
+                  {term ? ` · ${t("lifecycle.semester", { number: term.number })}` : null}
+                </CardDescription>
               </div>
-              {year.language ? (
-                <Badge tone="outline">{t(`subjects.${year.language}`)}</Badge>
+              {selectedYear.language ? (
+                <Badge tone="outline">{t(`subjects.${selectedYear.language}`)}</Badge>
               ) : null}
             </CardHeader>
-            <CardContent className="grid gap-4 lg:grid-cols-2">
-              {year.semesters.map((term) => (
-                // `min-w-0` keeps a long criterion label from widening the
-                // grid track and pushing the page into horizontal scroll.
-                <section key={term.number} className="min-w-0">
-                  <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                    {t("lifecycle.semester", { number: term.number })}
-                  </h3>
-                  {term.cells.length === 0 ? (
-                    <p className="rounded-lg bg-muted/60 px-3 py-6 text-center text-sm text-muted-foreground">
-                      {t("archive.empty")}
-                    </p>
-                  ) : (
-                    <div className="min-w-0 overflow-hidden rounded-lg border border-border">
-                      <TableScroll
-                        aria-label={t("students.historyTableLabel", { semester: term.number })}
-                      >
-                        {/* Fixed layout so a long criterion label truncates
-                            inside the card instead of widening the table. */}
-                        <Table className="w-full table-fixed">
-                          <colgroup>
-                            <col />
-                            <col style={{ width: "8rem" }} />
-                          </colgroup>
-                          <TableCaption>
-                            {t("students.historyTableLabel", { semester: term.number })}
-                          </TableCaption>
-                          <TableHead>
-                            <tr>
-                              <TableHeader>{t("audit.column")}</TableHeader>
-                              <TableHeader align="right">{t("forms.value")}</TableHeader>
-                            </tr>
-                          </TableHead>
-                          <TableBody>
-                            {term.cells.map((cell) => (
-                              <TableRow key={cell.column_id}>
-                                <TableCell className="overflow-hidden">
-                                  <span className="flex min-w-0 items-baseline gap-1.5">
-                                    <TableText className="max-w-full">{cell.label}</TableText>
-                                    <span className="truncate text-xs text-muted-foreground">
-                                      {t(`subjects.${cell.subject}`)}
-                                    </span>
-                                  </span>
-                                </TableCell>
-                                <TableCell align="right" className="font-medium">
-                                  {cell.value === null || cell.value === "" ? (
-                                    <span className="text-muted-foreground">—</span>
-                                  ) : (
-                                    // Comment columns hold whole sentences.
-                                    <TableText className="max-w-full">
-                                      {String(cell.value)}
-                                    </TableText>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableScroll>
-                    </div>
-                  )}
-                </section>
-              ))}
-            </CardContent>
+            {!term ? (
+              <CardContent>
+                <EmptyState
+                  className="border-0 bg-transparent py-8"
+                  title={t("students.historyNoSemesters")}
+                />
+              </CardContent>
+            ) : term.cells.length === 0 ? (
+              <CardContent>
+                <EmptyState
+                  className="border-0 bg-transparent py-8"
+                  title={t("students.historyEmptySemester")}
+                  description={
+                    term.status === "open"
+                      ? t("students.historyEmptyOpen")
+                      : t("students.historyEmptyClosed")
+                  }
+                />
+              </CardContent>
+            ) : (
+              <CardBody>
+                <TableScroll
+                  aria-label={t("students.historyTableLabel", { semester: term.number })}
+                >
+                  {/* Fixed layout so a long field name or comment truncates inside the card
+                      instead of widening the table past a phone screen. */}
+                  <Table className="table-fixed">
+                    <colgroup>
+                      <col />
+                      <col className="w-28 sm:w-2/5" />
+                    </colgroup>
+                    <TableCaption>
+                      {t("students.historyTableLabel", { semester: term.number })}
+                    </TableCaption>
+                    <TableHead>
+                      <tr>
+                        <TableHeader>{t("audit.column")}</TableHeader>
+                        <TableHeader align="right">{t("forms.value")}</TableHeader>
+                      </tr>
+                    </TableHead>
+                    <TableBody>
+                      {term.cells.map((cell) => (
+                        <TableRow key={cell.column_id}>
+                          <TableCell className="overflow-hidden">
+                            <span className="flex min-w-0 items-baseline gap-1.5">
+                              <TableText className="max-w-full">{cell.label}</TableText>
+                              <span className="truncate text-xs text-muted-foreground">
+                                {t(`subjects.${cell.subject}`)}
+                              </span>
+                            </span>
+                          </TableCell>
+                          <TableCell align="right" className="font-medium">
+                            {cell.value === null || cell.value === "" ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : (
+                              // Comment columns hold whole sentences.
+                              <TableText className="ml-auto max-w-full">
+                                {String(cell.value)}
+                              </TableText>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableScroll>
+              </CardBody>
+            )}
           </Card>
-        ))
+        </>
       )}
     </>
+  );
+}
+
+/** Loading shape of the page: back link and header, the year/semester bar, one term card. */
+function HistorySkeleton() {
+  return (
+    <div className="space-y-4" aria-hidden>
+      <div className="space-y-2">
+        <Skeleton className="h-3.5 w-24" />
+        <Skeleton className="h-7 w-64 max-w-2/3" />
+        <Skeleton className="h-4 w-96 max-w-full" />
+      </div>
+      <Skeleton className="h-12 w-full rounded-xl" />
+      <div className="rounded-xl border border-border bg-card shadow-card">
+        <div className="space-y-2 border-b border-border px-5 py-4">
+          <Skeleton className="h-5 w-48 max-w-2/3" />
+          <Skeleton className="h-4 w-36" />
+        </div>
+        <SkeletonRows rows={8} />
+      </div>
+    </div>
   );
 }

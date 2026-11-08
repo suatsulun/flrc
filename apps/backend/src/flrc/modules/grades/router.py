@@ -415,10 +415,10 @@ async def get_grid(
                     owners[column.owner_role].full_name if column.owner_role in owners else None
                 ),
                 # Active grants permit a save, but ownership remains visible so
-                # every out-of-role save receives an explicit warning.
-                owned_by_you=(
-                    column.owner_role in owners and owners[column.owner_role].user_id == user.id
-                ),
+                # every out-of-role save receives an explicit warning. Admins save
+                # any column without confirmation (see save_grid), so nothing warns them.
+                owned_by_you=user.is_admin
+                or (column.owner_role in owners and owners[column.owner_role].user_id == user.id),
                 position=column.position,
             )
             for column in columns

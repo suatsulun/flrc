@@ -1776,7 +1776,8 @@ are not moved back into job payloads or temporary artifact storage.
 ## Supersedes / Superseded by
 
 Extends ADR-028; the endpoint and the four school-wide report-set contract are unchanged.
-ADR-080 replaces the warm pool with one pool per render, shut down before the render returns.
+ADR-080 replaces the warm pool: a parallel download renders each document in a process of its
+own, stopped before the render returns.
 
 ---
 
@@ -3707,17 +3708,24 @@ points at the account.
 - Report rendering keeps teachers' signatures out of every process-wide state: the renderer's
   only process-wide memo holds the fixed artwork's bytes (logo, faces, watermarks, overlay
   assets), and WeasyPrint's parsed images, the asset fetcher and the signatures live only as long
-  as the document being rendered, in the API process and in render processes alike. A render that
-  uses worker processes starts a pool for itself and shuts it down before it returns, because a
-  pool's queue thread and workers keep the last document they were sent; the forkserver preloads
-  the renderer, so a fresh pool costs a fork, not a WeasyPrint import. Concurrent renders share
-  one budget of `render_worker_limit()` processes per OS process: a render reserves its workers
-  before starting its pool and releases them after the shutdown, so a second download waits
-  rather than starting more processes. A parallel render that has not finished after ten minutes
-  (`RENDER_DEADLINE_SECONDS`) has a stuck worker: its workers are terminated (then killed), the
-  pool is abandoned, the budget is given back and the render fails, so one stuck worker cannot hold
-  the budget for good. A deleted teacher's signature cannot be printed again or read back from a
-  running process.
+  as the document being rendered, in the API process and in render processes alike; a render that
+  printed a signature clears `urllib.parse.urlsplit`'s memo, which WeasyPrint fills with every URL
+  a document uses. A parallel
+  download uses no process pool: an executor's manager and queue threads keep the documents they
+  were sent, and a worker killed in the middle of its result could leave them blocked for good.
+  Instead each wave starts one process per document, each with its own pipe whose only write end
+  is the child's: the child renders, writes its PDF and exits, and the parent reads every pipe
+  without blocking until end of file, so a child that dies yields end of file at once. Whatever
+  happens, every process is terminated (then killed) if still running and joined, and every pipe
+  is closed. A process that exits without its whole PDF makes the download fall back to the serial
+  render. The forkserver preloads the renderer, so a process costs a fork, not a WeasyPrint import.
+  Concurrent renders share one budget of `render_worker_limit()` processes per OS process: a
+  render reserves its workers before starting a wave and releases them after the last process has
+  exited, so a second download waits rather than starting more processes. A parallel render that
+  has not finished after ten minutes (`RENDER_DEADLINE_SECONDS`) has a stuck process: its
+  processes are stopped, the budget is given back and the render fails, so one stuck process
+  cannot hold the budget for good. A deleted teacher's signature cannot be printed again or read
+  back from a running process.
 - No undo can bring the account back: undo handlers refuse a deleted account with
   `target_missing`.
 - Deleted accounts are left out of `/api/admin/users` and the `/api/users` teacher picker; editing
@@ -3750,7 +3758,7 @@ points at the account.
 ## Supersedes / Superseded by
 
 Extends ADR-075 (undo records) and Step 3.2's deactivation. Supersedes ADR-046's warm renderer
-pool: each parallel render now starts and shuts down its own pool.
+pool: a parallel download renders each document in a process of its own, with no executor.
 
 ---
 

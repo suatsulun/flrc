@@ -1,11 +1,15 @@
 import base64
 import gc
 import json
+import multiprocessing
+import os
+import struct
 import sys
 import threading
+import time
 import zipfile
-from concurrent.futures import Executor, ProcessPoolExecutor
 from io import BytesIO
+from multiprocessing.connection import Connection
 from pathlib import Path
 from types import FunctionType, ModuleType
 
@@ -180,7 +184,7 @@ def reachable(roots: list[object]) -> list[object]:
 # Colours unique to each case, so the artwork is new to the process every time.
 @pytest.mark.parametrize(
     ("path", "signature_color", "stamp_color"),
-    [("direct", "navy", "silver"), ("pool", "teal", "gold"), ("job", "maroon", "olive")],
+    [("direct", "navy", "silver"), ("parallel", "teal", "gold"), ("job", "maroon", "olive")],
 )
 def test_teacher_signatures_never_outlive_the_render_that_prints_them(
     overlay, tmp_path, monkeypatch, path, signature_color, stamp_color
@@ -208,15 +212,14 @@ def test_teacher_signatures_never_outlive_the_render_that_prints_them(
         render.render_cards_to_file([signed], tmp_path / "class.pdf")
         pdf = PdfReader(tmp_path / "class.pdf")
     else:
-        if path == "pool":
+        if path == "parallel":
 
-            class InlinePool(Executor):
-                def map(self, function, documents, timeout=None):
-                    return list(map(function, documents))
+            def inline_wave(render_document, documents, deadline):
+                return [render_document(document) for document in documents]
 
             monkeypatch.setattr(settings, "report_render_workers", 2)
             monkeypatch.setattr(render, "MIN_PARALLEL_UNITS", 2)
-            monkeypatch.setattr(render, "_render_pool", lambda workers: InlinePool())
+            monkeypatch.setattr(render, "_render_wave", inline_wave)
         pdf = PdfReader(BytesIO(render.render_report_pdf([signed, signed])))
     gc.collect()
 
@@ -260,33 +263,91 @@ def holders_of(needle: bytes) -> list[str]:
     return found
 
 
-def test_a_real_render_pool_keeps_no_signature_after_the_render(overlay, monkeypatch, caplog):
-    """Nothing in the process holds a signature after a render through a real pool.
+def record_waves(monkeypatch) -> list[str]:
+    """How each render wave ended: ``"rendered"`` or the exception's class name."""
+    outcomes: list[str] = []
+    original = render._render_wave
 
-    A process pool's queue thread keeps the last document it sent for as long as the pool
-    lives, so the pool ends with the render (ADR-080).
+    def recorded(render_document, documents, deadline):
+        try:
+            rendered = original(render_document, documents, deadline)
+        except Exception as exc:
+            outcomes.append(type(exc).__name__)
+            raise
+        outcomes.append("rendered")
+        return rendered
+
+    monkeypatch.setattr(render, "_render_wave", recorded)
+    return outcomes
+
+
+def test_real_render_processes_keep_no_signature_after_the_render(overlay, monkeypatch):
+    """After a render through real render processes, none is left and nothing holds a signature.
+
+    An executor's queue threads kept the last document they were sent; render processes
+    end with their documents (ADR-080).
     """
     needle = base64.b64encode(png_bytes("purple"))
     signed = card()
     signed.teachers[0].signature = "data:image/png;base64," + needle.decode()
-    pools: list[Executor | None] = []
-    original = render._render_pool
-
-    def recorded(workers: int) -> Executor | None:
-        pools.append(original(workers))
-        return pools[-1]
-
+    before = {child.pid for child in multiprocessing.active_children()}
     monkeypatch.setattr(settings, "report_render_workers", 2)
     monkeypatch.setattr(render, "MIN_PARALLEL_UNITS", 2)
-    monkeypatch.setattr(render, "_render_pool", recorded)
+    waves = record_waves(monkeypatch)
     pdf = PdfReader(BytesIO(render.render_report_pdf([signed, signed])))
-    assert isinstance(pools[0], ProcessPoolExecutor)
-    assert "falling back to serial" not in caplog.text
+    assert waves == ["rendered"]
     assert len(pdf.pages[0].images) == 1, "the teacher's signature is printed"
 
     del signed
-    pools.clear()
     gc.collect()
+    assert {child.pid for child in multiprocessing.active_children()} - before == set()
+    assert holders_of(needle) == []
+
+
+REAL_RENDER = render.render_pdf_document
+
+
+def dies_while_sending(html: str, private_assets: frozenset[str] = frozenset()) -> bytes:
+    """In a render process: start sending a large result to the parent, then die.
+
+    Writes a length header announcing far more than follows to every write-only pipe the
+    process holds, as an interrupted send leaves it, and exits without any cleanup. In
+    this test process — the serial fallback — it renders normally.
+    """
+    if multiprocessing.parent_process() is None:
+        return REAL_RENDER(html, private_assets)
+    for item in gc.get_objects():
+        if isinstance(item, Connection) and item.writable and not item.readable:
+            if not item.closed:
+                os.write(item.fileno(), struct.pack("!i", 64 * 1024 * 1024) + b"%PDF-1.7 partial")
+    os._exit(1)
+
+
+def test_a_render_process_dying_mid_result_fails_promptly_and_keeps_nothing(overlay, monkeypatch):
+    """A render process killed while sending its PDF never leaves the render waiting.
+
+    The parent sees end of file on that process's own pipe at once, falls back to the
+    serial render, and keeps neither the process nor the documents it was sent.
+    """
+    needle = base64.b64encode(png_bytes("orange"))
+    signed = card()
+    signed.teachers[0].signature = "data:image/png;base64," + needle.decode()
+    before = {child.pid for child in multiprocessing.active_children()}
+    monkeypatch.setattr(settings, "report_render_workers", 2)
+    monkeypatch.setattr(render, "MIN_PARALLEL_UNITS", 2)
+    monkeypatch.setattr(render, "RENDER_DEADLINE_SECONDS", 3)
+    monkeypatch.setattr(render, "render_pdf_document", dies_while_sending)
+    waves = record_waves(monkeypatch)
+
+    started = time.monotonic()
+    pdf = PdfReader(BytesIO(render.render_report_pdf([signed, signed])))
+    assert time.monotonic() - started < 2.5, "the render did not wait for its deadline"
+    assert waves == ["_RenderProcessFailed"], "the wave failed, then the render went serial"
+    assert len(pdf.pages[0].images) == 1, "the serial render printed the card"
+
+    del signed
+    gc.collect()
+    assert {child.pid for child in multiprocessing.active_children()} - before == set()
     assert holders_of(needle) == []
 
 

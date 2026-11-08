@@ -6228,8 +6228,10 @@ deleted (401) or demoted (403) meanwhile; other admin writes (classes, rosters, 
 rely on the request's authorization, so an admin removed mid-request finishes at most that
 request. The deletion holds the account exclusively, so writers revalidate after waiting and nothing
 deadlocks. Report renders keep teachers' signatures out of all process-wide renderer state; a
-render's worker pool ends with the render, and concurrent renders share one process budget
-(`render_worker_limit()`). Undos of one action take turns on a transaction advisory lock.
+parallel download renders each document in a process of its own (no executor), reads each one's
+pipe until end of file, stops every process before returning, and concurrent renders share one
+process budget (`render_worker_limit()`). Undos of one action take turns on a transaction advisory
+lock.
 Lists and the teacher picker skip
 deleted accounts; PATCH and signature routes answer 404 for them. In `/users` a
 deactivated row offers **Kalıcı olarak sil** (destructive outline) next to **Yeniden

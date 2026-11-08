@@ -2,7 +2,7 @@ import multiprocessing
 import threading
 import time
 from collections.abc import Callable
-from concurrent.futures import Executor, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 
@@ -266,21 +266,18 @@ def test_asset_fetcher_serves_data_uris_and_refuses_every_other_scheme(tmp_path)
             fetcher.fetch(url)
 
 
-def test_render_falls_back_to_one_document_when_the_pool_is_unusable(
+def test_render_falls_back_to_one_document_when_render_processes_fail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cards = _performance_cards((3, 2))
     expected = _page_shapes(PdfReader(BytesIO(render_pdf_document(render_report_html(cards)))))
 
+    def failing_wave(render, documents, deadline):
+        raise OSError("no children here")
+
     monkeypatch.setattr(render_module.settings, "report_render_workers", 4)
-    monkeypatch.setattr(render_module, "_render_pool", lambda workers: None)
-    assert _page_shapes(PdfReader(BytesIO(render_report_pdf(cards)))) == expected
-
-    class ExplodingPool(Executor):
-        def map(self, *_args: object, **_kwargs: object) -> object:
-            raise OSError("no children here")
-
-    monkeypatch.setattr(render_module, "_render_pool", lambda workers: ExplodingPool())
+    monkeypatch.setattr(render_module, "MIN_PARALLEL_UNITS", 2)
+    monkeypatch.setattr(render_module, "_render_wave", failing_wave)
     assert _page_shapes(PdfReader(BytesIO(render_report_pdf(cards)))) == expected
 
 
@@ -300,7 +297,7 @@ def test_worker_limit_respects_an_explicit_cap_and_a_container_quota(
     assert render_module.render_worker_limit() == 1
 
 
-@pytest.mark.parametrize("mode", ["serial", "missing_pool", "broken_pool", "parallel"])
+@pytest.mark.parametrize("mode", ["serial", "broken_wave", "parallel"])
 def test_report_batches_bound_layout_size_even_when_parallel_render_fails(monkeypatch, mode):
     cards = _performance_cards((5, 4))
     expected = _page_shapes(PdfReader(BytesIO(render_pdf_document(render_report_html(cards)))))
@@ -314,12 +311,11 @@ def test_report_batches_bound_layout_size_even_when_parallel_render_fails(monkey
         rendered_pages.append(page_count)
         return pdf
 
-    class SamplePool(Executor):
-        def map(self, function, documents, timeout=None):
-            assert len(documents) <= 2, "All batch HTML was queued at once"
-            if mode == "broken_pool":
-                raise OSError("synthetic pool failure")
-            return map(function, documents)
+    def sample_wave(render, documents, deadline):
+        assert len(documents) <= 2, "All batch HTML was sent at once"
+        if mode == "broken_wave":
+            raise OSError("synthetic render process failure")
+        return [render(document) for document in documents]
 
     monkeypatch.setattr(render_module, "MAX_RENDER_UNITS", 2)
     monkeypatch.setattr(render_module, "MIN_PARALLEL_UNITS", 2)
@@ -327,38 +323,30 @@ def test_report_batches_bound_layout_size_even_when_parallel_render_fails(monkey
         render_module.settings, "report_render_workers", 1 if mode == "serial" else 2
     )
     monkeypatch.setattr(render_module, "render_pdf_document", bounded_render)
-    monkeypatch.setattr(
-        render_module,
-        "_render_pool",
-        lambda workers: None if mode == "missing_pool" else SamplePool(),
-    )
+    monkeypatch.setattr(render_module, "_render_wave", sample_wave)
     actual = PdfReader(BytesIO(render_report_pdf(cards)))
     assert rendered_pages == [2, 2, 1]
     assert _page_shapes(actual) == expected
 
 
 def test_concurrent_parallel_renders_share_one_process_budget(monkeypatch) -> None:
-    """Pools are per render; together they never have more processes than one may use."""
+    """Render processes are per render; together they never outnumber what one may use."""
     cards = _performance_cards((3, 2))
     guard = threading.Lock()
     alive = [0]
     peak = [0]
     started = threading.Barrier(2)
 
-    class CountingPool(Executor):
-        def __init__(self, workers: int) -> None:
-            self.workers = workers
+    def counting_wave(render, documents, deadline):
+        with guard:
+            alive[0] += len(documents)
+            peak[0] = max(peak[0], alive[0])
+        try:
+            time.sleep(0.3)  # Long enough for the other render to try to start its wave.
+            return [render(document) for document in documents]
+        finally:
             with guard:
-                alive[0] += workers
-                peak[0] = max(peak[0], alive[0])
-
-        def map(self, function, documents, timeout=None):
-            time.sleep(0.3)  # Long enough for the other render to try to start its pool.
-            return [function(document) for document in documents]
-
-        def shutdown(self, wait: bool = True, *, cancel_futures: bool = False) -> None:
-            with guard:
-                alive[0] -= self.workers
+                alive[0] -= len(documents)
 
     def download(_: int) -> bytes:
         started.wait()
@@ -366,10 +354,10 @@ def test_concurrent_parallel_renders_share_one_process_budget(monkeypatch) -> No
 
     monkeypatch.setattr(render_module.settings, "report_render_workers", 2)
     monkeypatch.setattr(render_module, "MIN_PARALLEL_UNITS", 2)
-    monkeypatch.setattr(render_module, "_render_pool", CountingPool)
+    monkeypatch.setattr(render_module, "_render_wave", counting_wave)
     with ThreadPoolExecutor(max_workers=2) as requests:
         pdfs = list(requests.map(download, range(2)))
-    assert peak[0] == 2, "the second render waits for the first pool to shut down"
+    assert peak[0] == 2, "the second render waits for the first one's processes"
     expected = _page_shapes(PdfReader(BytesIO(render_pdf_document(render_report_html(cards)))))
     assert [_page_shapes(PdfReader(BytesIO(pdf))) for pdf in pdfs] == [expected, expected]
 
@@ -394,14 +382,15 @@ def test_a_stuck_render_worker_fails_the_render_and_frees_the_budget(monkeypatch
         render_report_pdf(cards)
     assert time.monotonic() - started < 4, "the render stopped at its deadline"
     stuck = {child.pid for child in multiprocessing.active_children()} - before
-    assert stuck == set(), "the stuck workers were stopped"
+    assert stuck == set(), "the stuck render processes were stopped"
     assert render_module._render_processes._alive == 0, "the budget was given back"
 
-    # A healthy download right after renders through a pool of its own.
+    # A healthy download right after renders through render processes of its own.
     monkeypatch.undo()
     monkeypatch.setattr(render_module.settings, "report_render_workers", 2)
     monkeypatch.setattr(render_module, "MIN_PARALLEL_UNITS", 2)
     assert _page_shapes(PdfReader(BytesIO(render_report_pdf(cards)))) == expected
+    assert {child.pid for child in multiprocessing.active_children()} - before == set()
 
 
 async def test_report_builder_covers_every_class_in_the_requested_school_set(world) -> None:

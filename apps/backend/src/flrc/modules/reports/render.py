@@ -29,18 +29,19 @@ import math
 import mimetypes
 import os
 import time
-from collections.abc import Iterator
-from concurrent.futures import Executor, ProcessPoolExecutor
+from collections.abc import Callable, Iterator
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from functools import lru_cache, partial
 from io import BytesIO
 from multiprocessing import get_context
-from multiprocessing.context import BaseContext
+from multiprocessing.connection import Connection, wait
+from multiprocessing.context import ForkServerContext
+from multiprocessing.process import BaseProcess
 from pathlib import Path
 from threading import Condition
 from typing import Literal, cast
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import pikepdf
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -84,6 +85,8 @@ JOB_RENDER_UNITS = 8
 RENDER_DEADLINE_SECONDS = 10 * 60
 # How long a stopped worker gets to exit after SIGTERM, and again after SIGKILL.
 STOPPED_WORKER_GRACE_SECONDS = 5
+# How much of a render process's PDF the parent reads from its pipe at a time.
+PIPE_READ_BYTES = 1 << 20
 # Everything the cards reference is a data URI built in this module. Anything
 # else — a local file, an internal HTTP address — is refused outright.
 ALLOWED_ASSET_SCHEMES = frozenset({"data"})
@@ -721,6 +724,9 @@ class ReportAssetFetcher(URLFetcher):
 # cache, and with them the document's signatures; reusing them measured neutral anyway
 # (ADR-046).
 _fetched_assets: dict[str, tuple[bytes, str]] = {}
+# ``urllib.parse.urlsplit`` is an ``lru_cache`` (Python 3.11+), which WeasyPrint fills with
+# every URL a document uses; cleared after a render that printed a signature.
+_forget_split_urls: Callable[[], None] = urlsplit.cache_clear  # type: ignore[attr-defined]
 
 
 def _signature_assets(cards: list[ReportCard]) -> frozenset[str]:
@@ -744,6 +750,9 @@ def render_pdf_document(html: str, private_assets: frozenset[str] = frozenset())
             string=html, base_url=str(HERE), url_fetcher=ReportAssetFetcher(private_assets)
         ).write_pdf()
     finally:
+        if private_assets:
+            # urllib memoises the URLs it last split, these data URIs included.
+            _forget_split_urls()
         # WeasyPrint page trees contain cycles; release each batch before the next.
         gc.collect()
 
@@ -804,7 +813,7 @@ def render_worker_limit() -> int:
     return max(1, min(MAX_RENDER_WORKERS, int(available)))
 
 
-def render_process_context() -> BaseContext:
+def render_process_context() -> ForkServerContext:
     """How report renders start their processes.
 
     forkserver, not fork: the API process is multi-threaded, and a child forked
@@ -816,42 +825,96 @@ def render_process_context() -> BaseContext:
     return context
 
 
-def _render_pool(workers: int) -> Executor | None:
-    """A renderer pool for one render, or ``None`` if none can exist.
+class _RenderProcessFailed(RuntimeError):
+    """A render process exited without handing back a complete document."""
 
-    Never kept between renders: a pool's queue thread and processes hold on to
-    the last document they were sent, whose HTML carries pupils' grades and
-    teachers' signatures, and shutting the pool down is what releases them
-    (ADR-080). A pool is not always possible — a daemonic worker process may
-    not have children — so callers must be able to fall back to rendering
-    serially.
+
+def _render_child(writer: Connection, render: Callable[[str], bytes], html: str) -> None:
+    """A render process: render one document, write its PDF to the parent and exit."""
+    pdf = memoryview(render(html))
+    with writer:
+        while pdf:
+            pdf = pdf[os.write(writer.fileno(), pdf) :]
+
+
+def _render_wave(
+    render: Callable[[str], bytes], documents: list[str], deadline: float
+) -> list[bytes]:
+    """Render each document in a process of its own and return the PDFs in order.
+
+    No executor: an executor's manager and queue threads keep the documents they were
+    sent, which carry pupils' grades and teachers' signatures, and a worker killed in the
+    middle of a result can leave them blocked for good (ADR-080). Here each process has
+    its own pipe, whose only write end is the child's: the parent reads it without
+    blocking until end of file, so a child that dies yields end of file at once, and every
+    process is stopped and every pipe closed whatever happens.
+
+    Raises ``TimeoutError("report_render_timed_out")`` at ``deadline`` and
+    :class:`_RenderProcessFailed` when a process exits without a complete document.
     """
+    context = render_process_context()
+    children: list[tuple[BaseProcess, Connection]] = []
     try:
-        return ProcessPoolExecutor(max_workers=workers, mp_context=render_process_context())
-    except (OSError, ValueError, AssertionError, NotImplementedError):
-        return None
+        for html in documents:
+            reader, writer = context.Pipe(duplex=False)
+            process = context.Process(target=_render_child, args=(writer, render, html))
+            try:
+                process.start()
+            except BaseException:
+                reader.close()
+                raise
+            finally:
+                writer.close()
+            children.append((process, reader))
+            os.set_blocking(reader.fileno(), False)
+        received = {reader.fileno(): bytearray() for _, reader in children}
+        pending = [reader for _, reader in children]
+        while pending:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("report_render_timed_out")
+            for ready in wait(pending, timeout=remaining):
+                reader = cast(Connection, ready)
+                while True:
+                    try:
+                        chunk = os.read(reader.fileno(), PIPE_READ_BYTES)
+                    except BlockingIOError:
+                        break
+                    if not chunk:
+                        pending.remove(reader)
+                        break
+                    received[reader.fileno()] += chunk
+        for child, _ in children:
+            child.join(max(0.0, deadline - time.monotonic()))
+            if child.exitcode is None:
+                raise TimeoutError("report_render_timed_out")
+            if child.exitcode != 0:
+                raise _RenderProcessFailed(f"render process exited with {child.exitcode}")
+        return [bytes(received[reader.fileno()]) for _, reader in children]
+    finally:
+        _stop_children(children)
 
 
-def _stop_pool(pool: Executor) -> None:
-    """Stop a pool whose render passed its deadline, without waiting on a stuck worker."""
-    processes = (
-        list((pool._processes or {}).values()) if isinstance(pool, ProcessPoolExecutor) else []
-    )
-    for process in processes:
-        process.terminate()
-    for process in processes:
-        process.join(timeout=STOPPED_WORKER_GRACE_SECONDS)
-        if process.is_alive():
+def _stop_children(children: list[tuple[BaseProcess, Connection]]) -> None:
+    """Close every pipe and make sure every render process has exited."""
+    for process, reader in children:
+        reader.close()
+        if process.exitcode is None:
+            process.terminate()
+    for process, _ in children:
+        process.join(STOPPED_WORKER_GRACE_SECONDS)
+        if process.exitcode is None:
             process.kill()
-            process.join(timeout=STOPPED_WORKER_GRACE_SECONDS)
-    pool.shutdown(wait=False, cancel_futures=True)
+            process.join(STOPPED_WORKER_GRACE_SECONDS)
+        if process.exitcode is not None:
+            process.close()
 
 
 class _ProcessBudget:
     """How many renderer processes this process may have alive at once, across renders.
 
-    Pools are per render (above), so without a shared budget two concurrent downloads
-    would each start ``render_worker_limit()`` processes.
+    Render processes live for one render (above), so without a shared budget two
+    concurrent downloads would each start ``render_worker_limit()`` processes.
     """
 
     def __init__(self) -> None:
@@ -941,41 +1004,27 @@ def render_report_pdf(
     if not parallel:
         return _finish_report(serial(), cards, watermark, back_cover)
     parts: list[bytes] | None = None
-    timed_out = False
-    # Held until the pool has shut down or been stopped, so concurrent renders together
-    # never have more renderer processes alive than one render may use.
+    # Held until the wave's processes have exited or been stopped, so concurrent renders
+    # together never have more renderer processes alive than one render may use.
     with _render_processes.reserve(workers):
-        pool = _render_pool(workers)
-        if pool is not None:
-            deadline = time.monotonic() + RENDER_DEADLINE_SECONDS
-            try:
-                rendered: list[bytes] = []
-                # Submit only one wave at a time; queued HTML also holds embedded images.
-                for start in range(0, len(chunks), workers):
-                    documents = [document(chunk) for chunk in chunks[start : start + workers]]
-                    remaining = max(0.0, deadline - time.monotonic())
-                    rendered.extend(pool.map(render, documents, timeout=remaining))
-                parts = rendered
-            except TimeoutError:
-                timed_out = True
-            except Exception:
-                # Deliberately broad: a pool can fail for reasons that have nothing to
-                # do with this report — a killed worker, a host that forbids child
-                # processes — and a report card that arrives slowly beats one that
-                # does not arrive. A fault in the document itself still surfaces,
-                # because the serial retry below renders the very same HTML.
-                logger.warning(
-                    "parallel report render failed, falling back to serial", exc_info=True
-                )
-            finally:
-                if timed_out:
-                    _stop_pool(pool)
-                else:
-                    # Waits for its processes and threads, which release the documents.
-                    pool.shutdown(wait=True)
-    if timed_out:
-        logger.error("parallel report render passed its deadline; its workers were stopped")
-        raise TimeoutError("report_render_timed_out")
+        deadline = time.monotonic() + RENDER_DEADLINE_SECONDS
+        try:
+            rendered: list[bytes] = []
+            # One wave at a time; a wave's HTML also holds embedded images.
+            for start in range(0, len(chunks), workers):
+                documents = [document(chunk) for chunk in chunks[start : start + workers]]
+                rendered.extend(_render_wave(render, documents, deadline))
+            parts = rendered
+        except TimeoutError:
+            logger.error("parallel report render passed its deadline; its workers were stopped")
+            raise
+        except Exception:
+            # Deliberately broad: a render process can fail for reasons that have nothing
+            # to do with this report — a killed process, a host that forbids child
+            # processes — and a report card that arrives slowly beats one that does not
+            # arrive. A fault in the document itself still surfaces, because the serial
+            # retry below renders the very same HTML.
+            logger.warning("parallel report render failed, falling back to serial", exc_info=True)
     if parts is None:
         return _finish_report(serial(), cards, watermark, back_cover)
     return _finish_report(_merge_pdf_parts(parts), cards, watermark, back_cover)

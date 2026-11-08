@@ -25,6 +25,7 @@ import base64
 import gc
 import json
 import logging
+import math
 import mimetypes
 import os
 from concurrent.futures import Executor, ProcessPoolExecutor
@@ -39,7 +40,7 @@ from typing import Literal, cast
 from urllib.parse import quote
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from pypdf import PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter, Transformation
 from weasyprint import HTML
 from weasyprint.urls import URLFetcher, URLFetcherResponse
 
@@ -583,6 +584,60 @@ def _apply_back_cover(pdf: bytes, cards: list[ReportCard]) -> bytes:
     return result.getvalue()
 
 
+# On-screen previews carry this mark so they are never mistaken for an issued card (ADR-078).
+# Its size follows the card it covers: a tenth of the diagonal fits the word along it.
+WATERMARK_SIZE_PER_DIAGONAL = 0.1
+
+
+@lru_cache(maxsize=8)
+def _watermark_page(text: str, width: float, height: float, two_up: bool) -> bytes:
+    """A one-page PDF of ``width`` x ``height`` points with ``text`` across each card.
+
+    A two-up middle-school sheet holds two A5 cards, one per half, so each half
+    gets its own mark centred on that card.
+    """
+    card_height = height / 2 if two_up else height
+    diagonal = math.hypot(width, card_height)
+    size = round(diagonal * WATERMARK_SIZE_PER_DIAGONAL, 2)
+    angle = round(-math.degrees(math.atan2(card_height, width)), 2)
+    marks = [
+        {
+            "left": round(width / 2 - diagonal / 2, 2),
+            "top": round(top + card_height / 2 - size / 2, 2),
+            "width": round(diagonal, 2),
+            "size": size,
+            "angle": angle,
+        }
+        for top in ((0.0, card_height) if two_up else (0.0,))
+    ]
+    html = env.get_template("preview_watermark.html").render(
+        width=width, height=height, text=text, marks=marks
+    )
+    return render_pdf_document(html)
+
+
+def _stamp_watermark(pdf: bytes, text: str, *, two_up: bool) -> bytes:
+    """Lay the diagonal ``text`` over every page, back covers included."""
+    writer = PdfWriter(clone_from=PdfReader(BytesIO(pdf)))
+    for page in writer.pages:
+        box = page.mediabox
+        width, height = round(float(box.width), 2), round(float(box.height), 2)
+        stamp = PdfReader(BytesIO(_watermark_page(text, width, height, two_up))).pages[0]
+        page.merge_transformed_page(
+            stamp, Transformation().translate(float(box.left), float(box.bottom))
+        )
+    result = BytesIO()
+    writer.write(result)
+    return result.getvalue()
+
+
+def _finish_report(pdf: bytes, cards: list[ReportCard], watermark: str | None) -> bytes:
+    pdf = _apply_back_cover(pdf, cards)
+    if watermark is None:
+        return pdf
+    return _stamp_watermark(pdf, watermark, two_up=cards[0].kind == "english_middle")
+
+
 class ReportAssetFetcher(URLFetcher):
     """Deny-by-default asset fetcher for the report templates.
 
@@ -751,7 +806,7 @@ def _chunk(units: list[object], count: int) -> list[list[object]]:
     return chunks
 
 
-def render_report_pdf(cards: list[ReportCard]) -> bytes:
+def render_report_pdf(cards: list[ReportCard], *, watermark: str | None = None) -> bytes:
     """Render a report set, laying its sheets out in parallel when that helps.
 
     Every ``.sheet`` in these templates is a self-contained, fixed-height page
@@ -764,6 +819,10 @@ def render_report_pdf(cards: list[ReportCard]) -> bytes:
 
     Both parallel rendering and its serial fallback use bounded batches so
     a whole-school request cannot become one enormous WeasyPrint page tree.
+
+    ``watermark`` stamps that text diagonally over every finished page, back
+    covers included, for on-screen previews (ADR-078). Official sets leave it
+    unset and are rendered exactly as before.
     """
     template, context, units_key, units = _document_plan(cards)
     jinja_template = _template_environment().get_template(template)
@@ -781,11 +840,11 @@ def render_report_pdf(cards: list[ReportCard]) -> bytes:
         return parts[0] if len(parts) == 1 else _merge_pdf_parts(parts)
 
     if not parallel and len(chunks) == 1:
-        return _apply_back_cover(render_pdf_document(document(units)), cards)
+        return _finish_report(render_pdf_document(document(units)), cards, watermark)
 
     pool = _render_pool(workers) if parallel else None
     if pool is None:
-        return _apply_back_cover(serial(), cards)
+        return _finish_report(serial(), cards, watermark)
     try:
         parts: list[bytes] = []
         # Submit only one wave at a time; queued HTML also holds embedded images.
@@ -800,5 +859,5 @@ def render_report_pdf(cards: list[ReportCard]) -> bytes:
         # because the serial retry below renders the very same HTML.
         logger.warning("parallel report render failed, falling back to serial", exc_info=True)
         _discard_pool()
-        return _apply_back_cover(serial(), cards)
-    return _apply_back_cover(_merge_pdf_parts(parts), cards)
+        return _finish_report(serial(), cards, watermark)
+    return _finish_report(_merge_pdf_parts(parts), cards, watermark)

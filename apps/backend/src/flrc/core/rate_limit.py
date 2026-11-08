@@ -31,7 +31,10 @@ AUTH_WINDOW_SECONDS = 5 * 60
 
 # Limit expensive work per account, not per shared school address. Interactive
 # workbook previews need more room than commits, exports, and PDF generation.
+# Whole report sets are expensive; one student's card or one class's PDF is cheap
+# and is requested repeatedly while paging through a class, so it gets more room.
 REPORT_LIMIT = 5
+REPORT_SINGLE_LIMIT = 30
 EXPORT_LIMIT = 3
 IMPORT_LIMIT = 3
 IMPORT_PREVIEW_LIMIT = 30
@@ -118,6 +121,7 @@ def user_rate_limit(scope: str, *, limit: int) -> Callable[[Request, User], Awai
 
 
 report_rate_limit = user_rate_limit("report_pdf", limit=REPORT_LIMIT)
+report_single_rate_limit = user_rate_limit("report_single", limit=REPORT_SINGLE_LIMIT)
 export_rate_limit = user_rate_limit("bulk_export", limit=EXPORT_LIMIT)
 import_rate_limit = user_rate_limit("workbook_import", limit=IMPORT_LIMIT)
 # Paging and edits each revalidate the workbook. Allow an interactive review

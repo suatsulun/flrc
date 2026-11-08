@@ -1,0 +1,39 @@
+{#
+  One transparent page carrying the diagonal preview mark, stamped over each
+  page of a preview PDF by render.py (ADR-078). Sizes are PDF points so the
+  stamp matches the page it lands on; every mark is centred on its card.
+
+  NOTE: this directory is in .prettierignore — Prettier reflows Jinja tags.
+#}
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @page {
+        size: {{ width }}pt {{ height }}pt;
+        margin: 0;
+      }
+      body { margin: 0; }
+      .mark {
+        position: absolute;
+        margin: 0;
+        color: rgba(185, 28, 28, 0.2);
+        font-family: "DejaVu Sans", Arial, sans-serif;
+        font-weight: bold;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+        transform-origin: 50% 50%;
+      }
+    </style>
+  </head>
+  <body>
+    {% for mark in marks %}
+    <p
+      class="mark"
+      style="left: {{ mark.left }}pt; top: {{ mark.top }}pt; width: {{ mark.width }}pt; font-size: {{ mark.size }}pt; transform: rotate({{ mark.angle }}deg);"
+    >{{ text }}</p>
+    {% endfor %}
+  </body>
+</html>

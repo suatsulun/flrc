@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthIndexRouteImport } from './routes/_auth/index'
+import { Route as AuthCardPreviewRouteImport } from './routes/_auth/card-preview'
 import { Route as AuthClassReportClassIdRouteImport } from './routes/_auth/class-report.$classId'
 import { Route as AuthClassesClassIdSubjectRouteImport } from './routes/_auth/classes.$classId.$subject'
 
@@ -29,6 +30,11 @@ const AuthIndexRoute = AuthIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthCardPreviewRoute = AuthCardPreviewRouteImport.update({
+  id: '/card-preview',
+  path: '/card-preview',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthClassReportClassIdRoute = AuthClassReportClassIdRouteImport.update({
   id: '/class-report/$classId',
   path: '/class-report/$classId',
@@ -44,11 +50,13 @@ const AuthClassesClassIdSubjectRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthIndexRoute
   '/login': typeof LoginRoute
+  '/card-preview': typeof AuthCardPreviewRoute
   '/class-report/$classId': typeof AuthClassReportClassIdRoute
   '/classes/$classId/$subject': typeof AuthClassesClassIdSubjectRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/card-preview': typeof AuthCardPreviewRoute
   '/': typeof AuthIndexRoute
   '/class-report/$classId': typeof AuthClassReportClassIdRoute
   '/classes/$classId/$subject': typeof AuthClassesClassIdSubjectRoute
@@ -57,6 +65,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_auth': typeof AuthRouteWithChildren
   '/login': typeof LoginRoute
+  '/_auth/card-preview': typeof AuthCardPreviewRoute
   '/_auth/': typeof AuthIndexRoute
   '/_auth/class-report/$classId': typeof AuthClassReportClassIdRoute
   '/_auth/classes/$classId/$subject': typeof AuthClassesClassIdSubjectRoute
@@ -64,13 +73,23 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/login' | '/class-report/$classId' | '/classes/$classId/$subject'
+    | '/'
+    | '/login'
+    | '/card-preview'
+    | '/class-report/$classId'
+    | '/classes/$classId/$subject'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/' | '/class-report/$classId' | '/classes/$classId/$subject'
+  to:
+    | '/login'
+    | '/card-preview'
+    | '/'
+    | '/class-report/$classId'
+    | '/classes/$classId/$subject'
   id:
     | '__root__'
     | '/_auth'
     | '/login'
+    | '/_auth/card-preview'
     | '/_auth/'
     | '/_auth/class-report/$classId'
     | '/_auth/classes/$classId/$subject'
@@ -104,6 +123,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthIndexRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/card-preview': {
+      id: '/_auth/card-preview'
+      path: '/card-preview'
+      fullPath: '/card-preview'
+      preLoaderRoute: typeof AuthCardPreviewRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/class-report/$classId': {
       id: '/_auth/class-report/$classId'
       path: '/class-report/$classId'
@@ -122,12 +148,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthRouteChildren {
+  AuthCardPreviewRoute: typeof AuthCardPreviewRoute
   AuthIndexRoute: typeof AuthIndexRoute
   AuthClassReportClassIdRoute: typeof AuthClassReportClassIdRoute
   AuthClassesClassIdSubjectRoute: typeof AuthClassesClassIdSubjectRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
+  AuthCardPreviewRoute: AuthCardPreviewRoute,
   AuthIndexRoute: AuthIndexRoute,
   AuthClassReportClassIdRoute: AuthClassReportClassIdRoute,
   AuthClassesClassIdSubjectRoute: AuthClassesClassIdSubjectRoute,

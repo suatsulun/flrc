@@ -3270,8 +3270,13 @@ undo (Step 2.8); administrative writes had none.
   them still apply. A hidden field with grades is shown again with its grades.
 - Every recorded write locks the rows it changes before reading their previous values and holds
   the lock until it commits with its action; undo handlers take the same locks before checking.
-  A pupil's number, class and second language are guarded by their enrollment row, so language
-  writes and their undo cannot interleave.
+  A pupil's number, class and second language are guarded by the year, then their enrollment
+  row, so language writes and their undo cannot interleave; every roster write, new pupil,
+  removal and undo locks in that order, so none of them deadlock. Grade saves and grid undo
+  key-share-lock the fields they write in id order before writing; removing copied fields locks
+  them `FOR UPDATE` in the same order, so it waits for a save and is then refused by its grades.
+  Field reorders and their undo change only positions and lock the fields `FOR NO KEY UPDATE`,
+  which grade saves' key-share locks do not wait for.
 - The backup sidecar deletes expired rows and their images each night before the dump
   (`flrc purge-admin-actions` does the same by hand). Until then an expired row is listed as
   `expired` and cannot be undone.

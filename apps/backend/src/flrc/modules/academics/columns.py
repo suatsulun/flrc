@@ -16,6 +16,13 @@ from flrc.modules.academics.programme import (
     uses_scale_only,
 )
 from flrc.modules.auth.dependencies import require_admin
+from flrc.modules.changes.service import (
+    ActionWrite,
+    change_list,
+    changed_values,
+    record_action,
+    with_action,
+)
 
 router = APIRouter(prefix="/columns", tags=["columns"])
 
@@ -23,6 +30,7 @@ Subject = Literal["english", "german", "french"]
 Role = Literal["main", "skills", "german", "french"]
 ValueType = Literal["score", "scale3", "text"]
 Text = Annotated[str, StringConstraints(strip_whitespace=True)]
+FieldName = Annotated[Text, StringConstraints(min_length=1)]
 
 
 class LabelSet(BaseModel):
@@ -40,7 +48,7 @@ class ColumnCreate(BaseModel):
     value_type: ValueType
     owner_role: Role
     # A field has one name in the apps, written in its subject's language.
-    name: Annotated[Text, StringConstraints(min_length=1)]
+    name: FieldName
     group: Text | None = None
     # Printed cards may also need Turkish wording (see prints_turkish).
     turkish_name: Text | None = None
@@ -52,6 +60,8 @@ class ColumnPatch(BaseModel):
     counts_in_average: bool | None = None
     value_type: ValueType | None = None
     owner_role: Role | None = None
+    # The field's name in its subject's language (ADR-076); other wording stays as created.
+    name: FieldName | None = None
 
 
 class ColumnOut(BaseModel):
@@ -82,9 +92,21 @@ class ColumnOut(BaseModel):
         return field_name(self.group_labels.model_dump(), self.subject)
 
 
-class DeleteResult(BaseModel):
+class ColumnWriteOut(ColumnOut, ActionWrite):
+    pass
+
+
+class DeleteResult(ActionWrite):
     deleted: bool
     disabled: bool
+
+
+class ReorderOut(ActionWrite):
+    ok: bool
+
+
+class CopyOut(ActionWrite):
+    copied: int
 
 
 class ReorderBody(BaseModel):
@@ -128,7 +150,7 @@ def _lacks_turkish(
     )
 
 
-async def _editable_semester(db: AsyncSession, semester_id: int | None) -> Semester:
+async def editable_semester(db: AsyncSession, semester_id: int | None) -> Semester:
     if semester_id is None:
         semester = await db.scalar(
             select(Semester)
@@ -183,14 +205,87 @@ async def list_columns(
     ]
 
 
+def column_snapshot(column: ColumnDefinition) -> dict[str, object]:
+    """Every stored attribute of a field, enough to recreate it exactly."""
+    return {
+        "id": column.id,
+        "semester_id": column.semester_id,
+        "grade_level": column.grade_level,
+        "subject": column.subject,
+        "value_type": column.value_type,
+        "owner_role": column.owner_role,
+        "labels": column.labels,
+        "group_labels": column.group_labels,
+        "counts_in_average": column.counts_in_average,
+        "position": column.position,
+        "is_active": column.is_active,
+    }
+
+
+def _field_params(column: ColumnDefinition) -> dict[str, object]:
+    return {
+        "field": field_name(column.labels, column.subject),
+        "grade_level": column.grade_level,
+        "subject": column.subject,
+    }
+
+
+async def column_has_grades(db: AsyncSession, column_id: int) -> bool:
+    found = await db.scalar(
+        select(GradeValue.id).where(GradeValue.column_definition_id == column_id).limit(1)
+    )
+    return found is not None
+
+
+def column_state(column: ColumnDefinition) -> dict[str, object]:
+    """The patchable attributes, with ``name`` as stored under the subject's language."""
+    return {
+        "counts_in_average": column.counts_in_average,
+        "value_type": column.value_type,
+        "owner_role": column.owner_role,
+        "name": column.labels.get(SUBJECT_LOCALE[column.subject]),
+    }
+
+
+async def apply_column_patch(
+    db: AsyncSession, column: ColumnDefinition, updates: dict[str, object]
+) -> None:
+    """Validate and apply patchable attributes; a ``None`` name removes the stored name."""
+    owner_role = str(updates.get("owner_role", column.owner_role))
+    value_type = str(updates.get("value_type", column.value_type))
+    counts_in_average = bool(updates.get("counts_in_average", column.counts_in_average))
+    _check_owner_rule(column.subject, owner_role)
+    _check_programme(column.grade_level, column.subject, value_type, counts_in_average)
+    if value_type != column.value_type:
+        if await column_has_grades(db, column.id):
+            raise HTTPException(409, {"code": "column_type_in_use"})
+        # Only the subject-language name can be patched (ADR-076), so a field cannot become
+        # one its card prints in Turkish unless it already has the Turkish wording; recreate
+        # it with the wording instead.
+        if _lacks_turkish(
+            column.grade_level, column.subject, value_type, column.labels, column.group_labels
+        ):
+            raise HTTPException(422, {"code": "turkish_wording_required"})
+    column.owner_role = owner_role
+    column.value_type = value_type
+    column.counts_in_average = counts_in_average
+    if "name" in updates:
+        locale = SUBJECT_LOCALE[column.subject]
+        labels = {key: value for key, value in column.labels.items() if key != locale}
+        if updates["name"] is not None:
+            labels[locale] = str(updates["name"])
+        # A new mapping, so the JSONB change is persisted.
+        column.labels = labels
+
+
 @router.post("", status_code=201)
 async def create_column(
     body: ColumnCreate,
-    _: Annotated[User, Depends(require_admin)],
+    actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
     semester_id: int | None = None,
-) -> ColumnOut:
-    semester = await _editable_semester(db, semester_id)
+) -> ColumnWriteOut:
+    semester = await editable_semester(db, semester_id)
     _check_owner_rule(body.subject, body.owner_role)
     _check_programme(body.grade_level, body.subject, body.value_type, body.counts_in_average)
     locale = SUBJECT_LOCALE[body.subject]
@@ -221,88 +316,104 @@ async def create_column(
         **body.model_dump(exclude={"name", "group", "turkish_name", "turkish_group"}),
     )
     db.add(column)
+    await db.flush()
+    action = await record_action(
+        db,
+        actor=actor,
+        kind="field.create",
+        params=_field_params(column),
+        undo={"column_id": column.id},
+    )
     await db.commit()
     await db.refresh(column)
-    return ColumnOut.model_validate(column)
+    return with_action(ColumnWriteOut, ColumnOut.model_validate(column), action)
 
 
 @router.patch("/{column_id}")
 async def update_column(
     column_id: int,
     body: ColumnPatch,
-    _: Annotated[User, Depends(require_admin)],
+    actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
     semester_id: int | None = None,
-) -> ColumnOut:
-    semester = await _editable_semester(db, semester_id)
+) -> ColumnWriteOut:
+    semester = await editable_semester(db, semester_id)
     column = await db.get(ColumnDefinition, column_id)
     if column is None or column.semester_id != semester.id:
         raise HTTPException(404, {"code": "unknown_column"})
-    updates = body.model_dump(exclude_unset=True)
-    _check_owner_rule(column.subject, updates.get("owner_role", column.owner_role))
-    _check_programme(
-        column.grade_level,
-        column.subject,
-        updates.get("value_type", column.value_type),
-        updates.get("counts_in_average", column.counts_in_average),
+    before = column_state(column)
+    await apply_column_patch(db, column, body.model_dump(exclude_unset=True, exclude_none=True))
+    changed_before, changed_after = changed_values(before, column_state(column))
+    action = await record_action(
+        db,
+        actor=actor,
+        kind="field.edit",
+        params={**_field_params(column), "changes": change_list(changed_before, changed_after)},
+        undo={"column_id": column.id, "before": changed_before, "after": changed_after},
     )
-    value_type = updates.get("value_type", column.value_type)
-    if value_type != column.value_type:
-        has_data = await db.scalar(
-            select(func.count())
-            .select_from(GradeValue)
-            .where(GradeValue.column_definition_id == column.id)
-        )
-        if has_data:
-            raise HTTPException(409, {"code": "column_type_in_use"})
-        # Names cannot be patched, so a field cannot become one its card prints in Turkish
-        # unless it already has the Turkish wording; recreate it with the wording instead.
-        if _lacks_turkish(
-            column.grade_level, column.subject, value_type, column.labels, column.group_labels
-        ):
-            raise HTTPException(422, {"code": "turkish_wording_required"})
-    for key, value in updates.items():
-        setattr(column, key, value)
     await db.commit()
     await db.refresh(column)
-    return ColumnOut.model_validate(column)
+    return with_action(ColumnWriteOut, ColumnOut.model_validate(column), action)
 
 
 @router.delete("/{column_id}")
 async def delete_column(
     column_id: int,
-    _: Annotated[User, Depends(require_admin)],
+    actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
     semester_id: int | None = None,
 ) -> DeleteResult:
-    semester = await _editable_semester(db, semester_id)
+    semester = await editable_semester(db, semester_id)
     column = await db.get(ColumnDefinition, column_id)
     if column is None or column.semester_id != semester.id:
         raise HTTPException(404, {"code": "unknown_column"})
-    has_data = (
-        await db.execute(
-            select(func.count())
-            .select_from(GradeValue)
-            .where(GradeValue.column_definition_id == column_id)
-        )
-    ).scalar_one() > 0
-    if has_data:
+    # A field with grades is hidden instead, so its grades stay attached and can return.
+    disabled = await column_has_grades(db, column_id)
+    if disabled:
+        undo: dict[str, object] = {
+            "column_id": column.id,
+            "semester_id": column.semester_id,
+            "disabled": True,
+            "was_active": column.is_active,
+        }
         column.is_active = False
-        await db.commit()
-        return DeleteResult(deleted=False, disabled=True)
-    await db.delete(column)
+    else:
+        undo = {"column": column_snapshot(column), "disabled": False}
+        await db.delete(column)
+    action = await record_action(
+        db,
+        actor=actor,
+        kind="field.delete",
+        params={**_field_params(column), "disabled": disabled},
+        undo=undo,
+    )
     await db.commit()
-    return DeleteResult(deleted=True, disabled=False)
+    return DeleteResult(deleted=not disabled, disabled=disabled, action_id=action.id)
+
+
+async def reorder_scope_ids(
+    db: AsyncSession, semester_id: int, grade_level: int, subject: str
+) -> set[int]:
+    """The fields one reorder must place: inactive ones too, minus retired middle-English
+    comments (ADR-063)."""
+    scope_query = select(ColumnDefinition.id).where(
+        ColumnDefinition.semester_id == semester_id,
+        ColumnDefinition.grade_level == grade_level,
+        ColumnDefinition.subject == subject,
+    )
+    if not has_teacher_comments(grade_level, subject):
+        scope_query = scope_query.where(ColumnDefinition.value_type != "text")
+    return set(await db.scalars(scope_query))
 
 
 @router.post("/reorder")
 async def reorder_columns(
     body: ReorderBody,
-    _: Annotated[User, Depends(require_admin)],
+    actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
     semester_id: int | None = None,
-) -> dict[str, bool]:
-    semester = await _editable_semester(db, semester_id)
+) -> ReorderOut:
+    semester = await editable_semester(db, semester_id)
     result = await db.execute(
         select(ColumnDefinition).where(
             ColumnDefinition.id.in_(body.ordered_ids),
@@ -318,30 +429,36 @@ async def reorder_columns(
     ):
         raise HTTPException(422, {"code": "reorder_mismatch"})
     grade_level, subject = scopes.pop()
-    scope_query = select(ColumnDefinition.id).where(
-        ColumnDefinition.semester_id == semester.id,
-        ColumnDefinition.grade_level == grade_level,
-        ColumnDefinition.subject == subject,
-    )
-    if not has_teacher_comments(grade_level, subject):
-        scope_query = scope_query.where(ColumnDefinition.value_type != "text")
-    scope_ids = set(await db.scalars(scope_query))
-    if scope_ids != set(columns):
+    if await reorder_scope_ids(db, semester.id, grade_level, subject) != set(columns):
         raise HTTPException(422, {"code": "reorder_mismatch"})
+    before = [[cid, columns[cid].position] for cid in body.ordered_ids]
     for pos, cid in enumerate(body.ordered_ids, start=1):
         columns[cid].position = pos
+    action = await record_action(
+        db,
+        actor=actor,
+        kind="field.reorder",
+        params={"grade_level": grade_level, "subject": subject, "count": len(columns)},
+        undo={
+            "semester_id": semester.id,
+            "grade_level": grade_level,
+            "subject": subject,
+            "before": before,
+            "after": [[cid, pos] for pos, cid in enumerate(body.ordered_ids, start=1)],
+        },
+    )
     await db.commit()
-    return {"ok": True}
+    return ReorderOut(ok=True, action_id=action.id)
 
 
 @router.post("/copy")
 async def copy_columns(
     body: CopyBody,
-    _: Annotated[User, Depends(require_admin)],
+    actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
     semester_id: int | None = None,
-) -> dict[str, int]:
-    semester = await _editable_semester(db, semester_id)
+) -> CopyOut:
+    semester = await editable_semester(db, semester_id)
     same_family = (body.source_subject == "english") == (body.target_subject == "english")
     if not same_family:
         raise HTTPException(422, {"code": "copy_family_mismatch"})
@@ -390,22 +507,37 @@ async def copy_columns(
         ):
             raise HTTPException(422, {"code": "turkish_wording_required"})
     is_l2_target = body.target_subject in ("german", "french")
-    for src in sources:
-        db.add(
-            ColumnDefinition(
-                semester_id=semester.id,
-                grade_level=body.target_grade_level,
-                subject=body.target_subject,
-                value_type=src.value_type,
-                owner_role=body.target_subject if is_l2_target else src.owner_role,
-                labels=src.labels,
-                group_labels=src.group_labels,
-                counts_in_average=(
-                    src.counts_in_average
-                    and not uses_scale_only(body.target_grade_level, body.target_subject)
-                ),
-                position=src.position,
-            )
+    copies = [
+        ColumnDefinition(
+            semester_id=semester.id,
+            grade_level=body.target_grade_level,
+            subject=body.target_subject,
+            value_type=src.value_type,
+            owner_role=body.target_subject if is_l2_target else src.owner_role,
+            labels=src.labels,
+            group_labels=src.group_labels,
+            counts_in_average=(
+                src.counts_in_average
+                and not uses_scale_only(body.target_grade_level, body.target_subject)
+            ),
+            position=src.position,
         )
+        for src in sources
+    ]
+    db.add_all(copies)
+    await db.flush()
+    action = await record_action(
+        db,
+        actor=actor,
+        kind="field.copy",
+        params={
+            "count": len(copies),
+            "from_grade_level": body.source_grade_level,
+            "from_subject": body.source_subject,
+            "to_grade_level": body.target_grade_level,
+            "to_subject": body.target_subject,
+        },
+        undo={"semester_id": semester.id, "column_ids": [column.id for column in copies]},
+    )
     await db.commit()
-    return {"copied": len(sources)}
+    return CopyOut(copied=len(copies), action_id=action.id)

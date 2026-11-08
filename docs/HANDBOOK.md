@@ -2791,9 +2791,13 @@ Read the diff against: 5 create_table · the composite unique on grade_values ·
 current contract is `src/flrc/modules/academics/columns.py`: `ColumnCreate` takes one
 `name` (and optional `group`) in the subject's language, plus `turkish_name`/`turkish_group` when
 the printed card shows the field in Turkish (`turkish_wording_required` otherwise). `ColumnPatch`
-changes only `counts_in_average`, `value_type` and `owner_role`; names are never patched. Type
-changes and copies re-check the Turkish wording, and a copy into the other karne language needs
-names in that language (`copy_language_mismatch`). The programme rules in Step 2.1 apply first.
+changes `counts_in_average`, `value_type`, `owner_role` and `name` (ADR-076): the name is stripped,
+must not be blank, and is stored under the subject's language only, so the Turkish wording and
+group names stay as created. Type changes and copies re-check the Turkish wording, and a copy into
+the other karne language needs names in that language (`copy_language_mismatch`). The programme
+rules in Step 2.1 apply first. Every write (create, patch, delete, reorder, copy) also returns
+`action_id` for the admin undo (ADR-075): `ColumnWriteOut`, `DeleteResult`, `ReorderOut`,
+`CopyOut`.
 
 **What we're building:** admin-only CRUD plus two operations CRUD doesn't have: **reorder** (the up/down arrows) and **copy** (September's sanity: duplicating a column set to another grade or the twin language).
 
@@ -6267,6 +6271,12 @@ Commit once after the loop. Return the full fresh matrix, not just `204`; the cl
 
 **If it breaks:** duplicate assignment rows → the bulk path inserted without first querying the unique pair. Archived year mutates → every write must call a helper that rejects `year.status == 'archived'`, not just hide buttons.
 
+**Maintenance note (ADR-075):** the bulk `PUT` now answers `{"slots": [...], "action_id": n}`
+instead of a bare list, and every class and assignment write returns `action_id`
+(`AdminClassWriteOut`, `ClassDeleteOut`, `AssignmentMatrixWriteOut`; the single-slot
+`PUT /api/classes/{id}/assignments/{role}` answers `{ok, action_id}`). A class is "in use" for
+deletion when it has enrollments, save batches, assignments or override grants (`class_in_use`).
+
 Commit: `feat(admin): classes and assignment matrix`.
 
 ## Step 3.4: Enrollment moves, bulk moves, and the L2 switch
@@ -6367,6 +6377,46 @@ ADR-063, and rejects duplicate, partial, or mixed-scope lists.
 **Tests:** one move retains `grade_values` ids/versions unchanged; bulk rollback on one invalid student; same-class no-op; L2 switch; cross-grade confirmation gate.
 
 Commit: `feat(admin): roster moves and second-language switching`.
+
+### Undoable admin changes (ADR-075)
+
+**What we built later:** every roster, class, field, teacher and assignment write records one
+`admin_actions` row in its own transaction and returns `action_id`. An admin can undo it for seven
+days from the success toast or the recent-changes list. Lifecycle actions, year creation and the
+roster import are not undoable.
+
+**Where it lives:** `src/flrc/modules/changes/`: `service.py` (`record_action`,
+`ADMIN_ACTION_TTL`, `purge_expired_actions`), `undo.py` (one handler per kind, reusing the
+endpoints' own rules) and `router.py`.
+
+```text
+GET  /api/admin/actions?cursor=&limit=     → {items: [{id, kind, actor, created_at, expires_at,
+                                               status, undone_at, undone_by, params}], next_cursor}
+POST /api/admin/actions/{action_id}/undo   → the item, status "undone"
+```
+
+Kinds: `student.add` (both create endpoints), `student.remove`, `student.move`, `student.edit`
+(roster and `/admin/students` patches), `student.language` (bulk second language),
+`class.create`, `class.edit`, `class.delete`, `field.create`, `field.delete` (hard delete or
+hiding a graded field), `field.edit` (rename and other attributes), `field.reorder`, `field.copy`,
+`user.create`, `user.edit`, `signature.upload`, `signature.delete`, `assignments.replace` (the
+matrix and the single slot).
+
+Errors: `404 unknown_action`, `409 action_already_undone`, `410 action_expired`, and
+`409 {"code": "undo_blocked", "reason", "params"}` when the current data no longer allows the
+previous state. Reasons include `changed_since` (the same attribute, pupil or slot changed again),
+`target_missing`, `school_number_taken` (`number`, `student`, `class`), `enrollment_exists`,
+`duplicate_class`, `class_in_use`, `field_has_grades`, `order_changed`, `user_in_use`,
+`last_admin`, `cannot_deactivate_self`, `teacher_inactive`, `teacher_field_mismatch`,
+`teacher_stage_mismatch`, `teacher_assignments_incompatible`, `language_grade_too_low`,
+`student_number_required`, and the original rules' own codes such as `year_not_writable` and
+`semester_locked`. A refused undo changes nothing.
+
+**Retention:** the backup sidecar deletes expired rows and their kept signature images every night
+before the dump; `flrc purge-admin-actions` does it by hand.
+
+**Tests:** `tests/test_admin_changes.py` performs each write, undoes it and compares the exact
+previous rows, plus each refusal reason, expiry, double undo, permissions and the purge.
 
 ## Step 3.5: The year and semester state machine
 

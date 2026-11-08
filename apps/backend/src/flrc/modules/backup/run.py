@@ -21,6 +21,7 @@ from flrc.db.sync import sync_engine
 from flrc.modules.backup import archive, crypto, dump, schedule
 from flrc.modules.backup.drive import Store, ensure_folder
 from flrc.modules.backup.status import now_iso, read_status, update_status
+from flrc.modules.changes.service import purge_expired_actions
 
 log = structlog.get_logger()
 
@@ -240,6 +241,16 @@ def archive_year(store: Store, label: str) -> dict[str, object]:
         shutil.rmtree(work.parent, ignore_errors=True)
 
 
+def purge_expired_records() -> int:
+    """Nightly maintenance before the dump: drop undo records past their seven days
+    (ADR-075), so expired snapshots and kept signatures never reach a new backup."""
+    with Session(sync_engine()) as db:
+        count = purge_expired_actions(db)
+        db.commit()
+    log.info("admin_actions_purged", count=count)
+    return count
+
+
 def run_forever(store_factory) -> None:  # pragma: no cover - a loop around the pieces above
     """The sidecar's main loop: sleep until the next run, do the night's work, repeat."""
     while True:
@@ -247,6 +258,10 @@ def run_forever(store_factory) -> None:  # pragma: no cover - a loop around the 
         due = schedule.next_run(now, settings.backup_at, settings.backup_timezone)
         log.info("backup_scheduled", at=due.isoformat())
         time.sleep(max(1.0, (due - now).total_seconds()))
+        try:
+            purge_expired_records()
+        except Exception as exc:
+            log.error("admin_action_purge_failed", error=type(exc).__name__)
         store = store_factory()
         try:
             run_backup(store)

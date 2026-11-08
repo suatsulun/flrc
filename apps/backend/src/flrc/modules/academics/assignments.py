@@ -3,7 +3,6 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flrc.db.models import (
@@ -18,13 +17,19 @@ from flrc.db.models import (
 )
 from flrc.db.session import get_session
 from flrc.modules.academics.class_names import class_label
-from flrc.modules.academics.programme import stage_for_grade
+from flrc.modules.administration.classes import (
+    apply_assignment_slots,
+    assignment_mismatch,
+    record_assignment_change,
+    writable_class_year,
+)
 from flrc.modules.auth.dependencies import (
     current_user,
     require_admin,
     require_coordinator_or_admin,
     writable_year,
 )
+from flrc.modules.changes.service import ActionWrite
 
 router = APIRouter(tags=["assignments"])
 
@@ -373,35 +378,38 @@ async def get_assignments(
     ]
 
 
+class AssignmentWriteOut(ActionWrite):
+    ok: bool
+
+
 @router.put("/classes/{class_id}/assignments/{role}")
 async def upsert_assignment(
     class_id: int,
     role: Role,
     body: AssignBody,
-    _: Annotated[User, Depends(require_admin)],
+    actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-) -> dict[str, bool]:
+) -> AssignmentWriteOut:
     teacher = await db.get(User, body.user_id)
     if teacher is None or not teacher.is_active:
         raise HTTPException(422, {"code": "unknown_user"})
     school_class = await db.get(SchoolClass, class_id)
     if school_class is None:
         raise HTTPException(404, {"code": "unknown_class"})
-    year = await db.get(AcademicYear, school_class.year_id)
-    if year is None or year.status == "archived":
-        raise HTTPException(409, {"code": "year_not_writable"})
-    expected_field = "english" if role in ("main", "skills") else role
-    if teacher.teaching_field != expected_field:
-        raise HTTPException(422, {"code": "teacher_field_mismatch"})
-    if expected_field == "english" and teacher.teaching_stage != stage_for_grade(
-        school_class.grade_level
-    ):
-        raise HTTPException(422, {"code": "teacher_stage_mismatch"})
-    stmt = (
-        pg_insert(TeachingAssignment)
-        .values(class_id=class_id, role=role, user_id=body.user_id)
-        .on_conflict_do_update(index_elements=["class_id", "role"], set_={"user_id": body.user_id})
+    await writable_class_year(db, school_class.year_id)
+    problem = assignment_mismatch(
+        teacher.teaching_field, teacher.teaching_stage, school_class.grade_level, role
     )
-    await db.execute(stmt)
+    if problem is not None:
+        raise HTTPException(422, {"code": problem})
+    changed, holders = await apply_assignment_slots(db, {(class_id, role): body.user_id})
+    action = await record_assignment_change(
+        db,
+        actor=actor,
+        year_id=school_class.year_id,
+        changed=changed,
+        classes={class_id: school_class},
+        names=holders | {teacher.id: teacher.full_name},
+    )
     await db.commit()
-    return {"ok": True}
+    return AssignmentWriteOut(ok=True, action_id=action.id)

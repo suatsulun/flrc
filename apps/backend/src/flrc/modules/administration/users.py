@@ -1,3 +1,4 @@
+import hashlib
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
@@ -6,9 +7,10 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
-from flrc.db.models import SchoolClass, TeachingAssignment, User
+from flrc.db.models import AdminAction, SchoolClass, TeachingAssignment, User
 from flrc.db.session import get_session
-from flrc.modules.academics.programme import Stage, stage_for_grade
+from flrc.modules.academics.programme import Stage
+from flrc.modules.administration.classes import assignment_mismatch
 from flrc.modules.administration.names import normalize_email, search_key
 from flrc.modules.administration.report_identity import (
     MAX_SIGNATURE_BYTES,
@@ -21,6 +23,13 @@ from flrc.modules.auth import demo
 from flrc.modules.auth.dependencies import require_admin
 from flrc.modules.auth.policy import allowed_google_domain, email_is_in_school_domain
 from flrc.modules.auth.sessions import revoke_user_sessions
+from flrc.modules.changes.service import (
+    ActionWrite,
+    change_list,
+    changed_values,
+    record_action,
+    with_action,
+)
 
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 TeachingField = Literal["english", "german", "french"]
@@ -56,6 +65,86 @@ class ManagedUserOut(BaseModel):
             else None,
             revoked_sessions=revoked_sessions,
         )
+
+
+class ManagedUserWriteOut(ManagedUserOut, ActionWrite):
+    pass
+
+
+# The account attributes an edit can change and an undo restores.
+EDITABLE_ATTRIBUTES = (
+    "full_name",
+    "is_admin",
+    "is_coordinator",
+    "is_active",
+    "teaching_field",
+    "teaching_stage",
+    "report_name",
+    "google_subject",
+)
+
+
+def account_state(user: User) -> dict[str, object]:
+    return {name: getattr(user, name) for name in EDITABLE_ATTRIBUTES}
+
+
+async def lock_account_for_edit(db: AsyncSession, user_id: int, actor: User) -> User | None:
+    """Lock an account an administrator changes, together with the administrator's own.
+
+    Recording the change refers to the administrator's account (``actor_id``), which
+    another administrator changing it holds. Both rows are locked in id order, the
+    administrator's only shared, so two administrators changing each other's accounts
+    wait for one another instead of deadlocking.
+    """
+    target: User | None = None
+    for locked_id in sorted({user_id, actor.id}):
+        row = await db.get(User, locked_id, with_for_update={"read": locked_id != user_id})
+        if locked_id == user_id:
+            target = row
+    return target
+
+
+async def ensure_admin_remains(
+    db: AsyncSession, target: User, *, is_admin: bool, is_active: bool
+) -> None:
+    """Refuse a change that would leave the school without an active administrator."""
+    if target.is_admin and (not is_admin or not is_active):
+        active_admins = await db.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.is_admin.is_(True), User.is_active.is_(True))
+        )
+        if active_admins == 1:
+            raise HTTPException(409, {"code": "last_admin"})
+
+
+async def ensure_assignments_fit(
+    db: AsyncSession, user_id: int, teaching_field: str, teaching_stage: str | None
+) -> None:
+    """Refuse a subject or stage that the teacher's current class roles no longer fit."""
+    assignments = (
+        await db.execute(
+            select(TeachingAssignment.role, SchoolClass.grade_level)
+            .join(SchoolClass, SchoolClass.id == TeachingAssignment.class_id)
+            .where(TeachingAssignment.user_id == user_id)
+        )
+    ).all()
+    for role, grade_level in assignments:
+        if assignment_mismatch(teaching_field, teaching_stage, grade_level, role) is not None:
+            raise HTTPException(409, {"code": "teacher_assignments_incompatible"})
+
+
+def edit_params(
+    user: User, before: dict[str, object], after: dict[str, object]
+) -> dict[str, object]:
+    """Display parameters of an account edit; the Google subject itself is never shown."""
+    visible_before = {key: value for key, value in before.items() if key != "google_subject"}
+    visible_after = {key: value for key, value in after.items() if key != "google_subject"}
+    return {
+        "user": user.full_name,
+        "changes": change_list(visible_before, visible_after),
+        "identity_reset": "google_subject" in after,
+    }
 
 
 class UserCreate(BaseModel):
@@ -103,8 +192,7 @@ async def create_managed_user(
     body: UserCreate,
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-) -> ManagedUserOut:
-    del actor
+) -> ManagedUserWriteOut:
     email = normalize_email(body.email)
     if allowed_google_domain() and not email_is_in_school_domain(email):
         raise HTTPException(422, {"code": "wrong_school_domain"})
@@ -121,9 +209,17 @@ async def create_managed_user(
         else None,
     )
     db.add(user)
+    await db.flush()
+    action = await record_action(
+        db,
+        actor=actor,
+        kind="user.create",
+        params={"user": user.full_name, "email": user.email},
+        undo={"user_id": user.id},
+    )
     await db.commit()
     await db.refresh(user)
-    return ManagedUserOut.from_model(user)
+    return with_action(ManagedUserWriteOut, ManagedUserOut.from_model(user), action)
 
 
 @router.patch("/{user_id}")
@@ -132,8 +228,8 @@ async def patch_managed_user(
     body: UserPatch,
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-) -> ManagedUserOut:
-    target = await db.get(User, user_id, with_for_update=True)
+) -> ManagedUserWriteOut:
+    target = await lock_account_for_edit(db, user_id, actor)
     if target is None:
         raise HTTPException(404, {"code": "unknown_user"})
     if target.id != actor.id and await demo.is_visitor(db, target.id):
@@ -141,17 +237,15 @@ async def patch_managed_user(
         raise HTTPException(403, {"code": "visitor_protected"})
     if body.is_active is False and target.id == actor.id:
         raise HTTPException(409, {"code": "cannot_deactivate_self"})
-    removes_admin = target.is_admin and (body.is_admin is False or body.is_active is False)
-    if removes_admin:
-        active_admins = await db.scalar(
-            select(func.count())
-            .select_from(User)
-            .where(User.is_admin.is_(True), User.is_active.is_(True))
-        )
-        if active_admins == 1:
-            raise HTTPException(409, {"code": "last_admin"})
+    await ensure_admin_remains(
+        db,
+        target,
+        is_admin=body.is_admin is not False,
+        is_active=body.is_active is not False,
+    )
     updates = body.model_dump(exclude_unset=True)
     before_identity = identity_snapshot(target)
+    before = account_state(target)
     if "report_name" in updates:
         if await demo.is_visitor(db, target.id):
             raise HTTPException(403, {"code": "visitor_protected"})
@@ -165,20 +259,7 @@ async def patch_managed_user(
             updates["teaching_stage"] = next_stage or "primary"
         else:
             updates["teaching_stage"] = None
-        assignments = (
-            await db.execute(
-                select(TeachingAssignment.role, SchoolClass.grade_level)
-                .join(SchoolClass, SchoolClass.id == TeachingAssignment.class_id)
-                .where(TeachingAssignment.user_id == target.id)
-            )
-        ).all()
-        for role, grade_level in assignments:
-            expected_field = "english" if role in ("main", "skills") else role
-            expected_stage = stage_for_grade(grade_level)
-            if next_field != expected_field or (
-                next_field == "english" and updates["teaching_stage"] != expected_stage
-            ):
-                raise HTTPException(409, {"code": "teacher_assignments_incompatible"})
+        await ensure_assignments_fit(db, target.id, next_field, updates["teaching_stage"])
     will_be_active = bool(updates.get("is_active", target.is_active))
     if reset_identity and will_be_active:
         raise HTTPException(409, {"code": "deactivate_before_identity_reset"})
@@ -189,15 +270,25 @@ async def patch_managed_user(
     if reset_identity:
         target.google_subject = None
     audit_identity(db, target, actor, before_identity)
+    changed_before, changed_after = changed_values(before, account_state(target))
+    action = await record_action(
+        db,
+        actor=actor,
+        kind="user.edit",
+        params=edit_params(target, changed_before, changed_after),
+        undo={"user_id": target.id, "before": changed_before, "after": changed_after},
+    )
     await db.commit()
     revoked = 0
     if (was_active and not target.is_active) or reset_identity:
         revoked = await revoke_user_sessions(target.id)
-    return ManagedUserOut.from_model(target, revoked_sessions=revoked)
+    return with_action(
+        ManagedUserWriteOut, ManagedUserOut.from_model(target, revoked_sessions=revoked), action
+    )
 
 
 async def signature_user(db: AsyncSession, user_id: int, actor: User) -> User:
-    target = await db.get(User, user_id, with_for_update=True)
+    target = await lock_account_for_edit(db, user_id, actor)
     if target is None:
         raise HTTPException(404, {"code": "unknown_user"})
     if await demo.is_visitor(db, target.id):
@@ -228,7 +319,7 @@ async def upload_user_signature(
     file: UploadFile,
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-) -> ManagedUserOut:
+) -> ManagedUserWriteOut:
     target = await signature_user(db, user_id, actor)
     try:
         data = await file.read(MAX_SIGNATURE_BYTES + 1)
@@ -237,8 +328,11 @@ async def upload_user_signature(
         raise HTTPException(422, {"code": str(exc)}) from exc
     finally:
         await file.close()
+    action = await _record_signature_change(
+        db, actor, target, "signature.upload", hashlib.sha256(png).hexdigest()
+    )
     await set_signature(db, target, actor, png)
-    return ManagedUserOut.from_model(target)
+    return with_action(ManagedUserWriteOut, ManagedUserOut.from_model(target), action)
 
 
 @router.delete("/{user_id}/signature")
@@ -246,7 +340,31 @@ async def delete_user_signature(
     user_id: int,
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-) -> ManagedUserOut:
+) -> ManagedUserWriteOut:
     target = await signature_user(db, user_id, actor)
+    action = await _record_signature_change(db, actor, target, "signature.delete", None)
     await set_signature(db, target, actor, None)
-    return ManagedUserOut.from_model(target)
+    return with_action(ManagedUserWriteOut, ManagedUserOut.from_model(target), action)
+
+
+async def _record_signature_change(
+    db: AsyncSession,
+    actor: User,
+    target: User,
+    kind: Literal["signature.upload", "signature.delete"],
+    after_digest: str | None,
+) -> AdminAction:
+    """Keep the image being replaced or removed so the change can be undone."""
+    await db.refresh(target, attribute_names=["signature_png"])
+    return await record_action(
+        db,
+        actor=actor,
+        kind=kind,
+        params={"user": target.full_name},
+        undo={
+            "user_id": target.id,
+            "before_digest": target.signature_digest,
+            "after_digest": after_digest,
+        },
+        blob=target.signature_png,
+    )

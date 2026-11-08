@@ -3,10 +3,15 @@ import os
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import Connection, create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 TEST_URL = "postgresql+asyncpg://flrc:flrc@localhost:5432/flrc_test"
+
+
+def _head(cfg: Config) -> str | None:
+    return ScriptDirectory.from_config(cfg).get_current_head()
 
 
 def test_migrations_apply_from_zero() -> None:
@@ -58,7 +63,7 @@ def test_prep_downgrade_refuses_data_loss(prep_table: str) -> None:
             command.downgrade(cfg, "82a91f4c6d30")
         with engine.begin() as db:
             # One transaction covers every downgrade step, so nothing was applied.
-            assert db.scalar(text("SELECT version_num FROM alembic_version")) == "9b3e5d7f1c20"
+            assert db.scalar(text("SELECT version_num FROM alembic_version")) == _head(cfg)
             # Both names are test-owned constants, never workbook/user input.
             assert db.scalar(text(f"SELECT count(*) FROM {prep_table} WHERE grade_level = 0")) == 1
             db.execute(text(f"DELETE FROM {prep_table} WHERE grade_level = 0"))
@@ -218,7 +223,7 @@ def test_stage_scoped_numbers_backfill_derive_stage_and_guard_downgrade() -> Non
         with pytest.raises(IntegrityError):
             command.downgrade(cfg, "3c7f1a9d2b64")
         with engine.begin() as db:
-            assert db.scalar(text("SELECT version_num FROM alembic_version")) == "9b3e5d7f1c20"
+            assert db.scalar(text("SELECT version_num FROM alembic_version")) == _head(cfg)
             assert db.scalar(text("SELECT count(*) FROM enrollments")) == 3
             db.execute(
                 text("DELETE FROM enrollments WHERE student_id = :student"),

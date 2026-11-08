@@ -1,9 +1,9 @@
 from typing import Annotated, Literal
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,15 +16,24 @@ from flrc.db.models import (
     User,
 )
 from flrc.db.session import get_session
+from flrc.modules.academics.class_names import class_label
 from flrc.modules.academics.programme import L2_START_GRADE, stage_for_grade
 from flrc.modules.administration.names import search_key
 from flrc.modules.administration.roster_service import (
+    assign_student_language,
     is_duplicate_school_number,
     move_students,
     remove_student,
     school_number_taken,
+    student_language,
 )
 from flrc.modules.auth.dependencies import require_admin
+from flrc.modules.changes.service import (
+    ActionWrite,
+    change_list,
+    changed_values,
+    record_action,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin-roster"])
 
@@ -34,6 +43,10 @@ class RosterStudentOut(BaseModel):
     school_number: int | None
     full_name: str
     language: str | None
+
+
+class RosterStudentWriteOut(RosterStudentOut, ActionWrite):
+    pass
 
 
 class RosterStudentCreate(BaseModel):
@@ -48,9 +61,18 @@ class RosterStudentPatch(BaseModel):
     language: Literal["german", "french"] | None = None
 
 
-class RosterStudentRemoveResult(BaseModel):
+class RosterStudentRemoveResult(ActionWrite):
     student_id: int
     removed: bool
+
+
+class RosterMoveOut(ActionWrite):
+    changed: int
+    unchanged: int
+
+
+class StudentLanguageOut(ActionWrite):
+    changed: int
 
 
 @router.delete("/classes/{class_id}/roster/{student_id}")
@@ -60,8 +82,30 @@ async def remove_admin_roster_student(
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> RosterStudentRemoveResult:
-    await remove_student(db, class_id=class_id, student_id=student_id, actor_id=actor.id)
-    return RosterStudentRemoveResult(student_id=student_id, removed=True)
+    removed = await remove_student(db, class_id=class_id, student_id=student_id)
+    student = await db.get(Student, student_id)
+    school_class = await db.get(SchoolClass, class_id)
+    assert student is not None and school_class is not None
+    action = await record_action(
+        db,
+        actor=actor,
+        kind="student.remove",
+        params={
+            "student": student.full_name,
+            "class": class_label(school_class.grade_level, school_class.section),
+            "number": removed["school_number"],
+        },
+        undo=dict(removed),
+    )
+    await db.commit()
+    structlog.get_logger().info(
+        "roster_student_removed",
+        actor_id=actor.id,
+        student_id=student_id,
+        class_id=class_id,
+        year_id=removed["year_id"],
+    )
+    return RosterStudentRemoveResult(student_id=student_id, removed=True, action_id=action.id)
 
 
 class MoveBody(BaseModel):
@@ -123,8 +167,7 @@ async def add_admin_roster_student(
     body: RosterStudentCreate,
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-) -> RosterStudentOut:
-    del actor
+) -> RosterStudentWriteOut:
     school_class = await db.get(SchoolClass, class_id)
     if school_class is None:
         raise HTTPException(404, {"code": "unknown_class"})
@@ -159,17 +202,29 @@ async def add_admin_roster_student(
             )
         )
     try:
+        action = await record_action(
+            db,
+            actor=actor,
+            kind="student.add",
+            params={
+                "student": student.full_name,
+                "class": class_label(school_class.grade_level, school_class.section),
+                "number": body.school_number,
+            },
+            undo={"student_id": student.id, "year_id": school_class.year_id},
+        )
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
         if is_duplicate_school_number(exc):
             raise HTTPException(409, {"code": "duplicate_school_number"}) from exc
         raise
-    return RosterStudentOut(
+    return RosterStudentWriteOut(
         student_id=student.id,
         school_number=body.school_number,
         full_name=student.full_name,
         language=body.language,
+        action_id=action.id,
     )
 
 
@@ -180,8 +235,7 @@ async def patch_admin_roster_student(
     body: RosterStudentPatch,
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-) -> RosterStudentOut:
-    del actor
+) -> RosterStudentWriteOut:
     row = (
         await db.execute(
             select(Enrollment, Student, SchoolClass)
@@ -195,6 +249,11 @@ async def patch_admin_roster_student(
     enrollment, student, school_class = row
     year = await db.get(AcademicYear, school_class.year_id)
     await _ensure_year_writable(db, school_class.year_id)
+    before: dict[str, object] = {
+        "full_name": student.full_name,
+        "school_number": enrollment.school_number,
+        "language": await student_language(db, student_id, school_class.year_id),
+    }
     if "school_number" in body.model_fields_set:
         if body.school_number is None and year and year.status != "setup":
             raise HTTPException(409, {"code": "student_number_required"})
@@ -213,45 +272,48 @@ async def patch_admin_roster_student(
     if "language" in body.model_fields_set:
         if body.language and school_class.grade_level < L2_START_GRADE:
             raise HTTPException(422, {"code": "language_grade_too_low"})
-        existing = await db.scalar(
-            select(StudentLanguage).where(
-                StudentLanguage.student_id == student_id,
-                StudentLanguage.year_id == school_class.year_id,
-            )
+        await assign_student_language(
+            db, student_id=student_id, year_id=school_class.year_id, language=body.language
         )
-        if body.language is None and existing is not None:
-            await db.delete(existing)
-        elif body.language is not None:
-            await db.execute(
-                pg_insert(StudentLanguage)
-                .values(
-                    student_id=student_id,
-                    year_id=school_class.year_id,
-                    language=body.language,
-                )
-                .on_conflict_do_update(
-                    index_elements=["student_id", "year_id"],
-                    set_={"language": body.language},
-                )
-            )
     try:
+        await db.flush()
+        language = await student_language(db, student_id, school_class.year_id)
+        changed_before, changed_after = changed_values(
+            before,
+            {
+                "full_name": student.full_name,
+                "school_number": enrollment.school_number,
+                "language": language,
+            },
+        )
+        action = await record_action(
+            db,
+            actor=actor,
+            kind="student.edit",
+            params={
+                "student": student.full_name,
+                "class": class_label(school_class.grade_level, school_class.section),
+                "changes": change_list(changed_before, changed_after),
+            },
+            undo={
+                "student_id": student_id,
+                "year_id": school_class.year_id,
+                "before": changed_before,
+                "after": changed_after,
+            },
+        )
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
         if is_duplicate_school_number(exc):
             raise HTTPException(409, {"code": "duplicate_school_number"}) from exc
         raise
-    language = await db.scalar(
-        select(StudentLanguage.language).where(
-            StudentLanguage.student_id == student_id,
-            StudentLanguage.year_id == school_class.year_id,
-        )
-    )
-    return RosterStudentOut(
+    return RosterStudentWriteOut(
         student_id=student.id,
         school_number=enrollment.school_number,
         full_name=student.full_name,
         language=language,
+        action_id=action.id,
     )
 
 
@@ -260,14 +322,13 @@ async def move_admin_roster(
     body: MoveBody,
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-) -> dict[str, int]:
-    del actor
+) -> RosterMoveOut:
     target = await db.get(SchoolClass, body.target_class_id)
     if target is None:
         raise HTTPException(404, {"code": "unknown_class"})
     await _ensure_year_writable(db, target.year_id)
     try:
-        changed, unchanged = await move_students(
+        moved, unchanged = await move_students(
             db,
             student_ids=body.student_ids,
             target_class=target,
@@ -276,13 +337,52 @@ async def move_admin_roster(
     except ValueError as exc:
         raise HTTPException(409, {"code": str(exc)}) from exc
     try:
+        await db.flush()
+        names = dict(
+            (
+                await db.execute(
+                    select(Student.id, Student.full_name).where(
+                        Student.id.in_([student_id for student_id, _ in moved])
+                    )
+                )
+            ).all()
+        )
+        sources = {
+            item.id: class_label(item.grade_level, item.section)
+            for item in await db.scalars(
+                select(SchoolClass).where(SchoolClass.id.in_({class_id for _, class_id in moved}))
+            )
+        }
+        action = await record_action(
+            db,
+            actor=actor,
+            kind="student.move",
+            params={
+                "count": len(moved),
+                "students": [names[student_id] for student_id, _ in moved],
+                "from_classes": sorted(set(sources.values())),
+                "to_class": class_label(target.grade_level, target.section),
+            },
+            undo={
+                "year_id": target.year_id,
+                "target_class_id": target.id,
+                "moved": [
+                    {
+                        "student_id": student_id,
+                        "from_class_id": class_id,
+                        "from_class": sources[class_id],
+                    }
+                    for student_id, class_id in moved
+                ],
+            },
+        )
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
         if is_duplicate_school_number(exc):
             raise HTTPException(409, {"code": "duplicate_school_number"}) from exc
         raise
-    return {"changed": changed, "unchanged": unchanged}
+    return RosterMoveOut(changed=len(moved), unchanged=unchanged, action_id=action.id)
 
 
 @router.put("/years/{year_id}/student-language")
@@ -291,9 +391,9 @@ async def set_student_language(
     body: LanguageBody,
     actor: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
-) -> dict[str, int]:
-    del actor
+) -> StudentLanguageOut:
     await _ensure_year_writable(db, year_id)
+    student_ids = list(dict.fromkeys(body.student_ids))
     enrollments = list(
         (
             await db.execute(
@@ -301,35 +401,52 @@ async def set_student_language(
                 .join(SchoolClass, SchoolClass.id == Enrollment.class_id)
                 .where(
                     Enrollment.year_id == year_id,
-                    Enrollment.student_id.in_(body.student_ids),
+                    Enrollment.student_id.in_(student_ids),
                 )
             )
         ).all()
     )
-    if len(enrollments) != len(set(body.student_ids)):
+    if len(enrollments) != len(student_ids):
         raise HTTPException(422, {"code": "student_not_enrolled_in_year"})
     if body.language and any(item[1].grade_level < L2_START_GRADE for item in enrollments):
         raise HTTPException(422, {"code": "language_grade_too_low"})
-    if body.language is None:
-        existing = list(
-            await db.scalars(
-                select(StudentLanguage).where(
-                    StudentLanguage.year_id == year_id,
-                    StudentLanguage.student_id.in_(body.student_ids),
-                )
+    existing = {
+        item.student_id: item
+        for item in await db.scalars(
+            select(StudentLanguage).where(
+                StudentLanguage.year_id == year_id,
+                StudentLanguage.student_id.in_(student_ids),
             )
         )
-        for item in existing:
-            await db.delete(item)
-    else:
-        for student_id in body.student_ids:
+    }
+    before = [
+        {
+            "student_id": student_id,
+            "language": existing[student_id].language if student_id in existing else None,
+        }
+        for student_id in student_ids
+    ]
+    for student_id in student_ids:
+        await assign_student_language(
+            db, student_id=student_id, year_id=year_id, language=body.language
+        )
+    names = dict(
+        (
             await db.execute(
-                pg_insert(StudentLanguage)
-                .values(student_id=student_id, year_id=year_id, language=body.language)
-                .on_conflict_do_update(
-                    index_elements=["student_id", "year_id"],
-                    set_={"language": body.language},
-                )
+                select(Student.id, Student.full_name).where(Student.id.in_(student_ids))
             )
+        ).all()
+    )
+    action = await record_action(
+        db,
+        actor=actor,
+        kind="student.language",
+        params={
+            "count": len(student_ids),
+            "language": body.language,
+            "students": [names[student_id] for student_id in student_ids],
+        },
+        undo={"year_id": year_id, "language": body.language, "before": before},
+    )
     await db.commit()
-    return {"changed": len(set(body.student_ids))}
+    return StudentLanguageOut(changed=len(student_ids), action_id=action.id)

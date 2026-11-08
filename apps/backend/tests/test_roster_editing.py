@@ -1,3 +1,5 @@
+from unittest.mock import ANY
+
 import pytest
 from sqlalchemy import func, select
 
@@ -39,7 +41,11 @@ async def test_remove_roster_membership_preserves_identity_grades_audit_and_othe
     async with api(world.admin) as client:
         removed = await client.delete(f"/api/admin/classes/{world.cls}/roster/{world.student_one}")
         assert removed.status_code == 200
-        assert removed.json() == {"student_id": world.student_one, "removed": True}
+        assert removed.json() == {
+            "student_id": world.student_one,
+            "removed": True,
+            "action_id": ANY,
+        }
         assert (await client.get(f"/api/admin/classes/{world.cls}/roster")).json()[0][
             "student_id"
         ] == world.student_two
@@ -164,7 +170,7 @@ async def test_removing_used_column_preserves_grades_and_audit_and_keeps_reorder
             f"/api/columns/{world.main_column}", params={"semester_id": world.semester}
         )
         assert removed.status_code == 200
-        assert removed.json() == {"deleted": False, "disabled": True}
+        assert removed.json() == {"deleted": False, "disabled": True, "action_id": ANY}
         reordered = await client.post(
             "/api/columns/reorder",
             params={"semester_id": world.semester},
@@ -174,7 +180,7 @@ async def test_removing_used_column_preserves_grades_and_audit_and_keeps_reorder
         unused = await client.delete(
             f"/api/columns/{world.skills_column}", params={"semester_id": world.semester}
         )
-        assert unused.json() == {"deleted": True, "disabled": False}
+        assert unused.json() == {"deleted": True, "disabled": False, "action_id": ANY}
     async with TestSession() as db:
         assert (await db.get(m.ColumnDefinition, world.main_column)).is_active is False
         assert await db.get(m.ColumnDefinition, world.skills_column) is None

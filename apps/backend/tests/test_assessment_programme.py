@@ -1,5 +1,6 @@
 import importlib.util
 from pathlib import Path
+from unittest.mock import ANY
 
 import pytest
 from alembic.migration import MigrationContext
@@ -47,7 +48,7 @@ async def test_grade_four_l2_create_update_and_copy(api, world, subject):
             },
         )
         assert copied.status_code == 200
-        assert copied.json() == {"copied": 2}
+        assert copied.json() == {"copied": 2, "action_id": ANY}
         columns = await client.get("/api/columns", params={"grade_level": 4, "subject": subject})
         assert [c["value_type"] for c in columns.json()] == ["scale3", "text"]
         column_id = columns.json()[0]["id"]
@@ -173,7 +174,7 @@ async def test_copy_keeps_names_in_the_target_language_with_its_turkish_wording(
     assert french.json()["detail"]["code"] == "copy_language_mismatch"
     assert [response.json() for response in left_empty] == [[], []]
     assert same.status_code == 200
-    assert same.json() == {"copied": 1}
+    assert same.json() == {"copied": 1, "action_id": ANY}
 
 
 async def test_middle_english_migration_retires_fields_but_preserves_saved_comments(api, world):

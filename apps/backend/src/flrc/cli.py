@@ -15,6 +15,7 @@ from flrc.modules.academics.programme import L2_START_GRADE, allows_column_type,
 from flrc.modules.administration.names import normalize_email
 from flrc.modules.auth.policy import allowed_google_domain, email_is_in_school_domain
 from flrc.modules.backup import cli as backup_cli
+from flrc.modules.changes.service import purge_expired_actions
 from flrc.modules.imports.fixture import make_hostile_fixture
 
 app = typer.Typer(help="FL-ReportCard maintenance commands.")
@@ -620,6 +621,7 @@ def bootstrap_admin(
 def reset() -> None:
     """Dev only: delete every row, children before parents."""
     order = (
+        m.AdminAction,
         m.JobRun,
         m.AuditEntry,
         m.SaveBatch,
@@ -652,6 +654,15 @@ def purge_job_outputs() -> None:
         db.execute(update(m.JobRun).where(*condition).values(output_blob=None))
         db.commit()
     typer.echo(f"purged {count} job outputs")
+
+
+@app.command("purge-admin-actions")
+def purge_admin_actions() -> None:
+    """Delete undo records past their seven days (the backup sidecar also runs this nightly)."""
+    with Session(sync_engine()) as db:
+        count = purge_expired_actions(db)
+        db.commit()
+    typer.echo(f"purged {count} admin actions")
 
 
 def _demo_seed_admin(db: Session) -> m.User | None:
@@ -911,6 +922,7 @@ def seed(
 def seed_e2e() -> None:
     """Create the tiny deterministic synthetic E2E school."""
     order = (
+        m.AdminAction,
         m.JobRun,
         m.AuditEntry,
         m.SaveBatch,

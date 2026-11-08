@@ -110,7 +110,8 @@ function AuditPage() {
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
     // A filter change keeps the filters on screen (and focused) while the new page loads;
-    // the previous filter's rows stay hidden behind the table skeleton, never shown as current.
+    // the previous filter's rows and phone cards stay hidden behind skeletons, never shown as
+    // current.
     placeholderData: keepPreviousData,
   });
   const items = audit.data?.pages.flatMap((page) => page.items) ?? [];
@@ -324,7 +325,9 @@ function AuditPage() {
             </Table>
           </TableScroll>
         </CardBody>
-        {items.length === 0 ? (
+        {audit.isPlaceholderData ? (
+          <SkeletonList rows={10} className="md:hidden" />
+        ) : items.length === 0 ? (
           <p className="px-5 py-6 text-sm text-muted-foreground md:hidden">
             {filtered ? t("audit.noMatches") : t("audit.empty")}
           </p>

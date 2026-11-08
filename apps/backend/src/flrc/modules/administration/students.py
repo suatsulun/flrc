@@ -14,6 +14,7 @@ from flrc.db.models import AcademicYear, Enrollment, SchoolClass, Student, User
 from flrc.db.session import get_session
 from flrc.modules.academics.class_names import class_label
 from flrc.modules.academics.programme import stage_for_grade
+from flrc.modules.administration.classes import writable_class_year
 from flrc.modules.administration.names import search_key
 from flrc.modules.administration.roster_service import (
     is_duplicate_school_number,
@@ -165,9 +166,9 @@ async def create_student(
     school_class = await db.get(SchoolClass, body.class_id)
     if school_class is None or school_class.year_id != body.year_id:
         raise HTTPException(422, {"code": "invalid_class"})
-    year = await db.get(AcademicYear, body.year_id)
-    if year is None or year.status == "archived":
-        raise HTTPException(409, {"code": "year_not_writable"})
+    # The year first, as every roster write does, and until the commit: a number check and
+    # insert racing a renumbering then queue behind it instead of deadlocking on the number.
+    await writable_class_year(db, body.year_id)
     if await school_number_taken(
         db,
         year_id=body.year_id,

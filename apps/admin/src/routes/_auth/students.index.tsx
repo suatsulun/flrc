@@ -1,4 +1,4 @@
-import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -66,8 +66,9 @@ function StudentSearchPage() {
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
+    // No placeholder data: a new query or year shows its skeleton rows under the mounted
+    // search box and year picker instead of the previous results (ADR-081).
     enabled: Boolean(year),
-    placeholderData: keepPreviousData,
   });
   const {
     data: classes = [],

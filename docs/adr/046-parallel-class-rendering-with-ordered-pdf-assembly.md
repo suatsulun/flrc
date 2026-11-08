@@ -2,7 +2,7 @@
 
 [ADR index](README.md)
 
-**Status:** Accepted; extended by ADR-077 (report jobs render each class through this pool)
+**Status:** Partially superseded by ADR-080 (a process per document, no warm pool); extended by ADR-077 (report jobs)
 
 **Date:** 2026-09-04
 **Phase:** 4.2-4.4 maintenance
@@ -50,3 +50,5 @@ are not moved back into job payloads or temporary artifact storage.
 ## Supersedes / Superseded by
 
 Extends ADR-028; the endpoint and the four school-wide report-set contract are unchanged.
+ADR-080 replaces the warm pool: a parallel download renders each document in a process of its
+own, stopped before the render returns.

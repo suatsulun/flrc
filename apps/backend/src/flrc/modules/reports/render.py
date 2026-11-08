@@ -28,16 +28,20 @@ import logging
 import math
 import mimetypes
 import os
-from concurrent.futures import Executor, ProcessPoolExecutor
-from contextlib import closing
+import time
+from collections.abc import Callable, Iterator
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import lru_cache, partial
 from io import BytesIO
 from multiprocessing import get_context
+from multiprocessing.connection import Connection, wait
+from multiprocessing.context import ForkServerContext
+from multiprocessing.process import BaseProcess
 from pathlib import Path
-from threading import Lock
+from threading import Condition
 from typing import Literal, cast
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import pikepdf
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -75,6 +79,14 @@ MAX_RENDER_UNITS = 16
 # A report job renders a class inside one render process; smaller batches keep each process's
 # peak down when every card carries artwork (ADR-077 measurements).
 JOB_RENDER_UNITS = 8
+# A parallel render that has not finished by then has a stuck worker: its pool is stopped
+# and the render fails, so the shared process budget is never held for good. Generous:
+# a whole class renders in seconds on the deployment-sized host.
+RENDER_DEADLINE_SECONDS = 10 * 60
+# How long a stopped worker gets to exit after SIGTERM, and again after SIGKILL.
+STOPPED_WORKER_GRACE_SECONDS = 5
+# How much of a render process's PDF the parent reads from its pipe at a time.
+PIPE_READ_BYTES = 1 << 20
 # Everything the cards reference is a data URI built in this module. Anything
 # else — a local file, an internal HTTP address — is refused outright.
 ALLOWED_ASSET_SCHEMES = frozenset({"data"})
@@ -682,50 +694,65 @@ class ReportAssetFetcher(URLFetcher):
     make the renderer read a local file (``file:``) or reach an internal
     address (``http:``) on behalf of whoever asked for the report.
 
-    Decoded asset bytes are memoised, so a set rendered as several documents
-    decodes each watermark once per process instead of once per document.
+    Decoded asset bytes are memoised per process, so a set rendered as several
+    documents decodes each watermark once per process instead of once per
+    document. ``private_assets`` are fetched but never memoised.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, private_assets: frozenset[str] = frozenset()) -> None:
         super().__init__(allowed_protocols=ALLOWED_ASSET_SCHEMES, allow_redirects=False)
-        self._assets: dict[str, tuple[bytes, str]] = {}
+        self._private_assets = private_assets
 
     def fetch(self, url: str, headers: dict[str, str] | None = None) -> URLFetcherResponse:
-        cached = self._assets.get(url)
+        cached = _fetched_assets.get(url)
         if cached is None:
             with closing(super().fetch(url, headers)) as response:
                 cached = (response.read(), response.headers.get("Content-Type", ""))
             # Only this module's own fixed set of assets is ever cached; the
             # bound keeps a template that one day interpolates caller data
             # into a data URI from growing the map without limit.
-            if len(self._assets) < MAX_CACHED_ASSETS:
-                self._assets[url] = cached
+            if url not in self._private_assets and len(_fetched_assets) < MAX_CACHED_ASSETS:
+                _fetched_assets[url] = cached
         body, content_type = cached
         return URLFetcherResponse(url, body=body, headers={"Content-Type": content_type})
 
 
-@lru_cache(maxsize=1)
-def _asset_fetcher() -> ReportAssetFetcher:
-    return ReportAssetFetcher()
+# The only process-wide memo: the fixed artwork's bytes — logo, faces, watermarks,
+# overlay assets — so each is decoded once per process rather than once per document.
+# A teacher's signature never enters it: permanent deletion erases it (ADR-080). Parsed
+# images stay in WeasyPrint's per-document cache, because they keep the fetcher and that
+# cache, and with them the document's signatures; reusing them measured neutral anyway
+# (ADR-046).
+_fetched_assets: dict[str, tuple[bytes, str]] = {}
+# ``urllib.parse.urlsplit`` is an ``lru_cache`` (Python 3.11+), which WeasyPrint fills with
+# every URL a document uses; cleared after a render that printed a signature.
+_forget_split_urls: Callable[[], None] = urlsplit.cache_clear  # type: ignore[attr-defined]
 
 
-# WeasyPrint's documented in-memory image cache. Held per process so the
-# watermarks and faces are parsed once rather than once per document.
-_image_cache: dict[str, object] = {}
+def _signature_assets(cards: list[ReportCard]) -> frozenset[str]:
+    """The teachers' signature data URIs the cards print, which no process cache may keep."""
+    return frozenset(
+        teacher.signature for card in cards for teacher in card.teachers if teacher.signature
+    )
 
 
-def render_pdf_document(html: str) -> bytes:
+def render_pdf_document(html: str, private_assets: frozenset[str] = frozenset()) -> bytes:
     """Render one already-rendered HTML document to PDF bytes.
 
     Runs in the request thread or in a renderer subprocess, so it takes a
     string rather than report data: a worker never needs the database, the
     settings for a card, or anything else the parent already resolved.
+    ``private_assets`` — the teachers' signatures — are never memoised; like
+    every parsed image, they go with the document.
     """
     try:
-        return HTML(string=html, base_url=str(HERE), url_fetcher=_asset_fetcher()).write_pdf(
-            cache=_image_cache
-        )
+        return HTML(
+            string=html, base_url=str(HERE), url_fetcher=ReportAssetFetcher(private_assets)
+        ).write_pdf()
     finally:
+        if private_assets:
+            # urllib memoises the URLs it last split, these data URIs included.
+            _forget_split_urls()
         # WeasyPrint page trees contain cycles; release each batch before the next.
         gc.collect()
 
@@ -786,45 +813,131 @@ def render_worker_limit() -> int:
     return max(1, min(MAX_RENDER_WORKERS, int(available)))
 
 
-_pool_lock = Lock()
-_pool: tuple[int, Executor] | None = None
+def render_process_context() -> ForkServerContext:
+    """How report renders start their processes.
 
-
-def _render_pool(workers: int) -> Executor | None:
-    """A warm renderer pool for this process, or ``None`` if none can exist.
-
-    Keyed on the pid so a server that forks its workers after a render never
-    hands a child an executor whose processes belong to the parent. A pool is
-    not always possible — a daemonic worker process may not have children —
-    so callers must be able to fall back to rendering serially.
+    forkserver, not fork: the API process is multi-threaded, and a child forked
+    from it can inherit a held lock and deadlock. The server preloads this
+    module, so each render's fresh processes start with WeasyPrint imported.
     """
-    global _pool
-    with _pool_lock:
-        if _pool is not None:
-            owner, pool = _pool
-            if owner == os.getpid():
-                return pool
-            _pool = None
+    context = get_context("forkserver")
+    context.set_forkserver_preload([__name__])
+    return context
+
+
+class _RenderProcessFailed(RuntimeError):
+    """A render process exited without handing back a complete document."""
+
+
+def _render_child(writer: Connection, render: Callable[[str], bytes], html: str) -> None:
+    """A render process: render one document, write its PDF to the parent and exit."""
+    pdf = memoryview(render(html))
+    with writer:
+        while pdf:
+            pdf = pdf[os.write(writer.fileno(), pdf) :]
+
+
+def _render_wave(
+    render: Callable[[str], bytes], documents: list[str], deadline: float
+) -> list[bytes]:
+    """Render each document in a process of its own and return the PDFs in order.
+
+    No executor: an executor's manager and queue threads keep the documents they were
+    sent, which carry pupils' grades and teachers' signatures, and a worker killed in the
+    middle of a result can leave them blocked for good (ADR-080). Here each process has
+    its own pipe, whose only write end is the child's: the parent reads it without
+    blocking until end of file, so a child that dies yields end of file at once, and every
+    process is stopped and every pipe closed whatever happens.
+
+    Raises ``TimeoutError("report_render_timed_out")`` at ``deadline`` and
+    :class:`_RenderProcessFailed` when a process exits without a complete document.
+    """
+    context = render_process_context()
+    children: list[tuple[BaseProcess, Connection]] = []
+    try:
+        for html in documents:
+            reader, writer = context.Pipe(duplex=False)
+            process = context.Process(target=_render_child, args=(writer, render, html))
+            try:
+                process.start()
+            except BaseException:
+                reader.close()
+                raise
+            finally:
+                writer.close()
+            children.append((process, reader))
+            os.set_blocking(reader.fileno(), False)
+        received = {reader.fileno(): bytearray() for _, reader in children}
+        pending = [reader for _, reader in children]
+        while pending:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("report_render_timed_out")
+            for ready in wait(pending, timeout=remaining):
+                reader = cast(Connection, ready)
+                while True:
+                    try:
+                        chunk = os.read(reader.fileno(), PIPE_READ_BYTES)
+                    except BlockingIOError:
+                        break
+                    if not chunk:
+                        pending.remove(reader)
+                        break
+                    received[reader.fileno()] += chunk
+        for child, _ in children:
+            child.join(max(0.0, deadline - time.monotonic()))
+            if child.exitcode is None:
+                raise TimeoutError("report_render_timed_out")
+            if child.exitcode != 0:
+                raise _RenderProcessFailed(f"render process exited with {child.exitcode}")
+        return [bytes(received[reader.fileno()]) for _, reader in children]
+    finally:
+        _stop_children(children)
+
+
+def _stop_children(children: list[tuple[BaseProcess, Connection]]) -> None:
+    """Close every pipe and make sure every render process has exited."""
+    for process, reader in children:
+        reader.close()
+        if process.exitcode is None:
+            process.terminate()
+    for process, _ in children:
+        process.join(STOPPED_WORKER_GRACE_SECONDS)
+        if process.exitcode is None:
+            process.kill()
+            process.join(STOPPED_WORKER_GRACE_SECONDS)
+        if process.exitcode is not None:
+            process.close()
+
+
+class _ProcessBudget:
+    """How many renderer processes this process may have alive at once, across renders.
+
+    Render processes live for one render (above), so without a shared budget two
+    concurrent downloads would each start ``render_worker_limit()`` processes.
+    """
+
+    def __init__(self) -> None:
+        self._changed = Condition()
+        self._alive = 0
+
+    @contextmanager
+    def reserve(self, count: int) -> Iterator[None]:
+        """Wait until ``count`` more processes fit the limit; hold them until the block ends."""
+        limit = render_worker_limit()
+        count = min(count, limit)
+        with self._changed:
+            self._changed.wait_for(lambda: self._alive + count <= limit)
+            self._alive += count
         try:
-            # forkserver, not fork: the API process is multi-threaded, and a
-            # child forked from it can inherit a held lock and deadlock. Not
-            # spawn either, which re-imports WeasyPrint for every worker.
-            pool = ProcessPoolExecutor(max_workers=workers, mp_context=get_context("forkserver"))
-        except (OSError, ValueError, AssertionError, NotImplementedError):
-            return None
-        _pool = (os.getpid(), pool)
-        return pool
+            yield
+        finally:
+            with self._changed:
+                self._alive -= count
+                self._changed.notify_all()
 
 
-def _discard_pool() -> None:
-    """Drop a pool that broke so the next request builds a fresh one."""
-    global _pool
-    with _pool_lock:
-        if _pool is None:
-            return
-        _, pool = _pool
-        _pool = None
-    pool.shutdown(wait=False)
+_render_processes = _ProcessBudget()
 
 
 def _chunk(units: list[object], count: int) -> list[list[object]]:
@@ -871,6 +984,7 @@ def render_report_pdf(
     """
     template, context, units_key, units = _document_plan(cards, one_card_per_sheet)
     jinja_template = _template_environment().get_template(template)
+    render = partial(render_pdf_document, private_assets=_signature_assets(cards))
 
     def document(sheets: list[object]) -> str:
         return jinja_template.render(**context, **{units_key: sheets})
@@ -881,29 +995,37 @@ def render_report_pdf(
     chunks = _chunk(units, max(batch_count, min(workers, len(units)) if parallel else 1))
 
     def serial() -> bytes:
-        parts = [render_pdf_document(document(chunk)) for chunk in chunks]
+        parts = [render(document(chunk)) for chunk in chunks]
         return parts[0] if len(parts) == 1 else _merge_pdf_parts(parts)
 
     if not parallel and len(chunks) == 1:
-        return _finish_report(render_pdf_document(document(units)), cards, watermark, back_cover)
+        return _finish_report(render(document(units)), cards, watermark, back_cover)
 
-    pool = _render_pool(workers) if parallel else None
-    if pool is None:
+    if not parallel:
         return _finish_report(serial(), cards, watermark, back_cover)
-    try:
-        parts: list[bytes] = []
-        # Submit only one wave at a time; queued HTML also holds embedded images.
-        for start in range(0, len(chunks), workers):
-            documents = [document(chunk) for chunk in chunks[start : start + workers]]
-            parts.extend(pool.map(render_pdf_document, documents))
-    except Exception:
-        # Deliberately broad: a pool can fail for reasons that have nothing to
-        # do with this report — a killed worker, a host that forbids child
-        # processes — and a report card that arrives slowly beats one that
-        # does not arrive. A fault in the document itself still surfaces,
-        # because the serial retry below renders the very same HTML.
-        logger.warning("parallel report render failed, falling back to serial", exc_info=True)
-        _discard_pool()
+    parts: list[bytes] | None = None
+    # Held until the wave's processes have exited or been stopped, so concurrent renders
+    # together never have more renderer processes alive than one render may use.
+    with _render_processes.reserve(workers):
+        deadline = time.monotonic() + RENDER_DEADLINE_SECONDS
+        try:
+            rendered: list[bytes] = []
+            # One wave at a time; a wave's HTML also holds embedded images.
+            for start in range(0, len(chunks), workers):
+                documents = [document(chunk) for chunk in chunks[start : start + workers]]
+                rendered.extend(_render_wave(render, documents, deadline))
+            parts = rendered
+        except TimeoutError:
+            logger.error("parallel report render passed its deadline; its workers were stopped")
+            raise
+        except Exception:
+            # Deliberately broad: a render process can fail for reasons that have nothing
+            # to do with this report — a killed process, a host that forbids child
+            # processes — and a report card that arrives slowly beats one that does not
+            # arrive. A fault in the document itself still surfaces, because the serial
+            # retry below renders the very same HTML.
+            logger.warning("parallel report render failed, falling back to serial", exc_info=True)
+    if parts is None:
         return _finish_report(serial(), cards, watermark, back_cover)
     return _finish_report(_merge_pdf_parts(parts), cards, watermark, back_cover)
 
@@ -932,12 +1054,13 @@ def render_cards_to_file(
     """
     template, context, units_key, units = _document_plan(cards, one_card_per_sheet)
     jinja_template = _template_environment().get_template(template)
+    signatures = _signature_assets(cards)
     batches = _chunk(units, max(1, -(-len(units) // JOB_RENDER_UNITS)))
     files: list[Path] = []
     for index, batch in enumerate(batches):
         path = output.with_name(f"{output.stem}-batch-{index:03d}.pdf")
         path.write_bytes(
-            render_pdf_document(jinja_template.render(**context, **{units_key: batch}))
+            render_pdf_document(jinja_template.render(**context, **{units_key: batch}), signatures)
         )
         files.append(path)
     if len(files) == 1:

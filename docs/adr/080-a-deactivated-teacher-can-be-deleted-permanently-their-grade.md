@@ -33,16 +33,62 @@ points at the account.
   `user.create`, `user.edit`, `signature.upload` and `signature.delete` for the account keep only
   `{"user_id"}` as their snapshot, drop the kept image and show the erased name without e-mail or
   name changes; `assignments.replace` entries show the erased name for the account's slots.
-- One lock order per account: whatever writes or records something about an account locks the
-  account row first: account edits and signature changes exclusively, assignment writers
-  (single slot and matrix), the year rollover, grid saves and grant requests (on the caller's own
-  account) shared, and undo before it locks the action row (exclusive for account actions, shared
-  on every teacher an assignment change names). The deletion holds the row exclusively, then
-  deletes assignments, then scrubs actions. So no action naming the account is recorded after the
-  scrub, assignment writers revalidate the account after waiting and refuse an inactive or deleted
-  one, the rollover leaves a deleted teacher's slots empty, a save or grant request that raced the
-  deactivation and deletion answers `401 not_registered` instead of saving through a removed
-  grant or recording a new one, and nothing deadlocks with the deletion.
+- One lock order for the writes that touch accounts, assignments, grants, recorded actions or
+  report identity: **accounts by id → year → class → assignment rows by id → action rows**. The
+  accounts are the acting administrator (or, for a teacher's own grid write, the teacher) and the
+  accounts the write names, locked together in id order: shared, except the one account whose row
+  the write changes, which is locked exclusively.
+- Administrator writes that change accounts or roles, cannot be undone, or touch assignments
+  check the acting administrator again under that lock: account create and edit, the signature
+  routes, permanent deletion, both assignment writers, undo and year close. One deactivated or
+  deleted meanwhile is refused with `401 not_registered`, one demoted meanwhile with
+  `403 forbidden`, before anything is written, erased or archived. Other administrator writes
+  (classes, rosters, fields, imports) rely on the request's authorization like any request already
+  under way: an administrator removed meanwhile finishes at most that one request.
+
+  | Write                                         | Locks, in order                                                                                                                                                                                                    |
+  | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+  | Account create                                | administrator (shared) → the new action                                                                                                                                                                            |
+  | Account edit; signature view, upload, removal | administrator (shared) and account (exclusive), by id → its identity audit → the new action                                                                                                                        |
+  | Permanent deletion                            | administrator (shared) and account (exclusive), by id → the account's slots by id → its grants → its identity audits → the actions naming it, by id                                                                |
+  | Assignment matrix and single slot             | administrator and destination teachers (shared), by id → year → the classes' slots by id → the new action                                                                                                          |
+  | Year close and rollover                       | administrator and the year's slot holders (shared), by id → year → the new year's rows                                                                                                                             |
+  | Grid save, grid undo, grant request           | the teacher's own account (shared) → grants (save, grant request) or the last save batch (undo) → the fields written, key share, by id → grade values and save batch → grade audit                                 |
+  | Undo of a recorded action                     | administrator (shared) and the accounts it names (exclusive for an account action, shared for an assignment change), by id → what the handler restores (year, class, roster, fields, slots by id) → the action row |
+
+  Undos of one action also take a transaction-scoped advisory lock on the action's id before any
+  row lock, so a second undo waits and then answers `409 action_already_undone` instead of
+  restoring the same rows twice; nothing else takes that key. The expiry purge takes no lock, so an
+  undo that waited past its action's expiry may find the action row gone when it locks it last;
+  it then rolls back and answers `410 action_expired`. A holder assigned while a year close
+  waited for the holders is locked after the year; nothing that locks an account exclusively goes
+  on to lock a year, so that cannot deadlock. So no action naming an account is recorded after its
+  scrub, assignment writers refuse an inactive or deleted teacher, the rollover leaves a deleted
+  teacher's slots empty, a checked write whose own account raced the deactivation and deletion is
+  refused instead of saving through a removed grant or recording, undoing, erasing or archiving
+  anything, and nothing deadlocks with the deletion.
+
+- Report rendering keeps teachers' signatures out of every process-wide state: the renderer's
+  only process-wide memo holds the fixed artwork's bytes (logo, faces, watermarks, overlay
+  assets), and WeasyPrint's parsed images, the asset fetcher and the signatures live only as long
+  as the document being rendered, in the API process and in render processes alike; a render that
+  printed a signature clears `urllib.parse.urlsplit`'s memo, which WeasyPrint fills with every URL
+  a document uses. A parallel
+  download uses no process pool: an executor's manager and queue threads keep the documents they
+  were sent, and a worker killed in the middle of its result could leave them blocked for good.
+  Instead each wave starts one process per document, each with its own pipe whose only write end
+  is the child's: the child renders, writes its PDF and exits, and the parent reads every pipe
+  without blocking until end of file, so a child that dies yields end of file at once. Whatever
+  happens, every process is terminated (then killed) if still running and joined, and every pipe
+  is closed. A process that exits without its whole PDF makes the download fall back to the serial
+  render. The forkserver preloads the renderer, so a process costs a fork, not a WeasyPrint import.
+  Concurrent renders share one budget of `render_worker_limit()` processes per OS process: a
+  render reserves its workers before starting a wave and releases them after the last process has
+  exited, so a second download waits rather than starting more processes. A parallel render that
+  has not finished after ten minutes (`RENDER_DEADLINE_SECONDS`) has a stuck process: its
+  processes are stopped, the budget is given back and the render fails, so one stuck process
+  cannot hold the budget for good. A deleted teacher's signature cannot be printed again or read
+  back from a running process.
 - No undo can bring the account back: undo handlers refuse a deleted account with
   `target_missing`.
 - Deleted accounts are left out of `/api/admin/users` and the `/api/users` teacher picker; editing
@@ -74,4 +120,5 @@ points at the account.
 
 ## Supersedes / Superseded by
 
-Extends ADR-075 (undo records) and Step 3.2's deactivation; supersedes nothing.
+Extends ADR-075 (undo records) and Step 3.2's deactivation. Supersedes ADR-046's warm renderer
+pool: a parallel download renders each document in a process of its own, with no executor.

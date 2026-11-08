@@ -56,7 +56,8 @@
       "collectGrades": {
         "title": "Noten des {{number}}. Halbjahres vervollständigen",
         "body": "{{percent}} der Noten sind erfasst; leere Zellen: {{missing}}. Sperren Sie das Halbjahr, sobald alle Noten erfasst sind.",
-        "noFields": "Für dieses Halbjahr sind noch keine Felder eingerichtet."
+        "noFields": "Für dieses Halbjahr sind noch keine Felder eingerichtet.",
+        "withoutFields": "Klassen ohne Felder: {{count}}. Richten Sie deren Felder ein, damit ihre Noten vor dem Sperren des Halbjahres erfasst werden können."
       },
       "advanceSemester": {
         "title": "Zum 2. Halbjahr wechseln",
@@ -803,6 +804,8 @@
       "pageMapping": "Die Seiten konnten den Schülern nicht sicher zugeordnet werden, daher wurde keine Datei erstellt. Bitte informieren Sie die Administration.",
       "tooLarge": "Eine einzelne Datei dieser Auswahl ist größer als erlaubt. Wählen Sie weniger Schüler oder Klassen oder ein ZIP-Format.",
       "retired": "Dieser alte Auftrag kann nicht mehr ausgeführt werden; erstellen Sie ihn erneut.",
+      "jobsPending": "Für Sie werden bereits mehrere Dateien erstellt. Warten Sie, bis eine fertig ist, und versuchen Sie es dann erneut.",
+      "queueUnavailable": "Die Datei konnte nicht eingereiht werden, weil der Auftragsdienst nicht verfügbar ist. Versuchen Sie es in einigen Minuten erneut.",
       "jobFailed": "Beim Erstellen der Datei ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut."
     }
   },

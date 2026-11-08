@@ -251,3 +251,68 @@ test("admin manages a class from student cards on a phone", async ({ browser }) 
     await context.close();
   }
 });
+
+test("a class deleted elsewhere closes its edit instead of editing the class shown next", async ({
+  browser,
+}) => {
+  const context = await authenticatedContext(browser, "admin@example-school.k12.tr");
+  const page = await context.newPage();
+  // A fake clock lets the class list go stale without waiting half a minute.
+  await page.clock.install();
+  await page.goto(`${adminOrigin}/admin/classes`);
+  const year = page.getByLabel("Academic year", { exact: true });
+  await year.selectOption({ label: "2027-2028" });
+  const yearId = await year.inputValue();
+  const classes = async () =>
+    (await (
+      await page.request.get(`${adminOrigin}/api/admin/years/${yearId}/classes`)
+    ).json()) as AdminClassOut[];
+  try {
+    for (const section of ["C", "D"]) {
+      await page.getByRole("button", { name: "Add class", exact: true }).click();
+      await page.getByRole("textbox", { name: "Section", exact: true }).fill(section);
+      await page.getByRole("button", { name: "Add class", exact: true }).click();
+      await expect(page.getByRole("button", { name: new RegExp(`^5/${section}`) })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+    }
+    await page.getByRole("button", { name: /^5\/C/ }).click();
+    await expect(page.getByRole("button", { name: /^5\/C/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await page.locator("#main").getByRole("button", { name: "Edit class", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("textbox", { name: "Section", exact: true }).fill("E");
+
+    // Another administrator deletes 5/C; the page's next refetch falls back to 5/D.
+    const deleted = (await classes()).find((item) => item.name === "5/C");
+    expect(deleted).toBeDefined();
+    const removal = await page.request.delete(`${adminOrigin}/api/admin/classes/${deleted!.id}`, {
+      headers: { Origin: adminOrigin },
+    });
+    expect(removal.ok()).toBe(true);
+    await page.clock.fastForward("01:00");
+    await page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
+
+    // The draft was for 5/C: once the list no longer has it, the dialog closes rather than
+    // saving the draft onto 5/D, the class the page falls back to.
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^5\/C/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^5\/D/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect((await classes()).map((item) => item.name)).toEqual(["5/D"]);
+  } finally {
+    // Later specs import into this year and count its classes; never leave one behind.
+    for (const leftover of await classes()) {
+      if (!["5/C", "5/D", "5/E"].includes(leftover.name)) continue;
+      await page.request.delete(`${adminOrigin}/api/admin/classes/${leftover.id}`, {
+        headers: { Origin: adminOrigin },
+      });
+    }
+    await context.close();
+  }
+});

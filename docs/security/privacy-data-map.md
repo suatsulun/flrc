@@ -41,7 +41,7 @@ The operation:
 - scrubs the account's names/email/personal changes/kept images from relevant admin action snapshots, preventing undo from restoring its identity;
 - revokes remaining sessions while retaining the user id referenced by grades, grade audits, save batches and jobs.
 
-This is identity erasure within the live database, not deletion of all school assessment history. Backups, downloaded PDFs and existing Drive bundles can still contain the former identity/signature until their separate retention ends. Follow the controller's backup/restore policy so restoring an old dump does not silently reintroduce erased identities.
+This is identity erasure within the live database, not deletion of all school assessment history. Backups, downloaded PDFs and existing Drive bundles can still contain the former identity/signature until their separate retention ends. Follow the controller's backup/restore policy so restoring an old dump does not silently reintroduce erased identities. Report renderers hold a teacher's signature only for the render that prints it, never in a process-wide cache, so it is not printed again after the deletion.
 
 ## Expiry, hiding and physical purge
 

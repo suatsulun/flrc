@@ -11,26 +11,35 @@ import type {
   MissingCell,
   StudentPage,
   UserOut,
+  YearOut,
 } from "../packages/api-client/src/index";
 import { adminOrigin } from "./helpers/origins";
 
 const en = JSON.parse(readFileSync("packages/i18n/src/locales/en.json", "utf8")) as {
   adminDashboard: {
-    steps: { collectGrades: { title: string } };
-    completion: { details: string };
+    term: { openLifecycle: string };
+    steps: {
+      activateYear: { title: string };
+      collectGrades: { title: string; withoutFields: string };
+    };
+    completion: { allComplete: string; details: string };
     missing: { tableLabel: string };
     problems: { unassignedRoles: string };
   };
+  lifecycle: { activate: string };
+  subjects: { german: string };
   audit: {
     actor: string;
     dateFrom: string;
     exportCsv: string;
     forced: string;
     studentFilter: string;
+    tableLabel: string;
     viaGrant: string;
   };
   changes: { title: string; empty: string };
-  coordinator: { expected: string; filled: string; missing: string };
+  coordinator: { expected: string; filled: string; missing: string; tableLabel: string };
+  loading: string;
 };
 
 const admin: MeOut = {
@@ -271,6 +280,112 @@ test("the old coordinator page opens the dashboard", async ({ page }) => {
   await expect(navigation.getByRole("link", { name: "Coordinator overview" })).toHaveCount(0);
 });
 
+test("the dashboard follows a lifecycle change made on another page", async ({ page }) => {
+  await mockApi(page);
+  let year: YearOut = {
+    id: 7,
+    label: "2030-2031",
+    status: "setup",
+    semesters: [
+      { id: 70, number: 1, status: "locked" },
+      { id: 71, number: 2, status: "locked" },
+    ],
+    missing_school_numbers: 0,
+  };
+  const inSetup: DashboardOut = {
+    ...dashboard,
+    term: { ...dashboard.term, year_status: "setup", semester_status: "locked" },
+    next_step: {
+      code: "activate_year",
+      semester_number: null,
+      completion_percent: null,
+      missing_cells: null,
+      blockers: [],
+    },
+    completion: null,
+    readiness: [],
+  };
+  await page.route("**/api/dashboard", (route) =>
+    route.fulfill({ json: year.status === "setup" ? inSetup : dashboard }),
+  );
+  await page.route("**/api/admin/years", (route) => route.fulfill({ json: [year] }));
+  await page.route("**/api/admin/years/7/activate", (route) => {
+    year = {
+      ...year,
+      status: "active",
+      semesters: [{ ...year.semesters[0]!, status: "open" }, year.semesters[1]!],
+    };
+    return route.fulfill({ json: year });
+  });
+
+  await page.goto(`${adminOrigin}/admin/`);
+  await expect(
+    page.getByText(en.adminDashboard.steps.activateYear.title.replace("{{year}}", "2030-2031"), {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: en.adminDashboard.term.openLifecycle }).click();
+  await page.getByRole("button", { name: en.lifecycle.activate, exact: true }).click();
+  await expect(page.getByTestId("lifecycle-year")).toHaveAttribute("data-year-status", "active");
+
+  // Back within the query's 30-second freshness window: the next step must not still say
+  // "activate" for a year that is already active.
+  await page.goBack();
+  await expect(
+    page.getByText(en.adminDashboard.steps.collectGrades.title.replace("{{number}}", "1"), {
+      exact: true,
+    }),
+  ).toBeVisible();
+});
+
+test("a grid with pupils but no fields is not reported as complete", async ({ page }) => {
+  await mockApi(page);
+  const complete = { ...completionRow, filled_cells: 4, missing_cells: 0, percent: 100 };
+  const withoutFields = {
+    ...completionRow,
+    subject: "german",
+    active_columns: 0,
+    expected_cells: 0,
+    filled_cells: 0,
+    missing_cells: 0,
+    percent: 100,
+  };
+  await page.route("**/api/dashboard", (route) =>
+    route.fulfill({
+      json: {
+        ...dashboard,
+        next_step: {
+          code: "collect_grades",
+          semester_number: 1,
+          completion_percent: 100,
+          missing_cells: 0,
+          blockers: [{ code: "classes_without_fields", count: 1 }],
+        },
+        completion: {
+          ...dashboard.completion!,
+          filled_cells: 4,
+          missing_cells: 0,
+          percent: 100,
+          complete_rows: 1,
+          incomplete_rows: 1,
+          rows: [complete, withoutFields],
+        },
+      } satisfies DashboardOut,
+    }),
+  );
+  await page.goto(`${adminOrigin}/admin/`);
+
+  await expect(
+    page.getByText(en.adminDashboard.steps.collectGrades.withoutFields.replace("{{count}}", "1"), {
+      exact: true,
+    }),
+  ).toBeVisible();
+  // The default "incomplete" view keeps the field-less grid instead of an all-clear.
+  const table = page.getByRole("table", { name: en.coordinator.tableLabel });
+  await expect(table.getByRole("row").filter({ hasText: en.subjects.german })).toBeVisible();
+  await expect(page.getByText(en.adminDashboard.completion.allComplete)).toHaveCount(0);
+});
+
 test("the audit CSV export carries the table's filters", async ({ page }) => {
   const exports: URL[] = [];
   await mockApi(page, exports);
@@ -328,3 +443,57 @@ for (const size of [
     );
   });
 }
+
+test("an audit filter change shows skeleton rows, not the previous filter's entries", async ({
+  page,
+}) => {
+  await mockApi(page);
+  const entry = (id: number, actor: string, student: string): AuditItemOut => ({
+    id,
+    created_at: "2030-10-01T09:00:00",
+    class_id: 11,
+    actor,
+    student,
+    column_label: "Speaking",
+    old_value: "70",
+    new_value: "80",
+    old_existed: true,
+    forced: false,
+    via_grant: false,
+  });
+  const filteredPage = Promise.withResolvers<void>();
+  // Registered after mockApi, so it answers the audit list first.
+  await page.route(
+    (url) => url.pathname === "/api/audit",
+    async (route) => {
+      const filtered = new URL(route.request().url()).searchParams.has("actor_id");
+      if (filtered) await filteredPage.promise;
+      const item = filtered
+        ? entry(2, "Synthetic Teacher", "Synthetic Filtered Pupil")
+        : entry(1, "Synthetic Admin", "Synthetic Unfiltered Pupil");
+      return route.fulfill({ json: { items: [item], next_cursor: null } satisfies AuditPageOut });
+    },
+  );
+  await page.goto(`${adminOrigin}/admin/audit`);
+
+  const table = page.getByLabel(en.audit.tableLabel, { exact: true });
+  const placeholders = table.locator("tbody tr[aria-hidden]");
+  const loading = page.getByRole("status").filter({ hasText: en.loading });
+  await expect(table.getByRole("row", { name: /Synthetic Unfiltered Pupil/ })).toBeVisible();
+
+  const actor = page.getByLabel(en.audit.actor, { exact: true });
+  await actor.focus();
+  await actor.selectOption({ label: "Synthetic Teacher" });
+  // While the filtered page loads, the old entries are gone and skeleton rows stand in;
+  // the filters stay mounted and focused, and one polite status says it is loading.
+  await expect(placeholders).toHaveCount(10);
+  await expect(table.getByText("Synthetic Unfiltered Pupil")).toHaveCount(0);
+  await expect(actor).toBeFocused();
+  await expect(actor).toHaveValue("5");
+  await expect(loading).toHaveCount(1);
+
+  filteredPage.resolve();
+  await expect(table.getByRole("row", { name: /Synthetic Filtered Pupil/ })).toBeVisible();
+  await expect(placeholders).toHaveCount(0);
+  await expect(loading).toHaveCount(0);
+});

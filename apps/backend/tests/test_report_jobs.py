@@ -1,7 +1,9 @@
 """Report downloads, background report jobs, the student picker and download names (ADR-077)."""
 
+import asyncio
 import os
 import tempfile
+import threading
 import time
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
@@ -14,9 +16,10 @@ from zipfile import ZipFile
 
 import pikepdf
 import pytest
+from kombu.exceptions import OperationalError
 from pypdf import PdfReader
 from redis.asyncio import Redis
-from sqlalchemy import create_engine, select, update
+from sqlalchemy import create_engine, select, text, update
 from sqlalchemy.orm import Session
 
 from flrc.config import settings
@@ -184,6 +187,18 @@ def test_content_disposition_has_an_ascii_fallback_and_an_encoded_utf8_name() ->
     assert content_disposition(None).startswith('attachment; filename="download"')
 
 
+def test_ascii_fallback_cannot_gain_quotes_from_compatibility_characters() -> None:
+    # NFKD turns fullwidth quotes and backslashes into ASCII ones; the quoted fallback must
+    # still hold exactly one name, not a second parameter taken from a stored pupil name.
+    header = content_disposition("8-A 1 Ali ＂; filename=＂evil＼.pdf")
+    assert header.startswith('attachment; filename="8-A 1 Ali ; filename=evil.pdf"; ')
+    fallback = header.split("; filename*=", 1)[0]
+    assert fallback.count('"') == 2 and "\\" not in fallback
+    assert disposition_name(header) == quote("8-A 1 Ali ＂; filename=＂evil＼.pdf", safe="")
+    # A name made only of such characters still gets a usable fallback.
+    assert content_disposition("＂＂").startswith('attachment; filename="download"')
+
+
 # Picker
 
 
@@ -332,8 +347,10 @@ async def test_direct_download_refuses_sets_that_need_a_job(api, world) -> None:
 
 
 async def test_job_creation_validates_scope_and_names_the_output(
-    api, world, queued, rate_limits
+    api, world, queued, rate_limits, monkeypatch
 ) -> None:
+    # Four scopes are queued here at once; the waiting-job cap has its own test.
+    monkeypatch.setattr(reports_router, "MAX_PENDING_REPORT_JOBS", 10)
     coordinator = await add_coordinator()
     other = await add_class(world, 5, "B", [("Middle Other", 5201)])
     elementary = await add_class(world, 3, "C", [("Primary Pupil", 3001)])
@@ -423,6 +440,121 @@ async def test_demo_refuses_report_jobs(api, world, queued, monkeypatch) -> None
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "demo_report_class_required"
     assert queued == []
+
+
+async def test_each_account_has_a_bounded_number_of_waiting_report_jobs(
+    api, world, queued, rate_limits
+) -> None:
+    coordinator = await add_coordinator()
+    limit = reports_router.MAX_PENDING_REPORT_JOBS
+    body = {"semester_id": world.semester, "kind": "english_middle", "format": "combined"}
+    async with api(coordinator) as client:
+        # Simultaneous requests cannot all pass the check before any of them is recorded.
+        responses = await asyncio.gather(
+            *(client.post("/api/reports/jobs", json=body) for _ in range(limit + 2))
+        )
+    assert sorted(response.status_code for response in responses) == [202] * limit + [409] * 2
+    refused = [response for response in responses if response.status_code == 409]
+    assert {response.json()["detail"]["code"] for response in refused} == {"report_jobs_pending"}
+    assert len(queued) == limit
+    await rate_limits()
+
+    # Another account's waiting work is its own.
+    async with api(world.admin) as client:
+        assert (await client.post("/api/reports/jobs", json=body)).status_code == 202
+    # A finished job frees its place.
+    async with TestSession() as db:
+        finished = await db.get(m.JobRun, queued[0])
+        assert finished is not None
+        finished.status = "failed"
+        await db.commit()
+    async with api(coordinator) as client:
+        assert (await client.post("/api/reports/jobs", json=body)).status_code == 202
+        assert (await client.post("/api/reports/jobs", json=body)).status_code == 409
+
+
+async def test_staged_parts_of_a_split_job_do_not_count_as_waiting_jobs(api, world, queued) -> None:
+    limit = reports_router.MAX_PENDING_REPORT_JOBS
+    body = {"semester_id": world.semester, "kind": "english_middle", "format": "per_student"}
+    async with api(world.admin) as client:
+        created = await client.post("/api/reports/jobs", json=body)
+        assert created.status_code == 202
+    # The job is splitting its output: each finished part is staged as a running row under it.
+    with Session(create_engine(TEST_URL_SYNC)) as db:
+        job = db.get(m.JobRun, created.json()["id"])
+        assert job is not None
+        jobs_service.mark_running(db, job, total=2)
+        for number in range(1, limit + 1):
+            jobs_service.store_part(
+                db, job, number=number, filename=f"part {number}.zip", data=b"zip"
+            )
+    async with api(world.admin) as client:
+        # One request is waiting, however many parts it has staged.
+        for _ in range(limit - 1):
+            assert (await client.post("/api/reports/jobs", json=body)).status_code == 202
+        refused = await client.post("/api/reports/jobs", json=body)
+    assert refused.status_code == 409
+    assert refused.json()["detail"]["code"] == "report_jobs_pending"
+
+
+def refuse_publication(_job_id: int) -> None:
+    raise OperationalError("Error 111 connecting to the broker")
+
+
+async def test_a_job_the_queue_refuses_fails_instead_of_waiting_forever(
+    api, world, queued, monkeypatch
+) -> None:
+    monkeypatch.setattr(reports_router.report_set_job, "delay", refuse_publication)
+    monkeypatch.setattr(reports_router.export_year_job, "delay", refuse_publication)
+    pinged: list[bool] = []
+
+    async def ping() -> None:
+        pinged.append(True)
+
+    monkeypatch.setattr(reports_router, "ping_worker_best_effort", ping)
+    async with api(world.admin) as client:
+        report = await client.post(
+            "/api/reports/jobs",
+            json={"semester_id": world.semester, "kind": "english_middle", "format": "combined"},
+        )
+        export = await client.post(f"/api/exports/year/{world.year}")
+        jobs = (await client.get("/api/jobs")).json()
+    for response in (report, export):
+        assert response.status_code == 503
+        assert response.json()["detail"]["code"] == "job_queue_unavailable"
+    assert [(job["kind"], job["status"], job["error_code"]) for job in jobs] == [
+        ("year_export", "failed", "job_queue_unavailable"),
+        ("report_set", "failed", "job_queue_unavailable"),
+    ]
+    assert pinged == []
+    # Both are finished, so neither counts against the account's waiting jobs.
+    async with TestSession() as db:
+        assert all(job.finished_at for job in await db.scalars(select(m.JobRun)))
+
+
+async def test_listing_waiting_jobs_wakes_the_worker(api, world, queued, monkeypatch) -> None:
+    pinged: list[bool] = []
+
+    async def ping() -> None:
+        pinged.append(True)
+
+    monkeypatch.setattr(reports_router, "ping_worker_best_effort", ping)
+    async with api(world.admin) as client:
+        assert (await client.get("/api/jobs")).json() == []
+        assert pinged == []
+        created = await client.post(
+            "/api/reports/jobs",
+            json={"semester_id": world.semester, "kind": "english_middle", "format": "combined"},
+        )
+        assert created.status_code == 202
+        pinged.clear()
+        # The downloads list polls the list, not each job: a lost wake-up is sent again.
+        assert [job["status"] for job in (await client.get("/api/jobs")).json()] == ["queued"]
+        assert pinged == [True]
+        report_tasks.report_set_job(created.json()["id"])
+        pinged.clear()
+        assert [job["status"] for job in (await client.get("/api/jobs")).json()] == ["succeeded"]
+    assert pinged == []
 
 
 # Running jobs and packaging
@@ -537,6 +669,61 @@ async def test_selected_students_job_prints_only_them(api, world, queued) -> Non
     text = "".join(pdf_text(data))
     assert "Synthetic Student Two" in text and "Pupil Gamma" in text
     assert "Synthetic Student One" not in text and "Pupil Alpha" not in text
+
+
+async def test_a_selected_pupil_who_left_the_set_fails_the_job(api, world, queued) -> None:
+    await add_german(world, world.student_one, world.student_two)
+    body = {
+        "semester_id": world.semester,
+        "kind": "german_karne",
+        "format": "combined",
+        "student_ids": [world.student_one, world.student_two],
+    }
+    async with api(world.admin) as client:
+        created = await client.post("/api/reports/jobs", json=body)
+        assert created.status_code == 202, created.text
+        # Before the worker starts, one of the two changes to French.
+        async with TestSession() as db:
+            language = await db.scalar(
+                select(m.StudentLanguage).where(m.StudentLanguage.student_id == world.student_two)
+            )
+            assert language is not None
+            language.language = "french"
+            await db.commit()
+        report_tasks.report_set_job(created.json()["id"])
+        job = (await client.get(f"/api/jobs/{created.json()['id']}")).json()
+    # The file would silently miss a pupil the admin chose, so none is made.
+    assert (job["status"], job["error_code"]) == ("failed", "student_not_in_report_set")
+    assert job["output_size"] is None
+
+
+async def test_a_chosen_class_whose_pupils_all_left_the_set_fails_the_job(
+    api, world, queued
+) -> None:
+    await add_german(world, world.student_one)
+    other = await add_class(world, 5, "B", [("German Only", 5301)], language="german")
+    body = {
+        "semester_id": world.semester,
+        "kind": "german_karne",
+        "format": "per_class",
+        "class_ids": [world.cls, other.id],
+    }
+    async with api(world.admin) as client:
+        created = await client.post("/api/reports/jobs", json=body)
+        assert created.status_code == 202, created.text
+        # Before the worker starts, 5/B's only German pupil changes to French.
+        async with TestSession() as db:
+            language = await db.scalar(
+                select(m.StudentLanguage).where(m.StudentLanguage.student_id == other.students[0])
+            )
+            assert language is not None
+            language.language = "french"
+            await db.commit()
+        report_tasks.report_set_job(created.json()["id"])
+        job = (await client.get(f"/api/jobs/{created.json()['id']}")).json()
+    # The file would silently miss a class the admin chose, so none is made.
+    assert (job["status"], job["error_code"]) == ("failed", "class_not_in_report_set")
+    assert job["output_size"] is None
 
 
 async def test_a_page_mapping_mismatch_fails_the_job_instead_of_misfiling(
@@ -933,6 +1120,194 @@ async def test_staged_parts_expire_on_their_own_and_purge_reclaims_aborted_ones(
         db.commit()
         assert jobs_service.purge_job_outputs(db) == 1
         assert db.scalar(select(m.JobRun).where(m.JobRun.parent_id == request_id)) is None
+
+
+async def test_a_finished_job_reclaims_the_workspace_of_its_interrupted_attempt(
+    api, world, queued, tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    async with api(world.admin) as client:
+        created = await client.post(
+            "/api/reports/jobs",
+            json={"semester_id": world.semester, "kind": "english_middle", "format": "per_class"},
+        )
+        job_id = created.json()["id"]
+    # A killed attempt left its PDFs behind, and the job still says running when the
+    # redelivered attempt takes it, so neither the restart nor the new attempt may remove them.
+    abandoned = tmp_path / f"{packaging.workspace_prefix(job_id)}killed"
+    abandoned.mkdir()
+    (abandoned / "class-0000.pdf").write_bytes(b"%PDF-")
+    async with TestSession() as db:
+        job = await db.get(m.JobRun, job_id)
+        assert job is not None
+        job.status = "running"
+        await db.commit()
+
+    report_tasks.report_set_job(job_id)
+
+    async with TestSession() as db:
+        job = await db.get(m.JobRun, job_id)
+        assert job is not None
+        assert job.status == "succeeded"
+    # Once the job is finished, nothing of either attempt stays on disk.
+    assert list(tmp_path.glob(f"{packaging.WORKSPACE_PREFIX}*")) == []
+
+
+async def three_part_pupil_set(world, monkeypatch) -> dict[str, object]:
+    """A per-pupil set of 5/A and 6/A that comes out in three parts."""
+    await three_pupil_class(world)
+    classes = middle_classes(world.semester)
+    largest = max(pupil_file_sizes(classes[1]))
+    overhead = packaging.ARCHIVE_OVERHEAD + 2 * (packaging.ENTRY_OVERHEAD + 300)
+    monkeypatch.setattr(packaging, "MAX_OUTPUT_BYTES", int(largest * 2.1) + overhead)
+    return {"semester_id": world.semester, "kind": "english_middle", "format": "per_student"}
+
+
+def age_part(request_id: int, number: int) -> None:
+    """Let a staged part's bound run out, as if it was stored more than six hours ago."""
+    with Session(create_engine(TEST_URL_SYNC)) as other:
+        other.execute(
+            update(m.JobRun)
+            .where(m.JobRun.parent_id == request_id, m.JobRun.part == number)
+            .values(output_expires_at=now() - timedelta(seconds=1))
+        )
+        other.commit()
+
+
+def nightly_purge() -> None:
+    """The backup sidecar's purge, in its own connection while the job runs."""
+    with Session(create_engine(TEST_URL_SYNC)) as other:
+        jobs_service.purge_job_outputs(other)
+
+
+async def test_a_split_job_that_keeps_advancing_keeps_its_staged_parts(
+    api, world, queued, monkeypatch
+) -> None:
+    body = await three_part_pupil_set(world, monkeypatch)
+    store, publish = report_tasks.store_part, report_tasks.mark_parts_succeeded
+
+    def store_then_age(db, job, **part):
+        store(db, job, **part)
+        if part["number"] == 1:
+            age_part(job.id, 1)
+
+    def purge_then_publish(db, job, *args, **kwargs):
+        # The job has finished classes since its first part: the purge must leave it alone.
+        nightly_purge()
+        publish(db, job, *args, **kwargs)
+
+    monkeypatch.setattr(report_tasks, "store_part", store_then_age)
+    monkeypatch.setattr(report_tasks, "mark_parts_succeeded", purge_then_publish)
+    async with api(world.admin) as client:
+        job_id = (await client.post("/api/reports/jobs", json=body)).json()["id"]
+        report_tasks.report_set_job(job_id)
+        job = (await client.get(f"/api/jobs/{job_id}")).json()
+        listed = (await client.get("/api/jobs")).json()
+
+    assert job["status"] == "succeeded"
+    parts = [item for item in listed if item["parent_id"] == job_id]
+    assert sorted(part["part"] for part in parts) == [1, 2, 3]
+
+
+async def test_purge_fails_a_stalled_split_job_instead_of_it_publishing_a_partial_set(
+    api, world, queued, monkeypatch
+) -> None:
+    body = await three_part_pupil_set(world, monkeypatch)
+    store = report_tasks.store_part
+
+    def store_then_stall(db, job, **part):
+        store(db, job, **part)
+        if part["number"] == 1:
+            # The job stops advancing past the staging bound right after its first part, and
+            # the nightly purge reclaims that part before the job resumes.
+            age_part(job.id, 1)
+            nightly_purge()
+
+    monkeypatch.setattr(report_tasks, "store_part", store_then_stall)
+    async with api(world.admin) as client:
+        job_id = (await client.post("/api/reports/jobs", json=body)).json()["id"]
+        with pytest.raises(jobs_service.IncompletePartsError):
+            report_tasks.report_set_job(job_id)
+        job = (await client.get(f"/api/jobs/{job_id}")).json()
+        listed = (await client.get("/api/jobs")).json()
+
+    assert job["status"] == "failed"
+    assert job["error_code"] == "report_set_failed"
+    assert [item for item in listed if item["parent_id"] == job_id] == []
+    async with TestSession() as db:
+        assert (
+            await db.scalars(select(m.JobRun.id).where(m.JobRun.parent_id == job_id))
+        ).all() == []
+
+
+async def test_purge_spares_parts_a_job_renews_while_the_purge_waits(world, monkeypatch) -> None:
+    async with TestSession() as db:
+        request = m.JobRun(
+            kind="report_set", status="running", requested_by=world.admin.id, payload={}
+        )
+        db.add(request)
+        await db.commit()
+        request_id = request.id
+    engine = create_engine(TEST_URL_SYNC)
+    with Session(engine) as worker, Session(engine) as observer:
+        job = worker.get(m.JobRun, request_id)
+        assert job is not None
+        jobs_service.store_part(worker, job, number=1, filename="part 1.zip", data=b"zip")
+        age_part(request_id, 1)
+        # The job finishes a class at the six-hour boundary: its heartbeat has written the
+        # request and renewed the part, but has not committed when the nightly purge starts.
+        with monkeypatch.context() as patch:
+            patch.setattr(worker, "commit", worker.flush)
+            jobs_service.record_progress(worker, job, 1)
+        purge = threading.Thread(target=nightly_purge)
+        purge.start()
+        deadline = time.monotonic() + 10
+        while not observer.scalar(
+            text(
+                "SELECT count(*) FROM pg_stat_activity"
+                " WHERE datname = current_database() AND wait_event_type = 'Lock'"
+            )
+        ):
+            observer.rollback()
+            assert time.monotonic() < deadline, "the purge never waited for the request row"
+            time.sleep(0.05)
+        worker.commit()
+        purge.join(timeout=10)
+        assert not purge.is_alive()
+
+    with Session(engine) as db:
+        # The purge waited for the heartbeat and saw the renewed part: nothing was reclaimed.
+        assert db.get_one(m.JobRun, request_id).status == "running"
+        part = db.scalar(select(m.JobRun).where(m.JobRun.parent_id == request_id))
+        assert part is not None
+        assert part.output_expires_at is not None and part.output_expires_at > now()
+
+
+async def test_a_split_set_missing_a_part_is_never_published(world) -> None:
+    async with TestSession() as db:
+        request = m.JobRun(
+            kind="report_set", status="running", requested_by=world.admin.id, payload={}
+        )
+        db.add(request)
+        await db.commit()
+        request_id = request.id
+    with Session(create_engine(TEST_URL_SYNC)) as db:
+        job = db.get(m.JobRun, request_id)
+        assert job is not None
+        for number in (2, 3):
+            jobs_service.store_part(
+                db, job, number=number, filename=f"part {number}.zip", data=b"zip"
+            )
+        with pytest.raises(jobs_service.IncompletePartsError):
+            jobs_service.mark_parts_succeeded(db, job, parts=3)
+        db.rollback()
+        statuses = db.scalars(
+            select(m.JobRun.status).where(
+                (m.JobRun.id == request_id) | (m.JobRun.parent_id == request_id)
+            )
+        ).all()
+        # Nothing was published: the request and both parts are still staged.
+        assert statuses == ["running"] * 3
 
 
 async def test_a_coordinator_sees_their_own_year_export(api, world) -> None:

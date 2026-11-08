@@ -1,5 +1,7 @@
 import base64
 import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,6 +14,7 @@ from flrc.db.models import AcademicYear, Enrollment, SchoolClass, Student, User
 from flrc.db.session import get_session
 from flrc.modules.academics.class_names import class_label
 from flrc.modules.academics.programme import stage_for_grade
+from flrc.modules.administration.classes import writable_class_year
 from flrc.modules.administration.names import search_key
 from flrc.modules.administration.roster_service import (
     is_duplicate_school_number,
@@ -137,9 +140,15 @@ async def list_students(
     )
 
 
-async def _commit_numbered(db: AsyncSession) -> None:
-    """Commit, reporting a concurrent per-stage number clash as a conflict."""
+@asynccontextmanager
+async def _numbered_write(db: AsyncSession) -> AsyncIterator[None]:
+    """Flush and commit a pupil's number, reporting a concurrent per-stage clash as a conflict.
+
+    The block holds every statement after the number changes: a query autoflushes it and
+    recording the action flushes it, so a clash there is reported like one at the commit.
+    """
     try:
+        yield
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
@@ -157,9 +166,9 @@ async def create_student(
     school_class = await db.get(SchoolClass, body.class_id)
     if school_class is None or school_class.year_id != body.year_id:
         raise HTTPException(422, {"code": "invalid_class"})
-    year = await db.get(AcademicYear, body.year_id)
-    if year is None or year.status == "archived":
-        raise HTTPException(409, {"code": "year_not_writable"})
+    # The year first, as every roster write does, and until the commit: a number check and
+    # insert racing a renumbering then queue behind it instead of deadlocking on the number.
+    await writable_class_year(db, body.year_id)
     if await school_number_taken(
         db,
         year_id=body.year_id,
@@ -174,26 +183,26 @@ async def create_student(
     )
     db.add(student)
     await db.flush()
-    db.add(
-        Enrollment(
-            student_id=student.id,
-            year_id=body.year_id,
-            class_id=body.class_id,
-            school_number=body.school_number,
+    async with _numbered_write(db):
+        db.add(
+            Enrollment(
+                student_id=student.id,
+                year_id=body.year_id,
+                class_id=body.class_id,
+                school_number=body.school_number,
+            )
         )
-    )
-    action = await record_action(
-        db,
-        actor=user,
-        kind="student.add",
-        params={
-            "student": student.full_name,
-            "class": class_label(school_class.grade_level, school_class.section),
-            "number": body.school_number,
-        },
-        undo={"student_id": student.id, "year_id": body.year_id},
-    )
-    await _commit_numbered(db)
+        action = await record_action(
+            db,
+            actor=user,
+            kind="student.add",
+            params={
+                "student": student.full_name,
+                "class": class_label(school_class.grade_level, school_class.section),
+                "number": body.school_number,
+            },
+            undo={"student_id": student.id, "year_id": body.year_id},
+        )
     return StudentWriteOut(
         id=student.id,
         school_number=body.school_number,
@@ -212,7 +221,9 @@ async def patch_student(
     db: Annotated[AsyncSession, Depends(get_session)],
     year_id: int,
 ) -> StudentWriteOut:
-    # Locked until the commit, so the recorded undo snapshot is what this edit replaced.
+    # The year, then the pupil and enrollment (the order every roster write and undo uses),
+    # locked until the commit, so the recorded undo snapshot is what this edit replaced.
+    year = await db.scalar(select(AcademicYear).where(AcademicYear.id == year_id).with_for_update())
     row = (
         await db.execute(
             select(Enrollment, Student)
@@ -227,7 +238,6 @@ async def patch_student(
             raise HTTPException(404, {"code": "unknown_student"})
         raise HTTPException(404, {"code": "unknown_enrollment"})
     enrollment, student = row
-    year = await db.get(AcademicYear, year_id)
     if year is None or year.status == "archived":
         raise HTTPException(409, {"code": "year_not_writable"})
     before: dict[str, object] = {
@@ -250,25 +260,25 @@ async def patch_student(
     changed_before, changed_after = changed_values(
         before, {"full_name": student.full_name, "school_number": enrollment.school_number}
     )
-    school_class = await db.get(SchoolClass, enrollment.class_id)
-    assert school_class is not None
-    action = await record_action(
-        db,
-        actor=user,
-        kind="student.edit",
-        params={
-            "student": student.full_name,
-            "class": class_label(school_class.grade_level, school_class.section),
-            "changes": change_list(changed_before, changed_after),
-        },
-        undo={
-            "student_id": student_id,
-            "year_id": year_id,
-            "before": changed_before,
-            "after": changed_after,
-        },
-    )
-    await _commit_numbered(db)
+    async with _numbered_write(db):
+        school_class = await db.get(SchoolClass, enrollment.class_id)
+        assert school_class is not None
+        action = await record_action(
+            db,
+            actor=user,
+            kind="student.edit",
+            params={
+                "student": student.full_name,
+                "class": class_label(school_class.grade_level, school_class.section),
+                "changes": change_list(changed_before, changed_after),
+            },
+            undo={
+                "student_id": student_id,
+                "year_id": year_id,
+                "before": changed_before,
+                "after": changed_after,
+            },
+        )
     return StudentWriteOut(
         id=student.id,
         school_number=enrollment.school_number,

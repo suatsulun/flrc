@@ -42,9 +42,13 @@ export function CompletionCard({
   const { t, i18n } = useTranslation();
   const [filter, setFilter] = useState<Filter>("incomplete");
   const [selected, setSelected] = useState<CompletenessRow>();
-  // A subject nobody in the class takes has no grid; it is neither complete nor missing.
+  // A subject nobody in the class takes has no grid; it is neither complete nor missing. A grid
+  // with pupils but no fields is unfinished: it has nothing to fill yet.
   const taught = completion.rows.filter((row) => row.roster_count > 0);
-  const rows = filter === "all" ? taught : taught.filter((row) => row.missing_cells > 0);
+  const rows =
+    filter === "all"
+      ? taught
+      : taught.filter((row) => row.expected_cells === 0 || row.missing_cells > 0);
 
   return (
     <Card className="lg:col-span-2">

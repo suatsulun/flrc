@@ -171,9 +171,10 @@ async def _hold_own_account(db: AsyncSession, user: User) -> None:
     """Hold the caller's account row (shared) until the request commits (ADR-080).
 
     Authentication read the account once, without a lock. A deactivation and permanent
-    deletion that raced the request either waits for this save or grant request, or has
-    already committed, and then the request is refused here instead of recording a grant
-    after the deletion ended them, or saving through a grant the deletion removed.
+    deletion that raced the request either waits for this save, grid undo or grant request,
+    or has already committed, and then the request is refused here instead of recording a
+    grant after the deletion ended them, saving through a grant the deletion removed, or
+    recording grade history for an erased account.
     """
     if not assignable((await lock_accounts(db, [user.id])).get(user.id)):
         raise HTTPException(401, {"code": "not_registered"})
@@ -511,6 +512,18 @@ async def save_grid(
         for role in roles:
             grants[role], _ = await _renew_grant(db, user.id, class_id, role)
 
+    # The fields this save writes, in id order, before its first grade or audit row. Their
+    # foreign keys then find these key-share locks already held, so removing copied fields,
+    # which locks them FOR UPDATE in id order, waits for the save rather than deadlocking.
+    written = sorted({cell.column_id for cell in body.cells if cell.column_id in columns})
+    if written:
+        await db.execute(
+            select(ColumnDefinition.id)
+            .where(ColumnDefinition.id.in_(written))
+            .order_by(ColumnDefinition.id)
+            .with_for_update(read=True, key_share=True)
+        )
+
     applied: list[AppliedOut] = []
     rejected: list[RejectedOut] = []
     raw_conflicts: list[dict[str, Any]] = []
@@ -736,6 +749,7 @@ async def undo_grid(
     semester: Annotated[Semester, Depends(writable_semester)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> SaveResponse:
+    await _hold_own_account(db, user)
     cls = await _writable_class(db, class_id, semester)
     batch = (
         await db.execute(
@@ -753,9 +767,11 @@ async def undo_grid(
         column.id: column
         for column in (
             await db.scalars(
-                select(ColumnDefinition).where(
-                    ColumnDefinition.id.in_({entry.column_definition_id for entry in entries})
-                )
+                select(ColumnDefinition)
+                .where(ColumnDefinition.id.in_({entry.column_definition_id for entry in entries}))
+                # Key-share, in id order, as a save locks the fields it writes (see save_grid).
+                .order_by(ColumnDefinition.id)
+                .with_for_update(read=True, key_share=True)
             )
         )
     }

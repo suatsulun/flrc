@@ -109,7 +109,9 @@ function AuditPage() {
     },
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
-    // A filter change keeps the filters (and the table) on screen while the new page loads.
+    // A filter change keeps the filters on screen (and focused) while the new page loads;
+    // the previous filter's rows and phone cards stay hidden behind skeletons, never shown as
+    // current.
     placeholderData: keepPreviousData,
   });
   const items = audit.data?.pages.flatMap((page) => page.items) ?? [];
@@ -269,7 +271,9 @@ function AuditPage() {
                 </tr>
               </TableHead>
               <TableBody>
-                {items.length === 0 ? (
+                {audit.isPlaceholderData ? (
+                  <SkeletonTableRows columns={6} rows={10} />
+                ) : items.length === 0 ? (
                   <TableEmpty colSpan={6}>
                     {filtered ? t("audit.noMatches") : t("audit.empty")}
                   </TableEmpty>
@@ -321,7 +325,9 @@ function AuditPage() {
             </Table>
           </TableScroll>
         </CardBody>
-        {items.length === 0 ? (
+        {audit.isPlaceholderData ? (
+          <SkeletonList rows={10} className="md:hidden" />
+        ) : items.length === 0 ? (
           <p className="px-5 py-6 text-sm text-muted-foreground md:hidden">
             {filtered ? t("audit.noMatches") : t("audit.empty")}
           </p>
@@ -373,7 +379,7 @@ function AuditPage() {
         ) : null}
       </Card>
 
-      {audit.hasNextPage ? (
+      {audit.hasNextPage && !audit.isPlaceholderData ? (
         <div className="flex justify-center">
           <Button
             variant="outline"

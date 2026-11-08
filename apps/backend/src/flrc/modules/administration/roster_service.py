@@ -108,7 +108,9 @@ async def lock_enrollments(
     """Lock pupils' enrollments of one year, in id order, and read them fresh.
 
     Every write of a pupil's yearly data (number, class, second language) and its undo
-    takes this lock first, so a recorded previous state cannot change before the commit.
+    takes this lock, after the year's (``writable_class_year``), so a recorded previous state
+    cannot change before the commit. Removal locks in the same order: a new language row's
+    foreign key waits for the year, so an enrollment taken first could deadlock with it.
     """
     return list(
         await db.scalars(

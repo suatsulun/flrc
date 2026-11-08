@@ -22,7 +22,6 @@ from concurrent.futures import Future, ProcessPoolExecutor
 from contextlib import ExitStack
 from dataclasses import dataclass
 from itertools import chain
-from multiprocessing import get_context
 from pathlib import Path
 from tempfile import SpooledTemporaryFile, TemporaryDirectory
 from typing import Literal, cast
@@ -38,6 +37,7 @@ from flrc.modules.reports.render import (
     concatenate_pdfs,
     cover_duplex_backs,
     render_cards_to_file,
+    render_process_context,
     render_worker_limit,
 )
 
@@ -340,7 +340,7 @@ def package_report_set(
         # A pool per job: its processes, and the memory they used, end with the job.
         pool = (
             stack.enter_context(
-                ProcessPoolExecutor(max_workers=workers, mp_context=get_context("forkserver"))
+                ProcessPoolExecutor(max_workers=workers, mp_context=render_process_context())
             )
             if workers > 1
             else None

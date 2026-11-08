@@ -914,6 +914,9 @@
   },
   "classReport": {
     "nav": "Klassenbericht",
+    "navSection": "Berichte",
+    "noneTitle": "Keine Klassenberichte vorhanden",
+    "noneBody": "Klassenberichte gibt es für Englisch in der Mittelstufe (Stufen 5 bis 8), und in diesem Schuljahr gibt es keine solche Klasse. Sobald Klassen angelegt sind, öffnen sich die Berichte hier.",
     "title": "Klassenbericht",
     "semester": "{{number}}. Halbjahr",
     "students": "{{count}} Schüler/innen",
@@ -942,6 +945,7 @@
     "nav": "Zeugnisvorschau",
     "title": "Zeugnisvorschau",
     "description": "Prüfen Sie die Zeugnisse der Schüler/innen Ihrer Klassen vor dem Druck am Bildschirm. Die Vorschau dient nur zur Ansicht.",
+    "descriptionAll": "Prüfen Sie die Zeugnisse aller Klassen der Schule vor dem Druck am Bildschirm. Die Vorschau dient nur zur Ansicht.",
     "classLabel": "Klasse und Zeugnis",
     "semesterLabel": "Halbjahr",
     "studentsLabel": "Schüler/innen",
@@ -959,6 +963,7 @@
     "retry": "Erneut versuchen",
     "emptyTitle": "Keine Zeugnisse zur Vorschau",
     "emptyBody": "Sie haben in diesem Schuljahr keine Klassenzuweisung. Die Vorschau umfasst nur Klassen, die Sie unterrichten.",
+    "emptyAllBody": "In diesem Schuljahr gibt es noch keine Klassen. Sobald Klassen und Schüler/innen angelegt sind, können Sie ihre Zeugnisse hier ansehen.",
     "noStudentsTitle": "Keine Schüler/innen für dieses Zeugnis",
     "noStudentsBody": "In dieser Klasse erhält niemand dieses Zeugnis.",
     "watermarkNote": "Vorschauen tragen das Wasserzeichen ÖNİZLEME (Vorschau) und dienen nur zur Ansicht; offizielle Zeugnisse werden im Verwaltungsbereich gedruckt."

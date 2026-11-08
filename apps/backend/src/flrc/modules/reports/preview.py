@@ -8,7 +8,8 @@ so it can never pass for an issued card.
 Unlike grade reads (ADR-071), a card is personal data of one student, so a
 teacher sees only the cards their own assignments produce in that year:
 main/skills give the class's English card, german/french give that karne for
-the students who take the language. Administrators may preview any card.
+the students who take the language. Administrators and coordinators oversee
+the whole school and may preview every card of every class.
 """
 
 from collections.abc import Iterable
@@ -95,6 +96,11 @@ def card_kind(role: str, grade_level: int) -> ReportKind | None:
     return None
 
 
+def sees_every_card(user: User) -> bool:
+    """Administrators and coordinators may preview every card; teachers only their own."""
+    return user.is_admin or user.is_coordinator
+
+
 async def _roster(
     db: AsyncSession, *, year_id: int, class_ids: Iterable[int]
 ) -> dict[int, list[tuple[PreviewStudentOut, str | None]]]:
@@ -170,10 +176,12 @@ async def get_preview_scope(
     db: Annotated[AsyncSession, Depends(get_session)],
     semester_id: int | None = None,
 ) -> PreviewScopeOut:
-    """The cards the signed-in user's own assignments produce in a semester's year.
+    """The cards the signed-in user may preview in a semester's year.
 
-    Without ``semester_id`` the current term is used. Lists only classes where the
-    user holds a teaching assignment, administrators included.
+    Without ``semester_id`` the current term is used. Teachers get the classes where
+    they hold a teaching assignment. Administrators and coordinators get every class
+    of the year with every card it has: the English card of its grade, and the German
+    or French karne when some of its pupils take that language.
     """
     if semester_id is None:
         semester = await _default_semester(db)
@@ -191,22 +199,37 @@ async def get_preview_scope(
         )
     )
 
-    assignments = (
-        await db.execute(
-            select(SchoolClass, TeachingAssignment.role)
-            .join(TeachingAssignment, TeachingAssignment.class_id == SchoolClass.id)
-            .where(SchoolClass.year_id == year.id, TeachingAssignment.user_id == user.id)
-        )
-    ).all()
     kinds_by_class: dict[int, set[ReportKind]] = {}
     classes: dict[int, SchoolClass] = {}
-    for school_class, role in assignments:
-        kind = card_kind(role, school_class.grade_level)
-        if kind is not None:
+    if sees_every_card(user):
+        for school_class in await db.scalars(
+            select(SchoolClass).where(SchoolClass.year_id == year.id)
+        ):
             classes[school_class.id] = school_class
-            kinds_by_class.setdefault(school_class.id, set()).add(kind)
+        roster = await _roster(db, year_id=year.id, class_ids=classes) if classes else {}
+        for class_id, school_class in classes.items():
+            languages = {language for _, language in roster.get(class_id, [])}
+            roles = ["main", *(language for language in SECOND_LANGUAGES if language in languages)]
+            kinds_by_class[class_id] = {
+                kind
+                for role in roles
+                if (kind := card_kind(role, school_class.grade_level)) is not None
+            }
+    else:
+        assignments = (
+            await db.execute(
+                select(SchoolClass, TeachingAssignment.role)
+                .join(TeachingAssignment, TeachingAssignment.class_id == SchoolClass.id)
+                .where(SchoolClass.year_id == year.id, TeachingAssignment.user_id == user.id)
+            )
+        ).all()
+        for school_class, role in assignments:
+            kind = card_kind(role, school_class.grade_level)
+            if kind is not None:
+                classes[school_class.id] = school_class
+                kinds_by_class.setdefault(school_class.id, set()).add(kind)
+        roster = await _roster(db, year_id=year.id, class_ids=classes) if classes else {}
 
-    roster = await _roster(db, year_id=year.id, class_ids=classes) if classes else {}
     entries = [
         PreviewClassOut(
             class_id=school_class.id,
@@ -263,8 +286,10 @@ async def get_report_preview(
     """One student's card as an inline PDF marked "ÖNİZLEME" on every page.
 
     Teachers may preview only the card their own assignment in the student's
-    class produces; administrators may preview any card. Everyone else gets 403.
+    class produces; administrators and coordinators may preview any card.
+    Everyone else gets 403.
     """
+    elevated = sees_every_card(user)
     semester = await db.get(Semester, semester_id)
     if semester is None:
         raise HTTPException(404, {"code": "unknown_semester"})
@@ -276,10 +301,10 @@ async def get_report_preview(
         )
     ).scalar_one_or_none()
     if placement is None:
-        if not user.is_admin:
+        if not elevated:
             raise HTTPException(403, {"code": "forbidden"})
         raise HTTPException(404, {"code": "unknown_student"})
-    if not user.is_admin:
+    if not elevated:
         roles = await db.scalars(
             select(TeachingAssignment.role).where(
                 TeachingAssignment.class_id == placement.id,
@@ -297,7 +322,7 @@ async def get_report_preview(
     spec = REPORT_SETS[kind]
     if not eligible or not spec.first_grade <= placement.grade_level <= spec.last_grade:
         # A teacher's own card kind always fits the grade, so only the language can miss.
-        if not user.is_admin:
+        if not elevated:
             raise HTTPException(403, {"code": "forbidden"})
         raise HTTPException(409, {"code": "report_preview_not_eligible"})
 

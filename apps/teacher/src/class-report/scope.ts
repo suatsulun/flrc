@@ -17,3 +17,8 @@ export function reportClasses(catalog: ClassCatalogOut[], { mine }: { mine: bool
       (!mine || schoolClass.assigned_roles.some((role) => ENGLISH_ROLES.includes(role))),
   );
 }
+
+/** The class report a user opens by default: their own middle-school English class, else the first. */
+export function defaultReportClass(catalog: ClassCatalogOut[]) {
+  return reportClasses(catalog, { mine: true })[0] ?? reportClasses(catalog, { mine: false })[0];
+}

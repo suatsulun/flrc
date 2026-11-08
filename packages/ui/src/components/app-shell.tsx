@@ -1,4 +1,5 @@
 import {
+  ArrowLeftRightIcon,
   MenuIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
@@ -6,9 +7,15 @@ import {
   PanelTopOpenIcon,
   XIcon,
 } from "lucide-react";
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  type CSSProperties,
+  type MouseEventHandler,
+  type ReactNode,
+} from "react";
 
-import { Button } from "#components/button";
+import { Button, buttonVariants } from "#components/button";
 import { SchoolLogo } from "#components/school-logo";
 import { ThemeToggle } from "#components/theme-toggle";
 import { cn } from "#lib/utils";
@@ -77,7 +84,10 @@ export function AppShell({
   onLogout: () => void | Promise<void>;
   renderHome: (props: { className: string; children: ReactNode }) => ReactNode;
   renderNav: (props: { onNavigate: () => void }) => ReactNode;
-  /** Right-hand side of the top bar — language switch, cross-app links. */
+  /**
+   * Right-hand side of the top bar — language switch, then `PanelSwitchLink`. Below `md`
+   * they move into the menu drawer, so they stay reachable on phones.
+   */
   topbarActions?: ReactNode;
   contentClassName?: string;
   children: ReactNode;
@@ -123,7 +133,7 @@ export function AppShell({
 
   const home = renderHome({
     className:
-      "flex min-w-0 items-center gap-2.5 rounded-lg px-1 py-1 outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+      "flex min-w-0 items-center gap-2.5 rounded-lg px-1 py-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
     children: (
       <>
         <SchoolLogo src={schoolLogoUrl} schoolName={schoolName} />
@@ -333,6 +343,35 @@ function Avatar({ name }: { name: string }) {
     >
       {initials}
     </span>
+  );
+}
+
+/**
+ * The top-bar link to the other panel ("Öğretmen paneli" / "Yönetim paneli"). Both apps place
+ * it right after the language switch, so the two panels look alike. It is a plain link: the
+ * panels are separate SPAs, so following it loads a new document.
+ */
+export function PanelSwitchLink({
+  href,
+  label,
+  onClick,
+}: {
+  href: string;
+  label: string;
+  onClick?: MouseEventHandler<HTMLAnchorElement>;
+}) {
+  return (
+    <a
+      href={href}
+      onClick={onClick}
+      className={cn(
+        buttonVariants({ variant: "ghost", size: "sm" }),
+        "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <ArrowLeftRightIcon aria-hidden />
+      {label}
+    </a>
   );
 }
 

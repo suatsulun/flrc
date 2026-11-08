@@ -91,6 +91,7 @@ async def test_assigned_english_teachers_preview_their_class_card_with_the_mark(
 
 
 async def test_teachers_cannot_preview_other_classes_or_other_cards(api, world, languages) -> None:
+    # A teacher with no assignment at all sees nothing either.
     denied = [
         (world.main, languages.other_student, "english_middle"),
         (world.main, world.student_one, "german_karne"),
@@ -98,7 +99,6 @@ async def test_teachers_cannot_preview_other_classes_or_other_cards(api, world, 
         # The German teacher's class, but this pupil does not take German.
         (languages.german, world.student_two, "german_karne"),
         (languages.outsider, world.student_one, "english_middle"),
-        (languages.coordinator, world.student_one, "english_middle"),
     ]
     for user, student_id, kind in denied:
         response = await preview(api, user, world, student_id, kind)
@@ -116,18 +116,27 @@ async def test_language_teacher_previews_their_language_card(api, world, languag
         assert WATERMARK in page.extract_text()
 
 
-async def test_admin_previews_any_card_that_exists(api, world, languages) -> None:
-    allowed = await preview(api, world.admin, world, languages.other_student, "english_middle")
-    assert allowed.status_code == 200
-    assert WATERMARK in pdf_text(allowed.content)
+@pytest.mark.parametrize("who", ["admin", "coordinator"])
+async def test_admins_and_coordinators_preview_any_card_that_exists(
+    api, world, languages, who
+) -> None:
+    user = world.admin if who == "admin" else languages.coordinator
+    for student_id, kind in (
+        (languages.other_student, "english_middle"),
+        (world.student_one, "english_middle"),
+        (world.student_one, "german_karne"),
+    ):
+        allowed = await preview(api, user, world, student_id, kind)
+        assert allowed.status_code == 200, (student_id, kind)
+        assert WATERMARK in pdf_text(allowed.content)
 
-    no_language = await preview(api, world.admin, world, world.student_two, "german_karne")
-    wrong_grade = await preview(api, world.admin, world, world.student_one, "english_elementary")
+    no_language = await preview(api, user, world, world.student_two, "german_karne")
+    wrong_grade = await preview(api, user, world, world.student_one, "english_elementary")
     for response in (no_language, wrong_grade):
         assert response.status_code == 409
         assert response.json()["detail"]["code"] == "report_preview_not_eligible"
 
-    unknown = await preview(api, world.admin, world, 999_999, "english_middle")
+    unknown = await preview(api, user, world, 999_999, "english_middle")
     assert unknown.status_code == 404
     # A teacher learns nothing about pupils outside their classes.
     hidden = await preview(api, world.main, world, 999_999, "english_middle")
@@ -247,12 +256,65 @@ async def test_scope_lists_own_classes_and_eligible_pupils_in_order(api, world, 
         world.student_one
     ]
 
-    for user in (languages.coordinator, languages.outsider, world.admin):
-        async with api(user) as client:
-            response = await client.get("/api/reports/preview/scope")
-        assert response.status_code == 200
-        assert response.json()["classes"] == []
+    # A teacher with no assignment gets an empty scope, not an error.
+    async with api(languages.outsider) as client:
+        response = await client.get("/api/reports/preview/scope")
+    assert response.status_code == 200
+    assert response.json()["classes"] == []
 
     async with api(world.main) as client:
         unknown = await client.get("/api/reports/preview/scope", params={"semester_id": 999_999})
     assert unknown.status_code == 404
+
+
+async def test_admins_and_coordinators_see_every_class_and_card_of_the_year(
+    api, world, languages
+) -> None:
+    async with TestSession() as db:
+        # An elementary class with one French pupil and a class with nobody in it yet.
+        third = m.SchoolClass(year_id=world.year, grade_level=3, section="B")
+        empty = m.SchoolClass(year_id=world.year, grade_level=7, section="C")
+        french = m.Student(full_name="French Pupil", search_name="french pupil")
+        db.add_all([third, empty, french])
+        await db.flush()
+        db.add_all(
+            [
+                m.Enrollment(
+                    student_id=french.id, class_id=third.id, year_id=world.year, school_number=31001
+                ),
+                m.StudentLanguage(student_id=french.id, year_id=world.year, language="french"),
+            ]
+        )
+        await db.commit()
+        french_id = french.id
+
+    expected = [
+        ("3/B", "english_elementary", [french_id]),
+        ("3/B", "french_karne", [french_id]),
+        ("5/A", "english_middle", [world.student_one, world.student_two, languages.unnumbered]),
+        ("5/A", "german_karne", [world.student_one]),
+        ("6/A", "english_middle", [languages.other_student]),
+        ("7/C", "english_middle", []),
+    ]
+    for user in (world.admin, languages.coordinator):
+        async with api(user) as client:
+            response = await client.get("/api/reports/preview/scope")
+        assert response.status_code == 200
+        assert [
+            (
+                entry["class_name"],
+                entry["kind"],
+                [student["student_id"] for student in entry["students"]],
+            )
+            for entry in response.json()["classes"]
+        ] == expected
+
+    # Teachers still see only their own class.
+    async with api(world.main) as client:
+        own = (await client.get("/api/reports/preview/scope")).json()
+    assert [(entry["class_name"], entry["kind"]) for entry in own["classes"]] == [
+        ("5/A", "english_middle")
+    ]
+    # A pupil of a class the coordinator does not teach previews like any other.
+    response = await preview(api, languages.coordinator, world, french_id, "french_karne")
+    assert response.status_code == 200

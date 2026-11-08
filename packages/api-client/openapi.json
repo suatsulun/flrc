@@ -3509,7 +3509,7 @@
           "report-preview"
         ],
         "summary": "Get Preview Scope",
-        "description": "The cards the signed-in user's own assignments produce in a semester's year.\n\nWithout ``semester_id`` the current term is used. Lists only classes where the\nuser holds a teaching assignment, administrators included.",
+        "description": "The cards the signed-in user may preview in a semester's year.\n\nWithout ``semester_id`` the current term is used. Teachers get the classes where\nthey hold a teaching assignment. Administrators and coordinators get every class\nof the year with every card it has: the English card of its grade, and the German\nor French karne when some of its pupils take that language.",
         "operationId": "get_preview_scope",
         "parameters": [
           {
@@ -3559,7 +3559,7 @@
           "report-preview"
         ],
         "summary": "Get Report Preview",
-        "description": "One student's card as an inline PDF marked \"\u00d6N\u0130ZLEME\" on every page.\n\nTeachers may preview only the card their own assignment in the student's\nclass produces; administrators may preview any card. Everyone else gets 403.",
+        "description": "One student's card as an inline PDF marked \"\u00d6N\u0130ZLEME\" on every page.\n\nTeachers may preview only the card their own assignment in the student's\nclass produces; administrators and coordinators may preview any card.\nEveryone else gets 403.",
         "operationId": "get_report_preview",
         "parameters": [
           {

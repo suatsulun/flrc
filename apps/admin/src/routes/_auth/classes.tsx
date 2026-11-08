@@ -14,7 +14,6 @@ import { Button } from "@flrc/ui/components/button";
 import { Card, CardBody } from "@flrc/ui/components/card";
 import { EmptyState } from "@flrc/ui/components/empty-state";
 import { Input } from "@flrc/ui/components/input";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { Segmented } from "@flrc/ui/components/segmented";
 import { useDragPageAutoScroll } from "@flrc/ui/hooks/use-drag-page-auto-scroll";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -31,6 +30,7 @@ import { ClassRosterTable } from "../../admin/ClassRosterTable";
 import { ClassTeachers } from "../../admin/ClassTeachers";
 import { MoveStudentsDialog, type MoveRequest } from "../../admin/MoveStudentsDialog";
 import { moveConfirmationSkipped } from "../../admin/move-confirmation";
+import { ClassesBoardSkeleton, ClassesSkeleton } from "../../admin/page-skeletons";
 import { useNotifyDone } from "../../admin/undo-toast";
 import { useRefreshQueries } from "../../admin/use-refresh-queries";
 import { useReturnFocus } from "../../admin/use-return-focus";
@@ -127,7 +127,11 @@ function ClassesPage() {
     ...getAdminRosterOptions({ path: { class_id: selectedClass?.id ?? 0 } }),
     enabled: Boolean(selectedClass),
   });
-  const { data: columns = [], isError: columnsError } = useQuery({
+  const {
+    data: columns = [],
+    isLoading: columnsLoading,
+    isError: columnsError,
+  } = useQuery({
     ...listColumnsOptions({
       query: {
         grade_level: grade,
@@ -240,7 +244,31 @@ function ClassesPage() {
   if (yearsError || classesError || rosterError || columnsError) {
     return <EmptyState title={t("errors.load")} />;
   }
-  if (yearsPending || (selectedYear && classesPending)) return <PageSkeleton />;
+  if (yearsPending) return <ClassesSkeleton />;
+
+  const contextBar = selectedYear ? (
+    <AcademicContextBar
+      years={years}
+      yearId={selectedYear.id}
+      semesterNumber={selectedSemester?.number ?? 1}
+      onYearChange={(next) => {
+        updateSearch({ year: next, class: undefined });
+        // The new year shows its open semester (else its first).
+        setSemesterNumber(undefined);
+      }}
+      onSemesterChange={setSemesterNumber}
+      labels={academicContextLabels(t, t("classWorkspace.readOnly"))}
+    />
+  ) : null;
+  // A year switch keeps the year bar on screen while the new year's classes load.
+  if (selectedYear && classesPending) {
+    return (
+      <AdminPage title={t("classWorkspace.title")} description={t("classWorkspace.description")}>
+        {contextBar}
+        <ClassesBoardSkeleton />
+      </AdminPage>
+    );
+  }
 
   function dropOnClass(event: DragEvent, targetClassId: number) {
     event.preventDefault();
@@ -255,20 +283,7 @@ function ClassesPage() {
 
   return (
     <AdminPage title={t("classWorkspace.title")} description={t("classWorkspace.description")}>
-      {selectedYear ? (
-        <AcademicContextBar
-          years={years}
-          yearId={selectedYear.id}
-          semesterNumber={selectedSemester?.number ?? 1}
-          onYearChange={(next) => {
-            updateSearch({ year: next, class: undefined });
-            // The new year shows its open semester (else its first).
-            setSemesterNumber(undefined);
-          }}
-          onSemesterChange={setSemesterNumber}
-          labels={academicContextLabels(t, t("classWorkspace.readOnly"))}
-        />
-      ) : null}
+      {contextBar}
 
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-card xl:flex-row xl:items-center">
         <Segmented
@@ -452,7 +467,7 @@ function ClassesPage() {
             subject={subject}
             semesterId={selectedSemester?.id}
             roster={roster}
-            rosterPending={rosterPending}
+            rosterPending={rosterPending || columnsLoading}
             columns={columns}
             moveTargets={gradeClasses.filter((item) => item.id !== selectedClass.id)}
             yearWritable={yearWritable}

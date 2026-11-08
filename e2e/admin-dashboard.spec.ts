@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import type {
   AdminActionPage,
+  AuditItemOut,
   AuditPageOut,
   ClassOut,
   DashboardOut,
@@ -28,8 +29,15 @@ const en = JSON.parse(readFileSync("packages/i18n/src/locales/en.json", "utf8"))
   coordinator: { tableLabel: string };
   lifecycle: { activate: string };
   subjects: { german: string };
-  audit: { actor: string; dateFrom: string; exportCsv: string; studentFilter: string };
+  audit: {
+    actor: string;
+    dateFrom: string;
+    exportCsv: string;
+    studentFilter: string;
+    tableLabel: string;
+  };
   changes: { title: string; empty: string };
+  loading: string;
 };
 
 const admin: MeOut = {
@@ -337,4 +345,58 @@ test("the audit CSV export carries the table's filters", async ({ page }) => {
     actor_id: "5",
     date_from: "2030-09-01T00:00:00",
   });
+});
+
+test("an audit filter change shows skeleton rows, not the previous filter's entries", async ({
+  page,
+}) => {
+  await mockApi(page);
+  const entry = (id: number, actor: string, student: string): AuditItemOut => ({
+    id,
+    created_at: "2030-10-01T09:00:00",
+    class_id: 11,
+    actor,
+    student,
+    column_label: "Speaking",
+    old_value: "70",
+    new_value: "80",
+    old_existed: true,
+    forced: false,
+    via_grant: false,
+  });
+  const filteredPage = Promise.withResolvers<void>();
+  // Registered after mockApi, so it answers the audit list first.
+  await page.route(
+    (url) => url.pathname === "/api/audit",
+    async (route) => {
+      const filtered = new URL(route.request().url()).searchParams.has("actor_id");
+      if (filtered) await filteredPage.promise;
+      const item = filtered
+        ? entry(2, "Synthetic Teacher", "Synthetic Filtered Pupil")
+        : entry(1, "Synthetic Admin", "Synthetic Unfiltered Pupil");
+      return route.fulfill({ json: { items: [item], next_cursor: null } satisfies AuditPageOut });
+    },
+  );
+  await page.goto(`${adminOrigin}/admin/audit`);
+
+  const table = page.getByLabel(en.audit.tableLabel, { exact: true });
+  const placeholders = table.locator("tbody tr[aria-hidden]");
+  const loading = page.getByRole("status").filter({ hasText: en.loading });
+  await expect(table.getByRole("row", { name: /Synthetic Unfiltered Pupil/ })).toBeVisible();
+
+  const actor = page.getByLabel(en.audit.actor, { exact: true });
+  await actor.focus();
+  await actor.selectOption({ label: "Synthetic Teacher" });
+  // While the filtered page loads, the old entries are gone and skeleton rows stand in;
+  // the filters stay mounted and focused, and one polite status says it is loading.
+  await expect(placeholders).toHaveCount(10);
+  await expect(table.getByText("Synthetic Unfiltered Pupil")).toHaveCount(0);
+  await expect(actor).toBeFocused();
+  await expect(actor).toHaveValue("5");
+  await expect(loading).toHaveCount(1);
+
+  filteredPage.resolve();
+  await expect(table.getByRole("row", { name: /Synthetic Filtered Pupil/ })).toBeVisible();
+  await expect(placeholders).toHaveCount(0);
+  await expect(loading).toHaveCount(0);
 });

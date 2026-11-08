@@ -4,6 +4,7 @@ import {
   replaceAssignmentMatrixMutation,
 } from "@flrc/api-client";
 import { NativeSelect } from "@flrc/ui/components/native-select";
+import { Skeleton } from "@flrc/ui/components/skeleton";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNotifyDone } from "./undo-toast";
@@ -26,10 +27,12 @@ export function ClassTeachers({
   const { t } = useTranslation();
   const notifyDone = useNotifyDone();
   const invalidate = useRefreshQueries();
-  const { data: matrix = [] } = useQuery(
+  const { data: matrix = [], isPending: matrixPending } = useQuery(
     listAssignmentMatrixOptions({ path: { year_id: yearId } }),
   );
-  const { data: users = [] } = useQuery(listManagedUsersOptions({ query: { active: true } }));
+  const { data: users = [], isPending: usersPending } = useQuery(
+    listManagedUsersOptions({ query: { active: true } }),
+  );
   const assign = useMutation({
     ...replaceAssignmentMatrixMutation(),
     // The toast names the class, role and teacher as they were when the change was sent.
@@ -59,6 +62,14 @@ export function ClassTeachers({
         const slot = matrix.find((item) => item.class_id === classId && item.role === role);
         const expectedField = role === "main" || role === "skills" ? "english" : role;
         const expectedStage = grade <= 4 ? "primary" : "middle";
+        if (matrixPending || usersPending) {
+          return (
+            <span key={role} className="flex items-center gap-1.5 text-xs">
+              <span className="font-medium text-muted-foreground">{t(`roles.${role}`)}</span>
+              <Skeleton className="h-9 w-40" />
+            </span>
+          );
+        }
         return (
           <label key={role} className="flex items-center gap-1.5 text-xs">
             <span className="font-medium text-muted-foreground">{t(`roles.${role}`)}</span>

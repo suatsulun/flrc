@@ -12,6 +12,7 @@ import {
 } from "@flrc/ui/components/dialog";
 import { Field } from "@flrc/ui/components/field";
 import { NativeSelect } from "@flrc/ui/components/native-select";
+import { SkeletonText } from "@flrc/ui/components/skeleton";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { CopyIcon } from "lucide-react";
 import { useState } from "react";
@@ -177,7 +178,10 @@ export function CopyFieldsDialog({
             {sameScope ? (
               <p>{t("columns.copySame")}</p>
             ) : targetPending ? (
-              <p className="text-muted-foreground">{t("loading")}</p>
+              <>
+                <span className="sr-only">{t("loading")}</span>
+                <SkeletonText lines={2} className="py-1" />
+              </>
             ) : (
               <>
                 <p className={targetCount > 0 ? "font-medium text-destructive" : undefined}>

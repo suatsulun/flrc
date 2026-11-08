@@ -5,7 +5,7 @@ import { listAdminActions, listAdminActionsInfiniteQueryKey } from "@flrc/api-cl
 import { Button } from "@flrc/ui/components/button";
 import { Card, CardBody } from "@flrc/ui/components/card";
 import { EmptyState } from "@flrc/ui/components/empty-state";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
+import { SkeletonList, SkeletonTableRows } from "@flrc/ui/components/skeleton";
 import {
   Table,
   TableBody,
@@ -18,6 +18,7 @@ import {
   TableText,
 } from "@flrc/ui/components/table";
 import { AdminPage } from "../../admin/AdminPage";
+import { ChangesSkeleton } from "../../admin/page-skeletons";
 import { ChangeStatusBadge, UndoChangeButton } from "../../changes/ChangeControls";
 import { changeSummary, formatChangeTime } from "../../changes/summary";
 
@@ -48,7 +49,7 @@ function ChangesPage() {
     getNextPageParam: (last) => last.next_cursor ?? undefined,
   });
 
-  if (changes.isPending) return <PageSkeleton />;
+  if (changes.isPending) return <ChangesSkeleton />;
   // A failed "Load more" or background refresh keeps the rows already on screen.
   if (!changes.data) return <EmptyState title={t("errors.load")} />;
 
@@ -101,6 +102,7 @@ function ChangesPage() {
                         </TableCell>
                       </TableRow>
                     ))}
+                    {changes.isFetchingNextPage ? <SkeletonTableRows columns={5} /> : null}
                   </TableBody>
                 </Table>
               </TableScroll>
@@ -120,6 +122,9 @@ function ChangesPage() {
                 </li>
               ))}
             </ul>
+            {changes.isFetchingNextPage ? (
+              <SkeletonList rows={3} action className="border-t border-border md:hidden" />
+            ) : null}
           </>
         )}
       </Card>

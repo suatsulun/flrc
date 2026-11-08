@@ -1099,10 +1099,17 @@ Optimization order:
 5. caching;
 6. only then advanced performance machinery.
 
-User-visible latency is treated as state, not as an absence of UI. The first unresolved query on a
-page shows a skeleton plus a non-blocking activity indicator. Mutations disable their initiating
-control and overlay a spinner without changing the control's width. Long jobs also publish toast
-state transitions, while errors use the same in-app feedback system. The teacher and admin class
+User-visible latency is treated as state, not as an absence of UI. Every page, card, list, table and
+fetching dialog shows a skeleton shaped like its loaded layout until its first data arrives (the
+shared blocks in `packages/ui/src/components/skeleton.tsx`, composed per page in each app's
+`page-skeletons.tsx`); a region that loads on its own, such as a dashboard card or a "Load more"
+page, shows its own skeleton while the rest of the page stays usable. The router's pending view
+shows the target page's skeleton inside the shell while a page's code loads, and on the first app
+load, before the session is known, a skeleton of the whole shell around it. Skeleton blocks are
+`aria-hidden`; one visually hidden polite status per page says "Loading…". Spinners are reserved
+for buttons: mutations disable their initiating control and overlay a spinner without changing
+the control's width (ADR-081). Long jobs also publish toast state transitions, while errors use
+the same in-app feedback system. The teacher and admin class
 workspaces prefetch the other class tabs in the selected grade after the current table settles;
 this bounded warm-up is at most one grade's A-G classes, not the whole school, and each browser
 warms those tabs sequentially to avoid multiplying a twenty-user arrival into a large request burst.

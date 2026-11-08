@@ -12,7 +12,7 @@ import { EmptyState } from "@flrc/ui/components/empty-state";
 import { Field } from "@flrc/ui/components/field";
 import { Input } from "@flrc/ui/components/input";
 import { NativeSelect } from "@flrc/ui/components/native-select";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
+import { SkeletonTableRows } from "@flrc/ui/components/skeleton";
 import {
   Table,
   TableBody,
@@ -26,6 +26,7 @@ import {
   TableText,
 } from "@flrc/ui/components/table";
 import { AdminPage } from "../../admin/AdminPage";
+import { AuditSkeleton } from "../../admin/page-skeletons";
 import { StudentPicker, type PickedStudent } from "../../students/StudentPicker";
 
 export const Route = createFileRoute("/_auth/audit")({ component: AuditPage });
@@ -67,7 +68,8 @@ function AuditPage() {
     },
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
-    // A filter change keeps the filters (and the table) on screen while the new page loads.
+    // A filter change keeps the filters on screen (and focused) while the new page loads;
+    // the previous filter's rows stay hidden behind the table skeleton, never shown as current.
     placeholderData: keepPreviousData,
   });
   const items = audit.data?.pages.flatMap((page) => page.items) ?? [];
@@ -107,7 +109,7 @@ function AuditPage() {
     }
   }
 
-  if (classesPending || usersPending || audit.isPending) return <PageSkeleton />;
+  if (classesPending || usersPending || audit.isPending) return <AuditSkeleton />;
   if (classesError || usersError || audit.isError) {
     return <EmptyState title={t("errors.load")} />;
   }
@@ -222,7 +224,9 @@ function AuditPage() {
                 </tr>
               </TableHead>
               <TableBody>
-                {items.length === 0 ? (
+                {audit.isPlaceholderData ? (
+                  <SkeletonTableRows columns={6} rows={10} />
+                ) : items.length === 0 ? (
                   <TableEmpty colSpan={6}>
                     {filtered ? t("audit.noMatches") : t("audit.empty")}
                   </TableEmpty>
@@ -277,13 +281,14 @@ function AuditPage() {
                     </TableRow>
                   ))
                 )}
+                {audit.isFetchingNextPage ? <SkeletonTableRows columns={6} /> : null}
               </TableBody>
             </Table>
           </TableScroll>
         </CardBody>
       </Card>
 
-      {audit.hasNextPage ? (
+      {audit.hasNextPage && !audit.isPlaceholderData ? (
         <div className="flex justify-center">
           <Button
             variant="outline"

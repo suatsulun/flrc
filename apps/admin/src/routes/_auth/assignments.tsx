@@ -17,11 +17,11 @@ import { Badge } from "@flrc/ui/components/badge";
 import { Button } from "@flrc/ui/components/button";
 import { Card, CardBody } from "@flrc/ui/components/card";
 import { EmptyState } from "@flrc/ui/components/empty-state";
-import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { Segmented } from "@flrc/ui/components/segmented";
 import { useRefreshQueries } from "../../admin/use-refresh-queries";
 import { AdminPage } from "../../admin/AdminPage";
 import { useNotifyDone } from "../../admin/undo-toast";
+import { AssignmentsBoardSkeleton, AssignmentsSkeleton } from "../../admin/page-skeletons";
 
 type Role = "main" | "skills" | "german" | "french";
 type TeacherFilter = "all" | "primary" | "middle" | "german" | "french";
@@ -121,22 +121,31 @@ function AssignmentsPage() {
     return teacher.teaching_field === "english" && teacher.teaching_stage === teacherFilter;
   });
 
-  if (yearsPending || usersPending || (selectedYear && (classesPending || matrixPending))) {
-    return <PageSkeleton />;
+  if (yearsPending || usersPending) return <AssignmentsSkeleton />;
+
+  const contextBar = selectedYear ? (
+    <AcademicContextBar
+      years={years}
+      yearId={selectedYear.id}
+      semesterNumber={semester}
+      onYearChange={setYearId}
+      onSemesterChange={setSemester}
+      labels={academicContextLabels(t, t("classWorkspace.readOnly"))}
+    />
+  ) : null;
+  // A year switch keeps the year bar on screen while the new year's board loads.
+  if (selectedYear && (classesPending || matrixPending)) {
+    return (
+      <AdminPage title={t("assignmentBoard.title")} description={t("assignmentBoard.description")}>
+        {contextBar}
+        <AssignmentsBoardSkeleton />
+      </AdminPage>
+    );
   }
 
   return (
     <AdminPage title={t("assignmentBoard.title")} description={t("assignmentBoard.description")}>
-      {selectedYear ? (
-        <AcademicContextBar
-          years={years}
-          yearId={selectedYear.id}
-          semesterNumber={semester}
-          onYearChange={setYearId}
-          onSemesterChange={setSemester}
-          labels={academicContextLabels(t, t("classWorkspace.readOnly"))}
-        />
-      ) : null}
+      {contextBar}
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="space-y-4">

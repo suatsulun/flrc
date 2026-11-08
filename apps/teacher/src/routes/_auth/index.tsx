@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { TablePropertiesIcon } from "lucide-react";
 import { listAcademicYearsOptions, listClassCatalogOptions } from "@flrc/api-client";
 import { EmptyState } from "@flrc/ui/components/empty-state";
-import { SkeletonRows } from "@flrc/ui/components/skeleton";
+import { GridPageSkeleton } from "../../page-skeletons";
 
 export const Route = createFileRoute("/_auth/")({ component: TableHome });
 
@@ -24,14 +24,15 @@ function TableHome() {
     1;
   const {
     data: catalog = [],
-    isPending: catalogPending,
+    isLoading: catalogLoading,
     isError: catalogError,
   } = useQuery({
     ...listClassCatalogOptions({ query: { year_id: current?.id, semester } }),
     enabled: Boolean(current),
   });
 
-  if (yearsPending || catalogPending) return <SkeletonRows rows={9} />;
+  // The start page opens the first grade grid, so it loads in the grid's shape.
+  if (yearsPending || catalogLoading) return <GridPageSkeleton />;
   if (yearsError || catalogError) return <EmptyState title={t("errors.load")} />;
 
   const boards = catalog.flatMap((schoolClass) =>

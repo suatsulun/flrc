@@ -5,6 +5,7 @@ import type { PreviewClass, PreviewRow } from "@flrc/api-client";
 import { Badge } from "@flrc/ui/components/badge";
 import { Button } from "@flrc/ui/components/button";
 import { NativeSelect } from "@flrc/ui/components/native-select";
+import { SkeletonRows } from "@flrc/ui/components/skeleton";
 import {
   Table,
   TableBody,
@@ -73,10 +74,14 @@ export function ImportRoster({
           </tr>
         </TableHead>
         <TableBody>
-          {!rows.length ? (
-            <TableEmpty colSpan={7}>
-              {loading ? t("import.previewing") : t("import.noMatches")}
-            </TableEmpty>
+          {loading ? (
+            <tr aria-hidden>
+              <td colSpan={7} className="p-0">
+                <SkeletonRows rows={8} />
+              </td>
+            </tr>
+          ) : !rows.length ? (
+            <TableEmpty colSpan={7}>{t("import.noMatches")}</TableEmpty>
           ) : (
             rows.map((item) => {
               const { row, actions } = item;

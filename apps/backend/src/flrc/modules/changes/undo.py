@@ -513,7 +513,8 @@ async def _undo_field_reorder(ctx: UndoContext) -> None:
             select(ColumnDefinition)
             .where(ColumnDefinition.id.in_(after))
             .order_by(ColumnDefinition.id)
-            .with_for_update()
+            # Positions only, as in the reorder itself: no wait on grade saves' key-share locks.
+            .with_for_update(key_share=True)
             .execution_options(populate_existing=True)
         )
     }
@@ -535,6 +536,8 @@ async def _undo_field_copy(ctx: UndoContext) -> None:
         await db.scalars(
             select(ColumnDefinition)
             .where(ColumnDefinition.id.in_(column_ids))
+            # In id order, as grid saves key-share-lock the fields they write: a save in progress
+            # finishes first, and its grades then refuse the removal below.
             .order_by(ColumnDefinition.id)
             .with_for_update()
             .execution_options(populate_existing=True)

@@ -36,9 +36,88 @@
     }
   },
   "adminDashboard": {
-    "subtitle": "Personen, Klassen, akademische Abläufe, Zeugnisse und Protokolle an einem Ort.",
-    "chooseWorkspace": "Wechseln zu",
-    "coordinatorDescription": "Schulweiten Fortschritt verfolgen und fehlende Noten finden."
+    "subtitle": "Wo das Schuljahr steht und was als Nächstes ansteht.",
+    "term": {
+      "title": "Halbjahresstatus",
+      "noYear": "Kein laufendes Schuljahr",
+      "semesters": "Halbjahre",
+      "nextStep": "Nächster Schritt",
+      "openLifecycle": "Jahreslauf öffnen"
+    },
+    "steps": {
+      "createYear": {
+        "title": "Nächstes Schuljahr anlegen",
+        "body": "Kein Schuljahr ist aktiv oder in Einrichtung. Legen Sie es im akademischen Jahreslauf an."
+      },
+      "activateYear": {
+        "title": "{{year}} aktivieren",
+        "ready": "Das Jahr ist bereit. Mit der Aktivierung öffnet das 1. Halbjahr für die Noteneingabe."
+      },
+      "collectGrades": {
+        "title": "Noten des {{number}}. Halbjahres vervollständigen",
+        "body": "{{percent}} der Noten sind erfasst; leere Zellen: {{missing}}. Sperren Sie das Halbjahr, sobald alle Noten erfasst sind.",
+        "noFields": "Für dieses Halbjahr sind noch keine Felder eingerichtet.",
+        "withoutFields": "Klassen ohne Felder: {{count}}. Richten Sie deren Felder ein, damit ihre Noten vor dem Sperren des Halbjahres erfasst werden können."
+      },
+      "advanceSemester": {
+        "title": "Zum 2. Halbjahr wechseln",
+        "body": "Alle Noten des 1. Halbjahres sind erfasst. Der Wechsel sperrt das 1. Halbjahr und öffnet das 2. Halbjahr."
+      },
+      "lockSemester": {
+        "title": "2. Halbjahr sperren",
+        "body": "Alle Noten des 2. Halbjahres sind erfasst. Nach dem Sperren kann das Jahr archiviert werden."
+      },
+      "closeYear": {
+        "title": "{{year}} archivieren",
+        "body": "Beide Halbjahre sind gesperrt. Laden Sie das Protokoll herunter und archivieren Sie das Jahr; das nächste Jahr wird automatisch vorbereitet."
+      }
+    },
+    "completion": {
+      "title": "Notenfortschritt",
+      "overall": "Halbjahr {{number}} · {{percent}} erfasst · leere Zellen: {{missing}}",
+      "noFields": "Halbjahr {{number}} · noch keine Felder eingerichtet",
+      "filter": "Angezeigte Zeilen",
+      "incomplete": "Unvollständig",
+      "all": "Alle",
+      "details": "Fehlende Noten",
+      "allComplete": "Alle Klassen sind vollständig."
+    },
+    "missing": {
+      "title": "{{class}} · {{subject}}: fehlende Noten",
+      "description": "Halbjahr {{number}} · leere Zellen: {{count}}",
+      "tableLabel": "Fehlende Noten",
+      "field": "Feld",
+      "teacher": "Lehrkraft",
+      "unassigned": "Nicht zugewiesen",
+      "none": "Es fehlen keine Noten.",
+      "openClass": "Klassentabelle öffnen"
+    },
+    "problems": {
+      "title": "Einrichtungsprobleme",
+      "description": "Beheben Sie diese vor dem Zeugnisdruck.",
+      "none": "Keine Einrichtungsprobleme.",
+      "fix": "Beheben",
+      "more": "+{{count}} weitere",
+      "unassignedRoles": "Klassen ohne Lehrkraft",
+      "classesWithoutFields": "Klassen ohne Felder",
+      "teachersWithoutReportName": "Lehrkräfte ohne Zeugnisnamen",
+      "teachersWithoutSignature": "Lehrkräfte ohne Unterschrift",
+      "studentsWithoutNumber": "Schüler/innen ohne Schulnummer",
+      "studentsWithoutLanguage": "Schüler/innen ohne zweite Fremdsprache"
+    },
+    "readiness": {
+      "title": "Zeugnisbereitschaft",
+      "description": "Wie vollständig die Noten des {{number}}. Halbjahres hinter jedem Zeugnis sind.",
+      "classes": "{{complete}} von {{eligible}} Klassen vollständig · {{students}} Schüler/innen",
+      "noStudents": "Niemand erhält dieses Zeugnis."
+    },
+    "jobs": {
+      "title": "Downloads",
+      "description": "Im Hintergrund erstellte Zeugnis- und Exportdateien werden 24 Stunden aufbewahrt.",
+      "empty": "Noch keine Hintergrunddateien.",
+      "expires": "Verfügbar bis {{time}}",
+      "expired": "Abgelaufen"
+    }
   },
   "auth": {
     "signIn": "Mit Google anmelden",
@@ -184,6 +263,15 @@
     "edit": "Bearbeiten",
     "empty": "Keine Treffer für diese Suche.",
     "noHistory": "Für diese Person sind noch keine Jahre erfasst."
+  },
+  "studentSearch": {
+    "description": "Finden Sie alle Schüler/innen eines Jahres nach Name oder Schulnummer.",
+    "noYear": "Noch kein Schuljahr.",
+    "searchLabel": "Name oder Schulnummer",
+    "placeholder": "Name oder Nummer eingeben",
+    "tableLabel": "Suchergebnisse für Schüler/innen",
+    "class": "Klasse",
+    "openClass": "Klasse öffnen"
   },
   "users": {
     "tableLabel": "Lehrkräfte- und Zugriffstabelle",
@@ -486,12 +574,19 @@
     "forced": "Erzwungenes Überschreiben",
     "viaGrant": "Vorübergehendes Recht",
     "loadMore": "Mehr laden",
-    "empty": "Noch keine Notenänderungen erfasst."
+    "empty": "Noch keine Notenänderungen erfasst.",
+    "noMatches": "Keine Notenänderungen für diese Filter.",
+    "allTeachers": "Alle Lehrkräfte",
+    "studentFilter": "Schüler/in",
+    "studentPlaceholder": "Name oder Nummer",
+    "clearStudent": "Schülerfilter entfernen",
+    "noStudentMatches": "Keine passenden Schüler/innen.",
+    "dateFrom": "Von",
+    "dateTo": "Bis",
+    "clearFilters": "Filter zurücksetzen"
   },
   "coordinator": {
     "tableLabel": "Übersicht der Klassenfertigstellung",
-    "title": "Koordinationsübersicht",
-    "description": "{{year}}, Halbjahr {{semester}}",
     "students": "Schüler/innen",
     "classes": "Klassen",
     "teachers": "Aktive Lehrkräfte",

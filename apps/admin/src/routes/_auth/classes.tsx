@@ -18,7 +18,7 @@ import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import { Segmented } from "@flrc/ui/components/segmented";
 import { useDragPageAutoScroll } from "@flrc/ui/hooks/use-drag-page-auto-scroll";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { PlusIcon } from "lucide-react";
 import { useCallback, useMemo, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -34,32 +34,67 @@ const SUBJECTS = ["english", "german", "french"] as const;
 type Subject = (typeof SUBJECTS)[number];
 type Role = ColumnCreate["owner_role"];
 
-export const Route = createFileRoute("/_auth/classes")({ component: ClassesPage });
+/**
+ * Optional deep link into the workspace (dashboard and student search): the year, grade, class
+ * tab and subject to show. The URL follows the admin's own choices, so a reload keeps them.
+ */
+export type ClassWorkspaceSearch = {
+  year?: number;
+  grade?: number;
+  class?: number;
+  subject?: Subject;
+};
+
+function positiveId(value: unknown): number | undefined {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+}
+
+export const Route = createFileRoute("/_auth/classes")({
+  validateSearch: (search: Record<string, unknown>): ClassWorkspaceSearch => ({
+    year: positiveId(search.year),
+    grade:
+      search.grade != null && GRADES.includes(Number(search.grade))
+        ? Number(search.grade)
+        : undefined,
+    class: positiveId(search.class),
+    subject: SUBJECTS.includes(search.subject as Subject) ? (search.subject as Subject) : undefined,
+  }),
+  component: ClassesPage,
+});
 
 function ClassesPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const invalidate = useRefreshQueries();
-  const [columnOwner, setColumnOwner] = useState<Role>("main");
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const updateSearch = (next: ClassWorkspaceSearch) =>
+    void navigate({ search: (previous) => ({ ...previous, ...next }), replace: true });
+  const yearId = search.year;
+  const grade = search.grade ?? 5;
+  const subject = search.subject ?? "english";
+  const classId = search.class;
+  const [chosenColumnOwner, setColumnOwner] = useState<Role>("main");
+  // A new field's owner must fit the subject, also when the URL changes the subject.
+  const columnOwner: Role =
+    subject !== "english" ? subject : chosenColumnOwner === "skills" ? "skills" : "main";
   const {
     data: years = [],
     isPending: yearsPending,
     isError: yearsError,
   } = useQuery(listYearsOptions());
-  const [yearId, setYearId] = useState<number>();
   const selectedYear =
     years.find((item) => item.id === yearId) ??
     years.find((item) => item.status === "active") ??
     years[0];
-  const [semesterNumber, setSemesterNumber] = useState(1);
+  // Until the admin picks one, the open semester (else the first) is shown.
+  const [semesterNumber, setSemesterNumber] = useState<number>();
   const selectedSemester =
     selectedYear?.semesters.find((item) => item.number === semesterNumber) ??
     selectedYear?.semesters.find((item) => item.status === "open") ??
     selectedYear?.semesters[0];
 
-  const [grade, setGrade] = useState<number>(5);
-  const [subject, setSubject] = useState<Subject>("english");
-  const [classId, setClassId] = useState<number>();
   const [draggedStudentId, setDraggedStudentId] = useState<number>();
   const [mode, setMode] = useState<"table" | "remove">("table");
   useDragPageAutoScroll(Boolean(draggedStudentId));
@@ -122,7 +157,7 @@ function ClassesPage() {
   const createClass = useMutation({
     ...createAdminClassMutation(),
     onSuccess: (created) => {
-      setClassId(created.id);
+      updateSearch({ class: created.id });
       setNewSection("");
       setAddingClass(false);
       toast.success(t("classWorkspace.classAdded"));
@@ -174,14 +209,9 @@ function ClassesPage() {
           yearId={selectedYear.id}
           semesterNumber={selectedSemester?.number ?? 1}
           onYearChange={(next) => {
-            setYearId(next);
-            setClassId(undefined);
-            const nextYear = years.find((item) => item.id === next);
-            setSemesterNumber(
-              nextYear?.semesters.find((item) => item.status === "open")?.number ??
-                nextYear?.semesters[0]?.number ??
-                1,
-            );
+            updateSearch({ year: next, class: undefined });
+            // The new year shows its open semester (else its first).
+            setSemesterNumber(undefined);
           }}
           onSemesterChange={setSemesterNumber}
           labels={academicContextLabels(t, t("classWorkspace.readOnly"))}
@@ -193,10 +223,7 @@ function ClassesPage() {
           ariaLabel={t("classes.gradeLevel")}
           options={GRADES.map((item) => ({ value: item, label: gradeTabLabel(t, item) }))}
           value={grade}
-          onChange={(next) => {
-            setGrade(next);
-            setClassId(undefined);
-          }}
+          onChange={(next) => updateSearch({ grade: next, class: undefined })}
           className="max-w-full"
         />
         <Segmented
@@ -204,7 +231,7 @@ function ClassesPage() {
           options={SUBJECTS.map((item) => ({ value: item, label: t(`subjects.${item}`) }))}
           value={subject}
           onChange={(next) => {
-            setSubject(next);
+            updateSearch({ subject: next });
             setColumnOwner(next === "english" ? "main" : next);
           }}
           className="max-w-full"
@@ -234,7 +261,7 @@ function ClassesPage() {
               ].join(" ")}
               onPointerEnter={() => void prefetchRoster(schoolClass.id)}
               onFocus={() => void prefetchRoster(schoolClass.id)}
-              onClick={() => setClassId(schoolClass.id)}
+              onClick={() => updateSearch({ class: schoolClass.id })}
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => dropOnClass(event, schoolClass.id)}
             >

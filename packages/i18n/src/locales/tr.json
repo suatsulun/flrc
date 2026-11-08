@@ -36,9 +36,88 @@
     }
   },
   "adminDashboard": {
-    "subtitle": "Kişiler, sınıflar, akademik süreçler, karneler ve denetim kayıtları tek yerde.",
-    "chooseWorkspace": "Şuraya git",
-    "coordinatorDescription": "Okul genelindeki tamamlanma oranını izleyin ve eksik notları bulun."
+    "subtitle": "Eğitim yılının durumu ve sırada ne olduğu.",
+    "term": {
+      "title": "Dönem durumu",
+      "noYear": "Süren bir eğitim yılı yok",
+      "semesters": "Dönemler",
+      "nextStep": "Sıradaki adım",
+      "openLifecycle": "Akademik yaşam döngüsünü aç"
+    },
+    "steps": {
+      "createYear": {
+        "title": "Yeni eğitim yılını oluşturun",
+        "body": "Etkin ya da kurulumda bir eğitim yılı yok. Akademik yaşam döngüsü sayfasından yeni yılı oluşturun."
+      },
+      "activateYear": {
+        "title": "{{year}} yılını etkinleştirin",
+        "ready": "Yıl hazır. Etkinleştirdiğinizde 1. dönem not girişine açılır."
+      },
+      "collectGrades": {
+        "title": "{{number}}. dönem notlarını tamamlayın",
+        "body": "Notların {{percent}} kadarı girildi; boş hücre: {{missing}}. Bütün notlar girilince dönemi kilitleyin.",
+        "noFields": "Bu dönem için henüz alan tanımlanmadı.",
+        "withoutFields": "Sütunu tanımlanmamış sınıflar: {{count}}. Dönem kilitlenmeden önce notların girilebilmesi için sütunlarını tanımlayın."
+      },
+      "advanceSemester": {
+        "title": "2. döneme geçin",
+        "body": "1. dönemin bütün notları girildi. 2. döneme geçince 1. dönem kilitlenir ve 2. dönem açılır."
+      },
+      "lockSemester": {
+        "title": "2. dönemi kilitleyin",
+        "body": "2. dönemin bütün notları girildi. Dönem kilitlenince yıl arşivlenebilir."
+      },
+      "closeYear": {
+        "title": "{{year}} yılını arşivleyin",
+        "body": "İki dönem de kilitli. Denetim dosyasını indirip yılı arşivleyin; sonraki yıl otomatik hazırlanır."
+      }
+    },
+    "completion": {
+      "title": "Not tamamlanma",
+      "overall": "{{number}}. dönem · {{percent}} tamamlandı · boş hücre: {{missing}}",
+      "noFields": "{{number}}. dönem · henüz alan tanımlanmadı",
+      "filter": "Gösterilecek satırlar",
+      "incomplete": "Eksik olanlar",
+      "all": "Tümü",
+      "details": "Eksik notlar",
+      "allComplete": "Bütün sınıfların notları tamam."
+    },
+    "missing": {
+      "title": "{{class}} · {{subject}}: eksik notlar",
+      "description": "{{number}}. dönem · boş hücre: {{count}}",
+      "tableLabel": "Eksik notlar",
+      "field": "Alan",
+      "teacher": "Öğretmen",
+      "unassigned": "Atanmamış",
+      "none": "Eksik not yok.",
+      "openClass": "Sınıf tablosunu aç"
+    },
+    "problems": {
+      "title": "Kurulum sorunları",
+      "description": "Karneleri yazdırmadan önce bunları düzeltin.",
+      "none": "Kurulum sorunu yok.",
+      "fix": "Düzelt",
+      "more": "+{{count}} daha",
+      "unassignedRoles": "Öğretmeni atanmamış sınıflar",
+      "classesWithoutFields": "Alanı tanımlanmamış sınıflar",
+      "teachersWithoutReportName": "Karne adı eksik öğretmenler",
+      "teachersWithoutSignature": "İmzası eksik öğretmenler",
+      "studentsWithoutNumber": "Okul numarası eksik öğrenciler",
+      "studentsWithoutLanguage": "İkinci yabancı dili seçilmemiş öğrenciler"
+    },
+    "readiness": {
+      "title": "Karne hazırlığı",
+      "description": "Her karnenin dayandığı {{number}}. dönem notlarının durumu.",
+      "classes": "{{eligible}} sınıftan {{complete}} tanesi tamam · {{students}} öğrenci",
+      "noStudents": "Bu karneyi alan öğrenci yok."
+    },
+    "jobs": {
+      "title": "İndirmeler",
+      "description": "Arka planda hazırlanan karne ve aktarım dosyaları 24 saat saklanır.",
+      "empty": "Henüz arka planda hazırlanan dosya yok.",
+      "expires": "{{time}} tarihine kadar indirilebilir",
+      "expired": "Süresi doldu"
+    }
   },
   "auth": {
     "signIn": "Google ile giriş yap",
@@ -184,6 +263,15 @@
     "edit": "Düzenle",
     "empty": "Bu aramaya uyan öğrenci yok.",
     "noHistory": "Bu öğrenci için kayıtlı yıl bulunmuyor."
+  },
+  "studentSearch": {
+    "description": "Bir yılın bütün öğrencilerini ad ya da okul numarasıyla bulun.",
+    "noYear": "Henüz eğitim yılı yok.",
+    "searchLabel": "Ad ya da okul numarası",
+    "placeholder": "Ad ya da numara yazın",
+    "tableLabel": "Öğrenci arama sonuçları",
+    "class": "Sınıf",
+    "openClass": "Sınıfı aç"
   },
   "users": {
     "tableLabel": "Öğretmen ve erişim tablosu",
@@ -486,12 +574,19 @@
     "forced": "Zorlanmış üzerine yazma",
     "viaGrant": "Geçici izin",
     "loadMore": "Daha fazla yükle",
-    "empty": "Henüz not değişikliği kaydedilmedi."
+    "empty": "Henüz not değişikliği kaydedilmedi.",
+    "noMatches": "Bu filtrelere uyan not değişikliği yok.",
+    "allTeachers": "Tüm öğretmenler",
+    "studentFilter": "Öğrenci",
+    "studentPlaceholder": "Ad ya da numara",
+    "clearStudent": "Öğrenci filtresini kaldır",
+    "noStudentMatches": "Eşleşen öğrenci yok.",
+    "dateFrom": "Başlangıç tarihi",
+    "dateTo": "Bitiş tarihi",
+    "clearFilters": "Filtreleri temizle"
   },
   "coordinator": {
     "tableLabel": "Sınıf tamamlama özeti",
-    "title": "Koordinatör görünümü",
-    "description": "{{year}}, {{semester}}. dönem",
     "students": "Öğrenci",
     "classes": "Sınıf",
     "teachers": "Etkin öğretmen",

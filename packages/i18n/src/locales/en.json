@@ -36,9 +36,88 @@
     }
   },
   "adminDashboard": {
-    "subtitle": "People, classes, academic workflows, reports, and audit controls in one place.",
-    "chooseWorkspace": "Go to",
-    "coordinatorDescription": "Track school-wide completion and find missing grade entries."
+    "subtitle": "Where the school year stands and what needs attention next.",
+    "term": {
+      "title": "Term status",
+      "noYear": "No school year in progress",
+      "semesters": "Semesters",
+      "nextStep": "Next step",
+      "openLifecycle": "Open academic lifecycle"
+    },
+    "steps": {
+      "createYear": {
+        "title": "Create the next school year",
+        "body": "No school year is active or in setup. Create one on the academic lifecycle page."
+      },
+      "activateYear": {
+        "title": "Activate {{year}}",
+        "ready": "The year is ready. Activating it opens semester 1 for grade entry."
+      },
+      "collectGrades": {
+        "title": "Complete the semester {{number}} grades",
+        "body": "{{percent}} of grades are entered; empty cells: {{missing}}. Lock the semester once every grade is in.",
+        "noFields": "No fields are set up for this semester yet.",
+        "withoutFields": "Classes without fields: {{count}}. Set up their fields so their grades can be entered before the semester is locked."
+      },
+      "advanceSemester": {
+        "title": "Move on to semester 2",
+        "body": "Every semester 1 grade is entered. Moving on locks semester 1 and opens semester 2."
+      },
+      "lockSemester": {
+        "title": "Lock semester 2",
+        "body": "Every semester 2 grade is entered. Once it is locked, the year can be archived."
+      },
+      "closeYear": {
+        "title": "Archive {{year}}",
+        "body": "Both semesters are locked. Download the audit file and archive the year; the next year is prepared automatically."
+      }
+    },
+    "completion": {
+      "title": "Grade completion",
+      "overall": "Semester {{number}} · {{percent}} complete · empty cells: {{missing}}",
+      "noFields": "Semester {{number}} · no fields are set up yet",
+      "filter": "Rows to show",
+      "incomplete": "Incomplete",
+      "all": "All",
+      "details": "Missing grades",
+      "allComplete": "Every class has all its grades."
+    },
+    "missing": {
+      "title": "{{class}} · {{subject}}: missing grades",
+      "description": "Semester {{number}} · empty cells: {{count}}",
+      "tableLabel": "Missing grades",
+      "field": "Field",
+      "teacher": "Teacher",
+      "unassigned": "Not assigned",
+      "none": "No grades are missing.",
+      "openClass": "Open class table"
+    },
+    "problems": {
+      "title": "Setup problems",
+      "description": "Fix these before printing report cards.",
+      "none": "No setup problems.",
+      "fix": "Fix",
+      "more": "+{{count}} more",
+      "unassignedRoles": "Classes missing a teacher",
+      "classesWithoutFields": "Classes without fields",
+      "teachersWithoutReportName": "Teachers without a report name",
+      "teachersWithoutSignature": "Teachers without a signature",
+      "studentsWithoutNumber": "Students without a school number",
+      "studentsWithoutLanguage": "Students without a second language"
+    },
+    "readiness": {
+      "title": "Report card readiness",
+      "description": "How complete the semester {{number}} grades behind each card are.",
+      "classes": "{{complete}} of {{eligible}} classes complete · {{students}} students",
+      "noStudents": "No students take this card."
+    },
+    "jobs": {
+      "title": "Downloads",
+      "description": "Report and export files prepared in the background are kept for 24 hours.",
+      "empty": "No background files yet.",
+      "expires": "Available until {{time}}",
+      "expired": "Expired"
+    }
   },
   "auth": {
     "signIn": "Sign in with Google",
@@ -184,6 +263,15 @@
     "edit": "Edit",
     "empty": "No students match this search.",
     "noHistory": "No recorded years for this student yet."
+  },
+  "studentSearch": {
+    "description": "Find any student of a year by name or school number.",
+    "noYear": "No school year yet.",
+    "searchLabel": "Name or school number",
+    "placeholder": "Type a name or number",
+    "tableLabel": "Student search results",
+    "class": "Class",
+    "openClass": "Open class"
   },
   "users": {
     "tableLabel": "Teachers and access table",
@@ -486,12 +574,19 @@
     "forced": "Forced overwrite",
     "viaGrant": "Temporary grant",
     "loadMore": "Load more",
-    "empty": "No grade changes recorded yet."
+    "empty": "No grade changes recorded yet.",
+    "noMatches": "No grade changes match these filters.",
+    "allTeachers": "All teachers",
+    "studentFilter": "Student",
+    "studentPlaceholder": "Name or number",
+    "clearStudent": "Remove student filter",
+    "noStudentMatches": "No matching students.",
+    "dateFrom": "From",
+    "dateTo": "To",
+    "clearFilters": "Clear filters"
   },
   "coordinator": {
     "tableLabel": "Class completion overview",
-    "title": "Coordinator overview",
-    "description": "{{year}}, semester {{semester}}",
     "students": "Students",
     "classes": "Classes",
     "teachers": "Active teachers",

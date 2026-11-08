@@ -1,14 +1,16 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { DownloadIcon, FlagIcon, KeyRoundIcon } from "lucide-react";
+import { DownloadIcon, FlagIcon, KeyRoundIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
-import { listAudit, listClassesOptions } from "@flrc/api-client";
+import { listAudit, listClassesOptions, listUsersOptions } from "@flrc/api-client";
 import { Badge } from "@flrc/ui/components/badge";
 import { Button } from "@flrc/ui/components/button";
-import { Card, CardBody } from "@flrc/ui/components/card";
+import { Card, CardBody, CardContent } from "@flrc/ui/components/card";
 import { EmptyState } from "@flrc/ui/components/empty-state";
+import { Field } from "@flrc/ui/components/field";
+import { Input } from "@flrc/ui/components/input";
 import { NativeSelect } from "@flrc/ui/components/native-select";
 import { PageSkeleton } from "@flrc/ui/components/page-activity";
 import {
@@ -24,31 +26,66 @@ import {
   TableText,
 } from "@flrc/ui/components/table";
 import { AdminPage } from "../../admin/AdminPage";
+import { StudentPicker, type PickedStudent } from "../../students/StudentPicker";
 
 export const Route = createFileRoute("/_auth/audit")({ component: AuditPage });
 
 function AuditPage() {
   const { t, i18n } = useTranslation();
   const [classId, setClassId] = useState<number>();
+  const [actorId, setActorId] = useState<number>();
+  const [student, setStudent] = useState<PickedStudent>();
+  // Whole calendar days, read like the times the table shows.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [exportPending, setExportPending] = useState(false);
   const {
     data: classes = [],
     isPending: classesPending,
     isError: classesError,
   } = useQuery(listClassesOptions());
+  const {
+    data: users = [],
+    isPending: usersPending,
+    isError: usersError,
+  } = useQuery(listUsersOptions());
+  const filters = {
+    class_id: classId,
+    actor_id: actorId,
+    student_id: student?.id,
+    date_from: dateFrom ? `${dateFrom}T00:00:00` : undefined,
+    date_to: dateTo ? `${dateTo}T23:59:59.999999` : undefined,
+  };
+  const filtered = Object.values(filters).some((value) => value !== undefined);
   const audit = useInfiniteQuery({
-    queryKey: ["audit", classId],
+    queryKey: ["audit", filters],
     queryFn: async ({ pageParam }) => {
-      const result = await listAudit({ query: { class_id: classId, cursor: pageParam } });
+      const result = await listAudit({ query: { ...filters, cursor: pageParam } });
       if (result.error) throw result.error;
       if (!result.data) throw new Error("audit_unavailable");
       return result.data;
     },
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
+    // A filter change keeps the filters (and the table) on screen while the new page loads.
+    placeholderData: keepPreviousData,
   });
   const items = audit.data?.pages.flatMap((page) => page.items) ?? [];
-  const exportUrl = `/api/audit/export.csv${classId ? `?class_id=${classId}` : ""}`;
+  // The export carries exactly the filters the table shows.
+  const exportParams = new URLSearchParams(
+    Object.entries(filters).flatMap(([key, value]) =>
+      value === undefined ? [] : [[key, String(value)]],
+    ),
+  ).toString();
+  const exportUrl = `/api/audit/export.csv${exportParams ? `?${exportParams}` : ""}`;
+
+  function clearFilters() {
+    setClassId(undefined);
+    setActorId(undefined);
+    setStudent(undefined);
+    setDateFrom("");
+    setDateTo("");
+  }
 
   async function exportAudit() {
     setExportPending(true);
@@ -70,42 +107,101 @@ function AuditPage() {
     }
   }
 
-  if (classesPending || audit.isPending) return <PageSkeleton />;
-  if (classesError || audit.isError) return <EmptyState title={t("errors.load")} />;
+  if (classesPending || usersPending || audit.isPending) return <PageSkeleton />;
+  if (classesError || usersError || audit.isError) {
+    return <EmptyState title={t("errors.load")} />;
+  }
 
   return (
     <AdminPage
       title={t("audit.title")}
       description={t("audit.description")}
       actions={
-        <>
-          <NativeSelect
-            className="w-44"
-            aria-label={t("audit.allClasses")}
-            value={classId ?? ""}
-            onChange={(event) =>
-              setClassId(event.target.value ? Number(event.target.value) : undefined)
-            }
-          >
-            <option value="">{t("audit.allClasses")}</option>
-            {classes.map((schoolClass) => (
-              <option key={schoolClass.id} value={schoolClass.id}>
-                {schoolClass.name}
-              </option>
-            ))}
-          </NativeSelect>
-          <Button
-            variant="outline"
-            pending={exportPending}
-            pendingLabel={t("audit.exporting")}
-            onClick={() => void exportAudit()}
-          >
-            <DownloadIcon />
-            {t("audit.exportCsv")}
-          </Button>
-        </>
+        <Button
+          variant="outline"
+          pending={exportPending}
+          pendingLabel={t("audit.exporting")}
+          onClick={() => void exportAudit()}
+        >
+          <DownloadIcon />
+          {t("audit.exportCsv")}
+        </Button>
       }
     >
+      <Card>
+        <CardContent className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto]">
+          <Field label={t("classes.title")}>
+            {(id) => (
+              <NativeSelect
+                id={id}
+                className="w-full"
+                value={classId ?? ""}
+                onChange={(event) =>
+                  setClassId(event.target.value ? Number(event.target.value) : undefined)
+                }
+              >
+                <option value="">{t("audit.allClasses")}</option>
+                {classes.map((schoolClass) => (
+                  <option key={schoolClass.id} value={schoolClass.id}>
+                    {schoolClass.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            )}
+          </Field>
+          <Field label={t("audit.actor")}>
+            {(id) => (
+              <NativeSelect
+                id={id}
+                className="w-full"
+                value={actorId ?? ""}
+                onChange={(event) =>
+                  setActorId(event.target.value ? Number(event.target.value) : undefined)
+                }
+              >
+                <option value="">{t("audit.allTeachers")}</option>
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.full_name}
+                  </option>
+                ))}
+              </NativeSelect>
+            )}
+          </Field>
+          <Field label={t("audit.studentFilter")}>
+            {(id) => <StudentPicker id={id} value={student} onChange={setStudent} />}
+          </Field>
+          <Field label={t("audit.dateFrom")}>
+            {(id) => (
+              <Input
+                id={id}
+                className="h-9 rounded-lg"
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(event) => setDateFrom(event.currentTarget.value)}
+              />
+            )}
+          </Field>
+          <Field label={t("audit.dateTo")}>
+            {(id) => (
+              <Input
+                id={id}
+                className="h-9 rounded-lg"
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(event) => setDateTo(event.currentTarget.value)}
+              />
+            )}
+          </Field>
+          <Button variant="ghost" disabled={!filtered} onClick={clearFilters}>
+            <XIcon />
+            {t("audit.clearFilters")}
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardBody>
           <TableScroll aria-label={t("audit.tableLabel")}>
@@ -127,7 +223,9 @@ function AuditPage() {
               </TableHead>
               <TableBody>
                 {items.length === 0 ? (
-                  <TableEmpty colSpan={6}>{t("audit.empty")}</TableEmpty>
+                  <TableEmpty colSpan={6}>
+                    {filtered ? t("audit.noMatches") : t("audit.empty")}
+                  </TableEmpty>
                 ) : (
                   items.map((item) => (
                     <TableRow key={item.id}>

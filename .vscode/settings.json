@@ -34,9 +34,5 @@
   },
   "files.associations": {
     ".env.example": "dotenv"
-  },
-  "todoMd.file": "docs/TODO.md",
-  "todoMd.collapsedSections": ["Planned", "Completed"],
-  "todoMd.hideEmptyGroups": "never",
-  "todoMd.showDoneDescription": true
+  }
 }

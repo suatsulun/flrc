@@ -1,85 +1,45 @@
-# FL-ReportCard: school deployment
+# School deployment template
 
-This repository deploys the published FL-ReportCard release to the school's server. It contains
-no application code: the application lives in the public repository, and this repository pins a
-release, carries the school's branding, and holds the deployment configuration (ADR-053).
+This folder is the starting content for a school's private deployment repository, not an application fork. Read this when copying the template or maintaining its settings; the full procedure is [Self-hosting](../../docs/operations/self-hosting.md) in the public application repository.
 
-Template review: 2026-09-11. The checked-in pins are 1.2.0; later application commits and pending
-source changes require a new published release before a school consumes them. Consult
-`docs/RELEASING.md`, `docs/TODO.md`, and the target release's migration notes in the application
-repository. Do not copy its uncommitted application code into this deployment repository.
+Copy **all contents, including dotfiles**, into the private repository. Links below resolve from this template in the application checkout; after copying, consult the same paths in the public application's docs.
 
-| Path                                 | What it is                                                                     |
-| ------------------------------------ | ------------------------------------------------------------------------------ |
-| `compose.yaml`                       | Production services and the two pinned image tags                              |
-| `.env.example`                       | Every setting the server's `/srv/flrc/.env` must contain                       |
-| `branding/`                          | The school's name, logo, and favicon (served, never rebuilt)                   |
-| `.github/dependabot.yml`             | Opens a pull request when a new application release exists                     |
-| `.github/workflows/deploy.yml`       | Ships `compose.yaml` and `branding/` to the server and applies them            |
-| `.github/workflows/backup-check.yml` | Fails every morning the nightly backup or monthly restore test did not succeed |
+## Files and responsibilities
 
-The complete runbook (server creation, first deploy, upgrades, rollback, backups) is
-`docs/SELF-HOSTING.md` in the public repository.
+| Path                                 | Purpose                                                                            |
+| ------------------------------------ | ---------------------------------------------------------------------------------- |
+| `compose.yaml`                       | Production services, resource limits and backend/web release pins                  |
+| `.env.example`                       | Template for the server-only `/srv/flrc/.env`                                      |
+| `branding/`                          | Runtime identity; private report assets stay backend-only                          |
+| `.github/dependabot.yml`             | Proposed image-pin upgrades                                                        |
+| `.github/workflows/deploy.yml`       | Validate, ship configuration/branding, pull and apply containers, check API health |
+| `.github/workflows/backup-check.yml` | Read the server's backup status and judge freshness                                |
 
-## Upgrade
+The application remains generic and public; school identities, assets and operator details remain private. See [ADR-053](../../docs/adr/053-one-public-application-repository-private-deployment.md).
 
-1. Dependabot opens "Bump ghcr.io/…/flrc-backend and flrc-web to X.Y.Z". Read the release notes it links.
-2. Merge it. Merging is the approval: the deploy workflow ships the files, the server pulls the
-   images, applies pending migrations, restarts, and the workflow checks
-   `https://<site>/api/healthz`. Every deploy is listed under the `school` environment.
+## Configure before enabling automation
 
-## Roll back
+| Location             | Required values                                                |
+| -------------------- | -------------------------------------------------------------- |
+| Repository secrets   | `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`                         |
+| Repository variables | `DEPLOY_HOST`, `SITE_HOST`                                     |
+| Automation flag      | `SCHOOL_DEPLOY_ENABLED=true` once server and secrets are ready |
+| Server only          | `/srv/flrc/.env`, filled from `.env.example`, never committed  |
 
-Revert the bump pull request; merging the revert deploys the previous release. Do not downgrade the database
-schema by hand; a destructive migration is a documented decision, not a rollback.
+Authenticate the server host-key fingerprint independently before saving known hosts. Push deployment and scheduled backup freshness checks require the flag; manual dispatch bypasses it and still requires valid configuration. The deploy workflow records runs in the `school` environment and does not overwrite the server `.env`.
 
-## Rebrand
+## Updates and rollback
 
-Replace `branding/logo.svg`, `branding/favicon.svg`, and the strings in `branding/brand.js` and
-`branding/brand.json`, then merge. No image changes.
-Deployments restart the API, worker, and backup processes so cached report branding reloads
-even when the application image tags stay the same.
+Pin backend and web to the same **published full release version**. Features in the application checkout do not automatically exist in the template's image pins. Read [Deployment](../../docs/operations/deployment.md) for release publication, pre-deploy backup, migration verification and rollback.
 
-If the deployment uses private templates, principal signatures, or PDF covers, keep the complete
-folder mounted only into API/worker/backup. Put only `brand.js`, `logo.svg`, and `favicon.svg`
-in `branding/public/` and change the web mount to `./branding/public:/srv/branding:ro`.
-The default template uses generic public branding; private assets require this mount separation.
+**The supplied deploy workflow does not take a pre-deploy dump.** Arrange and verify it before applying migrations. Compose runs a one-shot migration service; do not treat a failed deployment as proof that the old runtime was unaffected.
 
-## Backups
+Reverting image pins does not reverse data migrations. Preserve the matching private branding revision and prefer forward database fixes over unreviewed Alembic downgrades.
 
-The `backup` service dumps the database every night at `BACKUP_AT`, encrypts it with the school's
-age key, uploads it to the Shared Drive folder, keeps the last `BACKUP_RETAIN` copies, restores the
-newest copy into a scratch database on the first of each month to prove it, and bundles every
-archived academic year (report PDFs, workbook, encrypted dump, manifest) under `archives/<year>/`.
-`backups/status.json` on the server records all of it; `backup-check.yml` reads it every morning
-and fails loudly when a night was missed. Manual runs:
+## Branding and backups
 
-```bash
-docker compose run --rm backup flrc backup run
-docker compose run --rm backup flrc backup restore-test
-docker compose run --rm backup flrc backup archives
-docker compose run --rm backup flrc backup status
-```
+Use [Branding](../../docs/operations/branding.md) for exact runtime files and report overlay configuration. Before adding confidential assets, mount only `branding/public/` into web and keep the complete folder in API/worker/backup. Deployments restart report processes even for branding-only changes.
 
-Status output is evidence only when it records an actual successful run. Database dumps are
-age-encrypted; archive PDFs/workbooks rely on Shared Drive access controls. Preserve the private
-branding revision separately so a database restore can reproduce report identities and covers.
+Use [Backups and restore](../../docs/operations/backups-and-restore.md) for Shared Drive/age setup, scheduler behavior, manual commands, freshness thresholds and isolated drills. A configured service or green freshness job is not evidence that a human can recover a backup.
 
-## Secrets and settings this repository needs
-
-- Repository secrets: `DEPLOY_SSH_KEY` (private key of the `flrc` deploy user), `DEPLOY_KNOWN_HOSTS`
-  (output of `ssh-keyscan <server>`).
-- Repository variables: `DEPLOY_HOST` (server address), `SITE_HOST` (public hostname).
-- Environment `school` (created automatically by the first deploy). GitHub offers required
-  reviewers on private-repository environments only on paid plans; on the free plan, merging the
-  pull request is the approval step.
-- The application secrets are only in `/srv/flrc/.env` on the server.
-
-## Enable server automation
-
-Set the repository variable `SCHOOL_DEPLOY_ENABLED=true` only after configuring
-`DEPLOY_HOST`, `SITE_HOST`, `DEPLOY_SSH_KEY`, and `DEPLOY_KNOWN_HOSTS` and preparing
-the server. Until then, automatic deployment and backup freshness jobs are
-skipped. Manual runs remain available and fail if required configuration is
-missing. This keeps a local-only checkout from attempting an unconfigured
-production deployment; it does not certify that a backup exists.
+Routine procedures: [Runbook](../../docs/operations/runbook.md). Suspected disclosure/corruption: [Incident response](../../docs/operations/incident-response.md).

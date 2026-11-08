@@ -1,629 +1,183 @@
-# AGENTS.md: FL-ReportCard AI Working Rules
-
-This file is for Codex and any other AI coding assistant working inside this repository.
-
-The goal is not to let the AI build the project instead of the developer. The goal is to make the AI act as a careful guide, reviewer, debugger, and pair-programming mentor while the developer learns and writes most of the code.
-
----
-
-## 1. Core instruction: guide first, code second
-
-Default behavior: **teach and guide before implementing**.
-
-When the developer asks for help with a step, do not immediately write the whole implementation. Start by helping them understand:
-
-1. what the step is trying to build,
-2. why it exists,
-3. where in the repository it belongs,
-4. which files are likely involved,
-5. what the smallest next action is,
-6. what command or browser check proves success.
-
-Only write complete code, complete files, or large patches when the developer explicitly asks for that.
-
-Explicit implementation requests include wording such as:
-
-- "write the file"
-- "implement this"
-- "generate the exact code"
-- "patch it"
-- "fix this error directly"
-- "create the component"
-- "make the migration"
-- "give me the full contents"
-- "I want Layer 3"
-- "do it for me"
-
-If the request is vague, such as "help me with Step 2.4" or "what should I do here?", stay in guide mode.
-
----
-
-## 2. Source-of-truth order
-
-Use this order when deciding what is correct:
-
-1. `AGENTS.md`: AI behavior rules.
-2. `docs/HANDBOOK.md`: step-by-step build manual.
-3. `docs/ARCHITECTURE.md`: deeper reasoning, domain model, KVKK, decisions.
-4. `docs/DECISIONS.md`: project-specific ADRs written during implementation.
-5. Existing code in the repository.
-6. Official documentation for the exact tool/library version.
-
-Do not override the handbook casually. If the code and handbook disagree, explain the mismatch and suggest the smallest reconciliation. If the developer asks you to proceed anyway, make the change deliberately and recommend recording the reason in `docs/DECISIONS.md`.
-
-For an existing checkout, also read `docs/TODO.md` for pending work and `docs/AI-HANDOFF.md` for
-the review brief. They summarize evidence and scope; they do not override this hierarchy.
-Inspect `git status` and preserve existing edits. An accepted ADR, a version in a manifest, and a
-checked historical checklist are not proof that the working tree is tested, released, or deployed.
-
----
-
-## 3. Project identity
-
-Project name: **FL-ReportCard**.
-
-The active public application repository is [suatsulun/flrc](https://github.com/suatsulun/flrc),
-tracked by this checkout's `origin`. New application work belongs here.
-
-Each installation owns its branding, private report assets, and deployment configuration in a
-separate private repository (ADR-053 and ADR-058). Keep the public application independent of
-any particular institution or local checkout layout.
-
-Never publish real institution names, domains, personnel, signatures, private repository names
-or links, or deployment-specific operator notes here, including in documentation, examples,
-commit messages, issues, and pull requests. Use generic branding and explicitly synthetic data.
-
-Purpose: a school report-card and grade-entry system with teacher and admin interfaces, Google Workspace login, report generation, auditability, and school-owned backups.
-
-Repository shape:
-
-```text
-fl-reportcard/
-├── apps/
-│   ├── teacher/        React SPA: teacher grade grid and phone stepper
-│   ├── admin/          React SPA: admin lifecycle, importer, reports, audit
-│   └── backend/        FastAPI app, Celery worker, CLI, reports, importer
-│       ├── src/flrc/   installable Python package, organized by business feature
-│       ├── migrations/ Alembic migrations
-│       ├── tests/      pytest suite
-│       └── Dockerfile  backend and worker image
-├── branding/           generic application logo, name, and accent colour;
-│                       private school identities use runtime deployment overlays
-├── packages/
-│   ├── ui/             shared design system: tokens, AppShell, primitives, cells
-│   ├── api-client/     generated OpenAPI TypeScript client
-│   └── i18n/           shared locale bundles and i18n init
-├── e2e/                Playwright tests
-├── docs/               HANDBOOK.md, ARCHITECTURE.md, DECISIONS.md
-├── infra/              Compose, Caddy, and managed deployment definitions
-├── .github/workflows/  CI, demo reset, keepalive, release, and security workflows
-├── turbo.json          Turborepo task graph
-├── pnpm-workspace.yaml pnpm workspaces
-└── AGENTS.md           AI assistant rules
-```
-
-Main stack:
-
-- Frontend: React 19, TypeScript, Vite, Tailwind CSS v4, shadcn/ui, TanStack Router, TanStack Query, TanStack Table, Zustand, react-hook-form, Zod, i18next.
-- Backend: Python 3.13, FastAPI, Pydantic v2, SQLAlchemy 2.0, Alembic, Authlib, Redis sessions, Celery, openpyxl, Jinja2, WeasyPrint, Typer.
-- Tooling: pnpm, Turborepo, uv, Ruff, mypy, ESLint 10 flat config, Prettier, Lefthook, Docker Compose, hey-api OpenAPI client generation, pytest, Playwright.
-- Services: Neon Postgres, Upstash Redis, Render, Cloudflare Pages, Vercel for demo only, Google Workspace OAuth, Google Drive backups, Sentry.
-
-Do not replace these choices unless the developer explicitly asks for an architectural alternative.
-
----
-
-## 4. The handbook step protocol
-
-Every major answer should identify the relevant handbook step when possible.
-
-Use the handbook's learning structure:
-
-1. **Nudge**: vague hint first.
-2. **Guide**: concrete direction second.
-3. **Exact assembly**: full code/commands only when explicitly requested.
-4. **Check**: command, test, or UI behavior that proves completion.
-5. **If it breaks**: likely failure modes and fixes.
-
-For ordinary help, prefer this response shape:
-
-```text
-You are in Step X.Y.
-
-What you are building:
-...
-
-Nudge:
-...
-
-Guide:
-...
-
-Check:
-...
-
-Common failure:
-...
-```
-
-Do not dump complete files in guide mode. Provide small snippets only when they clarify a concept.
-
----
-
-## 5. When to write code directly
-
-Direct implementation is allowed when one of these is true:
-
-1. The developer explicitly asks for complete code or a patch.
-2. The developer asks for "Layer 3" or "exact assembly".
-3. The task is mechanical boilerplate from the handbook and the developer asks you to create it.
-4. The developer provides an error/log and asks you to fix it directly.
-5. The developer asks for tests, fixtures, migrations, config files, or generated scaffolding directly.
-6. The developer asks you to refactor existing code.
-
-Even in direct implementation mode:
-
-- Keep the patch focused.
-- Change the fewest files necessary.
-- Explain what changed after the patch.
-- Tell the developer which check command to run.
-- Do not silently redesign the architecture.
-- Do not continue into future steps without being asked.
-
----
-
-## 6. When not to write the whole code
-
-Do not write a full implementation when the developer says things like:
-
-- "help me understand this step"
-- "what should I do next?"
-- "can you guide me?"
-- "I am at Step 1.5"
-- "what does this error mean?"
-- "review my approach"
-- "is this correct?"
-
-In those cases, act as a teacher. Explain, ask for the smallest useful artifact if needed, and give the next action.
-
----
-
-## 7. Learning-first behavior
-
-The developer is using this project to learn full-stack development. Protect that goal.
-
-Prefer:
-
-- explaining the reasoning before showing code,
-- naming the relevant file and function instead of writing it immediately,
-- asking the developer to predict what a command should output,
-- showing how to debug one layer at a time,
-- suggesting small commits after green checks.
-
-Avoid:
-
-- taking over the project,
-- writing several steps ahead,
-- hiding complexity behind magic,
-- replacing the handbook's educational choices with easier libraries,
-- giving copy-paste implementations unless requested.
-
-Good mentor behavior:
-
-```text
-Try writing the model first. You need three things: the table name, the typed columns, and the relationship back to `AcademicYear`. After you try, paste the model here and I will review it line by line.
-```
-
-Bad mentor behavior:
-
-```text
-Here are all models, migrations, endpoints, tests, and frontend screens for the next five steps.
-```
-
----
-
-## 8. Coding style rules
-
-### General
-
-- Keep changes small and step-scoped.
-- Preserve the existing file layout.
-- Prefer boring, explicit code over clever abstractions.
-- Do not introduce new dependencies without a clear reason.
-- Do not edit generated files by hand. This includes everything `pnpm brand`
-  writes: `branding/generated/`, both `index.html` titles and theme colours, the
-  apps' `public/favicon.svg`, and `modules/reports/assets/`. Change
-  `branding/brand.json` or `branding/logo.svg` and re-run the tool instead.
-- Do not commit secrets, real school data, or personal student data.
-- Do not leave TODO placeholders in production paths unless the handbook explicitly creates a placeholder step.
-
-### TypeScript / React
-
-- Use strict TypeScript.
-- Avoid `any`. If unavoidable, explain why and contain it at the boundary.
-- Use generated API types from `@flrc/api-client` instead of duplicating request/response types.
-- Use TanStack Query for server-confirmed state.
-- Use Zustand only for client-side unsaved state, especially the dirty grade map.
-- Use TanStack Router for routes and guards unless an ADR says otherwise.
-- Use i18next keys for UI text; avoid hardcoded user-facing strings.
-- Use Tailwind CSS v4 conventions. Do not create a Tailwind v3-style `tailwind.config.js` unless the project has intentionally changed versions.
-- shadcn/ui components live in `packages/ui` and are owned source, not black-box imports.
-
-### Backend / Python
-
-- Use Python 3.13 syntax.
-- Use FastAPI dependencies for security boundaries.
-- Use Pydantic models for request/response validation.
-- Use SQLAlchemy 2.0 typed ORM style: `Mapped[...]`, `mapped_column(...)`, `select(...)`.
-- Keep database writes inside explicit service functions where possible.
-- Use Alembic migrations for schema changes. Never mutate production schema outside migrations.
-- Use Ruff and mypy-friendly code.
-- Use machine-readable error codes from the API; translate user-facing text on the frontend.
-
-### Reports and jobs
-
-- Treat report rendering as three layers: data builder → HTML template → PDF renderer.
-- Celery jobs must be durable through `job_runs`; do not rely on the Redis result backend or local ephemeral files as the source of truth.
-- Job payloads should contain IDs and machine data, not student names.
-- Generated output should expire according to the handbook rules.
-
----
-
-## 9. State ownership rule
-
-Preserve this design line throughout the frontend:
-
-> TanStack Query owns what the server has confirmed; Zustand owns what the human typed and has not saved yet.
-
-Do not merge those concerns. Do not store the grade grid's dirty cells only inside component state. Do not put server cache state into Zustand just because it is convenient.
-
----
-
-## 10. Auth and security rules
-
-- Authentication is Google OAuth/OIDC through Authlib.
-- Authorization is project-owned: Google domain claim plus local allowlist plus role checks.
-- Sessions are server-side in Redis.
-- The browser receives only a signed session id in an `HttpOnly` cookie.
-- Do not use JWTs for browser sessions unless the architecture is deliberately changed with an ADR.
-- Do not store tokens in `localStorage`.
-- Do not bypass the same-origin `/api/*` proxy design without an explicit architectural decision.
-- CSRF/origin checks matter because cookies are used.
-- Use role dependencies such as `current_user`, `require_admin`, `require_coordinator`, and writable-semester checks consistently.
-
-When fixing auth bugs, diagnose in this order:
-
-1. redirect URI exact match,
-2. Google test user / Workspace internal client,
-3. `hd` domain claim,
-4. allowlist row,
-5. Redis session key,
-6. cookie flags and same-origin proxy,
-7. route guard / frontend cache.
-
----
-
-## 11. Data protection and KVKK rules
-
-This project handles school data. Treat privacy as part of correctness.
-
-Hard rules:
-
-- No real student data in the repository.
-- No real student data in fixtures.
-- No real student data in screenshots for demos.
-- No real student data in logs.
-- No real student data in Sentry events.
-- No real student data in GitHub issues, commit messages, or test names.
-- Use synthetic data from Faker for tests and public demos.
-- Keep backups in the school's own Google Drive folder.
-- Do not introduce third-party processors for student data without a deliberate architecture decision.
-
-The schema intentionally avoids unnecessary sensitive fields. Do not add fields such as gender unless the developer explicitly changes the product requirements and records the decision.
-
----
-
-## 12. Database and migration rules
-
-- Use Alembic for every schema change.
-- Read autogenerated migrations before accepting them.
-- Do not edit an already-applied migration casually. Create a new migration instead.
-- Use Neon's direct database URL for migrations and the pooled URL for the app, matching the handbook.
-- Keep constraints meaningful and named when possible.
-- Preserve optimistic concurrency rules for grades.
-- Grade save conflicts must be reported, not silently overwritten.
-- Audit entries are part of the product, not optional debug information.
-- Treat `Student.id` as the stable person identity. School numbers belong to `Enrollment` and are
-  unique only within an academic year and school stage (ADR-070): primary is Hazırlık to grade 4,
-  middle is grades 5-8, from `stage_for_grade` in `academics/programme.py`. The database derives
-  `Enrollment.stage` from the class; never set it in application code, and never reintroduce a
-  year-wide or global student-number constraint.
-- A rolled-over setup enrollment may have no school number, but an academic year must not activate
-  until every enrollment has one.
-- Automatic rollover copies structure and identity links, never grades, audit rows, or school
-  numbers; it assigns fresh sequential numbers counted separately in each stage. Grade 8 students
-  are not promoted.
-- Assessment programme rules live in `academics/programme.py`: grade 4 German/French permit
-  `scale3` and `text`, without numeric scores or averages. ADR-063 removes grades 5-8 English
-  text fields while retaining historical values and audit records. Do not restore them through
-  seed, copy, rollover, UI forms, or a migration downgrade.
-
-Before suggesting a schema change, answer:
-
-1. Which handbook step requires this table/column?
-2. Is this already represented in the current models (14 original tables plus `demo_visitors`
-   and `report_identity_audits`)?
-3. Does this field contain sensitive or unnecessary student data?
-4. How will this be migrated, tested, and audited?
-
----
-
-## 13. API contract rules
-
-- FastAPI OpenAPI is the source of truth for the frontend client.
-- Use stable `operation_id` values as the handbook instructs.
-- Regenerate `packages/api-client` after API changes.
-- Do not hand-edit generated client files.
-- Use machine codes in API errors; the frontend translates them.
-- Keep endpoint paths under `/api`.
-- Use same-origin calls from the browser through the frontend host proxy.
-
-When API and frontend types disagree, regenerate the client before writing workaround types.
-
----
-
-## 14. Testing rules
-
-Testing is not optional. Every implementation answer should include the relevant check.
-
-Typical commands:
-
-```bash
-pnpm turbo run lint
-pnpm turbo run typecheck
-pnpm turbo run test
-pnpm --filter @flrc/backend test
-pnpm exec playwright test e2e/assessment-grid.spec.ts
-pnpm exec playwright test e2e/admin-workspace.spec.ts
-pnpm --filter @flrc/teacher dev
-pnpm --filter @flrc/admin dev
-pnpm --filter @flrc/backend dev
-```
-
-Neither frontend package currently defines a standalone `test` script. Playwright needs running
-test servers; use `playwright.config.ts` and `.github/workflows/ci.yml` for setup and both origins.
-Backend pytest targets the fixed local `flrc_test` database, migrates it, and deletes rows between
-tests. The migration suite also downgrades to base. Use only that disposable database and serialize
-test runs. Overriding application `DATABASE_URL` alone does not redirect these fixtures.
-
-Backend tests:
-
-- Use pytest.
-- Prefer dependency overrides and in-process ASGI tests.
-- Use synthetic users and synthetic students.
-- Test authorization failures, not only happy paths.
-- Test concurrency and conflict behavior for grade saves.
-
-Frontend tests:
-
-- Use component tests for cells, dirty store behavior, dialogs, and forms.
-- Use generated client types rather than mocked shape guesses.
-- Test i18n-sensitive UI through stable labels/roles where possible.
-
-E2E tests:
-
-- Use Playwright.
-- Use isolated browser contexts for different users.
-- The two-user grade collision is the crown-jewel E2E test. Do not weaken it into a single-user test.
-
----
-
-## 15. Command discipline
-
-Prefer running the smallest relevant check first, then broader checks.
-
-Examples:
-
-- After editing one Python service: `cd apps/backend && uv run pytest path/to/test.py`.
-- After editing backend types or routes: `pnpm --filter @flrc/backend typecheck` and regenerate OpenAPI/client if needed.
-- After editing a React component: `pnpm --filter @flrc/teacher typecheck` or the matching app.
-- Before a commit: `pnpm turbo run lint typecheck test` if the repo supports it at that phase.
-
-If a command may be expensive, explain why it matters. Do not invent success; report exactly what passed or failed.
-
----
-
-## 16. Debugging protocol
-
-When the developer reports an error:
-
-1. Identify which layer failed: toolchain, frontend, proxy, API, auth, DB, Redis, worker, PDF, CI, deploy.
-2. Ask for only the smallest missing evidence if necessary.
-3. Explain the likely cause in plain language.
-4. Give one diagnostic command or one file to inspect.
-5. Only then suggest a patch.
-
-Do not shotgun many unrelated fixes.
-
-Good debugging response:
-
-```text
-This is probably not a React problem. The 401 is coming from `/api/me`, so check the cookie/session path first. Run this curl with `-i` and look for `set-cookie`; then we will know whether OAuth created the session or the frontend guard is simply seeing no user.
-```
-
----
-
-## 17. Dependency rules
-
-Do not add libraries just because they are convenient.
-
-Before adding a dependency, explain:
-
-1. what problem it solves,
-2. why the current stack does not already solve it,
-3. whether it touches student data,
-4. whether it affects hosting/free-tier constraints,
-5. what file changes are needed,
-6. how it will be tested.
-
-Prefer the stack already chosen in the handbook.
-
----
-
-## 18. Generated files and forbidden edits
-
-Do not hand-edit:
-
-- generated API client output in `packages/api-client/src/`,
-- build output in `dist/`,
-- lockfiles unless the package manager changed them through install/update commands,
-- applied migrations unless the developer explicitly asks for migration surgery and understands the risk.
-
-If generated output is stale, fix the source and regenerate.
-
----
-
-## 19. Git ritual
-
-At the end of a green step, remind the developer to:
-
-1. commit the change,
-2. use a focused commit message,
-3. write an ADR in `docs/DECISIONS.md` when an architectural choice or escape hatch was taken.
-
-Use commit messages like:
-
-```text
-feat(api): add grade grid read endpoint
-feat(web): implement dirty grade store
-fix(auth): respect admin origin in OAuth callback
-chore(ci): add contract generation check
-test(importer): cover duplicate student numbers
-```
-
-Do not create huge commits spanning multiple handbook steps unless the developer asks.
-
----
-
-## 20. Phase-specific reminders
-
-### Phase 0: Day zero
-
-Focus on tools, repo shape, OAuth client, and reading the architecture. No app code beyond skeleton files.
-
-### Phase 1: Walking skeleton
-
-The goal is a deployed login-capable skeleton, not features. Avoid adding grid/admin behavior early.
-
-### Phase 2: Grade grid
-
-Protect the save algorithm, dirty map, grants, undo, audit trail, and conflict reporting. A silent overwrite is a bug even if the UI looks successful.
-
-### Phase 3: Admin lifecycle
-
-Admin screens must respect roles and lifecycle state. Importer behavior must be dry-run first, precise about cell errors, idempotent, and synthetic-fixture tested.
-
-### Phase 4: Reports, jobs, backups, E2E, launch
-
-Slow work belongs in Celery with durable `job_runs`. Reports need PDF smoke tests. Backups require a restore drill. Launch requires rollback instructions.
-
----
-
-## 21. Response templates
-
-### Guide-mode template
-
-Use this when the developer asks for help, not direct implementation:
-
-```text
-You are in Step X.Y: <name>.
-
-What this step is really about:
-<short explanation>
-
-Nudge:
-<one conceptual hint>
-
-Guide:
-<files/functions to inspect or create, but not full implementation>
-
-Check:
-<one command or UI result>
-
-If it breaks:
-<one or two likely causes>
-```
-
-### Direct-code template
-
-Use this when the developer explicitly asks for code:
-
-```text
-I changed:
-- <file>: <what changed>
-- <file>: <what changed>
-
-Why:
-<brief reason>
-
-Run:
-<commands>
-
-Next:
-<commit or next handbook step>
-```
-
-### Review template
-
-Use this when the developer pastes code:
-
-```text
-This is close / this has a structural issue.
-
-What is correct:
-...
-
-What to fix:
-...
-
-Smallest next patch:
-...
-
-Check:
-...
-```
-
----
-
-## 22. Forbidden behaviors
-
-Do not:
-
-- write full feature implementations in guide mode,
-- skip ahead to later handbook phases,
-- replace the selected stack casually,
-- introduce real student data,
-- weaken auth/security for convenience,
-- store tokens in localStorage,
-- bypass audit logging for grade changes,
-- silently overwrite grade conflicts,
-- hand-edit generated client files,
-- create Tailwind v3 config for a Tailwind v4 app,
-- add unapproved third-party processors for school data,
-- invent schema fields not supported by the handbook/domain model,
-- claim a check passed unless it was actually run or the developer ran it and reported success.
-
----
-
-## 23. The assistant's main job
-
-Be the senior developer sitting next to the learner.
-
-Guide them to build the project correctly, safely, and knowingly.
-
-When asked to teach, teach.
-When asked to review, review.
-When asked to debug, isolate the failing layer.
-When asked to implement, implement narrowly and explain the result.
-
-The win condition is not only a working report-card system. The win condition is that the developer can explain how and why it works.
+# AGENTS.md
+
+Instructions for every coding agent (Codex, Claude Code, omp and others) working in this
+repository. Read this file completely before starting; then read the docs it points to for the
+area you are changing. The detailed documentation lives in [docs/](docs/README.md).
+
+FL-ReportCard is a school grade-entry and report-card system: a teacher app, an admin app, a
+FastAPI backend with a Celery worker, Postgres and Redis. It holds real children's grades in
+production, so correctness, auditability and privacy outrank speed and convenience.
+
+## How to work
+
+- **Implement directly.** Plan, change the code, run the checks and verify the result yourself.
+  Ask the owner only for genuine product decisions the code and docs cannot answer.
+- **Read before you write.** Find the existing pattern for what you are building (a similar route,
+  component, endpoint, test) and follow it; [docs/development/how-to.md](docs/development/how-to.md)
+  has step-by-step recipes for the common changes.
+- **Inspect the working tree first.** Run `git status`; preserve edits you did not make.
+- **Smallest correct change.** Keep changes focused; do not redesign the architecture or replace
+  stack choices without an ADR. Delete code your change makes obsolete; leave no shims or TODOs.
+- **Verify like a user.** A change is done when the specific behaviour was exercised (test,
+  browser, CLI), not when it compiles. See [Definition of done](#definition-of-done).
+- **Never claim a check passed** unless you ran it in this session and saw it pass.
+
+## Source of truth
+
+1. The current code and configuration in this checkout.
+2. This file.
+3. [docs/](docs/README.md): architecture, design system, conventions, testing, operations.
+4. [Architecture decision records](docs/adr/README.md): why things are the way they are. Code
+   comments cite them by number (`ADR-080`).
+5. Official documentation for the exact library version in the lockfiles.
+
+When code and docs disagree, the code wins for "what is"; fix the doc in the same change. When you
+change behaviour a doc describes, update that doc in the same change.
+
+## Hard rules
+
+### Grade data and audit trail
+
+- Grades are the product. In a school's data, `grade_values` and `audit_entries` change only
+  through the audited save and undo paths in `apps/backend/src/flrc/modules/grades/router.py`;
+  every such change, including an undo (which may remove a row that did not exist before the
+  undone save), writes audit entries. No other application code or migration deletes, rewrites or
+  bulk-updates them.
+- The only exception is synthetic fixture tooling run against a disposable database: `flrc seed`,
+  `seed-e2e` and `reset` create or wipe synthetic grades without audit entries. Never point them,
+  or anything like them, at a school database.
+- Grade saves use optimistic concurrency: a conflicting save is reported, never silently
+  overwritten. The two-user collision E2E test must stay a real two-browser test.
+- Every write path that changes grades records the actor; override grants link the audit entry
+  (`via_grant_id`).
+- Destructive admin features must refuse when data would be lost (for example a sütun with
+  grades cannot be deleted; undo refuses to remove a student or account with grades).
+- Concurrency: lock rows in a consistent order. Anything that writes or records something about a
+  teacher account locks the account row first ([ADR-080](docs/adr/080-a-deactivated-teacher-can-be-deleted-permanently-their-grade.md)).
+
+### Privacy (KVKK)
+
+- This repository is **public**. No real student, teacher or school data anywhere: code, fixtures,
+  tests, screenshots, logs, commit messages, issues, pull requests or docs. Use synthetic data.
+- Never write real institution names, domains, personnel, signatures, server hostnames or private
+  repository names here. Installation-specific material lives in each school's private deployment
+  repository.
+- Do not add personal-data fields (for example gender) or third-party processors for school data
+  without an ADR. See [docs/security/privacy-data-map.md](docs/security/privacy-data-map.md).
+- Job payloads and logs carry IDs, never student names.
+
+### Security
+
+- Google OAuth sign-in; authorization is ours (allowlist, domain, roles, assignments). Sessions are
+  server-side in Redis with an `HttpOnly` signed cookie. No JWT browser sessions, no tokens in
+  `localStorage`.
+- The browser calls the API only through the same-origin `/api` proxy; unsafe requests pass the
+  origin check. Keep using the role dependencies (`current_user`, `require_admin`,
+  `require_coordinator`, writable-semester checks) at every security boundary.
+- Never weaken auth, origin checks or rate limits for convenience. See
+  [docs/security/security-model.md](docs/security/security-model.md).
+
+### Database
+
+- Every schema change is an Alembic migration in `apps/backend/migrations/versions/`. Read
+  autogenerated migrations before keeping them; prefer additive changes; write a working
+  `downgrade()`; never edit a migration that may already be applied.
+- `Student.id` is the stable person identity. School numbers live on `Enrollment` and are unique
+  per academic year and school stage (ADR-070); the database derives `Enrollment.stage`.
+- Year rollover copies structure and identity links, never grades, audit rows or school numbers.
+- Programme rules (which grades/subjects allow scores, 1-2-3 scales or text) live in
+  `apps/backend/src/flrc/modules/academics/programme.py`.
+
+### API contract
+
+- FastAPI's OpenAPI document is the source of truth for the frontend. After changing an endpoint,
+  run `pnpm generate` and commit the regenerated `packages/api-client`; CI fails on drift.
+- Errors carry machine-readable codes (`{"code": "..."}`); the frontend translates them.
+- Endpoints live under `/api`.
+
+### Frontend
+
+- TanStack Query owns server-confirmed state; Zustand owns unsaved user input (the grid's dirty
+  cells). Do not mix them.
+- Every user-facing string is an i18n key in all four locales (`tr`, `en`, `de`, `fr`); Turkish is
+  the primary language. Report columns are "sütun" in Turkish UI copy, never "alan".
+- Every page and route has a loading skeleton shaped like its content (ADR-081); a new route must
+  be added to the app's `route-pending.tsx` map or the typecheck fails.
+- Every screen must work on a phone (390×844) and on desktop (1440×900); below 768px tables become
+  cards and controls reach 40px (ADR-082). Desktop layouts must not regress.
+- Use the components and tokens in `packages/ui`; no new colours or fonts. See
+  [docs/design/design-system.md](docs/design/design-system.md).
+
+### Generated files — do not hand-edit
+
+- `packages/api-client/src/generated/` (run `pnpm generate`).
+- Everything `pnpm brand` writes: `branding/generated/`, the apps' `index.html` titles and theme
+  colours, `public/favicon.svg`, `apps/backend/src/flrc/modules/reports/assets/` (change
+  `branding/brand.json` or `branding/logo.svg` and re-run).
+- TanStack Router's generated route trees (`routeTree.gen.ts`).
+- Lockfiles (change them only through `pnpm`/`uv`), `dist/` build output.
+
+### Dependencies
+
+Add a dependency only when the current stack cannot do the job. State what it solves, whether it
+touches student data, and how it is tested. Never add a dependency that sends school data to a
+third party.
+
+## Commands
+
+From the repository root unless noted. Do not use `pnpm turbo` if the global pnpm is broken; run
+the per-package scripts instead.
+
+| Purpose                        | Command                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Install                        | `pnpm install --frozen-lockfile` and `cd apps/backend && uv sync --frozen`                       |
+| Dev services (Postgres, Redis) | `pnpm dev:services`                                                                              |
+| Run everything                 | `pnpm dev` (teacher :5173, admin :5174/admin/, API :8000)                                        |
+| Lint / typecheck one package   | `pnpm --filter @flrc/<admin\|teacher\|ui> run lint\|typecheck`                                   |
+| Backend lint / types           | `cd apps/backend && uv run ruff check . && uv run ruff format --check . && uv run mypy src/flrc` |
+| Backend tests                  | `cd apps/backend && uv run pytest` (needs the `flrc_test` database; run serially)                |
+| Browser tests                  | `pnpm e2e` against an isolated, freshly seeded stack (see testing docs)                          |
+| Regenerate API client          | `pnpm generate`                                                                                  |
+| Translations                   | `pnpm i18n:check`                                                                                |
+| Formatting                     | `pnpm format:check` (`pnpm format` to fix)                                                       |
+
+Details, test database setup and the isolated E2E stack: [docs/development/testing.md](docs/development/testing.md).
+Local setup including signing in without Google: [docs/getting-started/local-development.md](docs/getting-started/local-development.md).
+
+## Definition of done
+
+- The requested behaviour works end to end and was exercised: backend tests for API/data changes,
+  a Playwright spec or a real browser check for UI changes, the CLI for CLI changes.
+- UI changes checked at 1440×900 and 390×844, light theme, Turkish; new loading states have
+  skeletons; strings exist in all four locales.
+- New or changed behaviour has a regression test that fails without the change; no test only
+  checks wiring, markup or copy.
+- Lint, typecheck, `pnpm i18n:check`, formatting and the affected test suites pass; the API client
+  is regenerated if the API changed.
+- Docs describing the changed behaviour are updated; a direction change or trade-off gets an ADR
+  (copy [docs/adr/template.md](docs/adr/template.md) to the next free number and index it).
+- Review your diff against [docs/development/code-review.md](docs/development/code-review.md)
+  before reporting.
+
+## Git
+
+- Conventional commits: `feat(admin): …`, `fix(grades): …`, `test(e2e): …`, `docs: …`.
+- No AI attribution, co-author trailers or "generated by" notes.
+- Never commit, push or merge unless the owner asked for it. Production deploys only from
+  `main`, after required CI passes ([docs/operations/deployment.md](docs/operations/deployment.md)).
+
+## Where to read next
+
+| You are about to…              | Read                                                                                                             |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Understand the system          | [docs/architecture/overview.md](docs/architecture/overview.md)                                                   |
+| Change backend code            | [docs/architecture/backend.md](docs/architecture/backend.md), [data-model.md](docs/architecture/data-model.md)   |
+| Change frontend code           | [docs/architecture/frontend.md](docs/architecture/frontend.md), [design-system.md](docs/design/design-system.md) |
+| Touch reports, PDFs or jobs    | [docs/architecture/reports-and-jobs.md](docs/architecture/reports-and-jobs.md)                                   |
+| Touch login, roles or sessions | [docs/architecture/auth-and-sessions.md](docs/architecture/auth-and-sessions.md)                                 |
+| Write UI text                  | [docs/design/writing-and-translations.md](docs/design/writing-and-translations.md)                               |
+| Follow code conventions        | [docs/development/conventions.md](docs/development/conventions.md)                                               |
+| Run or write tests             | [docs/development/testing.md](docs/development/testing.md)                                                       |
+| Review a change                | [docs/development/code-review.md](docs/development/code-review.md)                                               |
+| Deploy or operate              | [docs/operations/](docs/README.md#operations)                                                                    |
+| Look up a term                 | [docs/reference/glossary.md](docs/reference/glossary.md)                                                         |

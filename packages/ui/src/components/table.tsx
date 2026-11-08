@@ -52,7 +52,19 @@ function TableRow({ className, ...props }: ComponentProps<"tr">) {
   );
 }
 
-function TableHeader({ className, align, ...props }: ComponentProps<"th">) {
+function TableHeader({
+  className,
+  align,
+  sticky = false,
+  ...props
+}: ComponentProps<"th"> & {
+  /**
+   * Pins this header to the left (`left-0`) above the scrolling headers. A second pinned
+   * column passes its offset in `className`, which replaces `left-0`: e.g. `left-12` (or
+   * `left-12 md:left-16`) after a `w-12` (`md:w-16`) first column.
+   */
+  sticky?: boolean;
+}) {
   return (
     <th
       scope="col"
@@ -61,6 +73,7 @@ function TableHeader({ className, align, ...props }: ComponentProps<"th">) {
         "text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase",
         align === "right" && "text-right",
         align === "center" && "text-center",
+        sticky && "left-0 z-30 border-r border-border bg-muted/95",
         className,
       )}
       {...props}
@@ -68,13 +81,28 @@ function TableHeader({ className, align, ...props }: ComponentProps<"th">) {
   );
 }
 
-function TableCell({ className, align, ...props }: ComponentProps<"td">) {
+function TableCell({
+  className,
+  align,
+  sticky = false,
+  ...props
+}: ComponentProps<"td"> & {
+  /**
+   * Pins this cell to the left (`left-0`) while the other columns scroll under it, keeping
+   * the row's stripe and hover tint. A second pinned column passes its offset in `className`,
+   * which replaces `left-0`: e.g. `left-12` (or `left-12 md:left-16`) after a `w-12`
+   * (`md:w-16`) first column. Match the header's offset with `TableHeader`'s `sticky`.
+   */
+  sticky?: boolean;
+}) {
   return (
     <td
       className={cn(
         "border-b border-border/70 px-3 py-2.5 align-middle whitespace-nowrap",
         align === "right" && "tabular-nums text-right",
         align === "center" && "tabular-nums text-center",
+        sticky &&
+          "sticky left-0 z-10 border-r border-r-border bg-card group-even:bg-muted group-hover:bg-accent group-focus-within:bg-accent",
         className,
       )}
       {...props}

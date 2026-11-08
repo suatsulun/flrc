@@ -2,6 +2,9 @@ import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import type {
   AdminClassOut,
+  ArchiveClassOut,
+  ArchiveGridOut,
+  ArchiveYearOut,
   HistoryCell,
   MeOut,
   StudentHistoryOut,
@@ -117,6 +120,28 @@ const students: StudentPage = {
   next_cursor: null,
 };
 
+const archiveYear: ArchiveYearOut = { id: 3, label: "2028-2029", status: "archived" };
+const archiveClass: ArchiveClassOut = { id: 33, name: "3/B", grade_level: 3 };
+const archiveComment = "Synthetic pupil took part keenly all term.";
+const archiveGrid: ArchiveGridOut = {
+  class_name: "3/B",
+  semester: 1,
+  subject: "english",
+  columns: [
+    { id: 1, label: "Participates in classroom activities", value_type: "scale3" },
+    { id: 2, label: "Follows classroom rules and routines", value_type: "scale3" },
+    { id: 3, label: "Reading", value_type: "score" },
+    { id: 4, label: "Speaking", value_type: "score" },
+    { id: 5, label: "Teacher’s comments", value_type: "text" },
+  ],
+  rows: [1, 2, 3].map((n) => ({
+    student_id: 30 + n,
+    school_number: 3000 + n,
+    full_name: `Synthetic Archived Pupil With A Long Name ${n}`,
+    cells: { "1": 1, "2": 3, "3": 80 + n, "4": null, "5": archiveComment },
+  })),
+};
+
 /** Every request stays in this browser context; nothing touches a school database. */
 async function mockApi(page: Page) {
   await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
@@ -127,6 +152,9 @@ async function mockApi(page: Page) {
     if (path === "/api/admin/years") return route.fulfill({ json: [year] });
     if (path === "/api/admin/years/5/classes") return route.fulfill({ json: [schoolClass] });
     if (path === "/api/admin/students") return route.fulfill({ json: students });
+    if (path === "/api/archive/years") return route.fulfill({ json: [archiveYear] });
+    if (path === "/api/archive/years/3/classes") return route.fulfill({ json: [archiveClass] });
+    if (path === "/api/archive/classes/33/grid") return route.fulfill({ json: archiveGrid });
     return route.abort();
   });
 }
@@ -200,6 +228,65 @@ test("student search results fit a phone and open the history", async ({ page })
   await results.getByRole("link", { name: en.students.history, exact: true }).click();
   await expect(page).toHaveURL(/\/students\/21\/history/);
   await expect(page.getByRole("heading", { name: "Synthetic Pupil", exact: true })).toBeVisible();
+});
+
+test("the archive reads as a card per student on a phone and pins the name in the table", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockApi(page);
+  await page.goto(`${adminOrigin}/admin/archive`);
+
+  // The four pickers share two rows, each a full touch target.
+  const pickers = [
+    page.getByLabel("Academic year", { exact: true }),
+    page.getByLabel("Classes", { exact: true }),
+    page.getByLabel("Semester 1", { exact: true }),
+    page.getByLabel("Subject", { exact: true }),
+  ];
+  const boxes = await Promise.all(pickers.map(async (picker) => (await picker.boundingBox())!));
+  for (const box of boxes) expect(box.height).toBeGreaterThanOrEqual(40);
+  expect(boxes[0].y).toBe(boxes[1].y);
+  expect(boxes[2].y).toBe(boxes[3].y);
+  expect(boxes[2].y).toBeGreaterThan(boxes[0].y);
+
+  // Cards by default, with every archived column and value.
+  const viewSwitch = page.getByRole("radiogroup", { name: "View", exact: true });
+  await expect(viewSwitch.getByRole("radio", { name: "Cards", exact: true })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  const cards = page.getByTestId("student-grade-card");
+  await expect(cards).toHaveCount(3);
+  const first = cards.first();
+  await expect(first).toContainText("Synthetic Archived Pupil With A Long Name 1");
+  await expect(first).toContainText("3001");
+  for (const column of archiveGrid.columns) {
+    await expect(first.getByText(column.label, { exact: true })).toBeVisible();
+  }
+  await expect(first.getByText("81", { exact: true })).toBeVisible();
+  await expect(first.getByText(archiveComment, { exact: true })).toBeVisible();
+  expect(await noSidewaysScroll(page)).toBe(true);
+
+  // The table pins the student column at 10rem while the grades scroll.
+  const tableRadio = viewSwitch.getByRole("radio", { name: "Table", exact: true });
+  await tableRadio.click();
+  await expect(tableRadio).toHaveAttribute("aria-checked", "true");
+  await expect(cards).toHaveCount(0);
+  const table = page.getByLabel("Archived grade table", { exact: true });
+  const nameHeader = table.getByRole("columnheader", { name: "Full name", exact: true });
+  expect(Math.round((await nameHeader.boundingBox())!.width)).toBe(160);
+  const nameCell = table.getByRole("cell", { name: /Name 1$/ });
+  const before = (await nameCell.boundingBox())!.x;
+  await table.evaluate((element) => element.scrollBy({ left: 300 }));
+  expect(await table.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  expect((await nameCell.boundingBox())!.x).toBeCloseTo(before, 0);
+  expect(await noSidewaysScroll(page)).toBe(true);
+
+  // Wider screens keep the table and hide the switch.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(viewSwitch).toBeHidden();
+  await expect(table.getByRole("columnheader", { name: "Full name", exact: true })).toBeVisible();
 });
 
 test("a new student search shows skeleton rows, not the previous results", async ({ page }) => {

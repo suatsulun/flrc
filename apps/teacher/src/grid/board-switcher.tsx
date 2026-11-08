@@ -147,7 +147,7 @@ export function BoardSwitcher({
                 type="button"
                 aria-current={schoolClass.id === Number(classId) ? "page" : undefined}
                 className={[
-                  "min-w-0 flex-1 basis-16 rounded-lg px-2 py-2 text-xs font-semibold outline-none transition-colors sm:text-sm",
+                  "min-w-0 flex-1 basis-16 rounded-lg px-2 py-2 text-xs font-semibold outline-none transition-colors max-md:min-h-10 sm:text-sm",
                   schoolClass.id === Number(classId)
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground",

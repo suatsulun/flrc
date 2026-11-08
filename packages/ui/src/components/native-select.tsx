@@ -11,16 +11,24 @@ import { cn } from "#lib/utils";
  * Base UI listbox for the cases that need custom option rendering.
  */
 function NativeSelect({ className, children, ...props }: ComponentProps<"select">) {
+  const classes = className?.split(/\s+/) ?? [];
   return (
     // Not `w-full`: as a flex child that would claim a whole row and push
     // sibling controls onto the next line. The wrapper hugs the select, so a
     // width passed in `className` decides the size, and a grid cell (e.g. inside
-    // `Field`) still stretches it to the full column.
-    <span className="relative inline-flex max-w-full min-w-0 items-center">
+    // `Field`) still stretches it to the full column. In a flex row, `flex-1` or
+    // `max-md:w-full` on the select also sizes the wrapper.
+    <span
+      className={cn(
+        "relative inline-flex max-w-full min-w-0 items-center",
+        classes.includes("flex-1") && "flex-1",
+        classes.includes("max-md:w-full") && "max-md:w-full",
+      )}
+    >
       <select
         data-slot="native-select"
         className={cn(
-          "h-9 w-full min-w-0 max-w-full appearance-none rounded-lg border border-input bg-card py-0 pr-8 pl-3",
+          "h-9 w-full min-w-0 max-w-full appearance-none rounded-lg border border-input bg-card py-0 pr-8 pl-3 max-md:min-h-10",
           "text-sm shadow-card transition-colors outline-none",
           "hover:border-border-strong focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/25",
           "disabled:cursor-not-allowed disabled:opacity-50",

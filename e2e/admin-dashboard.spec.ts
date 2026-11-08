@@ -26,17 +26,19 @@ const en = JSON.parse(readFileSync("packages/i18n/src/locales/en.json", "utf8"))
     missing: { tableLabel: string };
     problems: { unassignedRoles: string };
   };
-  coordinator: { tableLabel: string };
   lifecycle: { activate: string };
   subjects: { german: string };
   audit: {
     actor: string;
     dateFrom: string;
     exportCsv: string;
+    forced: string;
     studentFilter: string;
     tableLabel: string;
+    viaGrant: string;
   };
   changes: { title: string; empty: string };
+  coordinator: { expected: string; filled: string; missing: string; tableLabel: string };
   loading: string;
 };
 
@@ -155,6 +157,35 @@ const teacher: UserOut = {
   teaching_stage: "middle",
 };
 
+const auditItems: AuditItemOut[] = [
+  {
+    id: 2,
+    created_at: "2030-10-02T09:30:00Z",
+    class_id: 11,
+    actor: "Synthetic Teacher",
+    student: "Synthetic Pupil",
+    column_label: "Speaking",
+    old_value: "77",
+    new_value: "85",
+    old_existed: true,
+    forced: true,
+    via_grant: false,
+  },
+  {
+    id: 1,
+    created_at: "2030-10-01T08:15:00Z",
+    class_id: 11,
+    actor: "Synthetic Teacher",
+    student: "Synthetic Pupil Two",
+    column_label: "Teacher comment",
+    old_value: null,
+    new_value: "A curious reader who now joins every speaking activity with confidence.",
+    old_existed: false,
+    forced: false,
+    via_grant: true,
+  },
+];
+
 /** Every request stays in this browser context; nothing touches a school database. */
 async function mockApi(page: Page, exports: URL[] = []) {
   await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
@@ -170,7 +201,9 @@ async function mockApi(page: Page, exports: URL[] = []) {
     if (path === "/api/classes") return route.fulfill({ json: [] satisfies ClassOut[] });
     if (path === "/api/users") return route.fulfill({ json: [teacher] });
     if (path === "/api/audit")
-      return route.fulfill({ json: { items: [], next_cursor: null } satisfies AuditPageOut });
+      return route.fulfill({
+        json: { items: auditItems, next_cursor: null } satisfies AuditPageOut,
+      });
     if (path === "/api/admin/students")
       return route.fulfill({ json: { items: [], next_cursor: null } satisfies StudentPage });
     if (path === "/api/audit/export.csv") {
@@ -182,8 +215,8 @@ async function mockApi(page: Page, exports: URL[] = []) {
 }
 
 for (const size of [
-  { width: 1440, height: 900 },
-  { width: 390, height: 844 },
+  { width: 1440, height: 900, phone: false },
+  { width: 390, height: 844, phone: true },
 ]) {
   test(`the dashboard shows the next step and drills into missing grades at ${size.width}px`, async ({
     page,
@@ -208,6 +241,28 @@ for (const size of [
     const changes = page.getByTestId("recent-changes-card");
     await expect(changes.getByRole("heading", { name: en.changes.title })).toBeVisible();
     await expect(changes.getByText(en.changes.empty)).toBeVisible();
+
+    // Completion reads as a table on wide screens and one card per class on phones; the
+    // subject nobody takes in the class has no row in either.
+    const completionCards = page.getByTestId("completion-card");
+    const completionTable = page.getByRole("table", { name: "Class completion overview" });
+    if (size.phone) {
+      await expect(completionCards).toHaveCount(1);
+      await expect(completionTable).toBeHidden();
+      const card = completionCards.first();
+      await expect(card).toContainText("5/A · English");
+      await expect(card).toContainText(`${en.coordinator.missing}: 1`);
+      await expect(card).toContainText(`${en.coordinator.expected}: 4`);
+      await expect(card).toContainText(`${en.coordinator.filled}: 3`);
+      await expect(card.getByRole("img", { name: /75/ })).toBeVisible();
+      const details = card.getByRole("button", { name: en.adminDashboard.completion.details });
+      const [cardBox, buttonBox] = [(await card.boundingBox())!, (await details.boundingBox())!];
+      expect(buttonBox.height).toBeGreaterThanOrEqual(40);
+      expect(buttonBox.width).toBeGreaterThanOrEqual(cardBox.width - 32 - 1);
+    } else {
+      await expect(completionTable.getByRole("row")).toHaveCount(2);
+      await expect(completionCards.first()).toBeHidden();
+    }
 
     await page.getByRole("button", { name: en.adminDashboard.completion.details }).click();
     const dialog = page.getByRole("dialog");
@@ -346,6 +401,48 @@ test("the audit CSV export carries the table's filters", async ({ page }) => {
     date_from: "2030-09-01T00:00:00",
   });
 });
+
+for (const size of [
+  { width: 1440, height: 900, phone: false },
+  { width: 390, height: 844, phone: true },
+]) {
+  test(`the audit history shows each change and its flags at ${size.width}px`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await mockApi(page);
+    await page.goto(`${adminOrigin}/admin/audit`);
+
+    const table = page.getByRole("table", { name: "Grade-change audit history" });
+    const cards = page.getByTestId("audit-card");
+    if (!size.phone) {
+      await expect(table.getByRole("row")).toHaveCount(3);
+      await expect(table.getByLabel(en.audit.forced)).toBeVisible();
+      await expect(table.getByLabel(en.audit.viaGrant)).toBeVisible();
+      await expect(cards.first()).toBeHidden();
+      return;
+    }
+
+    // A phone lists one card per change: who and what, old → new, when, and named flags.
+    await expect(cards).toHaveCount(2);
+    await expect(table).toBeHidden();
+    const forced = cards.first();
+    await expect(forced).toContainText("Synthetic Pupil");
+    await expect(forced).toContainText("Speaking");
+    await expect(forced).toContainText("77→85");
+    await expect(forced).toContainText("Synthetic Teacher ·");
+    await expect(forced.getByText(en.audit.forced, { exact: true })).toBeVisible();
+    const granted = cards.last();
+    await expect(granted).toContainText("∅→A curious reader");
+    await expect(granted.getByText(en.audit.viaGrant, { exact: true })).toBeVisible();
+    // The long comment wraps inside its card instead of widening the page.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      390,
+    );
+    const comment = granted.getByText(/^A curious reader/);
+    expect((await comment.boundingBox())!.width).toBeLessThanOrEqual(
+      (await granted.boundingBox())!.width - 32 + 0.5,
+    );
+  });
+}
 
 test("an audit filter change shows skeleton rows, not the previous filter's entries", async ({
   page,

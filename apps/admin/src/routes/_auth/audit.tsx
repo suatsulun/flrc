@@ -4,7 +4,12 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DownloadIcon, FlagIcon, KeyRoundIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
-import { listAudit, listClassesOptions, listUsersOptions } from "@flrc/api-client";
+import {
+  listAudit,
+  listClassesOptions,
+  listUsersOptions,
+  type AuditItemOut,
+} from "@flrc/api-client";
 import { Badge } from "@flrc/ui/components/badge";
 import { Button } from "@flrc/ui/components/button";
 import { Card, CardBody, CardContent } from "@flrc/ui/components/card";
@@ -12,7 +17,8 @@ import { EmptyState } from "@flrc/ui/components/empty-state";
 import { Field } from "@flrc/ui/components/field";
 import { Input } from "@flrc/ui/components/input";
 import { NativeSelect } from "@flrc/ui/components/native-select";
-import { SkeletonTableRows } from "@flrc/ui/components/skeleton";
+import { PhoneCardHeader, PhoneCardItem, PhoneCardList } from "@flrc/ui/components/phone-card-list";
+import { SkeletonList, SkeletonTableRows } from "@flrc/ui/components/skeleton";
 import {
   Table,
   TableBody,
@@ -25,11 +31,46 @@ import {
   TableScroll,
   TableText,
 } from "@flrc/ui/components/table";
+import { cn } from "@flrc/ui/lib/utils";
 import { AdminPage } from "../../admin/AdminPage";
 import { AuditSkeleton } from "../../admin/page-skeletons";
 import { StudentPicker, type PickedStudent } from "../../students/StudentPicker";
 
 export const Route = createFileRoute("/_auth/audit")({ component: AuditPage });
+
+/** Longer values (a teacher comment, say) wrap under a phone card's header, not beside it. */
+const INLINE_VALUE_LENGTH = 16;
+
+function oldValue(item: AuditItemOut) {
+  // `∅`: the cell had no value before this save; `—`: it held an explicit blank.
+  return item.old_existed ? (item.old_value ?? "—") : "∅";
+}
+
+/** An entry's old value → new value. `wrap` lets long values break over several lines. */
+function ValueChange({
+  item,
+  className,
+  wrap = false,
+}: {
+  item: AuditItemOut;
+  className: string;
+  wrap?: boolean;
+}) {
+  const value = wrap ? "min-w-0 max-w-full break-words whitespace-pre-wrap" : undefined;
+  return (
+    <span className={cn("tabular items-center gap-1.5 text-xs", className)}>
+      <span className={cn("rounded bg-muted px-1.5 py-0.5 text-muted-foreground", value)}>
+        {oldValue(item)}
+      </span>
+      <span className="text-muted-foreground">→</span>
+      <span
+        className={cn("rounded bg-accent px-1.5 py-0.5 font-medium text-accent-foreground", value)}
+      >
+        {item.new_value ?? "—"}
+      </span>
+    </span>
+  );
+}
 
 function AuditPage() {
   const { t, i18n } = useTranslation();
@@ -69,7 +110,8 @@ function AuditPage() {
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
     // A filter change keeps the filters on screen (and focused) while the new page loads;
-    // the previous filter's rows stay hidden behind the table skeleton, never shown as current.
+    // the previous filter's rows and phone cards stay hidden behind skeletons, never shown as
+    // current.
     placeholderData: keepPreviousData,
   });
   const items = audit.data?.pages.flatMap((page) => page.items) ?? [];
@@ -177,7 +219,7 @@ function AuditPage() {
             {(id) => (
               <Input
                 id={id}
-                className="h-9 rounded-lg"
+                className="h-9 rounded-lg max-md:h-10"
                 type="date"
                 value={dateFrom}
                 max={dateTo || undefined}
@@ -189,7 +231,7 @@ function AuditPage() {
             {(id) => (
               <Input
                 id={id}
-                className="h-9 rounded-lg"
+                className="h-9 rounded-lg max-md:h-10"
                 type="date"
                 value={dateTo}
                 min={dateFrom || undefined}
@@ -197,7 +239,12 @@ function AuditPage() {
               />
             )}
           </Field>
-          <Button variant="ghost" disabled={!filtered} onClick={clearFilters}>
+          <Button
+            variant="ghost"
+            className="max-md:w-full"
+            disabled={!filtered}
+            onClick={clearFilters}
+          >
             <XIcon />
             {t("audit.clearFilters")}
           </Button>
@@ -205,7 +252,7 @@ function AuditPage() {
       </Card>
 
       <Card>
-        <CardBody>
+        <CardBody className="hidden md:block">
           <TableScroll aria-label={t("audit.tableLabel")}>
             <Table className="min-w-[64rem]">
               <TableCaption>{t("audit.tableLabel")}</TableCaption>
@@ -246,15 +293,7 @@ function AuditPage() {
                         <TableText className="max-w-40">{item.column_label}</TableText>
                       </TableCell>
                       <TableCell>
-                        <span className="tabular flex items-center gap-1.5 text-xs">
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
-                            {item.old_existed ? (item.old_value ?? "—") : "∅"}
-                          </span>
-                          <span className="text-muted-foreground">→</span>
-                          <span className="rounded bg-accent px-1.5 py-0.5 font-medium text-accent-foreground">
-                            {item.new_value ?? "—"}
-                          </span>
-                        </span>
+                        <ValueChange item={item} className="flex" />
                       </TableCell>
                       <TableCell align="right">
                         <span className="flex justify-end gap-1">
@@ -286,6 +325,58 @@ function AuditPage() {
             </Table>
           </TableScroll>
         </CardBody>
+        {audit.isPlaceholderData ? (
+          <SkeletonList rows={10} className="md:hidden" />
+        ) : items.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-muted-foreground md:hidden">
+            {filtered ? t("audit.noMatches") : t("audit.empty")}
+          </p>
+        ) : (
+          <PhoneCardList className="md:hidden" aria-label={t("audit.tableLabel")}>
+            {items.map((item) => {
+              const long =
+                oldValue(item).length > INLINE_VALUE_LENGTH ||
+                (item.new_value ?? "").length > INLINE_VALUE_LENGTH;
+              return (
+                <PhoneCardItem key={item.id} data-testid="audit-card">
+                  <PhoneCardHeader
+                    title={item.student}
+                    subtitle={item.column_label}
+                    status={long ? null : <ValueChange item={item} className="inline-flex" />}
+                  />
+                  {long ? <ValueChange item={item} className="flex flex-wrap" wrap /> : null}
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <p className="min-w-0 break-words">
+                      {item.actor} ·{" "}
+                      <span className="tabular">
+                        {new Date(item.created_at).toLocaleString(i18n.language)}
+                      </span>
+                    </p>
+                    {item.forced || item.via_grant ? (
+                      <span className="flex flex-wrap justify-end gap-1">
+                        {item.forced ? (
+                          <Badge tone="warning">
+                            <FlagIcon />
+                            {t("audit.forced")}
+                          </Badge>
+                        ) : null}
+                        {item.via_grant ? (
+                          <Badge tone="info">
+                            <KeyRoundIcon />
+                            {t("audit.viaGrant")}
+                          </Badge>
+                        ) : null}
+                      </span>
+                    ) : null}
+                  </div>
+                </PhoneCardItem>
+              );
+            })}
+          </PhoneCardList>
+        )}
+        {audit.isFetchingNextPage ? (
+          <SkeletonList rows={3} className="border-t border-border md:hidden" />
+        ) : null}
       </Card>
 
       {audit.hasNextPage && !audit.isPlaceholderData ? (

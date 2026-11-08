@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import type {
   ClassCatalogOut,
   ClassSheetOut,
@@ -56,6 +56,33 @@ function sheet(schoolClass: ClassCatalogOut): ClassSheetOut {
   };
 }
 
+/** A class sheet with grouped, 1-2-3 and long-labelled columns, wide enough to scroll on a phone. */
+function filledSheet(schoolClass: ClassCatalogOut): ClassSheetOut {
+  return {
+    ...sheet(schoolClass),
+    teachers: ["Synthetic Teacher"],
+    columns: [
+      { id: 1, label: "Progress Exam 1", group: "Reading", value_type: "score" },
+      { id: 2, label: "Progress Exam 2", group: "Reading", value_type: "score" },
+      { id: 3, label: "Reader 1", group: "Reading", value_type: "score" },
+      {
+        id: 4,
+        label: "Participates in classroom activities",
+        group: null,
+        value_type: "scale3",
+      },
+      { id: 5, label: "Speaking", group: null, value_type: "score" },
+      { id: 6, label: "Writing", group: null, value_type: "score" },
+    ],
+    students: [1, 2, 3].map((n) => ({
+      student_id: 100 + n,
+      school_number: 500 + n,
+      full_name: `Synthetic Student ${n}`,
+      values: [70 + n, 80 + n, null, 3, 60 + n, 90],
+    })),
+  };
+}
+
 const emptyScope: PreviewScopeOut = {
   year_id: 1,
   year_label: "Synthetic year",
@@ -65,7 +92,12 @@ const emptyScope: PreviewScopeOut = {
   classes: [],
 };
 
-async function mockApi(page: Page, role: Role, catalog: ClassCatalogOut[]) {
+async function mockApi(
+  page: Page,
+  role: Role,
+  catalog: ClassCatalogOut[],
+  sheetOf: (schoolClass: ClassCatalogOut) => ClassSheetOut = sheet,
+) {
   await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
   await page.route("**/api/**", (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -85,7 +117,7 @@ async function mockApi(page: Page, role: Role, catalog: ClassCatalogOut[]) {
     if (path === "/api/class-catalog") return route.fulfill({ json: catalog });
     if (path === "/api/reports/preview/scope") return route.fulfill({ json: emptyScope });
     const sheetClass = catalog.find((item) => path === `/api/classes/${item.id}/sheet`);
-    if (sheetClass) return route.fulfill({ json: sheet(sheetClass) });
+    if (sheetClass) return route.fulfill({ json: sheetOf(sheetClass) });
     return route.fulfill({ json: [] });
   });
 }
@@ -158,4 +190,134 @@ test("class report and card preview explain when there is nothing to show", asyn
   await expect(page.getByText(/You have no class assignment in this school year/)).toBeVisible();
   // The mode switch leads back to the class report from here too.
   await expect(page.getByRole("radio", { name: "Class report", exact: true })).toBeVisible();
+});
+
+test("class report reads as a card per student on a phone and pins number and name in the table", async ({
+  page,
+}) => {
+  const schoolClass = englishClass(11, 5, "A", ["main"]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockApi(page, "teacher", [schoolClass], filledSheet);
+  await page.goto(`${teacherOrigin}/class-report/${schoolClass.id}`);
+  const noSidewaysScroll = () => page.evaluate(() => document.documentElement.scrollWidth <= 390);
+
+  // Phones open on cards: every student with every column, nothing scrolling sideways.
+  const viewSwitch = page.getByRole("radiogroup", { name: "View", exact: true });
+  const cardsRadio = viewSwitch.getByRole("radio", { name: "Cards", exact: true });
+  const tableRadio = viewSwitch.getByRole("radio", { name: "Table", exact: true });
+  await expect(cardsRadio).toHaveAttribute("aria-checked", "true");
+  const cards = page.getByTestId("student-grade-card");
+  await expect(cards).toHaveCount(3);
+  const first = cards.first();
+  for (const label of [
+    "Progress Exam 1",
+    "Progress Exam 2",
+    "Reader 1",
+    "Participates in classroom activities",
+    "Speaking",
+    "Writing",
+  ]) {
+    await expect(first.getByText(label, { exact: true })).toBeVisible();
+  }
+  await expect(first).toContainText("Synthetic Student 1");
+  await expect(first).toContainText("71");
+  await expect(page.getByText("Very good")).toBeVisible();
+  expect(await noSidewaysScroll()).toBe(true);
+  for (const target of [
+    cardsRadio,
+    tableRadio,
+    page.getByRole("button", { name: "5/A", exact: true }),
+    page.getByRole("button", { name: "Print", exact: true }),
+    page.getByRole("button", { name: "Download PDF", exact: true }),
+  ]) {
+    const box = await target.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(40);
+  }
+
+  // The student being discussed stays marked; the arrow keys walk the class.
+  // Every card has a drop shadow; the mark is the inset edge plus the active-row background.
+  const mark = (card: Locator) =>
+    card.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { background: style.backgroundColor, edge: style.boxShadow.includes("inset") };
+    });
+  const unmarked = await mark(cards.nth(1));
+  await first.click();
+  await expect(first).toBeFocused();
+  const marked = await mark(first);
+  expect(marked.edge).toBe(true);
+  expect(unmarked.edge).toBe(false);
+  expect(marked.background).not.toBe(unmarked.background);
+  await page.keyboard.press("ArrowDown");
+  await expect(cards.nth(1)).toBeFocused();
+  expect(await mark(cards.nth(1))).toEqual(marked);
+  expect(await mark(first)).toEqual(unmarked);
+  await page.keyboard.press("ArrowUp");
+  await expect(first).toBeFocused();
+
+  // The table is one tap away and stays chosen; number and name stay put while grades scroll.
+  await tableRadio.click();
+  await expect(tableRadio).toHaveAttribute("aria-checked", "true");
+  expect(await page.evaluate(() => localStorage.getItem("flrc-grade-phone-view"))).toBe("table");
+  await expect(cards).toHaveCount(0);
+  await page.reload();
+  await expect(tableRadio).toHaveAttribute("aria-checked", "true");
+  const table = page.locator("table.class-sheet");
+  const numberHeader = table.getByRole("columnheader", { name: "No.", exact: true });
+  const nameHeader = table.getByRole("columnheader", { name: "Student", exact: true });
+  expect(Math.round((await numberHeader.boundingBox())!.width)).toBe(48);
+  expect(Math.round((await nameHeader.boundingBox())!.width)).toBe(136);
+  const row = table.getByRole("row", { name: "Synthetic Student 1", exact: true });
+  const nameCell = row.getByRole("cell", { name: "Synthetic Student 1", exact: true });
+  const before = (await nameCell.boundingBox())!.x;
+  const surface = table.locator("xpath=..");
+  await surface.evaluate((element) => element.scrollBy({ left: 200 }));
+  expect(await surface.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  expect((await nameCell.boundingBox())!.x).toBeCloseTo(before, 0);
+  expect(await noSidewaysScroll()).toBe(true);
+  await row.click();
+  await expect(row).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(table.getByRole("row", { name: "Synthetic Student 2", exact: true })).toBeFocused();
+
+  // Wider screens always get the table at its full widths, without the switch.
+  await cardsRadio.click();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(viewSwitch).toBeHidden();
+  await expect(cards).toHaveCount(0);
+  expect(Math.round((await numberHeader.boundingBox())!.width)).toBe(64);
+  expect(Math.round((await nameHeader.boundingBox())!.width)).toBe(240);
+});
+
+test("a view chosen in another tab applies when the class report opens again", async ({ page }) => {
+  const schoolClass = englishClass(11, 5, "A", ["main"]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockApi(page, "teacher", [schoolClass], filledSheet);
+  await page.goto(`${teacherOrigin}/class-report/${schoolClass.id}`);
+  const viewSwitch = page.getByRole("radiogroup", { name: "View", exact: true });
+  await expect(viewSwitch.getByRole("radio", { name: "Cards", exact: true })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+
+  // Leave the class report without reloading, so nothing on this page listens for the change.
+  await page.getByRole("radio", { name: "Report card preview", exact: true }).click();
+  await expect(page).toHaveURL(/\/card-preview/);
+
+  const other = await page.context().newPage();
+  await other.setViewportSize({ width: 390, height: 844 });
+  await mockApi(other, "teacher", [schoolClass], filledSheet);
+  await other.goto(`${teacherOrigin}/class-report/${schoolClass.id}`);
+  await other
+    .getByRole("radiogroup", { name: "View", exact: true })
+    .getByRole("radio", { name: "Table", exact: true })
+    .click();
+  await other.close();
+
+  await page.getByRole("radio", { name: "Class report", exact: true }).click();
+  await expect(viewSwitch.getByRole("radio", { name: "Table", exact: true })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expect(page.getByTestId("student-grade-card")).toHaveCount(0);
 });

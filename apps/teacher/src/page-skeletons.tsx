@@ -5,6 +5,7 @@ import {
   SkeletonFields,
   SkeletonGrid,
   SkeletonList,
+  SkeletonStudentCards,
   SkeletonTable,
   SkeletonTabs,
   SkeletonToolbar,
@@ -23,7 +24,7 @@ export function ClassTabsSkeleton() {
   return (
     <div aria-hidden className="flex min-w-0 flex-1 flex-wrap items-end gap-1 lg:justify-end">
       {Array.from({ length: 5 }, (_, index) => (
-        <Skeleton key={index} className="h-9 min-w-0 flex-1 basis-16" />
+        <Skeleton key={index} className="h-9 min-w-0 flex-1 basis-16 max-md:h-10" />
       ))}
     </div>
   );
@@ -53,9 +54,17 @@ function ReportModeSwitchSkeleton() {
 
 /**
  * A board page's heading: an optional overline, the class and subject, a summary line and the
- * page's actions.
+ * page's actions, led on phones by "Kartlar | Tablo" where the page has that switch.
  */
-function BoardHeadingSkeleton({ actions, overline }: { actions: number; overline: boolean }) {
+function BoardHeadingSkeleton({
+  actions,
+  overline,
+  viewSwitch = false,
+}: {
+  actions: number;
+  overline: boolean;
+  viewSwitch?: boolean;
+}) {
   return (
     <div aria-hidden className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
       <div className="min-w-0 space-y-2">
@@ -64,8 +73,9 @@ function BoardHeadingSkeleton({ actions, overline }: { actions: number; overline
         <Skeleton className="h-4 w-64 max-w-full rounded-md" />
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        {viewSwitch ? <SkeletonTabs count={2} className="md:hidden" /> : null}
         {Array.from({ length: actions }, (_, index) => (
-          <Skeleton key={index} className="h-8 w-28" />
+          <Skeleton key={index} className="h-8 w-28 max-md:h-10" />
         ))}
       </div>
     </div>
@@ -90,16 +100,20 @@ export function GridPageSkeleton() {
   );
 }
 
-/** Sınıf raporu: the mode switch, the middle-school English class pickers and the sheet. */
+/**
+ * Sınıf raporu: the mode switch, the middle-school English class pickers and the sheet, which
+ * phones show as one card per student.
+ */
 export function ClassReportSkeleton() {
   return (
     <div className="space-y-4">
       <ReportModeSwitchSkeleton />
       <BoardSwitcherSkeleton grades={REPORT_GRADES.length} subjects={false} />
-      <BoardHeadingSkeleton actions={4} overline />
-      <Card aria-hidden className="overflow-hidden">
+      <BoardHeadingSkeleton actions={4} overline viewSwitch />
+      <Card aria-hidden className="hidden overflow-hidden md:block">
         <SkeletonTable columns={8} rows={10} />
       </Card>
+      <SkeletonStudentCards cards={4} columns={6} className="md:hidden" />
     </div>
   );
 }

@@ -194,7 +194,7 @@ function SkeletonFields({ count = 3, className }: { count?: number; className?: 
       {times(count).map((index) => (
         <div key={index} className="grid gap-1.5">
           <Skeleton className="h-3.5 w-24 rounded-md" />
-          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-full max-md:h-10" />
         </div>
       ))}
     </div>
@@ -229,6 +229,116 @@ function SkeletonList({
   );
 }
 
+/**
+ * `PhoneCardList`'s shape: a list table on a phone, one card per row with its name and status,
+ * a two-column grid of labelled fields, full-width actions and, with `meta`, a closing line of
+ * small print (who and when).
+ */
+function SkeletonPhoneCards({
+  rows = 4,
+  fields = 2,
+  actions = 1,
+  meta = false,
+  className,
+}: {
+  rows?: number;
+  fields?: number;
+  actions?: number;
+  meta?: boolean;
+  className?: string;
+}) {
+  return (
+    <div aria-hidden className={cn("divide-y divide-border", className)}>
+      {times(rows).map((row) => (
+        <div key={row} className="space-y-3 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Skeleton className={cn("h-4 rounded-md", width(row))} />
+              <Skeleton className="h-3 w-2/3 rounded-md" />
+            </div>
+            <Skeleton className="h-5 w-16 shrink-0 rounded-full" />
+          </div>
+          {fields ? (
+            <div className="grid grid-cols-2 gap-2.5">
+              {times(fields).map((field) => (
+                <div key={field} className="grid gap-1">
+                  <Skeleton className="h-3 w-20 max-w-full rounded-md" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {actions ? (
+            <div className="grid gap-2">
+              {times(actions).map((action) => (
+                <Skeleton key={action} className="h-10 w-full rounded-xl" />
+              ))}
+            </div>
+          ) : null}
+          {meta ? (
+            <div className="flex items-center justify-between gap-2">
+              <Skeleton className="h-3 w-1/2 rounded-md" />
+              <Skeleton className="h-5 w-24 rounded-full" />
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * `StudentGradeCards`' shape: a grade table on a phone, one card per student with a sütun and
+ * its value per row. `controls` adds the row of editable fields under the student's name.
+ */
+function SkeletonStudentCards({
+  cards = 4,
+  columns = 5,
+  controls = false,
+  className,
+}: {
+  cards?: number;
+  columns?: number;
+  controls?: boolean;
+  className?: string;
+}) {
+  return (
+    <div aria-hidden className={cn("space-y-3", className)}>
+      {times(cards).map((card) => (
+        <Card key={card} className="overflow-hidden">
+          <div className="space-y-2.5 bg-muted/40 px-4 py-3">
+            <div className="flex items-center gap-3">
+              {/* With controls, the checkbox leads and the school number is a field below. */}
+              <Skeleton
+                className={
+                  controls ? "size-4 shrink-0 rounded-[4px]" : "h-5 w-9 shrink-0 rounded-md"
+                }
+              />
+              <Skeleton className={cn("h-4 rounded-md", width(card))} />
+            </div>
+            {controls ? (
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-10 w-20 shrink-0" />
+                <Skeleton className="h-10 flex-1" />
+              </div>
+            ) : null}
+          </div>
+          {columns > 0 ? (
+            <div className="divide-y divide-border border-t border-border">
+              {times(columns).map((column) => (
+                <div key={column} className="flex items-center justify-between gap-4 px-4 py-3">
+                  <Skeleton className={cn("h-4 rounded-md", width(card + column))} />
+                  <Skeleton className="h-4 w-8 shrink-0 rounded-md" />
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 /** `Segmented`'s shape: a row of tabs or choices. */
 function SkeletonTabs({
   count = 4,
@@ -253,6 +363,7 @@ function SkeletonTabs({
           className={cn(
             "rounded-[0.3rem] bg-muted-foreground/15",
             size === "sm" ? "h-6 w-14" : "h-7 w-16",
+            "max-md:h-10",
           )}
         />
       ))}
@@ -271,7 +382,7 @@ function SkeletonToolbar({ controls = 3, className }: { controls?: number; class
       )}
     >
       {times(controls).map((index) => (
-        <Skeleton key={index} className={cn("h-8", index === 0 ? "w-24" : "w-36")} />
+        <Skeleton key={index} className={cn("h-8 max-md:h-10", index === 0 ? "w-24" : "w-36")} />
       ))}
     </div>
   );
@@ -342,8 +453,10 @@ export {
   SkeletonGrid,
   SkeletonList,
   SkeletonPageHeader,
+  SkeletonPhoneCards,
   SkeletonRows,
   SkeletonStatRow,
+  SkeletonStudentCards,
   SkeletonTable,
   SkeletonTableRows,
   SkeletonTabs,

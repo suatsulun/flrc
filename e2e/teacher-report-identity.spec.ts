@@ -14,7 +14,10 @@ test("admin persists a teacher report name and uploads, replaces and removes a s
   const context = await authenticatedContext(browser, "admin@example-school.k12.tr");
   const page = await context.newPage();
   await page.goto(`${adminOrigin}/admin/users`);
-  const row = page.getByRole("row").filter({ hasText: "owner@example-school.k12.tr" });
+  // The teacher is a table row at the desktop size and a card after the switch to a phone.
+  const row = page
+    .locator('[data-testid="user-card"], tr')
+    .filter({ hasText: "owner@example-school.k12.tr" });
   await row.getByRole("button", { name: "Report name & signature" }).click();
   const dialog = page.getByRole("dialog");
   await dialog
@@ -46,6 +49,7 @@ test("admin persists a teacher report name and uploads, replaces and removes a s
   await expect(input).toBeEnabled();
   await dialog.getByRole("button", { name: "Close", exact: true }).last().click();
   await page.reload();
+  await expect(row).toHaveAttribute("data-testid", "user-card");
   await row.getByRole("button", { name: "Report name & signature" }).click();
   await expect(dialog.getByLabel("Name on report cards", { exact: true })).toHaveValue(
     "Synthetic Printed Teacher",

@@ -68,7 +68,7 @@ export function ImportRoster({
             <TableHeader className="hidden w-28 sm:table-cell xl:w-36">
               {t("import.actions")}
             </TableHeader>
-            <TableHeader className="w-12">
+            <TableHeader className="w-12 max-md:w-16">
               <span className="sr-only">{t("import.removeStudent")}</span>
             </TableHeader>
           </tr>

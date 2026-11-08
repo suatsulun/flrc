@@ -56,25 +56,26 @@ export function ClassTeachers({
   });
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <strong className="mr-2 text-sm">{t("classWorkspace.teachers")}</strong>
+    // Phones stack each role's name above a full-width select, so teacher names never clip.
+    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:flex md:flex-wrap md:items-center md:gap-2">
+      <strong className="text-sm sm:col-span-2 md:mr-2">{t("classWorkspace.teachers")}</strong>
       {ROLES.map((role) => {
         const slot = matrix.find((item) => item.class_id === classId && item.role === role);
         const expectedField = role === "main" || role === "skills" ? "english" : role;
         const expectedStage = grade <= 4 ? "primary" : "middle";
         if (matrixPending || usersPending) {
           return (
-            <span key={role} className="flex items-center gap-1.5 text-xs">
+            <span key={role} className="grid gap-1 text-xs md:flex md:items-center md:gap-1.5">
               <span className="font-medium text-muted-foreground">{t(`roles.${role}`)}</span>
-              <Skeleton className="h-9 w-40" />
+              <Skeleton className="h-9 w-40 max-md:h-10 max-md:w-full" />
             </span>
           );
         }
         return (
-          <label key={role} className="flex items-center gap-1.5 text-xs">
+          <label key={role} className="grid gap-1 text-xs md:flex md:items-center md:gap-1.5">
             <span className="font-medium text-muted-foreground">{t(`roles.${role}`)}</span>
             <NativeSelect
-              className="w-40"
+              className="w-40 max-md:w-full"
               value={slot?.user_id ?? ""}
               disabled={!writable || assign.isPending}
               onChange={(event) =>

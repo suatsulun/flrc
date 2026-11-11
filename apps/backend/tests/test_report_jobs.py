@@ -289,6 +289,7 @@ async def test_direct_download_of_one_class_or_one_student(api, world) -> None:
         )
         (sheet,) = pdf_text(one_class.content)
         assert "Synthetic Student One" in sheet and "Synthetic Student Two" in sheet
+        assert "Semester :" in sheet and "Date range :" not in sheet
 
         student = await client.get(
             "/api/reports/pdf", params=params | {"student_id": world.student_two}
@@ -341,6 +342,49 @@ async def test_direct_download_refuses_sets_that_need_a_job(api, world) -> None:
         )
         assert not_german.status_code == 409
         assert not_german.json()["detail"]["code"] == "empty_report_set"
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "label"),
+    [(9, 11, "September - November"), (12, 2, "December - February"), (5, 5, "May - May")],
+)
+async def test_direct_report_prints_selected_months(api, world, start, end, label) -> None:
+    async with api(world.admin) as client:
+        response = await client.get(
+            "/api/reports/pdf",
+            params={
+                "semester_id": world.semester,
+                "kind": "english_middle",
+                "class_id": world.cls,
+                "start_month": start,
+                "end_month": end,
+            },
+        )
+    assert response.status_code == 200
+    (page,) = pdf_text(response.content)
+    assert page.count(label) == 2
+    assert "Date range :" in page and "Semester :" not in page
+
+
+@pytest.mark.parametrize(
+    "selection",
+    [
+        {"start_month": 9},
+        {"end_month": 11},
+        {"start_month": 0, "end_month": 11},
+        {"start_month": 9, "end_month": 13},
+        {"start_month": 9, "end_month": 11, "kind": "english_elementary"},
+    ],
+)
+async def test_report_month_selection_rejects_incomplete_invalid_or_other_kind(
+    api, world, queued, selection
+) -> None:
+    params = {"semester_id": world.semester, "kind": "english_middle"} | selection
+    async with api(world.admin) as client:
+        direct = await client.get("/api/reports/pdf", params=params | {"class_id": world.cls})
+        job = await client.post("/api/reports/jobs", json=params | {"format": "combined"})
+    assert direct.status_code == job.status_code == 422
+    assert queued == []
 
 
 # Job creation
@@ -577,6 +621,55 @@ async def three_pupil_class(world) -> SimpleNamespace:
     return await add_class(
         world, 6, "A", [("Pupil Alpha", 6001), ("Pupil Beta", 6002), ("Pupil Gamma", 6003)]
     )
+
+
+@pytest.mark.parametrize("format", ["combined", "per_class", "per_student"])
+async def test_report_jobs_preserve_selected_months_in_every_format(api, world, queued, format):
+    await three_pupil_class(world)
+    body = {
+        "semester_id": world.semester,
+        "kind": "english_middle",
+        "format": format,
+        "start_month": 12,
+        "end_month": 2,
+    }
+    job, data, _ = await run_job(api, world.admin, queued, body)
+    async with TestSession() as db:
+        stored = await db.get(m.JobRun, job["id"])
+        assert stored.payload["start_month"] == 12
+        assert stored.payload["end_month"] == 2
+    if format == "combined":
+        documents = [data]
+    else:
+        with ZipFile(BytesIO(data)) as bundle:
+            documents = [bundle.read(name) for name in bundle.namelist()]
+    pages = [page for document in documents for page in pdf_text(document)]
+    assert all("December - February" in page for page in pages)
+    assert sum(page.count("December - February") for page in pages) == 5
+    assert not any("Semester :" in page for page in pages)
+
+
+async def test_older_queued_report_without_months_still_renders(api, world, queued):
+    async with api(world.admin) as client:
+        created = await client.post(
+            "/api/reports/jobs",
+            json={"semester_id": world.semester, "kind": "english_middle", "format": "combined"},
+        )
+        assert created.status_code == 202
+        job_id = created.json()["id"]
+        async with TestSession() as db:
+            stored = await db.get(m.JobRun, job_id)
+            stored.payload = {
+                key: value
+                for key, value in stored.payload.items()
+                if key not in {"start_month", "end_month"}
+            }
+            await db.commit()
+        report_tasks.report_set_job(job_id)
+        download = await client.get(f"/api/jobs/{job_id}/download")
+    assert download.status_code == 200
+    (page,) = pdf_text(download.content)
+    assert "Semester :" in page and "Date range :" not in page
 
 
 async def test_combined_job_is_one_pdf_with_every_class(api, world, queued) -> None:

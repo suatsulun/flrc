@@ -159,8 +159,136 @@ async def test_report_builder_selects_class_subject_teachers_and_deduplicates_ro
         cards = build_report_set(db, semester_id=world.semester, kind="english_middle", locale="en")
     assert len(cards) == 2
     for card in cards:
+        assert card.language_subject is None
         assert len(card.teachers) == 1
         teacher = card.teachers[0]
         assert teacher.name == "Synthetic Report Teacher"
         assert teacher.roles == ["main", "skills"]
         assert base64.b64decode(teacher.signature.split(",")[1]) == signature
+
+
+async def test_middle_card_uses_each_students_year_class_and_language_teacher(world):
+    signatures = {"german": png_bytes(color="navy"), "french": png_bytes(color="teal")}
+    async with TestSession() as db:
+        german = m.User(
+            email="german@example.test",
+            full_name="Synthetic German Account",
+            report_name="Synthetic German Print Name",
+            teaching_field="german",
+            signature_png=signatures["german"],
+        )
+        french = m.User(
+            email="french@example.test",
+            full_name="Synthetic French Fallback Name",
+            teaching_field="french",
+            signature_png=signatures["french"],
+        )
+        other = m.User(
+            email="other@example.test",
+            full_name="Synthetic Other Class Teacher",
+            teaching_field="german",
+        )
+        historical = m.User(
+            email="historical@example.test",
+            full_name="Synthetic Historical Teacher",
+            teaching_field="french",
+            is_active=False,
+        )
+        old_year = m.AcademicYear(label="Synthetic archived year", status="archived")
+        other_class = m.SchoolClass(year_id=world.year, grade_level=5, section="B")
+        db.add_all([german, french, other, historical, old_year, other_class])
+        await db.flush()
+        old_semester = m.Semester(year_id=old_year.id, number=1, status="locked")
+        old_class = m.SchoolClass(year_id=old_year.id, grade_level=5, section="A")
+        db.add_all([old_semester, old_class])
+        await db.flush()
+        db.add_all(
+            [
+                m.TeachingAssignment(class_id=world.cls, role="german", user_id=german.id),
+                m.TeachingAssignment(class_id=world.cls, role="french", user_id=french.id),
+                m.TeachingAssignment(class_id=other_class.id, role="german", user_id=other.id),
+                m.TeachingAssignment(class_id=old_class.id, role="french", user_id=historical.id),
+                m.StudentLanguage(
+                    student_id=world.student_one, year_id=world.year, language="german"
+                ),
+                m.StudentLanguage(
+                    student_id=world.student_two, year_id=world.year, language="french"
+                ),
+                m.StudentLanguage(
+                    student_id=world.student_one, year_id=old_year.id, language="french"
+                ),
+                m.Enrollment(
+                    student_id=world.student_one,
+                    year_id=old_year.id,
+                    class_id=old_class.id,
+                    school_number=51001,
+                ),
+            ]
+        )
+        await db.commit()
+    with Session(create_engine(TEST_URL_SYNC)) as db:
+        cards = build_report_set(db, semester_id=world.semester, kind="english_middle", locale="en")
+        historical_cards = build_report_set(
+            db, semester_id=old_semester.id, kind="english_middle", locale="en"
+        )
+        language_cards = {
+            subject: build_report_set(
+                db, semester_id=world.semester, kind=subject + "_karne", locale="tr"
+            )
+            for subject in ("german", "french")
+        }
+
+    assert len(cards) == 2
+    for card, subject, teacher in zip(cards, ("german", "french"), (german, french), strict=True):
+        assert card.language_subject == subject
+        assert card.language_fields == [], "enrollment selects the teacher even without scores"
+        assert [(item.user_id, item.roles) for item in card.teachers] == [
+            (world.main.id, ["main"]),
+            (world.skills.id, ["skills"]),
+            (teacher.id, [subject]),
+        ]
+        signer = card.teachers[-1]
+        assert signer.name == (teacher.report_name or teacher.full_name)
+        assert base64.b64decode(signer.signature.split(",")[1]) == signatures[subject]
+        assert len(language_cards[subject]) == 1
+        assert language_cards[subject][0].teachers == [signer]
+        assert language_cards[subject][0].language_subject is None
+
+    assert len(historical_cards) == 1
+    historical_card = historical_cards[0]
+    assert historical_card.language_subject == "french"
+    assert [(item.user_id, item.name, item.roles) for item in historical_card.teachers] == [
+        (historical.id, historical.full_name, ["french"])
+    ]
+
+
+@pytest.mark.parametrize("language", ["german", "french"])
+async def test_middle_card_missing_language_assignment_never_uses_the_other_teacher(
+    world, language
+):
+    other_language = "french" if language == "german" else "german"
+    async with TestSession() as db:
+        other = m.User(
+            email="other@example.test",
+            full_name="Synthetic Other Language Teacher",
+            teaching_field=other_language,
+        )
+        db.add(other)
+        await db.flush()
+        db.add_all(
+            [
+                m.StudentLanguage(
+                    student_id=world.student_one, year_id=world.year, language=language
+                ),
+                m.TeachingAssignment(class_id=world.cls, role=other_language, user_id=other.id),
+            ]
+        )
+        await db.commit()
+    with Session(create_engine(TEST_URL_SYNC)) as db:
+        cards = build_report_set(db, semester_id=world.semester, kind="english_middle", locale="en")
+    assert [card.language_subject for card in cards] == [language, None]
+    assert all(
+        [(teacher.user_id, teacher.roles) for teacher in card.teachers]
+        == [(world.main.id, ["main"]), (world.skills.id, ["skills"])]
+        for card in cards
+    )

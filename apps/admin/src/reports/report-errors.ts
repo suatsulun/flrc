@@ -10,6 +10,8 @@ export function reportRequestMessage(t: TFunction, error: unknown): string {
       : t("reports.errors.rateLimited");
   }
   switch (error.code) {
+    case "invalid_report_period":
+      return t("reports.period.invalid");
     case "empty_report_set":
       return t("reports.errors.empty");
     case "student_not_in_report_set":

@@ -706,6 +706,14 @@
     "empty": "Für dieses Halbjahr sind keine Notenraster eingerichtet."
   },
   "reports": {
+    "period": {
+      "label": "Zeitraum",
+      "startMonth": "Startmonat",
+      "endMonth": "Endmonat",
+      "chooseMonth": "Wählen Sie einen Monat.",
+      "hint": "Diese Monate erscheinen auf den Zeugnissen. Liegt der Endmonat vor dem Startmonat, reicht der Zeitraum ins nächste Kalenderjahr.",
+      "invalid": "Wählen Sie für die Englischzeugnisse der Mittelstufe sowohl einen Start- als auch einen Endmonat."
+    },
     "title": "Zeugniszentrale",
     "description": "Zeugnisse nach Schuljahr, Halbjahr und Klasse drucken.",
     "languageLabel": "Zeugnissprache",

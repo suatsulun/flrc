@@ -3847,6 +3847,42 @@
               ],
               "title": "Student Id"
             }
+          },
+          {
+            "name": "start_month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 12,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Month"
+            }
+          },
+          {
+            "name": "end_month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 12,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Month"
+            }
           }
         ],
         "responses": {
@@ -7782,6 +7818,32 @@
             "type": "array",
             "maxItems": 2000,
             "title": "Student Ids"
+          },
+          "start_month": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 12.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Month"
+          },
+          "end_month": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 12.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Month"
           }
         },
         "additionalProperties": false,

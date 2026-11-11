@@ -3,7 +3,7 @@ from collections.abc import Iterator
 from typing import Literal
 
 from celery.signals import worker_ready
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -22,6 +22,7 @@ from flrc.modules.reports import packaging
 from flrc.modules.reports.branding import ReportKind
 from flrc.modules.reports.builder import build_report_entries, eligible_roster
 from flrc.modules.reports.filenames import part_filename
+from flrc.modules.reports.models import report_month_range
 from flrc.modules.reports.packaging import (
     ClassSet,
     ReportFormat,
@@ -44,10 +45,13 @@ class ReportJobPayload(BaseModel):
     format: ReportFormat
     class_ids: list[int]
     student_ids: list[int]
+    start_month: int | None = Field(default=None, ge=1, le=12)
+    end_month: int | None = Field(default=None, ge=1, le=12)
 
 
 def run_report_job(db: Session, job: m.JobRun) -> None:
     payload = ReportJobPayload.model_validate(job.payload)
+    period = report_month_range(payload.kind, payload.start_month, payload.end_month)
     semester = db.get(m.Semester, payload.semester_id)
     if semester is None:
         raise ValueError("unknown_semester")
@@ -85,6 +89,7 @@ def run_report_job(db: Session, job: m.JobRun) -> None:
                 locale=payload.locale,
                 class_ids=[class_id],
                 student_ids=student_ids,
+                report_period=period,
             )
             printed.extend(entry.student_id for entry in entries)
             if entries:

@@ -706,6 +706,14 @@
     "empty": "Aucune grille de notes n’est configurée pour ce semestre."
   },
   "reports": {
+    "period": {
+      "label": "Période",
+      "startMonth": "Mois de début",
+      "endMonth": "Mois de fin",
+      "chooseMonth": "Choisissez un mois.",
+      "hint": "Ces mois apparaissent sur les bulletins. Si le mois de fin précède le mois de début, la période se poursuit sur l’année civile suivante.",
+      "invalid": "Choisissez un mois de début et un mois de fin pour les bulletins d’anglais du collège."
+    },
     "title": "Centre des bulletins",
     "description": "Imprimez les bulletins par année scolaire, semestre et classe.",
     "languageLabel": "Langue du bulletin",

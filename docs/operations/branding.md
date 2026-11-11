@@ -77,6 +77,8 @@ Keep complete backend mounts unchanged. Caddy independently allowlists those thr
 - Principal keys are `primary` and `middle`. Images and cover paths are relative to `reports/`; absolute paths, traversal and escaping symlinks are rejected. Missing configured files fail instead of silently substituting identities.
 - Images must be PNG/JPEG/SVG and become data URIs. Templates run in a sandbox with autoescaping, strict undefined values and cleared globals. Report resource fetching denies network/local-file access.
 - `report_branding.principals`, `report_branding.assets` and `card.teachers` provide report identities. A missing teacher signature stays blank; the system never synthesizes one.
+- Middle-school English cards provide `card.language_subject` (`german`, `french` or null) independently of score columns. Their `card.teachers` includes only the matching language assignment alongside English main/skills teachers. Private templates can label that teacher or leave a blank language-teacher field when the enrollment exists without an assignment.
+- `card.report_period` is optional. Middle-school English templates can print `card.report_period.label` for the requested start/end months and retain the semester label when absent. The range comes from the report request, not inferred semester dates.
 - German/French PDF cover substitution relies on the duplex two-landscape-A4-pages-per-pupil layout; preserve report-face/cover ordering when changing templates.
 
 Edit teacher report names and normalized PNG signatures through the admin teacher editor. Class assignments select report signers. These identities live in database backups, unlike private principal assets and templates, which require a separate private repository/asset backup.

@@ -31,6 +31,7 @@ from flrc.modules.reports.filenames import (
     report_filename,
     student_scope,
 )
+from flrc.modules.reports.models import ReportMonthRange, report_month_range
 from flrc.modules.reports.packaging import ReportFormat
 from flrc.modules.reports.render import render_report_pdf
 from flrc.workers.tasks.exports import export_year_job
@@ -71,6 +72,15 @@ def pdf_response(pdf: bytes, filename: str) -> Response:
     )
 
 
+def requested_period(
+    kind: ReportKind, start_month: int | None, end_month: int | None
+) -> ReportMonthRange | None:
+    try:
+        return report_month_range(kind, start_month, end_month)
+    except ValueError as error:
+        raise HTTPException(422, {"code": "invalid_report_period"}) from error
+
+
 @router.get("/reports/pdf", dependencies=[Depends(report_single_rate_limit)])
 async def download_report_set(
     _: Annotated[User, Depends(require_coordinator_or_admin)],
@@ -80,11 +90,14 @@ async def download_report_set(
     locale: Locale = "tr",
     class_id: Annotated[int | None, Query(ge=1)] = None,
     student_id: Annotated[list[int] | None, Query(max_length=MAX_DIRECT_STUDENTS)] = None,
+    start_month: Annotated[int | None, Query(ge=1, le=12)] = None,
+    end_month: Annotated[int | None, Query(ge=1, le=12)] = None,
 ) -> Response:
     """One class's cards, or the cards of one or more students of one class.
 
     Larger sets are background jobs (`POST /api/reports/jobs`, ADR-077).
     """
+    period = requested_period(kind, start_month, end_month)
     if class_id is None and not student_id:
         raise HTTPException(422, {"code": "report_scope_required"})
     if class_id is not None and student_id:
@@ -100,6 +113,7 @@ async def download_report_set(
             locale=locale,
             class_ids=None if class_id is None else [class_id],
             student_ids=students or None,
+            report_period=period,
         )
     )
     if not entries:
@@ -152,6 +166,8 @@ class ReportJobIn(BaseModel):
     format: ReportFormat
     class_ids: list[int] = Field(default_factory=list, max_length=MAX_JOB_CLASSES)
     student_ids: list[int] = Field(default_factory=list, max_length=MAX_JOB_STUDENTS)
+    start_month: int | None = Field(default=None, ge=1, le=12)
+    end_month: int | None = Field(default=None, ge=1, le=12)
 
 
 def job_scope(body: ReportJobIn, roster: list[RosterClass]) -> str:
@@ -182,6 +198,7 @@ async def create_report_job(
     """
     if settings.env == "demo":
         raise HTTPException(422, {"code": "demo_report_class_required"})
+    requested_period(body.kind, body.start_month, body.end_month)
     if body.class_ids and body.student_ids:
         raise HTTPException(422, {"code": "report_scope_conflict"})
     semester = await db.get(Semester, body.semester_id)
@@ -234,6 +251,8 @@ async def create_report_job(
         format=body.format,
         class_ids=sorted(class_ids),
         student_ids=sorted(students),
+        start_month=body.start_month,
+        end_month=body.end_month,
     )
     job = await create_job(
         db,

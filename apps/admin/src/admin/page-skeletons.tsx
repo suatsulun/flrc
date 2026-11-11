@@ -424,7 +424,7 @@ export function StudentsSkeleton() {
 }
 
 /** A report kind's card: its title, class picker and whole-school request. */
-function ReportKindSkeleton() {
+function ReportKindSkeleton({ withPeriod = false }: { withPeriod?: boolean }) {
   return (
     <Card aria-hidden className="space-y-4 p-5">
       <div className="flex items-start justify-between gap-3">
@@ -432,6 +432,13 @@ function ReportKindSkeleton() {
         <Skeleton className="h-5 w-24 rounded-full" />
       </div>
       <SkeletonText lines={3} />
+      {withPeriod ? (
+        <div className="grid gap-2">
+          <Skeleton className="h-4 w-24" />
+          <SkeletonFields count={2} />
+          <SkeletonText lines={2} />
+        </div>
+      ) : null}
       <SkeletonFields count={1} />
       <div className="flex gap-2">
         <Skeleton className="h-8 w-24" />
@@ -458,7 +465,7 @@ export function ReportsSkeleton() {
       <SkeletonText lines={1} className="max-w-xl" />
       <div className="grid gap-3 md:grid-cols-2">
         {REPORT_KINDS.map((kind) => (
-          <ReportKindSkeleton key={kind} />
+          <ReportKindSkeleton key={kind} withPeriod={kind === "english_middle"} />
         ))}
       </div>
       <SkeletonCard action />

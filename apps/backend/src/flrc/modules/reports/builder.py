@@ -20,7 +20,7 @@ from flrc.db.models import (
 from flrc.modules.academics.class_names import PREP_GRADE, class_label
 from flrc.modules.academics.fields import SUBJECT_LOCALE, cell_value
 from flrc.modules.academics.fields import pick_label as field_label
-from flrc.modules.reports.models import ReportCard, ReportField, ReportSigner
+from flrc.modules.reports.models import ReportCard, ReportField, ReportMonthRange, ReportSigner
 
 
 @dataclass(frozen=True)
@@ -208,6 +208,7 @@ def build_report_entries(
     locale: str,
     class_ids: Collection[int] | None = None,
     student_ids: Collection[int] | None = None,
+    report_period: ReportMonthRange | None = None,
 ) -> list[ReportEntry]:
     """Build a report set, optionally narrowed to classes or students, in print order.
 
@@ -263,10 +264,13 @@ def build_report_entries(
         columns_by_scope.setdefault((column.subject, column.grade_level), []).append(column)
 
     selected_class_ids = [school_class.id for school_class in classes]
-    # One batch query, never one image/teacher query per student. Select only
-    # the subject's assigned teachers; an English card includes main + skills.
-    roles = ("main", "skills") if spec.subject == "english" else (spec.subject,)
-    teachers_by_class: dict[int, dict[int, ReportSigner]] = {}
+    # One batch query, never one image/teacher query per student. Middle-school
+    # English also prints the student's own second-language teacher. Keep subjects
+    # separate until that student's enrollment language has been resolved.
+    roles = {"main", "skills"} if spec.subject == "english" else {spec.subject}
+    if kind == "english_middle":
+        roles.update(SECOND_LANGUAGES)
+    teachers_by_scope: dict[tuple[int, str], dict[int, ReportSigner]] = {}
     for class_id, role, user_id, full_name, report_name, png in db.execute(
         select(
             TeachingAssignment.class_id,
@@ -279,11 +283,12 @@ def build_report_entries(
         .join(User, User.id == TeachingAssignment.user_id)
         .where(
             TeachingAssignment.class_id.in_(selected_class_ids),
-            TeachingAssignment.role.in_(roles),
+            TeachingAssignment.role.in_(sorted(roles)),
         )
         .order_by(TeachingAssignment.class_id, TeachingAssignment.role, User.id)
     ):
-        assigned = teachers_by_class.setdefault(class_id, {})
+        subject = "english" if role in {"main", "skills"} else role
+        assigned = teachers_by_scope.setdefault((class_id, subject), {})
         if user_id in assigned:
             assigned[user_id].roles.append(role)
         else:
@@ -363,6 +368,7 @@ def build_report_entries(
 
             language_label: str | None = None
             language_fields: list[ReportField] = []
+            teachers = list(teachers_by_scope.get((school_class.id, spec.subject), {}).values())
             language = student_language.get(student.id)
             if language is not None:
                 second_language = SUBJECT_LOCALE[language]
@@ -376,12 +382,14 @@ def build_report_entries(
                     for column in columns_by_scope.get((language, school_class.grade_level), [])
                     if column.value_type == "score"
                 ]
+                teachers.extend(teachers_by_scope.get((school_class.id, language), {}).values())
 
             card = ReportCard(
                 kind=kind,
                 locale=locale,
                 year_label=year.label,
                 semester_number=semester.number,
+                report_period=report_period if kind == "english_middle" else None,
                 grade_level=school_class.grade_level,
                 class_name=class_label(school_class.grade_level, school_class.section),
                 school_number=school_numbers[student.id] or 0,
@@ -390,9 +398,10 @@ def build_report_entries(
                 subject_label=pick_label(SUBJECT_LABELS[spec.subject], locale) or spec.subject,
                 fields=fields,
                 average=score_average(class_columns, student_values),
+                language_subject=language,
                 language_label=language_label,
                 language_fields=language_fields,
-                teachers=list(teachers_by_class.get(school_class.id, {}).values()),
+                teachers=teachers,
             )
             entries.append(ReportEntry(class_id=school_class.id, student_id=student.id, card=card))
     return entries

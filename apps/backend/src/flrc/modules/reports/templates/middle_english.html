@@ -109,7 +109,11 @@
           <tr><th>Name Surname :</th><td>{{ card.student_name }}</td></tr>
           <tr><th>Number :</th><td>{{ card.school_number }}</td></tr>
           <tr><th>Class :</th><td>{{ card.class_name|replace("/", "-") }}</td></tr>
+          {% if card.report_period %}
+          <tr><th>Date range :</th><td>{{ card.report_period.label }}</td></tr>
+          {% else %}
           <tr><th>Semester :</th><td>{{ card.semester_number }}</td></tr>
+          {% endif %}
         </table>
 
         <h1 class="title">{{ slot.title }}</h1>

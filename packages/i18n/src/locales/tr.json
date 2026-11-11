@@ -706,6 +706,14 @@
     "empty": "Bu dönem için tanımlı not tablosu yok."
   },
   "reports": {
+    "period": {
+      "label": "Tarih aralığı",
+      "startMonth": "Başlangıç ayı",
+      "endMonth": "Bitiş ayı",
+      "chooseMonth": "Bir ay seçin.",
+      "hint": "Bu aylar karnede gösterilir. Bitiş ayı başlangıç ayından önceyse aralık sonraki takvim yılına uzanır.",
+      "invalid": "Ortaokul İngilizce karneleri için başlangıç ve bitiş aylarını birlikte seçin."
+    },
     "title": "Karne merkezi",
     "description": "Eğitim yılı, dönem ve sınıfa göre karne yazdırın.",
     "languageLabel": "Karne dili",

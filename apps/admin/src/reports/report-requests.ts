@@ -11,6 +11,7 @@ import { FileRequestError } from "@flrc/ui/lib/file-delivery";
 export type ReportKind = ReportJobIn["kind"];
 export type ReportFormat = ReportJobIn["format"];
 export type ReportLocale = NonNullable<ReportJobIn["locale"]>;
+export type ReportPeriod = { startMonth: number; endMonth: number };
 
 export const REPORT_KINDS: ReportKind[] = [
   "english_elementary",
@@ -39,8 +40,13 @@ export function reportPdfUrl(
   kind: ReportKind,
   locale: ReportLocale,
   scope: DirectScope,
+  period?: ReportPeriod,
 ): string {
   const query = new URLSearchParams({ semester_id: String(semesterId), kind, locale });
+  if (period && kind === "english_middle") {
+    query.set("start_month", String(period.startMonth));
+    query.set("end_month", String(period.endMonth));
+  }
   if ("classId" in scope) query.set("class_id", String(scope.classId));
   else for (const id of scope.studentIds) query.append("student_id", String(id));
   return `/api/reports/pdf?${query}`;
@@ -96,6 +102,7 @@ export async function startReportJob(
   locale: ReportLocale,
   format: ReportFormat,
   scope: JobScope,
+  period?: ReportPeriod,
 ): Promise<JobOut> {
   const { data, error, response } = await createReportJob({
     body: {
@@ -105,6 +112,9 @@ export async function startReportJob(
       format,
       class_ids: scope.classIds,
       student_ids: scope.studentIds,
+      ...(period && kind === "english_middle"
+        ? { start_month: period.startMonth, end_month: period.endMonth }
+        : {}),
     },
   });
   if (!data) throw requestError(response, error);

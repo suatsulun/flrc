@@ -2230,6 +2230,14 @@ export type ReportJobIn = {
      * Student Ids
      */
     student_ids?: Array<number>;
+    /**
+     * Start Month
+     */
+    start_month?: number | null;
+    /**
+     * End Month
+     */
+    end_month?: number | null;
 };
 
 /**
@@ -5392,6 +5400,14 @@ export type DownloadReportSetData = {
          * Student Id
          */
         student_id?: Array<number> | null;
+        /**
+         * Start Month
+         */
+        start_month?: number | null;
+        /**
+         * End Month
+         */
+        end_month?: number | null;
     };
     url: '/api/reports/pdf';
 };

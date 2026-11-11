@@ -18,7 +18,9 @@ import {
   type ReportFormat,
   type ReportKind,
   type ReportLocale,
+  type ReportPeriod,
 } from "./report-requests";
+import { ReportPeriodPicker } from "./ReportPeriodPicker";
 import { StudentPickerDialog } from "./StudentPickerDialog";
 import type { DirectDownload } from "./use-direct-download";
 
@@ -39,7 +41,12 @@ export function ReportKindCard({
   locale: ReportLocale;
   demo: boolean;
   direct: DirectDownload;
-  onStartJob: (kind: ReportKind, format: ReportFormat, scope: JobScope) => Promise<boolean>;
+  onStartJob: (
+    kind: ReportKind,
+    format: ReportFormat,
+    scope: JobScope,
+    period?: ReportPeriod,
+  ) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
   const {
@@ -54,6 +61,8 @@ export function ReportKindCard({
   const [format, setFormat] = useState<ReportFormat>("combined");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [jobPending, setJobPending] = useState<"school" | "picker" | null>(null);
+  const [period, setPeriod] = useState<ReportPeriod>({ startMonth: 9, endMonth: 11 });
+  const reportPeriod = kind === "english_middle" ? period : undefined;
 
   const selectedClass = roster.find((item) => item.id === classId) ?? roster[0];
   const busy = direct.pending !== null;
@@ -66,14 +75,14 @@ export function ReportKindCard({
     void direct.run(
       classKey,
       action,
-      reportPdfUrl(semesterId, kind, locale, { classId: selectedClass.id }),
+      reportPdfUrl(semesterId, kind, locale, { classId: selectedClass.id }, reportPeriod),
     );
   }
 
   async function startJob(source: "school" | "picker", jobFormat: ReportFormat, scope: JobScope) {
     setJobPending(source);
     try {
-      return await onStartJob(kind, jobFormat, scope);
+      return await onStartJob(kind, jobFormat, scope, reportPeriod);
     } finally {
       setJobPending(null);
     }
@@ -87,7 +96,7 @@ export function ReportKindCard({
         ? await direct.run(
             pickerKey,
             "download",
-            reportPdfUrl(semesterId, kind, locale, plan.direct),
+            reportPdfUrl(semesterId, kind, locale, plan.direct, reportPeriod),
           )
         : await startJob("picker", pickerFormat, plan.job);
     if (delivered) setPickerOpen(false);
@@ -112,6 +121,14 @@ export function ReportKindCard({
             {t(`reports.setDescriptions.${kind}`)}
           </p>
         </div>
+
+        {kind === "english_middle" ? (
+          <ReportPeriodPicker
+            value={period}
+            onChange={setPeriod}
+            disabled={busy || jobPending !== null}
+          />
+        ) : null}
 
         {semesterId !== undefined && !isFetching && roster.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("reports.noEligibleClasses")}</p>

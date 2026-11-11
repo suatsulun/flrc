@@ -706,6 +706,14 @@
     "empty": "No grade grids are configured for this semester."
   },
   "reports": {
+    "period": {
+      "label": "Date range",
+      "startMonth": "Starting month",
+      "endMonth": "Ending month",
+      "chooseMonth": "Choose a month.",
+      "hint": "These months appear on the report cards. An ending month before the starting month continues into the next calendar year.",
+      "invalid": "Choose both a starting and an ending month for middle school English report cards."
+    },
     "title": "Report centre",
     "description": "Print report cards by academic year, semester, and class.",
     "languageLabel": "Report language",

@@ -25,6 +25,7 @@ import {
   type ReportFormat,
   type ReportKind,
   type ReportLocale,
+  type ReportPeriod,
 } from "../../reports/report-requests";
 import { useDirectDownload } from "../../reports/use-direct-download";
 
@@ -55,10 +56,15 @@ function ReportsPage() {
     selectedYear?.semesters.find((term) => term.status === "open") ??
     selectedYear?.semesters[0];
 
-  async function startJob(kind: ReportKind, format: ReportFormat, scope: JobScope) {
+  async function startJob(
+    kind: ReportKind,
+    format: ReportFormat,
+    scope: JobScope,
+    period?: ReportPeriod,
+  ) {
     if (!selectedSemester) return false;
     try {
-      await startReportJob(selectedSemester.id, kind, locale, format, scope);
+      await startReportJob(selectedSemester.id, kind, locale, format, scope, period);
       toast.success(t("reports.jobQueued"));
       return true;
     } catch (error) {

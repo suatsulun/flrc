@@ -1,5 +1,15 @@
 import type { TFunction } from "i18next";
 
+/** Grade 8 uses Main Course/LGS; mixed-grade Skills labels show both course names. */
+export function roleLabel(t: TFunction, role: string, gradeLevel?: number) {
+  if (role === "main" && gradeLevel === 8) return t("roles.mainCourse");
+  if (role === "skills") {
+    if (gradeLevel === 8) return t("roles.lgs");
+    if (gradeLevel === undefined) return t("roles.skillsLgs");
+  }
+  return t(`roles.${role}`, { defaultValue: role });
+}
+
 export function academicContextLabels(t: TFunction, locked: string) {
   return {
     year: t("classWorkspace.year"),

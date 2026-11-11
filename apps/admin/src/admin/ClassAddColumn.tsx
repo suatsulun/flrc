@@ -1,3 +1,4 @@
+import { roleLabel } from "@flrc/i18n";
 import type { ColumnCreate } from "@flrc/api-client";
 import { createColumnMutation, type ColumnOut } from "@flrc/api-client";
 import { Badge } from "@flrc/ui/components/badge";
@@ -145,7 +146,7 @@ export function ClassAddColumn({
           >
             {ownerRoles.map((role) => (
               <option key={role} value={role}>
-                {t(`roles.${role}`)}
+                {roleLabel(t, role, grade)}
               </option>
             ))}
           </NativeSelect>

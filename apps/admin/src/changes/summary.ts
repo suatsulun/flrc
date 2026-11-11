@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import { gradeLabel } from "@flrc/i18n";
+import { gradeLabel, roleLabel } from "@flrc/i18n";
 import type { AdminActionOut } from "@flrc/api-client";
 import { parseUtc } from "../dashboard/format";
 
@@ -60,7 +60,7 @@ function scope(t: TFunction, gradeLevel: unknown, subjectCode: unknown): string 
 }
 
 /** A recorded value in words: booleans, codes and empty values read like the forms show them. */
-function value(t: TFunction, field: string, raw: unknown): string {
+function value(t: TFunction, field: string, raw: unknown, gradeLevel?: number): string {
   if (raw === null || raw === undefined || raw === "") return t("changes.emptyValue");
   if (typeof raw === "boolean") {
     if (field === "is_active") return raw ? t("users.active") : t("users.inactive");
@@ -72,19 +72,19 @@ function value(t: TFunction, field: string, raw: unknown): string {
   }
   if (field === "teaching_stage") return t(`teachingStages.${code}`, { defaultValue: code });
   if (field === "value_type") return t(`columns.valueTypes.${code}`, { defaultValue: code });
-  if (field === "owner_role") return t(`roles.${code}`, { defaultValue: code });
+  if (field === "owner_role") return roleLabel(t, code, gradeLevel);
   return code;
 }
 
 /** `ad: Ali → Ali Can; okul numarası: 12 → 13` from the API's `{field, from, to}` entries. */
-function edits(t: TFunction, changes: unknown, extra: string[] = []): string {
+function edits(t: TFunction, changes: unknown, extra: string[] = [], gradeLevel?: number): string {
   const items = list(changes).map((entry) => {
     const item = record(entry);
     const field = text(item.field) ?? "";
     return t("changes.editItem", {
       field: t(`changes.fields.${field}`, { defaultValue: field }),
-      from: value(t, field, item.from),
-      to: value(t, field, item.to),
+      from: value(t, field, item.from, gradeLevel),
+      to: value(t, field, item.to, gradeLevel),
     });
   });
   return shortList(t, [...items, ...extra], {
@@ -101,7 +101,9 @@ function slots(t: TFunction, changes: unknown): string {
     const role = text(item.role);
     return t("changes.slotItem", {
       class: text(item.class) ?? "—",
-      role: role ? t(`roles.${role}`, { defaultValue: role }) : "—",
+      role: role
+        ? roleLabel(t, role, typeof item.grade_level === "number" ? item.grade_level : undefined)
+        : "—",
       from: text(item.from_teacher) ?? t("changes.nobody"),
       to: text(item.to_teacher) ?? t("changes.nobody"),
     });
@@ -174,7 +176,12 @@ export function changeSummary(t: TFunction, action: Pick<AdminActionOut, "kind" 
       return t("changes.kinds.field.edit", {
         field,
         scope: scope(t, params.grade_level, params.subject),
-        changes: edits(t, params.changes),
+        changes: edits(
+          t,
+          params.changes,
+          [],
+          typeof params.grade_level === "number" ? params.grade_level : undefined,
+        ),
       });
     case "field.copy":
       return t("changes.kinds.field.copy", {

@@ -27,6 +27,8 @@ Write Turkish-first: establish a clear Turkish meaning, then supply idiomatic En
 
 Use `classLabel`, `gradeLabel` and `gradeTabLabel` from `@flrc/i18n` (`packages/i18n/src/labels.ts`) for class/grade labels: named preparatory classes display their section alone; numbered classes use slash notation such as `5/A`. Do not assemble these labels independently in each screen.
 
+Use `roleLabel` with the class or column's grade for teaching-role wording. Grade 8 English displays **Main Course teacher** and **LGS teacher**; other grades retain their existing Main/Skills labels. Mixed-grade contexts without a specific grade use **Skills / LGS teacher**. These are display labels: assignment and column ownership values remain `main` and `skills`, including in grade 8. Administrator-owned assessment titles and groups are unchanged.
+
 ### Turkish casing and language metadata
 
 `initI18n()` in `packages/i18n/src/index.ts` installs a `languageChanged` handler before initialization and sets `document.documentElement.lang` to the resolved UI language. This affects pronunciation, hyphenation and CSS uppercase behaviour: Turkish **i → İ**, unlike English **i → I**.

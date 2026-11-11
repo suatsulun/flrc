@@ -1,3 +1,4 @@
+import { roleLabel } from "@flrc/i18n";
 import type { SetupProblems } from "@flrc/api-client";
 import { Badge } from "@flrc/ui/components/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@flrc/ui/components/card";
@@ -50,7 +51,7 @@ export function SetupProblemsCard({
       count: problems.unassigned_roles.count,
       items: problems.unassigned_roles.items.map((gap) => ({
         key: `${gap.class_id}-${gap.role}`,
-        label: `${gap.class_name} · ${t(`roles.${gap.role}`)}`,
+        label: `${gap.class_name} · ${roleLabel(t, gap.role, gap.grade_level)}`,
         to: { year: yearId, grade: gap.grade_level, class: gap.class_id },
       })),
       fix: fixLink("/assignments"),

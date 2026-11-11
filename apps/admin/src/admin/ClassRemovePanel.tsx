@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { PREP_GRADE } from "@flrc/i18n";
+import { PREP_GRADE, roleLabel } from "@flrc/i18n";
 import { Trash2Icon } from "lucide-react";
 import {
   deleteColumnMutation,
@@ -101,7 +101,8 @@ export function ClassRemovePanel({
                 <div className="min-w-0 flex-1">
                   <span className="block font-medium break-words">{c.name}</span>
                   <span className="text-xs text-muted-foreground">
-                    {t(`columns.valueTypes.${c.value_type}`)} · {t(`roles.${c.owner_role}`)}
+                    {t(`columns.valueTypes.${c.value_type}`)} ·{" "}
+                    {roleLabel(t, c.owner_role, c.grade_level)}
                   </span>
                 </div>
                 {c.is_active ? (

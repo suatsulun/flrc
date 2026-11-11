@@ -113,7 +113,7 @@ test("phones assign and remove classes by tapping instead of dragging", async ({
   await expect(addMain).toBeFocused();
 
   const addSkills = card.getByRole("button", {
-    name: "E2E Middle Teacher 01 — Skills teacher — Add class",
+    name: "E2E Middle Teacher 01 — Skills / LGS teacher — Add class",
   });
   const addBox = await addSkills.boundingBox();
   expect(addBox?.height).toBeGreaterThanOrEqual(40);

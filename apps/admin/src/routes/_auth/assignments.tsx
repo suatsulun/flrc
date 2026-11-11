@@ -1,4 +1,4 @@
-import { GRADES, academicContextLabels, gradeLabel, gradeTabLabel } from "@flrc/i18n";
+import { GRADES, academicContextLabels, gradeLabel, gradeTabLabel, roleLabel } from "@flrc/i18n";
 import { useState, type DragEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -125,7 +125,7 @@ function AssignmentsPage() {
     const message = t(assign ? "assignmentBoard.assigned" : "assignmentBoard.unassigned", {
       teacher: teacher.full_name,
       className: classes.find((item) => item.id === classId)?.name ?? classId,
-      role: t(`roles.${role}`),
+      role: roleLabel(t, role, classes.find((item) => item.id === classId)?.grade_level),
     });
     // A failed save is reported by the global error toast.
     const saved = await save
@@ -314,6 +314,11 @@ function AssignmentsPage() {
                         className={`grid gap-2 ${rolesFor(teacher.teaching_field).length > 1 ? "sm:grid-cols-2" : ""}`}
                       >
                         {rolesFor(teacher.teaching_field).map((role) => {
+                          const laneLabel = roleLabel(
+                            t,
+                            role,
+                            teacher.teaching_stage === "primary" ? 4 : undefined,
+                          );
                           const assigned = matrix.filter(
                             (item) => item.user_id === teacher.id && item.role === role,
                           );
@@ -331,14 +336,14 @@ function AssignmentsPage() {
                                 <div className="mb-2 flex items-center justify-between gap-2">
                                   <span className="flex min-w-0 items-center gap-2 text-xs font-semibold text-muted-foreground">
                                     <LanguagesIcon className="size-3.5 shrink-0" />
-                                    {t(`roles.${role}`)}
+                                    {laneLabel}
                                     <Badge tone="neutral">{assigned.length}</Badge>
                                   </span>
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     disabled={!writable || save.isPending}
-                                    aria-label={`${teacher.full_name} — ${t(`roles.${role}`)} — ${t("assignmentBoard.addClass")}`}
+                                    aria-label={`${teacher.full_name} — ${laneLabel} — ${t("assignmentBoard.addClass")}`}
                                     onClick={(event) =>
                                       openPicker(event.currentTarget, teacher, role)
                                     }
@@ -350,7 +355,7 @@ function AssignmentsPage() {
                               ) : (
                                 <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                                   <LanguagesIcon className="size-3.5" />
-                                  {t(`roles.${role}`)}
+                                  {laneLabel}
                                 </div>
                               )}
                               <div className="flex flex-wrap gap-1.5">
@@ -523,7 +528,7 @@ function AssignmentClassPickerDialog({
       >
         <DialogHeader>
           <DialogTitle className="pr-8">
-            {teacher.full_name} · {t(`roles.${role}`)}
+            {teacher.full_name} · {roleLabel(t, role, grade)}
           </DialogTitle>
           <DialogDescription>{t("assignmentBoard.pickerDescription")}</DialogDescription>
         </DialogHeader>

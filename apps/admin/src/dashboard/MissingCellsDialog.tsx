@@ -1,3 +1,4 @@
+import { roleLabel } from "@flrc/i18n";
 import { coordinatorMissingCellsOptions, type CompletenessRow } from "@flrc/api-client";
 import { buttonVariants } from "@flrc/ui/components/button";
 import {
@@ -128,7 +129,7 @@ export function MissingCellsDialog({
                           )}
                         </span>
                         <span className="block text-xs text-muted-foreground">
-                          {t(`roles.${cell.owner_role}`)}
+                          {roleLabel(t, cell.owner_role, row.grade_level)}
                         </span>
                       </TableCell>
                     </TableRow>

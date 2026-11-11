@@ -245,6 +245,9 @@
     "middle": "Collège"
   },
   "roles": {
+    "mainCourse": "Enseignant du cours principal",
+    "lgs": "Enseignant LGS",
+    "skillsLgs": "Enseignant de compétences / LGS",
     "main": "Enseignant principal",
     "skills": "Enseignant de compétences",
     "german": "Enseignant d’allemand",
@@ -450,8 +453,8 @@
   },
   "assignmentBoard": {
     "title": "Tableau d’affectation des enseignants",
-    "description": "Faites glisser les classes vers le champ autorisé d’un enseignant. Les enseignants d’anglais reçoivent le rôle Enseignant principal ou Enseignant de compétences ; ceux d’allemand et de français uniquement leur langue.",
-    "phoneDescription": "Touchez un enseignant pour ouvrir sa carte, puis utilisez Ajouter une classe dans le rôle autorisé pour cocher les classes. Les enseignants d’anglais reçoivent Enseignant principal ou Enseignant de compétences ; ceux d’allemand et de français uniquement leur langue.",
+    "description": "Faites glisser les classes vers le champ autorisé d’un enseignant. Les enseignants d’anglais reçoivent le rôle Enseignant principal ou Enseignant de compétences (cours principal ou LGS en 8e année) ; ceux d’allemand et de français uniquement leur langue.",
+    "phoneDescription": "Touchez un enseignant pour ouvrir sa carte, puis utilisez Ajouter une classe dans le rôle autorisé pour cocher les classes. Les enseignants d’anglais reçoivent Enseignant principal ou Enseignant de compétences (cours principal ou LGS en 8e année) ; ceux d’allemand et de français uniquement leur langue.",
     "addClass": "Ajouter une classe",
     "classCount": "Classes : {{count}}",
     "noClassesAssigned": "Aucune classe affectée",

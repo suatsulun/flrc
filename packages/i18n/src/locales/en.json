@@ -245,6 +245,9 @@
     "middle": "Middle school"
   },
   "roles": {
+    "mainCourse": "Main Course teacher",
+    "lgs": "LGS teacher",
+    "skillsLgs": "Skills / LGS teacher",
     "main": "Main teacher",
     "skills": "Skills teacher",
     "german": "German teacher",
@@ -450,8 +453,8 @@
   },
   "assignmentBoard": {
     "title": "Teacher assignment board",
-    "description": "Drag classes from the tray to a teacher’s eligible field. English teachers receive Main or Skills; German and French teachers receive only their language.",
-    "phoneDescription": "Tap a teacher to expand their card, then use Add class in an eligible role to tick classes. English teachers receive Main or Skills; German and French teachers receive only their language.",
+    "description": "Drag classes from the tray to a teacher’s eligible field. English teachers receive Main or Skills (Main Course or LGS in grade 8); German and French teachers receive only their language.",
+    "phoneDescription": "Tap a teacher to expand their card, then use Add class in an eligible role to tick classes. English teachers receive Main or Skills (Main Course or LGS in grade 8); German and French teachers receive only their language.",
     "addClass": "Add class",
     "classCount": "Classes: {{count}}",
     "noClassesAssigned": "No classes assigned yet",

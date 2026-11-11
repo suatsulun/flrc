@@ -49,4 +49,5 @@ export {
   classLabel,
   gradeLabel,
   gradeTabLabel,
+  roleLabel,
 } from "./labels";

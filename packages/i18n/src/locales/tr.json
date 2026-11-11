@@ -245,6 +245,9 @@
     "middle": "Ortaokul"
   },
   "roles": {
+    "mainCourse": "Ana ders öğretmeni",
+    "lgs": "LGS öğretmeni",
+    "skillsLgs": "Beceri / LGS öğretmeni",
     "main": "Sınıf öğretmeni",
     "skills": "Beceri öğretmeni",
     "german": "Almanca öğretmeni",
@@ -450,8 +453,8 @@
   },
   "assignmentBoard": {
     "title": "Öğretmen görevlendirme panosu",
-    "description": "Sınıfları sağdaki listeden öğretmenin uygun alanına sürükleyin. İngilizce öğretmenleri Sınıf veya Beceri alanını, Almanca ve Fransızca öğretmenleri yalnızca kendi dillerini alır.",
-    "phoneDescription": "Bir öğretmene dokunup açın, ardından uygun alanda Sınıf ekle düğmesiyle sınıfları seçin. İngilizce öğretmenleri Sınıf veya Beceri alanını, Almanca ve Fransızca öğretmenleri yalnızca kendi dillerini alır.",
+    "description": "Sınıfları sağdaki listeden öğretmenin uygun alanına sürükleyin. İngilizce öğretmenleri Sınıf veya Beceri alanını (8. sınıfta Ana ders veya LGS), Almanca ve Fransızca öğretmenleri yalnızca kendi dillerini alır.",
+    "phoneDescription": "Bir öğretmene dokunup açın, ardından uygun alanda Sınıf ekle düğmesiyle sınıfları seçin. İngilizce öğretmenleri Sınıf veya Beceri alanını (8. sınıfta Ana ders veya LGS), Almanca ve Fransızca öğretmenleri yalnızca kendi dillerini alır.",
     "addClass": "Sınıf ekle",
     "classCount": "{{count}} sınıf",
     "noClassesAssigned": "Henüz sınıf atanmadı",

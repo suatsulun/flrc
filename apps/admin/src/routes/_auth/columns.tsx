@@ -5,7 +5,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
-import { GRADES, gradeLabel } from "@flrc/i18n";
+import { GRADES, gradeLabel, roleLabel } from "@flrc/i18n";
 import { ChevronDownIcon, ChevronUpIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import {
   createColumnMutation,
@@ -199,7 +199,9 @@ function ColumnsPage() {
                       <span className="block truncate text-sm font-medium">{column.name}</span>
                       <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         <Badge tone="outline">{t(`columns.valueTypes.${column.value_type}`)}</Badge>
-                        <Badge tone="neutral">{t(`roles.${column.owner_role}`)}</Badge>
+                        <Badge tone="neutral">
+                          {roleLabel(t, column.owner_role, column.grade_level)}
+                        </Badge>
                         {column.counts_in_average ? (
                           <Badge tone="info" title={t("columns.countsInAverage")}>
                             Ø
@@ -421,7 +423,7 @@ function CreateDialog({
                 <NativeSelect id={id} {...form.register("owner_role")}>
                   {(isSecondLanguage ? [subject] : ["main", "skills"]).map((role) => (
                     <option key={role} value={role}>
-                      {t(`roles.${role}`)}
+                      {roleLabel(t, role, grade)}
                     </option>
                   ))}
                 </NativeSelect>

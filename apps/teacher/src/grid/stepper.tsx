@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { roleLabel } from "@flrc/i18n";
 import { useTranslation } from "react-i18next";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { GridColumnOut, GridOut, GridRowOut } from "@flrc/api-client";
@@ -74,6 +75,11 @@ export function StepperView({
                   </span>
                 ) : null}
                 <span className="block font-medium">{column.label}</span>
+                {data.meta.grade_level === 8 && data.meta.subject === "english" ? (
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {roleLabel(t, column.owner_role, data.meta.grade_level)}
+                  </span>
+                ) : null}
                 {column.owned_by_you ? null : (
                   <span className="mt-0.5 block text-[0.6875rem] text-warning">
                     {t("grid.ownedBy", {

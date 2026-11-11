@@ -245,6 +245,9 @@
     "middle": "Mittelschule"
   },
   "roles": {
+    "mainCourse": "Lehrkraft für den Hauptkurs",
+    "lgs": "LGS-Lehrkraft",
+    "skillsLgs": "Fachlehrkraft / LGS-Lehrkraft",
     "main": "Klassenlehrkraft",
     "skills": "Fachlehrkraft",
     "german": "Deutschlehrkraft",
@@ -450,8 +453,8 @@
   },
   "assignmentBoard": {
     "title": "Lehrkräfte-Zuweisung",
-    "description": "Klassen aus der Ablage in das zulässige Feld einer Lehrkraft ziehen. Englischlehrkräfte erhalten die Rolle Klassenlehrkraft oder Fachlehrkraft, Deutsch- und Französischlehrkräfte nur ihre Sprache.",
-    "phoneDescription": "Tippen Sie auf eine Lehrkraft, um ihre Karte zu öffnen, und wählen Sie dann über Klasse hinzufügen im passenden Rollenbereich die Klassen aus. Englischlehrkräfte erhalten Klassenlehrkraft oder Fachlehrkraft, Deutsch- und Französischlehrkräfte nur ihre Sprache.",
+    "description": "Klassen aus der Ablage in das zulässige Feld einer Lehrkraft ziehen. Englischlehrkräfte erhalten die Rolle Klassenlehrkraft oder Fachlehrkraft (in Klasse 8 Hauptkurs oder LGS), Deutsch- und Französischlehrkräfte nur ihre Sprache.",
+    "phoneDescription": "Tippen Sie auf eine Lehrkraft, um ihre Karte zu öffnen, und wählen Sie dann über Klasse hinzufügen im passenden Rollenbereich die Klassen aus. Englischlehrkräfte erhalten Klassenlehrkraft oder Fachlehrkraft (in Klasse 8 Hauptkurs oder LGS), Deutsch- und Französischlehrkräfte nur ihre Sprache.",
     "addClass": "Klasse hinzufügen",
     "classCount": "Klassen: {{count}}",
     "noClassesAssigned": "Noch keine Klasse zugewiesen",

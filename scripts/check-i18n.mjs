@@ -79,7 +79,9 @@ for (const root of SOURCE_ROOTS) {
 
 const requiredDynamicKeys = [
   ...["english", "german", "french"].map((value) => `subjects.${value}`),
-  ...["main", "skills", "german", "french"].map((value) => `roles.${value}`),
+  ...["main", "mainCourse", "skills", "lgs", "skillsLgs", "german", "french"].map(
+    (value) => `roles.${value}`,
+  ),
   ...["primary", "middle"].map((value) => `teachingStages.${value}`),
   ...["setup", "active", "archived", "open", "locked"].map((value) => `lifecycle.${value}`),
   ...["all", "primary", "middle", "german", "french"].map(

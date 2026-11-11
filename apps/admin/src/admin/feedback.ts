@@ -1,4 +1,4 @@
-import { gradeLabel, i18n } from "@flrc/i18n";
+import { gradeLabel, i18n, roleLabel } from "@flrc/i18n";
 
 /** The machine-readable parts of a failed API call (`HTTPException` detail objects). */
 export type ApiError = {
@@ -37,7 +37,13 @@ export function apiError(error: unknown): ApiError {
 /** API params carry codes (`main`, `german`, `5`); a sentence needs their localized names. */
 function localizeParams(params: Record<string, string | number>) {
   const values: Record<string, string | number> = { ...params };
-  if (typeof params.role === "string") values.role = i18n.t(`roles.${params.role}`);
+  if (typeof params.role === "string") {
+    values.role = roleLabel(
+      i18n.t,
+      params.role,
+      typeof params.grade_level === "number" ? params.grade_level : undefined,
+    );
+  }
   if (typeof params.subject === "string") values.subject = i18n.t(`subjects.${params.subject}`);
   if (typeof params.grade_level === "number") {
     values.grade_level = gradeLabel(i18n.t, params.grade_level);

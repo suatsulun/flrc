@@ -1,3 +1,4 @@
+import { roleLabel } from "@flrc/i18n";
 import { TableCaption } from "@flrc/ui/components/table";
 import { memo, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { tableFeatures, useTable, type ColumnDef } from "@tanstack/react-table";
@@ -120,9 +121,14 @@ export const GridTable = memo(function GridTable({
               <span className="english-slanted-border" aria-hidden="true" />
               <span
                 className="english-slanted-label"
-                title={`${column.label} · ${t(`roles.${column.owner_role}`)} · ${column.owner_name ?? t("grid.unassignedOwner")}`}
+                title={`${column.label} · ${roleLabel(t, column.owner_role, data.meta.grade_level)} · ${column.owner_name ?? t("grid.unassignedOwner")}`}
               >
                 <span data-testid="assessment-heading">{column.label}</span>
+                {data.meta.grade_level === 8 && data.meta.subject === "english" ? (
+                  <span className="mt-1 block text-[0.6875rem] leading-4 font-normal">
+                    {roleLabel(t, column.owner_role, data.meta.grade_level)}
+                  </span>
+                ) : null}
               </span>
               <span
                 className={`english-owner ${column.owned_by_you ? "" : "text-warning"}`}
@@ -149,6 +155,11 @@ export const GridTable = memo(function GridTable({
               >
                 {column.label}
               </span>
+              {data.meta.grade_level === 8 && data.meta.subject === "english" ? (
+                <span className="block text-xs font-normal text-muted-foreground">
+                  {roleLabel(t, column.owner_role, data.meta.grade_level)}
+                </span>
+              ) : null}
               {!column.owned_by_you ? (
                 <span className="flex items-start gap-1.5 text-xs font-normal text-warning">
                   <TriangleAlertIcon className="mt-0.5 size-3.5 shrink-0" />

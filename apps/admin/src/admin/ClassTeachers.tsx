@@ -1,3 +1,4 @@
+import { roleLabel } from "@flrc/i18n";
 import {
   listAssignmentMatrixOptions,
   listManagedUsersOptions,
@@ -40,7 +41,7 @@ export function ClassTeachers({
       const [change] = body.changes;
       return {
         className,
-        role: t(`roles.${change.role}`),
+        role: roleLabel(t, change.role, grade),
         teacher: users.find((user) => user.id === change.user_id)?.full_name,
       };
     },
@@ -66,14 +67,14 @@ export function ClassTeachers({
         if (matrixPending || usersPending) {
           return (
             <span key={role} className="grid gap-1 text-xs md:flex md:items-center md:gap-1.5">
-              <span className="font-medium text-muted-foreground">{t(`roles.${role}`)}</span>
+              <span className="font-medium text-muted-foreground">{roleLabel(t, role, grade)}</span>
               <Skeleton className="h-9 w-40 max-md:h-10 max-md:w-full" />
             </span>
           );
         }
         return (
           <label key={role} className="grid gap-1 text-xs md:flex md:items-center md:gap-1.5">
-            <span className="font-medium text-muted-foreground">{t(`roles.${role}`)}</span>
+            <span className="font-medium text-muted-foreground">{roleLabel(t, role, grade)}</span>
             <NativeSelect
               className="w-40 max-md:w-full"
               value={slot?.user_id ?? ""}

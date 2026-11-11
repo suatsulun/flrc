@@ -1,3 +1,4 @@
+import { roleLabel } from "@flrc/i18n";
 import { useDragPageAutoScroll } from "@flrc/ui/hooks/use-drag-page-auto-scroll";
 import type { ColumnCreate } from "@flrc/api-client";
 import { reorderColumns, updateColumnMutation, type ColumnOut } from "@flrc/api-client";
@@ -39,7 +40,7 @@ export function ClassColumnHeaders({
       notifyDone(
         t("columns.ownerChanged", {
           name: updated.name,
-          role: t(`roles.${updated.owner_role}`),
+          role: roleLabel(t, updated.owner_role, updated.grade_level),
         }),
         updated.action_id,
       );
@@ -178,7 +179,7 @@ export function ClassColumnHeaders({
               <NativeSelect
                 className="h-7 w-full min-w-0 px-1.5 pr-5 text-xs"
                 aria-label={t("classWorkspace.columnOwner")}
-                title={t(`roles.${column.owner_role}`)}
+                title={roleLabel(t, column.owner_role, column.grade_level)}
                 value={column.owner_role}
                 onChange={(event) =>
                   semesterId &&
@@ -191,12 +192,14 @@ export function ClassColumnHeaders({
               >
                 {ownerRoles.map((role) => (
                   <option key={role} value={role}>
-                    {t(`roles.${role}`)}
+                    {roleLabel(t, role, column.grade_level)}
                   </option>
                 ))}
               </NativeSelect>
             ) : (
-              <span title={t(`roles.${column.owner_role}`)}>{t(`roles.${column.owner_role}`)}</span>
+              <span title={roleLabel(t, column.owner_role, column.grade_level)}>
+                {roleLabel(t, column.owner_role, column.grade_level)}
+              </span>
             )}
           </div>
         </th>
